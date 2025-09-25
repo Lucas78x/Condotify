@@ -1,0 +1,64 @@
+﻿h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+p {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #555;
+}
+
+/* Grid de cards */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Estilo individual dos cards */
+.card {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    padding: 20px;
+    text-align: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    cursor: pointer;
+}
+
+.card i.material-icons {
+    font-size: 36px;
+    color: #3498db;
+    margin-bottom: 10px;
+}
+
+.card p {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+/* Efeito hover */
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+/* Responsividade para telas menores */
+@media (max-width: 600px) {
+    .cards {
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+    }
+
+    .card i.material-icons {
+        font-size: 28px;
+    }
+
+    .card p {
+        font-size: 14px;
+    }
+}

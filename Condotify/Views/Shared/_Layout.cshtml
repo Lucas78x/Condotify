@@ -1,0 +1,96 @@
+﻿@{
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+}
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewBag.Title - Condotify</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="~/css/shared/shared.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h2>Condotify</h2>
+
+        <div class="menu-group">
+            <a class="@(currentAction=="Inicio"?"active":"")" href="@Url.Action("Inicio","Home")">
+                <i class="material-icons">assignment_ind</i> Licenças
+            </a>
+            <a class="@(currentAction=="ControleAcessos"?"active":"")" href="@Url.Action("ControleAcessos","Home")">
+                <i class="material-icons">find_in_page</i> Controle de acessos
+            </a>
+            <a class="@(currentAction=="PesquisaCadastrados"?"active":"")" href="@Url.Action("PesquisaCadastrados","Home")">
+                <i class="material-icons">person_add_alt_1</i> Pesquisa de cadastrados
+            </a>
+            <a class="@(currentAction=="NovoCadastro"?"active":"")" href="@Url.Action("NovoCadastro","Home")">
+                <i class="material-icons">speaker_phone</i> Novo cadastro
+            </a>
+        </div>
+
+        <div class="menu-group">
+            <a class="@(currentAction=="GestaoCredenciais"?"active":"")" href="@Url.Action("GestaoCredenciais","Home")">
+                <i class="material-icons">mail</i> Gestão de credenciais
+            </a>
+            <a class="@(currentAction=="ConvitesCadastro"?"active":"")" href="@Url.Action("ConvitesCadastro","Home")">
+                <i class="material-icons">topic</i> Convites de cadastro
+            </a>
+            <a class="@(currentAction=="Funcionalidades"?"active":"")" href="@Url.Action("Funcionalidades","Home")">
+                <i class="material-icons">build</i> Funcionalidades
+            </a>
+        </div>
+
+        <div class="menu-group">
+            <a class="@(currentAction=="Agendamentos"?"active":"")" href="@Url.Action("Agendamentos","Home")">
+                <i class="material-icons">event</i> Agendamentos e convidados
+            </a>
+            <a class="@(currentAction=="MuralAvisos"?"active":"")" href="@Url.Action("MuralAvisos","Home")">
+                <i class="material-icons">campaign</i> Mural de avisos
+            </a>
+            <a class="@(currentAction=="Pedidos"?"active":"")" href="@Url.Action("Pedidos","Home")">
+                <i class="material-icons">forum</i> Pedidos e manifestações
+            </a>
+            <a class="@(currentAction=="Entregas"?"active":"")" href="@Url.Action("Entregas","Home")">
+                <i class="material-icons">markunread_mailbox</i> Entregas
+            </a>
+        </div>
+
+        <div class="menu-group">
+            <a class="@(currentAction=="Objetos"?"active":"")" href="@Url.Action("Objetos","Home")">
+                <i class="material-icons">style</i> Objetos
+            </a>
+            <a class="@(currentAction=="Manutencoes"?"active":"")" href="@Url.Action("Manutencoes","Home")">
+                <i class="material-icons">construction</i> Manutenções
+            </a>
+            <a class="@(currentAction=="Boletos"?"active":"")" href="@Url.Action("Boletos","Home")">
+                <i class="material-icons">description</i> Boletos
+            </a>
+            <a class="@(currentAction=="Documentos"?"active":"")" href="@Url.Action("Documentos","Home")">
+                <i class="material-icons">attach_file</i> Documentos
+            </a>
+        </div>
+
+        <div class="menu-group">
+            <a class="@(currentAction=="RegistroTurno"?"active":"")" href="@Url.Action("RegistroTurno","Home")">
+                <i class="material-icons">fact_check</i> Registro de turno
+            </a>
+            <a class="@(currentAction=="Instituicoes"?"active":"")" href="@Url.Action("Instituicoes","Home")">
+                <i class="material-icons">business</i> Instituições
+            </a>
+            <a class="@(currentAction=="Avancado"?"active":"")" href="@Url.Action("Avancado","Home")">
+                <i class="material-icons">security</i> Avançado
+            </a>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="main-content">
+        @RenderBody()
+    </div>
+</body>
+</html>
