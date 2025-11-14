@@ -1,4 +1,4 @@
-﻿using CondotifyAPI.DTO.Resident;
+﻿using CondotifyAPI.Domain.DTO.Resident;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -40,10 +40,10 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Resident
 
             builder
                 .Property(x => x.AccessType)
-                .HasConversion(new ValueConverter<AccessTypeEnum, int>(
+                .HasConversion(new ValueConverter<ResidentAccessTypeEnum, int>(
                     x => (int)x,
-                    x => (AccessTypeEnum)x))
-                .HasDefaultValue(AccessTypeEnum.Default)
+                    x => (ResidentAccessTypeEnum)x))
+                .HasDefaultValue(ResidentAccessTypeEnum.Default)
                 .IsRequired();
 
             builder.Property(r => r.FirstAccess)

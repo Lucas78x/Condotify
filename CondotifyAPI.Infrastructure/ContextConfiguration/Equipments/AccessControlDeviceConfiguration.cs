@@ -1,4 +1,4 @@
-﻿using CondotifyAPI.DTO.Equipments;
+﻿using CondotifyAPI.Domain.DTO.Equipments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

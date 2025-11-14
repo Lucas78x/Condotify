@@ -1,4 +1,4 @@
-﻿using CondotifyAPI.DTO.Resident;
+﻿using CondotifyAPI.Domain.DTO.Resident;
 using CondotifyAPI.Infrastructure.ContextConfiguration.Resident;
 using Microsoft.EntityFrameworkCore;
 

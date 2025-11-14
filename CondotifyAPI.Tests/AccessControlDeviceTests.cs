@@ -1,6 +1,6 @@
 ﻿using System;
-using CondotifyAPI.Models;
-using CondotifyAPI.Models.Equipments;
+using CondotifyAPI.Domain.Models;
+using CondotifyAPI.Domain.Models.Equipments;
 using Xunit;
 
 namespace CondotifyAPI.Tests

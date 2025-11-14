@@ -1,4 +1,4 @@
-﻿using CondotifyAPI.DTO.License;
+﻿using CondotifyAPI.Domain.DTO.License;
 using CondotifyAPI.Infrastructure.ContextConfiguration.License;
 using Microsoft.EntityFrameworkCore;
 

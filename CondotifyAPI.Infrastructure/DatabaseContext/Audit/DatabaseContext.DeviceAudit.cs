@@ -1,4 +1,4 @@
-﻿using CondotifyAPI.DTO.Audit;
+﻿using CondotifyAPI.Domain.DTO.Audit;
 using CondotifyAPI.Infrastructure.ContextConfiguration.Audit;
 using CondotifyAPI.Infrastructure.ContextConfiguration.Enterprise;
 using Microsoft.EntityFrameworkCore;

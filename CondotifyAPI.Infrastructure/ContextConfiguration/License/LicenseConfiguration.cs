@@ -1,5 +1,5 @@
-﻿using CondotifyAPI.DTO.License;
-using CondotifyAPI.DTO.Location;
+﻿using CondotifyAPI.Domain.DTO.License;
+using CondotifyAPI.Domain.DTO.Location;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;

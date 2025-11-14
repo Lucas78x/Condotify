@@ -1,5 +1,5 @@
 ﻿using System;
-using CondotifyAPI.Models.Users;
+using CondotifyAPI.Domain.Models.Users;
 using Xunit;
 
 namespace CondotifyAPI.Tests

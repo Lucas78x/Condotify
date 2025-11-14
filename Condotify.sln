@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CondotifyAPI.Tests", "Condo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CondotifyAPI.Infrastructure", "CondotifyAPI.Infrastructure\CondotifyAPI.Infrastructure.csproj", "{94CDB4A3-7190-4D5D-937C-AC48769E791D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CondotifyAPI.Domain", "CondotifyAPI.Domain\CondotifyAPI.Domain.csproj", "{BE929B7A-5D48-4267-85DF-9E63DD0C4F50}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{94CDB4A3-7190-4D5D-937C-AC48769E791D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{94CDB4A3-7190-4D5D-937C-AC48769E791D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{94CDB4A3-7190-4D5D-937C-AC48769E791D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BE929B7A-5D48-4267-85DF-9E63DD0C4F50}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BE929B7A-5D48-4267-85DF-9E63DD0C4F50}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BE929B7A-5D48-4267-85DF-9E63DD0C4F50}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BE929B7A-5D48-4267-85DF-9E63DD0C4F50}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

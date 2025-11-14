@@ -1,5 +1,5 @@
-﻿using CondotifyAPI.DTO.Block;
-using CondotifyAPI.DTO.Equipments;
+﻿using CondotifyAPI.Domain.DTO.Block;
+using CondotifyAPI.Domain.DTO.Equipments;
 using CondotifyAPI.Infrastructure.ContextConfiguration.Block;
 using CondotifyAPI.Infrastructure.ContextConfiguration.Equipments;
 using Microsoft.EntityFrameworkCore;

@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using CondotifyAPI.DTO.Enterprise;
+using CondotifyAPI.Domain.DTO.Enterprise;
+using CondotifyAPI.Domain.Models.Users;
+using System.Reflection.Emit;
 
 namespace CondotifyAPI.Infrastructure.ContextConfiguration.Enterprise;
 
@@ -62,5 +64,11 @@ public class EnterpriseConfiguration : IEntityTypeConfiguration<EnterpriseDTO>
                .WithOne(l => l.Enterprise)
                .HasForeignKey(l => l.EnterpriseId)
                .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(e => e.Users)  
+            .WithOne(u => u.Enterprise)
+            .HasForeignKey(u => u.EnterpriseId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

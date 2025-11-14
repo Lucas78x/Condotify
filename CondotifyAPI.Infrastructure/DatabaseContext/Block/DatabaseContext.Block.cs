@@ -1,4 +1,4 @@
-﻿using CondotifyAPI.DTO.Block;
+﻿using CondotifyAPI.Domain.DTO.Block;
 using CondotifyAPI.Infrastructure.ContextConfiguration.Block;
 using Microsoft.EntityFrameworkCore;
 

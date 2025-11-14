@@ -1,5 +1,5 @@
-﻿using CondotifyAPI.Models;
-using CondotifyAPI.Models.License;
+﻿using CondotifyAPI.Domain.Models;
+using CondotifyAPI.Domain.Models.License;
 
 namespace CondotifyAPI.Tests
 {

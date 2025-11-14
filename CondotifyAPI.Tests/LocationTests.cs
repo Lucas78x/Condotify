@@ -1,4 +1,4 @@
-﻿using CondotifyAPI.Models;
+﻿using CondotifyAPI.Domain.Models;
 
 namespace CondotifyAPI.Tests
 {
