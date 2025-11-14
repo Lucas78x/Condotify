@@ -26,5 +26,8 @@
     SS3541MF,
     CT30002PB,
     CT30004PB,
-    SS3710UHF
+    SS3710UHF,
+    IdFace,
+    IdFaceMax,
+
 }

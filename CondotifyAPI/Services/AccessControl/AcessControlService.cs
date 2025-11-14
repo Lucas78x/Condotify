@@ -1,71 +1,46 @@
-﻿using System.Net;
-using System.Net.Http;
-using System.Threading.Tasks;
-using CondotifyAPI.Data.Equipments;
+﻿using CondotifyAPI.Data.Equipments;
 using CondotifyAPI.Domain.Models.Equipments;
-using CondotifyAPI.Services.Extensions;
+using CondotifyAPI.Services.Factorys;
 
 namespace CondotifyAPI.Services.AccessControl
 {
     public class AccessControlService : IAccessControlService
     {
-        private readonly HttpClient _httpClient;
+        private readonly IAccessControlDriverFactory _driverFactory;
 
-        public AccessControlService(HttpClient httpClient)
+        public AccessControlService(IAccessControlDriverFactory driverFactory)
         {
-            _httpClient = httpClient;
+            _driverFactory = driverFactory;
         }
 
-        public async Task<bool> TestConnectionAsync(CreateAccessControlDeviceByLicenseIn device)
+        public Task<bool> TestConnectionAsync(CreateAccessControlDeviceByLicenseIn device)
         {
-            try
-            {
-                if (device.Type.IsIn())
-                {
-                    var url = $"http://{device.IPAddress}/cgi-bin/configManager.cgi?action=getConfig&name=Network";
-
-                    var handler = new HttpClientHandler
-                    {
-                        Credentials = new NetworkCredential(device.Username, device.Password),
-                        PreAuthenticate = true
-                    };
-
-                    using (var client = new HttpClient(handler))
-                    {
-                        client.Timeout = TimeSpan.FromSeconds(10);
-
-                        var response = await client.GetAsync(url);
-
-                        return response.IsSuccessStatusCode;
-                    }
-                }
-
-                return false;
-            }
-            catch
-            {
-                return false;
-            }
+            var driver = _driverFactory.GetDriver(device.Type);
+            return driver.TestConnectionAsync(device);
         }
 
         public Task<string> GetUsersAsync(AccessControlDevice device)
         {
-            throw new NotImplementedException();
+            var driver = _driverFactory.GetDriver(device.Type);
+            return driver.GetUsersAsync(device);
         }
 
         public Task<bool> AddUserAsync(AccessControlDevice device, object user)
         {
-            throw new NotImplementedException();
+            var driver = _driverFactory.GetDriver(device.Type);
+            return driver.AddUserAsync(device, user);
         }
 
         public Task<bool> DeleteUserAsync(AccessControlDevice device, string userId)
         {
-            throw new NotImplementedException();
+            var driver = _driverFactory.GetDriver(device.Type);
+            return driver.DeleteUserAsync(device, userId);
         }
 
         public Task<string> GetEventsAsync(AccessControlDevice device)
         {
-            throw new NotImplementedException();
+            var driver = _driverFactory.GetDriver(device.Type);
+            return driver.GetEventsAsync(device);
         }
     }
 }

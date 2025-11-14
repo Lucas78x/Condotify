@@ -1,110 +1,40 @@
 ﻿@{
-    ViewBag.Title = "Login";
-    Layout = null; 
+    Layout = null;
 }
 
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta charset="utf-8" />
+    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login - Condotify</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-        body, html { height: 100%; }
-
-        body {
-            background: linear-gradient(135deg, #1f2937, #3b82f6);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .login-container {
-            background: rgba(255,255,255,0.05);
-            backdrop-filter: blur(15px);
-            border-radius: 20px;
-            padding: 50px 40px;
-            width: 350px;
-            text-align: center;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        .login-container h1 {
-            color: #fff;
-            margin-bottom: 30px;
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
-
-        /* Inputs modernos */
-        .login-container input[type="text"],
-        .login-container input[type="password"] {
-            width: 100%;
-            padding: 12px 20px;
-            margin: 10px 0 20px 0;
-            border: none;
-            border-radius: 10px;
-            outline: none;
-            background: rgba(255,255,255,0.15);
-            color: #fff;
-            font-size: 16px;
-            transition: background 0.3s, box-shadow 0.3s;
-        }
-
-        .login-container input:focus {
-            background: rgba(255,255,255,0.25);
-            box-shadow: 0 0 10px #3b82f6;
-        }
-
-        .login-container button {
-            width: 100%;
-            padding: 12px;
-            background: #3b82f6;
-            border: none;
-            border-radius: 10px;
-            color: #fff;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s, transform 0.2s;
-        }
-
-        .login-container button:hover {
-            background: #2563eb;
-            transform: translateY(-2px);
-        }
-
-        .login-container .links {
-            margin-top: 20px;
-            font-size: 14px;
-        }
-
-        .login-container .links a {
-            color: #fff;
-            text-decoration: none;
-            margin: 0 5px;
-            transition: color 0.3s;
-        }
-
-        .login-container .links a:hover {
-            color: #3b82f6;
-        }
-    </style>
+    <title>Login - F&F Condotify</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div class="login-container">
-        <h1>Condotify</h1>
-        @using (Html.BeginForm("Login", "Account", FormMethod.Post))
-        {
-            <input type="text" name="Username" placeholder="Usuário" required />
-            <input type="password" name="Password" placeholder="Senha" required />
-            <button type="submit">Entrar</button>
-        }
-        <div class="links">
-            <a href="#">Esqueceu a senha?</a>
+<body class="min-h-screen bg-gradient-to-br from-gray-900 to-blue-600 flex items-center justify-center p-6">
+    <div class="backdrop-blur-xl bg-white/10 border border-white/20 shadow-2xl rounded-2xl p-10 w-full max-w-sm text-center">
+        <h1 class="text-white text-3xl font-bold tracking-wide mb-8">Condotify</h1>
+
+        <form method="post" action="/Account/Login" class="space-y-5">
+            <input type="text"
+                   name="Username"
+                   placeholder="Usuário"
+                   required
+                   class="w-full px-4 py-3 rounded-xl bg-white/20 text-white placeholder-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 transition" />
+
+            <input type="password"
+                   name="Password"
+                   placeholder="Senha"
+                   required
+                   class="w-full px-4 py-3 rounded-xl bg-white/20 text-white placeholder-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 transition" />
+
+            <button type="submit"
+                    class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl shadow-lg transform hover:-translate-y-1 transition">
+                Entrar
+            </button>
+        </form>
+
+        <div class="mt-6 text-sm text-white/80">
+            <a href="#" class="hover:text-blue-300 transition">Esqueceu a senha?</a>
         </div>
     </div>
 </body>

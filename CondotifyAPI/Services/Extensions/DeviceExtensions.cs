@@ -2,7 +2,7 @@
 {
     public static class DeviceExtensions
     {
-        public static bool IsIn(this DeviceTypeEnum deviceType)
+        public static bool IsInIntelbras(this DeviceTypeEnum deviceType)
         {
             return deviceType switch
             {
@@ -33,6 +33,17 @@
                 DeviceTypeEnum.CT30002PB or
                 DeviceTypeEnum.CT30004PB or
                 DeviceTypeEnum.SS3710UHF
+                    => true,
+                _ => false
+            };
+        }
+
+        public static bool IsInControlId(this DeviceTypeEnum deviceType)
+        {
+            return deviceType switch
+            {
+                DeviceTypeEnum.IdFace or
+                DeviceTypeEnum.IdFaceMax
                     => true,
                 _ => false
             };

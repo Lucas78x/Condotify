@@ -4,6 +4,7 @@ using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Infrastructure.Mapping;
 using CondotifyAPI.Infrastructure.Repositories;
 using CondotifyAPI.Services.AccessControl;
+using CondotifyAPI.Services.Drivers;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -47,6 +48,8 @@ builder.Services.AddMediatR(cfg =>
 );
 
 builder.Services.AddScoped<ICondotifyCommandsRepository, CondotifyCommandsRepository>();
+builder.Services.AddScoped<IAccessControlService, AccessControlService>();
+builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();;
 
 var app = builder.Build();
 
@@ -56,7 +59,6 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-// Middleware
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
