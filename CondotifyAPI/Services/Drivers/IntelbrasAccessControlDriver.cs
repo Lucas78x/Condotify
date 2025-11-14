@@ -1,4 +1,5 @@
-﻿using CondotifyAPI.Domain.Models.Equipments;
+﻿using CondotifyAPI.Data.Equipments;
+using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Services.Drivers;
 using CondotifyAPI.Services.Extensions;
 using System.Net.Http.Headers;
@@ -14,7 +15,7 @@ public class IntelbrasAccessControlDriver : IAccessControlDriver
         _clientFactory = clientFactory;
     }
 
-    public async Task<bool> TestConnectionAsync(AccessControlDevice device)
+    public async Task<bool> TestConnectionAsync(CreateAccessControlDeviceByLicenseIn device)
     {
         var url = $"http://{device.IPAddress}/cgi-bin/configManager.cgi?action=getConfig&name=Network";
 
