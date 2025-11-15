@@ -65,6 +65,10 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Resident
                 .IsRequired()
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+            builder.HasMany(r => r.Devices)
+                .WithOne(d => d.Resident)   
+                .HasForeignKey(d => d.ResidentId); 
+
         }
     }
 }
