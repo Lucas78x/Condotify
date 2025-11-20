@@ -1,0 +1,306 @@
+﻿using CondotifyAPI.Data.Equipments;
+using CondotifyAPI.Domain.Models.Equipments;
+using CondotifyAPI.Services.Drivers;
+using CondotifyAPI.Services.Extensions;
+using System.Net;
+using System.Text;
+using System.Text.Json;
+
+public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
+{
+    private readonly IHttpClientFactory _clientFactory;
+
+    public bool Supports(DeviceTypeEnum type) => type.IsInIntelbrasUHF();
+
+    public IntelbrasUHFAccessControlDriver(IHttpClientFactory clientFactory)
+    {
+        _clientFactory = clientFactory;
+    }
+    public async Task<bool> TestConnectionAsync(CreateAccessControlDeviceByLicenseIn device)
+    {
+        try
+        {
+            var url = $"http://{device.IPAddress}/cgi-bin/global.cgi?action=getCurrentTime";
+
+            var handler = new HttpClientHandler()
+            {
+                PreAuthenticate = true,
+                UseDefaultCredentials = false,
+                Credentials = new NetworkCredential(device.Username, device.Password)
+            };
+
+            using var client = new HttpClient(handler);
+            client.Timeout = TimeSpan.FromSeconds(10);
+
+            var response = await client.GetAsync(url);
+           var success = response.IsSuccessStatusCode;
+
+            if (!success)
+                return false;
+
+            var version = await GetFirmwareVersionAsync(device.IPAddress,device.Username,device.Password);
+
+            Console.WriteLine($"Device:{device.Type.ToString()} Firmware Version:{version}");
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    public async Task<string?> GetFirmwareVersionAsync(string ip, string username, string password)
+    {
+        try
+        {
+            var url = $"http://{ip}/cgi-bin/magicBox.cgi?action=getSoftwareVersion";
+
+            var credentialCache = new CredentialCache();
+            credentialCache.Add(
+                new Uri(url),
+                "Digest",
+                new NetworkCredential(username, password)
+            );
+
+            var handler = new HttpClientHandler()
+            {
+                Credentials = credentialCache,
+                PreAuthenticate = true
+            };
+
+            using var client = new HttpClient(handler);
+            client.Timeout = TimeSpan.FromSeconds(20);
+
+            var response = await client.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            return await response.Content.ReadAsStringAsync();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<List<AccessUser>> GetUsersAsync(AccessControlDevice device)
+    {
+        var baseUrl = $"http://{device.IPAddress}";
+        var users = new List<AccessUser>();
+
+        try
+        {
+            var startUrl = $"{baseUrl}/cgi-bin/AccessUser.cgi?action=startFind";
+            var startJson = await DigestGetAsync(startUrl, device.Username, device.Password);
+
+            if (string.IsNullOrWhiteSpace(startJson))
+                return users;
+
+            var start = JsonSerializer.Deserialize<StartFindResponse>(startJson);
+
+            if (start == null || start.Total == 0)
+            {
+                var stopUrl0 = $"{baseUrl}/cgi-bin/AccessUser.cgi?action=stopFind";
+                await DigestGetAsync(stopUrl0, device.Username, device.Password);
+                return users;
+            }
+
+            int totalUsers = start.Total;
+            int countPerRequest = 5;
+
+            while (users.Count < totalUsers)
+            {
+                var doFindUrl =
+                    $"{baseUrl}/cgi-bin/AccessUser.cgi?action=doFind&Count={countPerRequest}";
+
+                var json = await DigestGetAsync(doFindUrl, device.Username, device.Password);
+
+                if (string.IsNullOrWhiteSpace(json))
+                    break;
+
+                var block = JsonSerializer.Deserialize<DoFindResponse>(json);
+
+                if (block?.Info == null || block.Info.Count == 0)
+                    break;
+
+                users.AddRange(block.Info);
+            }
+
+            var stopUrl = $"{baseUrl}/cgi-bin/AccessUser.cgi?action=stopFind";
+            await DigestGetAsync(stopUrl, device.Username, device.Password);
+
+            return users;
+        }
+        catch
+        {
+            return users;
+        }
+    }
+
+    public async Task<string?> RemoveUserAsync(string ip, string username, string password, int userId)
+    {
+        try
+        {
+            var url =
+                $"http://{ip}/cgi-bin/AccessUser.cgi?action=removeMulti&UserIDList[0]={userId}";
+
+            var credentialCache = new CredentialCache();
+            credentialCache.Add(
+                new Uri(url),
+                "Digest",
+                new NetworkCredential(username, password)
+            );
+
+            var handler = new HttpClientHandler()
+            {
+                Credentials = credentialCache,
+                PreAuthenticate = true
+            };
+
+            using var client = new HttpClient(handler);
+            client.Timeout = TimeSpan.FromSeconds(20);
+
+            var response = await client.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            return await response.Content.ReadAsStringAsync();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task ListenEventsAsync(string ip, string username, string password)
+    {
+        var url = $"http://{ip}/cgi-bin/eventManager.cgi?action=attach&codes=[All]&heartbeat=5";
+
+        var credentialCache = new CredentialCache();
+        credentialCache.Add(
+            new Uri(url),
+            "Digest",
+            new NetworkCredential(username, password)
+        );
+
+        var handler = new HttpClientHandler()
+        {
+            Credentials = credentialCache,
+            PreAuthenticate = true
+        };
+
+        using var client = new HttpClient(handler);
+        client.Timeout = Timeout.InfiniteTimeSpan; 
+
+        Console.WriteLine("Conectando ao EventManager...");
+
+        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+
+        Console.WriteLine($"STATUS: {response.StatusCode}");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"Erro: {await response.Content.ReadAsStringAsync()}");
+            return;
+        }
+
+        var stream = await response.Content.ReadAsStreamAsync();
+        using var reader = new StreamReader(stream);
+
+        Console.WriteLine("📡 Lendo eventos... (Ctrl+C para parar)");
+
+        string? line;
+        var builder = new StringBuilder();
+
+        while ((line = await reader.ReadLineAsync()) != null)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                if (builder.Length > 0)
+                {
+                    Console.WriteLine("\n🔔 EVENTO RECEBIDO:");
+                    Console.WriteLine(builder.ToString());
+                    builder.Clear();
+                }
+            }
+            else if (!line.StartsWith("--myboundary")) 
+            {
+                builder.AppendLine(line);
+            }
+        }
+    }
+
+    private async Task<string?> DigestGetAsync(string url, string username, string password)
+    {
+        try
+        {
+            var credentialCache = new CredentialCache();
+            credentialCache.Add(
+                new Uri(url),
+                "Digest",
+                new NetworkCredential(username, password)
+            );
+
+            var handler = new HttpClientHandler()
+            {
+                Credentials = credentialCache,
+                PreAuthenticate = true
+            };
+
+            using var client = new HttpClient(handler);
+            client.Timeout = TimeSpan.FromSeconds(15);
+
+            var response = await client.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            return await response.Content.ReadAsStringAsync();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public Task<bool> AddUserAsync(AccessControlDevice device, object user)
+        => throw new NotImplementedException();
+
+    public Task<bool> DeleteUserAsync(AccessControlDevice device, string userId)
+        => throw new NotImplementedException();
+
+    public Task<string> GetEventsAsync(AccessControlDevice device)
+        => throw new NotImplementedException();
+
+    #region[TODO: Será refeito no User]
+    public class AccessUser
+    {
+        public string UserID { get; set; }
+        public string UserName { get; set; }
+        public int UserType { get; set; }
+        public bool IsFirstEnter { get; set; }
+        public int UserStatus { get; set; }
+        public string CitizenIDNo { get; set; }
+        public List<int> SpecialDaysSchedule { get; set; }
+        public string Password { get; set; }
+        public List<int> Doors { get; set; }
+        public List<int> TimeSections { get; set; }
+        public DateTime ValidFrom { get; set; }
+        public DateTime ValidTo { get; set; }
+    }
+
+    public class StartFindResponse
+    {
+        public int Token { get; set; }
+        public int Total { get; set; }
+        public int Caps { get; set; }
+    }
+
+    public class DoFindResponse
+    {
+        public List<AccessUser> Info { get; set; }
+    }
+    #endregion
+
+}

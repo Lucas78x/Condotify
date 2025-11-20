@@ -20,4 +20,6 @@ namespace CondotifyAPI.Domain.DTO.Equipments
         public Guid ResidentId { get; set; }
         public ResidentAccessDTO Resident { get; set; }
     }
+
+
 }

@@ -12,4 +12,4 @@ public partial class DatabaseContext
     {
         builder.ApplyConfiguration(new LicenseConfiguration());
     }
-}
+}   

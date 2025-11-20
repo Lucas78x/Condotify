@@ -1,4 +1,6 @@
-﻿namespace CondotifyAPI.Services.Extensions
+﻿using System.Reflection.Metadata.Ecma335;
+
+namespace CondotifyAPI.Services.Extensions
 {
     public static class DeviceExtensions
     {
@@ -31,11 +33,20 @@
                 DeviceTypeEnum.SS5430MFBioFT or
                 DeviceTypeEnum.SS3541MF or
                 DeviceTypeEnum.CT30002PB or
-                DeviceTypeEnum.CT30004PB or
-                DeviceTypeEnum.SS3710UHF
+                DeviceTypeEnum.CT30004PB 
                     => true,
                 _ => false
             };
+        }
+
+        public static bool IsInIntelbrasUHF( this DeviceTypeEnum deviceType)
+        {
+            return deviceType switch
+            {
+                DeviceTypeEnum.SS3710UHF => true,
+                _ => false
+            };
+            
         }
 
         public static bool IsInControlId(this DeviceTypeEnum deviceType)
