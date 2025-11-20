@@ -1,6 +1,4 @@
-﻿using System.Reflection.Metadata.Ecma335;
-
-namespace CondotifyAPI.Services.Extensions
+﻿namespace CondotifyAPI.Services.Extensions
 {
     public static class DeviceExtensions
     {
@@ -58,6 +56,11 @@ namespace CondotifyAPI.Services.Extensions
                     => true,
                 _ => false
             };
+        }
+
+        public static string ToHexCard(string raw)
+        {
+            return raw.Replace(" ", "").Trim().ToUpper();
         }
     }
 }
