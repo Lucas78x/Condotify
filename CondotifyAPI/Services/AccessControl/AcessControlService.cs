@@ -22,7 +22,7 @@ namespace CondotifyAPI.Services.AccessControl
         public Task<string> GetUsersAsync(AccessControlDevice device)
         {
             var driver = _driverFactory.GetDriver(device.Type);
-            return driver.GetUsersAsync(device);
+            return driver.GetEventsAsync(device);
         }
 
         public Task<bool> AddUserAsync(AccessControlDevice device, object user)

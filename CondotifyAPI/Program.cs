@@ -5,6 +5,7 @@ using CondotifyAPI.Infrastructure.Mapping;
 using CondotifyAPI.Infrastructure.Repositories;
 using CondotifyAPI.Services.AccessControl;
 using CondotifyAPI.Services.Drivers;
+using CondotifyAPI.Services.Factorys;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -48,8 +49,15 @@ builder.Services.AddMediatR(cfg =>
 );
 
 builder.Services.AddScoped<ICondotifyCommandsRepository, CondotifyCommandsRepository>();
+
+// Todos os drivers disponíveis
+builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();
+
+// Factory que escolhe o driver certo
+builder.Services.AddScoped<IAccessControlDriverFactory, AccessControlDriverFactory>();
+
+// Service que usa a factory
 builder.Services.AddScoped<IAccessControlService, AccessControlService>();
-builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();;
 
 var app = builder.Build();
 

@@ -608,6 +608,11 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
     public Task<string> GetEventsAsync(AccessControlDevice device)
         => throw new NotImplementedException();
 
+    Task<string> IAccessControlDriver.GetUsersAsync(AccessControlDevice device)
+    {
+        throw new NotImplementedException();
+    }
+
     #region TODO: Será refeito no User
     public class AccessUser
     {
