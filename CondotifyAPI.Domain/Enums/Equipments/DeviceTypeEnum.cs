@@ -29,5 +29,6 @@
     SS3710UHF,
     IdFace,
     IdFaceMax,
+    ControlIdUHF,
 
 }

@@ -168,7 +168,7 @@ public class AccessController : ControllerBase
             return Created("", new CreateLicenseOut { Result = LicenseCreateResult.Created, License = result });
         }
         else
-        {       
+        {
             return Conflict(new CreateLicenseOut
             {
                 Result = LicenseCreateResult.LicenseKeyInUse,
@@ -229,6 +229,31 @@ public class AccessController : ControllerBase
             });
         }
     }
+
+    [HttpPost("test-connection")]
+    [ProducesResponseType(typeof(CreateAccessControlDeviceByLicenseOut), 201)]
+    public async Task<IActionResult> TestConnection(
+   [FromHeader(Name = "X-API-Key")] string apiKey,
+   [FromBody] CreateAccessControlDeviceByLicenseIn device)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey) || apiKey != _apiKey)
+        {
+            return Unauthorized();
+        }
+
+        var successConection = await _controlService.TestConnectionAsync(device);
+        if (!successConection)
+        {
+            return BadRequest(new
+            {
+                Result = "InvalidRequest",
+                Errors = "Não foi possível conectar ao dispositivo, verifique os dados de acesso e tente novamente."
+            });
+        }
+
+        return Created("", new CreateAccessControlDeviceByLicenseOut { Result = CreateAccessControlDeviceResult.InvalidData });
+    }
+
     [HttpPost("create-enterprise")]
     [ProducesResponseType(typeof(CreateEnterpriseOut), 201)]
     public async Task<IActionResult> CreateEnterprise(

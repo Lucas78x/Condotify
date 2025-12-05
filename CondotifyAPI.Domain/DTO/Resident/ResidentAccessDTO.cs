@@ -16,7 +16,7 @@ namespace CondotifyAPI.Domain.DTO.Resident
         public string ApartmentNumber { get; set; }
         public string ImgUrl { get; set; }
         public ResidentAccessTypeEnum AccessType { get; set; }
-        public List<ResidentAccessControlDTO> Devices { get; set; }
+        public ICollection<ResidentAccessCredentialDTO> AccessCredentials { get; set; }
         public bool FirstAccess { get; set; }
         public bool Temporary { get; set; }
         public DateTime Expire { get; set; }

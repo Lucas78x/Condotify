@@ -12,6 +12,7 @@ public partial class DatabaseContext
     internal static void DevicesEntityConfiguration(ModelBuilder builder)
     {
         builder.ApplyConfiguration(new AccessControlDeviceConfiguration());
-        builder.ApplyConfiguration(new ResidentAccessControlConfiguration());
+        builder.ApplyConfiguration(new ResidentAccessCredentialConfiguration());
+        builder.ApplyConfiguration(new ResidentAccessDeviceConfiguration());
     }
 }

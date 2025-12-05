@@ -1,50 +1,48 @@
-﻿using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+﻿using CondotifyAPI.Domain.DTO.Resident;
 using Microsoft.EntityFrameworkCore;
-using CondotifyAPI.Domain.DTO.Equipments;
-
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
 {
-
-    public class ResidentAccessControlConfiguration : IEntityTypeConfiguration<ResidentAccessControlDTO>
+    public class ResidentAccessCredentialConfiguration : IEntityTypeConfiguration<ResidentAccessCredentialDTO>
     {
-        public void Configure(EntityTypeBuilder<ResidentAccessControlDTO> builder)
+        public void Configure(EntityTypeBuilder<ResidentAccessCredentialDTO> builder)
         {
-            builder.ToTable("ResidentAccessControl");
+            builder.ToTable("ResidentAccessCredentials");
 
-            builder.HasKey(e => e.Id);
+            builder.HasKey(x => x.Id);
 
-            builder.Property(e => e.UserId)
-                .IsRequired();
+            builder.Property(x => x.ResidentId)
+                   .IsRequired();
 
-            builder.Property(e => e.CardNumber)
-                .HasMaxLength(50);
+            builder.HasOne(x => x.Resident)
+                    .WithMany(r => r.AccessCredentials)
+                   .HasForeignKey(x => x.ResidentId);
 
-            builder.Property(e => e.TagNumber)
-                .HasMaxLength(50);
+            builder.Property(x => x.CredentialType)
+                   .HasConversion(new EnumToNumberConverter<AccessCredentialTypeEnum, int>())
+                   .IsRequired();
 
-            builder.Property(e => e.Type)
-                .HasConversion(new ValueConverter<DeviceTypeEnum, int>(
-                    x => (int)x,
-                    x => (DeviceTypeEnum)x))
-                .IsRequired();
+            builder.Property(x => x.Identifier)
+                   .HasMaxLength(150)
+                   .IsRequired();
 
-            builder.Property(e => e.IsActive)
-                .IsRequired()
-                .HasDefaultValue(true);
+            builder.Property(x => x.IsActive)
+                   .IsRequired()
+                   .HasDefaultValue(true);
 
-            builder.Property(e => e.ValidFrom)
-                .IsRequired();
+            builder.Property(x => x.ValidFrom)
+                   .IsRequired();
 
-            builder.Property(e => e.ValidTo)
-                .IsRequired();
+            builder.Property(x => x.ValidTo)
+                   .IsRequired();
 
-            builder.Property(e => e.CreatedAt)
-                .IsRequired()
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            builder.Property(x => x.CreatedAt)
+                   .IsRequired()
+                   .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            builder.Property(e => e.UpdatedAt);
+            builder.Property(x => x.UpdatedAt);
         }
     }
 }

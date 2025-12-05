@@ -52,7 +52,8 @@
             return deviceType switch
             {
                 DeviceTypeEnum.IdFace or
-                DeviceTypeEnum.IdFaceMax
+                DeviceTypeEnum.IdFaceMax or
+                DeviceTypeEnum.ControlIdUHF
                     => true,
                 _ => false
             };

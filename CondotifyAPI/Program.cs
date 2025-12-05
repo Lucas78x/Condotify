@@ -53,8 +53,11 @@ builder.Services.AddScoped<ICondotifyCommandsRepository, CondotifyCommandsReposi
 // Todos os drivers disponíveis
 builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();
 
-// Factory que escolhe o driver certo
+
 builder.Services.AddScoped<IAccessControlDriverFactory, AccessControlDriverFactory>();
+builder.Services.AddScoped<IAccessControlDriver, ControlIdAccessControlDriver>();
+builder.Services.AddScoped<IAccessControlDriver, IntelbrasAccessControlDriver>();
+builder.Services.AddScoped<IAccessControlDriver, IntelbrasUHFAccessControlDriver>();
 
 // Service que usa a factory
 builder.Services.AddScoped<IAccessControlService, AccessControlService>();
