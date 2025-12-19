@@ -11,6 +11,7 @@ namespace CondotifyAPI.Domain.DTO.License
         /// Unique identifier for the entity (primary key)
         /// </summary>
         public Guid Id { get; set; }
+
         /// <summary>
         /// Gets or sets the name of the product.
         /// </summary>
@@ -20,12 +21,18 @@ namespace CondotifyAPI.Domain.DTO.License
         public string Name { get; set; }
         public string CNPJ { get; set; }
 
+        //Enums
         public  OrganizationTypeEnum Organization { get; set; }
         public BuildingTypeEnum Building { get; set; }
         public LicenseTypeEnum Type { get; set; }
+
+        // Entitys
         public List<BlockDTO> Blocks { get; set; }
         public List<AccessControlDeviceDTO> Devices { get; set; }
+        public List<CFTVDeviceDTO> CFTVDevices { get; set; }
         public LocationDTO Location { get; set; }
+
+        //Times
         /// <summary>
         /// Timestamp indicating when the license expire date
         /// </summary>
@@ -36,6 +43,7 @@ namespace CondotifyAPI.Domain.DTO.License
         /// </summary>
         public DateTime CreatedAt { get; set; }
 
+        //Reference Owner
         public Guid EnterpriseId { get; set; }
         public EnterpriseDTO Enterprise { get; set; }
     }

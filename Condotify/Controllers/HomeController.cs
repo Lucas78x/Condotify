@@ -15,7 +15,14 @@ namespace Condotify.Controllers
 
         public IActionResult Inicio()
         {
-            return View();
+            var licencas = new List<LicenseViewModel>
+                {
+                    new LicenseViewModel {Id = 1, Nome="Apart Hotel Porto Smeralda", Codigo="13464", Moradores=164, Cidade="Camaçari", Estado="BA", ProjetoId=2340 },
+                    new LicenseViewModel {Id = 2,Nome="Condomínio Adamas Guarajuba", Codigo="14735", Moradores=103, Cidade="Camaçari", Estado="BA", ProjetoId=2340 },
+                    new LicenseViewModel {Id = 3, Nome="Costa Smeralda", Codigo="19194", Moradores=846, Cidade="Camaçari", Estado="BA", ProjetoId=2340 }
+                };
+
+            return View(licencas);
         }
 
         public IActionResult Login()

@@ -7,35 +7,142 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login - F&F Condotify</title>
+    <title>Condotify • Login</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-gray-900 to-blue-600 flex items-center justify-center p-6">
-    <div class="backdrop-blur-xl bg-white/10 border border-white/20 shadow-2xl rounded-2xl p-10 w-full max-w-sm text-center">
-        <h1 class="text-white text-3xl font-bold tracking-wide mb-8">Condotify</h1>
 
-        <form method="post" action="/Account/Login" class="space-y-5">
-            <input type="text"
-                   name="Username"
-                   placeholder="Usuário"
-                   required
-                   class="w-full px-4 py-3 rounded-xl bg-white/20 text-white placeholder-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 transition" />
+<body class="min-h-screen bg-[#F6F8FC] flex items-center justify-center px-6">
 
-            <input type="password"
-                   name="Password"
-                   placeholder="Senha"
-                   required
-                   class="w-full px-4 py-3 rounded-xl bg-white/20 text-white placeholder-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 transition" />
+    <main class="w-full max-w-[420px]">
 
-            <button type="submit"
-                    class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl shadow-lg transform hover:-translate-y-1 transition">
-                Entrar
-            </button>
-        </form>
+        <!-- Marca -->
+        <div class="text-center mb-10">
+            <!-- Logo -->
+            <div class="mx-auto h-14 w-14 rounded-xl bg-white border border-slate-200 shadow-sm grid place-items-center">
+                <span class="text-lg font-bold text-slate-900">C</span>
+            </div>
 
-        <div class="mt-6 text-sm text-white/80">
-            <a href="#" class="hover:text-blue-300 transition">Esqueceu a senha?</a>
+            <h1 class="mt-4 text-3xl font-semibold text-slate-900">
+                Condotify
+            </h1>
+
+            <p class="mt-1 text-sm text-slate-500">
+                Acesse sua conta
+            </p>
         </div>
-    </div>
+
+        <!-- Card -->
+        <section class="bg-white border border-slate-200 rounded-2xl shadow-sm px-8 py-8">
+
+            <form method="post" action="/Account/Login" class="space-y-5">
+
+                <!-- Email -->
+                <div>
+                    <input type="text"
+                           name="Username"
+                           placeholder="E-mail"
+                           required
+                           class="w-full h-11 px-4 rounded-lg border border-slate-300 text-slate-900
+                                  placeholder-slate-400
+                                  focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition" />
+                </div>
+
+                <!-- Senha -->
+                <div class="relative">
+                    <input id="password"
+                           type="password"
+                           name="Password"
+                           placeholder="Senha"
+                           required
+                           class="w-full h-11 px-4 pr-11 rounded-lg border border-slate-300 text-slate-900
+                  placeholder-slate-400
+                  focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition" />
+
+                    <button type="button"
+                            onclick="togglePassword()"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 h-12 w-12
+                   grid place-items-center text-slate-400
+                   hover:text-slate-600 transition"
+                            aria-label="Mostrar senha">
+
+                        <!-- Eye icon (clean) -->
+                        <svg id="eyeOpen" xmlns="http://www.w3.org/2000/svg"
+                             class="h-5 w-5"
+                             fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                  d="M2.458 12C3.732 7.943 7.523 5 12 5
+                     c4.478 0 8.268 2.943 9.542 7
+                     -1.274 4.057-5.064 7-9.542 7
+                     -4.477 0-8.268-2.943-9.542-7z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+
+                        <!-- Eye off -->
+                        <svg id="eyeClosed"
+                             xmlns="http://www.w3.org/2000/svg"
+                             class="h-5 w-5 hidden"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="1.8"
+                             stroke-linecap="round"
+                             stroke-linejoin="round">
+
+                            <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20
+                                     C7 20 2.73 16.11 1 12
+                                     a18.4 18.4 0 0 1 5.06-6.94" />
+                                     
+                            <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+
+                            <path d="M21 21L3 3" />
+                        </svg>
+
+                    </button>
+                </div>
+
+                <!-- Esqueceu -->
+                <div class="flex justify-end">
+                    <a href="#" class="text-sm text-blue-600 hover:text-blue-700 transition">
+                        Esqueceu a senha?
+                    </a>
+                </div>
+
+                <!-- Botão -->
+                <button type="submit"
+                        class="w-full h-11 rounded-lg bg-blue-600 text-white font-medium
+                               hover:bg-blue-700 transition">
+                    Entrar
+                </button>
+
+                <!-- Cadastro -->
+                <a href="#"
+                   class="block text-center text-sm text-slate-600 hover:text-slate-900 transition">
+                    Quero me cadastrar
+                </a>
+
+            </form>
+        </section>
+
+        <p class="text-center text-xs text-slate-400 mt-8">
+            © @DateTime.Now.Year Condotify
+        </p>
+    </main>
+
+    <script>
+           function togglePassword() {
+            const input = document.getElementById('password');
+            const open = document.getElementById('eyeOpen');
+            const closed = document.getElementById('eyeClosed');
+
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+
+            open.classList.toggle('hidden', isPassword);
+            closed.classList.toggle('hidden', !isPassword);
+        }
+    </script>
+
 </body>
 </html>

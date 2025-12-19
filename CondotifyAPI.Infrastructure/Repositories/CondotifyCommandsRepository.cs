@@ -7,6 +7,7 @@ using CondotifyAPI.Domain.Interfaces;
 using CondotifyAPI.Domain.Models.Enterprises;
 using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Domain.Models.License;
+using CondotifyAPI.Domain.Models.Units;
 using CondotifyAPI.Domain.Models.Users;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,10 +28,9 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
     {
         var existentAccount = await _context.Users
             .AsNoTracking()
-             .FirstOrDefaultAsync(x =>
-                 x.Email == user.Email ||
-                 (!string.IsNullOrWhiteSpace(user.Email)));
-
+            .FirstOrDefaultAsync(x =>
+                x.Email == user.Email ||
+                (!string.IsNullOrWhiteSpace(user.Email)));
 
         if (existentAccount != null)
         {
@@ -50,7 +50,7 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
         var dto = _mapper.Map<UserAccessDTO>(user);
 
         _context.Add(dto);
-        _context.SaveChanges();
+        await _context.SaveChangesAsync();
 
         return UserAccessCreateResult.Created;
     }
@@ -80,7 +80,7 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
         return EnterpriseCreateResult.Created;
     }
 
-    public async Task<License> AddLicenseAsync(Guid enterpriseId, License license)
+    public async Task<License?> AddLicenseAsync(Guid enterpriseId, License license)
     {
         var existentLicense = await _context.Licenses
             .AsNoTracking()
@@ -101,12 +101,14 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
 
         return license;
     }
-    public async Task<AccessControlDevice> AddAccessControlDeviceAsync(Guid licenseId, AccessControlDevice device)
+
+    public async Task<AccessControlDevice?> AddAccessControlDeviceAsync(Guid licenseId, AccessControlDevice device)
     {
         var existentDevice = await _context.Devices
             .AsNoTracking()
             .FirstOrDefaultAsync(x =>
-                (x.SerialNumber == device.SerialNumber || x.MACAddress == device.MACAddress) &&
+                (x.SerialNumber == device.SerialNumber ||
+                 x.MACAddress == device.MACAddress) &&
                 x.LicenseId == licenseId);
 
         if (existentDevice != null)
@@ -121,5 +123,87 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
         return device;
     }
 
+    public async Task<bool> RemoveAccessControlDeviceAsync(AccessControlDevice device)
+    {
+        var existentDevice = await _context.Devices
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == device.Id);
 
+        if (existentDevice != null)
+        {
+            _context.Devices.Remove(existentDevice);
+            await _context.SaveChangesAsync();
+        }
+
+        return true;
+    }
+
+    public async Task<CFTVDevice?> AddCFTVDeviceAsync(Guid licenseId, CFTVDevice device)
+    {
+        var existentDevice = await _context.CFTVDevices
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                x.IpAddress == device.IpAddress &&
+                x.HTTPPort == device.HTTPPort &&
+                x.RTSPPort == device.RTSPPort &&
+                x.LicenseId == licenseId);
+
+        if (existentDevice != null)
+            return null;
+
+        var dto = _mapper.Map<CFTVDeviceDTO>(device);
+        dto.LicenseId = licenseId;
+
+        _context.Add(dto);
+        await _context.SaveChangesAsync();
+
+        return device;
+    }
+
+    public async Task<CFTVDevice?> UpdateCFTVDeviceAsync(Guid licenseId, CFTVDevice device)
+    {
+        var existentDevice = await _context.CFTVDevices
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                x.Id == device.Id &&
+                x.LicenseId == licenseId);
+
+        if (existentDevice == null)
+            return null;
+
+        var conflict = await _context.CFTVDevices
+            .AsNoTracking()
+            .AnyAsync(x =>
+                x.Id != device.Id &&
+                x.LicenseId == licenseId &&
+                x.IpAddress == device.IpAddress &&
+                x.HTTPPort == device.HTTPPort &&
+                x.RTSPPort == device.RTSPPort);
+
+        if (conflict)
+            return null;
+
+        var dto = _mapper.Map<CFTVDeviceDTO>(device);
+        dto.LicenseId = licenseId;
+
+        _context.CFTVDevices.Update(dto);
+        await _context.SaveChangesAsync();
+
+        return device;
+    }
+
+    public async Task<bool> RemoveAccessCFTVDeviceAsync(CFTVDevice device)
+    {
+        var existentDevice = await _context.CFTVDevices
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == device.Id);
+
+        if (existentDevice != null)
+        {
+            _context.CFTVDevices.Remove(existentDevice);
+            await _context.SaveChangesAsync();
+        }
+
+        return true;
+    }
 }

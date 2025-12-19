@@ -70,6 +70,11 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.License
                 .HasForeignKey(d => d.LicenseId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            builder.HasMany(l => l.CFTVDevices)
+              .WithOne(b => b.License)
+              .HasForeignKey(b => b.LicenseId)
+              .OnDelete(DeleteBehavior.Cascade);
+
             builder.OwnsOne(l => l.Location, loc =>
             {
                 loc.Property(p => p.X).HasColumnName("LocationX");
