@@ -11,14 +11,20 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
         {
             builder.ToTable("CFTVDevices");
 
+            // PK
             builder.HasKey(x => x.Id);
 
+            // Properties
             builder.Property(x => x.Name)
                 .IsRequired()
                 .HasMaxLength(150);
 
+            builder.Property(x => x.Username)
+                .IsRequired()
+                .HasMaxLength(80);
+
             builder.Property(x => x.Password)
-                .HasMaxLength(100);
+                .HasMaxLength(150);
 
             builder.Property(x => x.IpAddress)
                 .IsRequired()
@@ -32,35 +38,39 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
                 .IsRequired()
                 .HasMaxLength(10);
 
-            builder
-                .Property(x => x.IpType)
-                .HasConversion(new ValueConverter<IpTypeEnum, int>(
-                    x => (int)x,
-                    x => (IpTypeEnum)x))
+            builder.Property(x => x.MaxChannels)
+                .IsRequired()
+                .HasDefaultValue(1);
+
+            // Enums
+            builder.Property(x => x.DeviceType)
+                .HasConversion<int>()
+                .HasDefaultValue(CFTVDeviceTypeEnum.Camera)
+                .IsRequired();
+
+            builder.Property(x => x.IpType)
+                .HasConversion<int>()
                 .HasDefaultValue(IpTypeEnum.None)
                 .IsRequired();
 
-            builder
-                .Property(x => x.Proportion)
-                .HasConversion(new ValueConverter<ScreenProportionEnum, int>(
-                    x => (int)x,
-                    x => (ScreenProportionEnum)x))
+            builder.Property(x => x.Proportion)
+                .HasConversion<int>()
                 .HasDefaultValue(ScreenProportionEnum.None)
                 .IsRequired();
 
-            builder
-                .Property(x => x.Mark)
-                .HasConversion(new ValueConverter<MarkEnum, int>(
-                    x => (int)x,
-                    x => (MarkEnum)x))
+            builder.Property(x => x.Mark)
+                .HasConversion<int>()
                 .HasDefaultValue(MarkEnum.None)
                 .IsRequired();
 
-            builder
-                .HasOne(x => x.License)
-                .WithMany(l => l.CFTVDevices)
-                .HasForeignKey(x => x.LicenseId)
+
+            builder.HasMany(x => x.Channels)
+                .WithOne(c => c.Device)
+                .HasForeignKey(c => c.CFTVDeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasIndex(x => new { x.IpAddress, x.HTTPPort })
+                .IsUnique(false);
         }
     }
 }

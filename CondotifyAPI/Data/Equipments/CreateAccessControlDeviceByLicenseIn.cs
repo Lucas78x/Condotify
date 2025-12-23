@@ -1,7 +1,5 @@
 ﻿using CondotifyAPI.Commands.Equipments;
 using CondotifyAPI.Domain.Models;
-using DigitalWorldOnline.Management.Api.Data;
-using System.Text;
 
 namespace CondotifyAPI.Data.Equipments
 {
@@ -21,15 +19,6 @@ namespace CondotifyAPI.Data.Equipments
         public DeviceTypeEnum Type { get; set; }
         public bool IsActive { get; set; }
         public Location Location { get; set; }
-    }
-
-    public class TestConnectionIn
-    {
-        public string IPAddress { get; set; }
-        public int Port { get; set; }
-        public string Username { get; set; }
-        public string Password { get; set; }
-        public DeviceTypeEnum Type { get; set; }
     }
 
     public static class CreateAccessControlDeviceByLicenseInConverter

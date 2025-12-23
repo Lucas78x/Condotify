@@ -40,5 +40,11 @@ public class CondotifyProfile : Profile
         CreateMap<DeviceAuditDTO, DeviceAudit>()
             .ReverseMap();
 
+        CreateMap<CFTVDeviceDTO, CFTVDevice>()
+            .ReverseMap();
+
+        CreateMap<CFTVChannelDTO, CFTVChannel>()
+            .ReverseMap();
+
     }
 }

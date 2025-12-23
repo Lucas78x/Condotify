@@ -138,9 +138,10 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
         return true;
     }
 
-    public async Task<CFTVDevice?> AddCFTVDeviceAsync(Guid licenseId, CFTVDevice device)
+    public async Task<CFTVDevice> AddCftvDeviceAsync(Guid licenseId, CFTVDevice device)
     {
         var existentDevice = await _context.CFTVDevices
+            .Include(x=> x.Channels)
             .AsNoTracking()
             .FirstOrDefaultAsync(x =>
                 x.IpAddress == device.IpAddress &&

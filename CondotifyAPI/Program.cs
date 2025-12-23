@@ -4,6 +4,7 @@ using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Infrastructure.Mapping;
 using CondotifyAPI.Infrastructure.Repositories;
 using CondotifyAPI.Services.AccessControl;
+using CondotifyAPI.Services.CFTV;
 using CondotifyAPI.Services.Drivers;
 using CondotifyAPI.Services.Factorys;
 using MediatR;
@@ -58,6 +59,7 @@ builder.Services.AddScoped<IAccessControlDriverFactory, AccessControlDriverFacto
 builder.Services.AddScoped<IAccessControlDriver, ControlIdAccessControlDriver>();
 builder.Services.AddScoped<IAccessControlDriver, IntelbrasAccessControlDriver>();
 builder.Services.AddScoped<IAccessControlDriver, IntelbrasUHFAccessControlDriver>();
+builder.Services.AddScoped<ICFTVService, CFTVService>();
 
 // Service que usa a factory
 builder.Services.AddScoped<IAccessControlService, AccessControlService>();

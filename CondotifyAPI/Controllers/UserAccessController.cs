@@ -5,10 +5,13 @@ using CondotifyAPI.Commands.Users;
 using CondotifyAPI.Data.Enterprise;
 using CondotifyAPI.Data.Equipments;
 using CondotifyAPI.Data.Users;
+using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Services.AccessControl;
+using CondotifyAPI.Services.CFTV;
 using DigitalWorldOnline.Management.Api.Data;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
 
 namespace DigitalWorldOnline.Management.Api.Controllers;
 
@@ -18,14 +21,17 @@ public class AccessController : ControllerBase
 {
     private readonly ISender _sender;
     private readonly IAccessControlService _controlService;
+    private readonly ICFTVService _cftvService;
     private readonly string _apiKey;
 
     public AccessController(ISender sender,
-        IAccessControlService controlService)
+        IAccessControlService controlService,
+        ICFTVService cftvService)
     {
         _sender = sender;
         _controlService = controlService;
-        _apiKey = Environment.GetEnvironmentVariable("DNA_ACCOUNT_API_KEY")!;
+        _cftvService = cftvService;
+        _apiKey = Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY")!;
 
 #if DEBUG
         _apiKey = "1";
@@ -230,6 +236,76 @@ public class AccessController : ControllerBase
         }
     }
 
+    [HttpPost("create-cftvdevice-by-license")]
+    [ProducesResponseType(typeof(CreateAccessControlDeviceByLicenseOut), 201)]
+    public async Task<IActionResult> CreateCftvDeviceByLicense(
+    [FromHeader(Name = "X-API-Key")] string apiKey,
+    [FromBody] CreateCftvDeviceByLicenseIn cftv)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey) || apiKey != _apiKey)
+        {
+            return Unauthorized();
+        }
+
+        var command = cftv.ToCommand();
+
+        var validator = await new CreateCftvDeviceByLicenseCommandValidator().ValidateAsync(command);
+
+        if (!validator.IsValid)
+        {
+            return BadRequest(new
+            {
+                Result = "InvalidRequest",
+                Errors = string.Join(";", validator.Errors.Select(x => x.ErrorMessage))
+            });
+        }
+
+        var device = CFTVDevice.Create(
+                    string.Empty,
+                    cftv.UserName,
+                    cftv.Password,
+                    cftv.IpAddress,
+                    cftv.HTTPPort,
+                    cftv.RTSPPort,
+                    cftv.IpType,
+                    cftv.Proportion,
+                    cftv.Mark,
+                    cftv.DeviceType,
+                    cftv.MaxChannels,
+                    cftv.Channels
+                );
+
+
+
+        var res = await new CFTVService().TestAsync(device);
+        var anyChannelOk = res.Channels.Any(c => c.RtspOk);
+
+        if (!anyChannelOk)
+        {
+            return BadRequest(new
+            {
+                Result = "InvalidRequest",
+                Errors = "Não foi possível conectar ao dispositivo, verifique os dados de acesso e tente novamente."
+            });
+        }
+
+
+        var result = await _sender.Send(command);
+
+        if (result != null)
+        {
+            return Created("", new CreateCftvDeviceByLicenseOut { Result = CreateAccessControlDeviceResult.InvalidData, Device = result });
+        }
+        else
+        {
+            return Conflict(new CreateCftvDeviceByLicenseOut
+            {
+                Result = CreateAccessControlDeviceResult.InvalidData,
+                Errors = "Em desenvolvimento ('_')"
+            });
+        }
+    }
+
     [HttpPost("test-connection")]
     [ProducesResponseType(typeof(CreateAccessControlDeviceByLicenseOut), 201)]
     public async Task<IActionResult> TestConnection(
@@ -252,6 +328,89 @@ public class AccessController : ControllerBase
         }
 
         return Created("", new CreateAccessControlDeviceByLicenseOut { Result = CreateAccessControlDeviceResult.InvalidData });
+    }
+
+    [HttpPost("test-cftv-connection")]
+    [ProducesResponseType(typeof(TestCftvConnectionOut), 200)]
+    public async Task<IActionResult> TestCftvConnection(
+       [FromHeader(Name = "X-API-Key")] string apiKey,
+       [FromBody] TestCftvConnectionIn cftv)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey) || apiKey != _apiKey)
+            return Unauthorized();
+
+        var validator = new TestCftvConnectionInValidator();
+        var validation = validator.Validate(cftv);
+
+        if (!validation.IsValid)
+        {
+            return BadRequest(new
+            {
+                Result = "ValidationError",
+                Errors = validation.Errors.Select(e => e.ErrorMessage)
+            });
+        }
+
+        var device = CFTVDevice.Create(
+                        string.Empty,
+                        cftv.UserName,
+                        cftv.Password,
+                        cftv.IpAddress,
+                        cftv.HTTPPort,
+                        cftv.RTSPPort,
+                        cftv.IpType,
+                        ScreenProportionEnum.Widescreen,
+                        cftv.Mark,
+                        cftv.DeviceType,
+                        32,
+                        []
+                    );
+
+
+        if (device.DeviceType != CFTVDeviceTypeEnum.Camera)
+        {
+            device.AddChannels(cftv.Channels);
+        }
+
+        var res = await new CFTVService().TestAsync(device);
+
+        var anyChannelOk = res.Channels.Any(c => c.RtspOk);
+
+        if (!anyChannelOk)
+        {
+            return BadRequest(new
+            {
+                Result = "InvalidRequest",
+                Errors = device.DeviceType == CFTVDeviceTypeEnum.Camera
+                    ? "Não foi possível conectar à câmera via RTSP."
+                    : "Não foi possível conectar a nenhum canal do gravador via RTSP.",
+
+                Details = new TestCftvConnectionOut
+                {
+                    PingOk = res.PingOk,
+                    TcpRtspOk = res.TcpRtspOk,
+                    Channels = res.Channels
+                        .Select(c => new ChannelTestResultOut
+                        {
+                            ChannelNumber = c.ChannelNumber,
+                            RtspOk = c.RtspOk,
+                            RtspUrlWorking = c.RtspUrlWorking,
+                            Error = c.Error,
+                            Attempts = c.Attempts.Take(5).ToList()
+                        })
+                        .ToList()
+                }
+            });
+        }
+
+        return Ok(new TestCftvConnectionOut
+        {
+            PingOk = res.PingOk,
+            TcpRtspOk = res.TcpRtspOk,
+            Channels = res.Channels
+                .Where(c => c.RtspOk)
+                .ToList()
+        });
     }
 
     [HttpPost("create-enterprise")]

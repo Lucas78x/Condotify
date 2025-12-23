@@ -1,4 +1,5 @@
-﻿
+﻿using CondotifyAPI.Domain.Models.Audit;
+
 namespace CondotifyAPI.Domain.Models.Equipments
 {
     public class AccessControlDevice
@@ -17,6 +18,7 @@ namespace CondotifyAPI.Domain.Models.Equipments
         public string FirmwareVersion { get; set; }
         public DeviceTypeEnum Type { get; set; }
         public bool IsActive { get; set; }
+        public List<DeviceAudit> Audit { get; set; }
         public Location Location { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime LastUpdatedAt { get; set; }
@@ -62,6 +64,11 @@ namespace CondotifyAPI.Domain.Models.Equipments
             LastUpdatedAt = lastUpdatedAt;
 
             return true;
+        }
+
+        public void CreateAudit()
+        {
+            //var newAudit = DeviceAudit.Create(ActionTypeMessages.Get(ActionTypeEnum.Create),)
         }
     }
 }

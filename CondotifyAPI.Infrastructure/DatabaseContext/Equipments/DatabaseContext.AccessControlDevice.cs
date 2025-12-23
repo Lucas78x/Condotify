@@ -14,6 +14,7 @@ public partial class DatabaseContext
     {
         builder.ApplyConfiguration(new AccessControlDeviceConfiguration());
         builder.ApplyConfiguration(new CFTVDeviceConfiguration());
+        builder.ApplyConfiguration(new CFTVChannelConfiguration());
         builder.ApplyConfiguration(new ResidentAccessCredentialConfiguration());
         builder.ApplyConfiguration(new ResidentAccessDeviceConfiguration());
     }
