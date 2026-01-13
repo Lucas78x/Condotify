@@ -28,7 +28,7 @@
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
-        public Guid LicensedId { get; private set; }
+        public Guid LicenseId { get; private set; }
 
 
         public static Delivery Create(
@@ -51,7 +51,7 @@
                 Description = description,
                 TrackingCode = trackingCode,
                 PhotoUrl = photoUrl,
-                LicensedId = licensedId,
+                LicenseId = licensedId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };

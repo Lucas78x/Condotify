@@ -40,6 +40,7 @@ public partial class DatabaseContext : DbContext
         UsersEntityConfiguration(modelBuilder);
         LicensesEntityConfiguration(modelBuilder);
         DevicesEntityConfiguration(modelBuilder);
+        DeliveriesEntityConfiguration(modelBuilder); 
         BlocksEntityConfiguration(modelBuilder);
         UnitsEntityConfiguration(modelBuilder);
         ResidentsEntityConfiguration(modelBuilder);

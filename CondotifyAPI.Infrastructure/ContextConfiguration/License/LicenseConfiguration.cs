@@ -75,6 +75,11 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.License
               .HasForeignKey(b => b.LicenseId)
               .OnDelete(DeleteBehavior.Cascade);
 
+            builder.HasMany(l => l.Deliveries)
+             .WithOne(b => b.License)
+             .HasForeignKey(b => b.LicenseId)
+             .OnDelete(DeleteBehavior.Cascade);
+
             builder.OwnsOne(l => l.Location, loc =>
             {
                 loc.Property(p => p.X).HasColumnName("LocationX");

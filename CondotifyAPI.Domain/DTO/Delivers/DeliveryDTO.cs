@@ -30,7 +30,7 @@ namespace CondotifyAPI.Domain.DTO.Delivers
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 
-        public Guid LicensedId { get; set; }
+        public Guid LicenseId { get; set; }
         public LicenseDTO License { get; set; }
 
     }
