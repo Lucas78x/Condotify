@@ -93,4 +93,15 @@
         }
 
     }
+    public class CftvDeviceResponse
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; }
+        public string IpAddress { get; set; }
+        public string HTTPPort { get; set; }
+        public string RTSPPort { get; set; }
+        public CFTVDeviceTypeEnum DeviceType { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
 }

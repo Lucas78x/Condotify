@@ -10,7 +10,6 @@ namespace CondotifyAPI.Services.CFTV
 
     public class CFTVService : ICFTVService
     {
-        // Se você quiser, mova isso pra appsettings: default RTSP username
         private const string DefaultRtspUser = "admin";
 
         private static readonly Dictionary<MarkEnum, string[]> RtspPathsByBrand = new()
@@ -77,25 +76,20 @@ namespace CondotifyAPI.Services.CFTV
             "/h264",
         };
 
-        public async Task<TestCftvConnectionOut> TestAsync(CFTVDevice device,CancellationToken ct = default)
+        public async Task<TestCftvConnectionOut> TestAsync(CFTVDevice device, CancellationToken ct = default)
         {
             var result = new TestCftvConnectionOut();
 
-            // 1️⃣ Ping
             result.PingOk = await PingAsync(device.IpAddress, 1500);
 
-            // 2️⃣ Porta RTSP
             int rtspPort = ParsePortOrDefault(device.RTSPPort, 554);
 
-            // 3️⃣ TCP RTSP
             result.TcpRtspOk = await TcpPortOpenAsync(device.IpAddress, rtspPort, 1200);
             if (!result.TcpRtspOk)
                 return result;
 
-            // 🔀 Fluxo por tipo de device
             if (device.DeviceType == CFTVDeviceTypeEnum.Camera)
             {
-                // 📸 CÂMERA → um único teste
                 var channelResult = await TestCameraAsync(device, rtspPort, ct);
                 result.Channels.Add(channelResult);
             }
@@ -125,7 +119,7 @@ namespace CondotifyAPI.Services.CFTV
         {
             var channelResult = new ChannelTestResultOut
             {
-                ChannelNumber = 1 // padrão
+                ChannelNumber = 1
             };
 
             var templates = GetCameraTemplates(device.Mark);
@@ -234,7 +228,7 @@ namespace CondotifyAPI.Services.CFTV
         },
 
                 _ => new[]
-                {
+                     {
             "/live",
             "/stream1",
             "/h264"
@@ -297,7 +291,6 @@ namespace CondotifyAPI.Services.CFTV
         {
             if (string.IsNullOrWhiteSpace(port)) return defaultPort;
 
-            // aceita "554" ou " :554 " etc
             var digits = new string(port.Where(char.IsDigit).ToArray());
             if (int.TryParse(digits, out var p) && p > 0 && p <= 65535)
                 return p;
@@ -380,10 +373,7 @@ namespace CondotifyAPI.Services.CFTV
                 int read = await stream.ReadAsync(buffer, 0, buffer.Length);
 
                 var resp = Encoding.ASCII.GetString(buffer, 0, read);
-
-                // 200 OK => RTSP ok
-                // 401 Unauthorized => RTSP ok, credencial errada (mas respondeu)
-                // 404 Not Found => RTSP ok, path errado
+                
                 bool ok =
                     resp.Contains("RTSP/1.0 200") ||
                     resp.Contains("RTSP/1.0 401") ||

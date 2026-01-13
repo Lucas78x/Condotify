@@ -25,6 +25,38 @@ namespace Condotify.Controllers
             return View(licencas);
         }
 
+        public IActionResult Detalhes(Guid id)
+        {
+            var model = new LicencaDetalhesViewModel
+            {
+                Id = id,
+                Nome = "Apart Hotel Porto Smeralda",
+                Blocos = new List<BlocoViewModel>
+            {
+                new() { Nome = "Bloco A", Unidades = 15, Moradores = 38 },
+                new() { Nome = "Bloco ADM", Unidades = 1, Moradores = 10 },
+                new() { Nome = "Bloco B", Unidades = 18, Moradores = 49 },
+                new() { Nome = "Bloco C", Unidades = 33, Moradores = 77 }
+            }
+            };
+
+            return View("~/Views/Licencas/Detalhes.cshtml",model);
+        }
+
+        public class LicencaDetalhesViewModel
+        {
+            public Guid Id { get; set; }
+            public string Nome { get; set; }
+            public List<BlocoViewModel> Blocos { get; set; }
+        }
+
+        public class BlocoViewModel
+        {
+            public string Nome { get; set; }
+            public int Unidades { get; set; }
+            public int Moradores { get; set; }
+        }
+
         public IActionResult Login()
         {
             return View();

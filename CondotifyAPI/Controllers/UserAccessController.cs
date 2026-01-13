@@ -11,7 +11,6 @@ using CondotifyAPI.Services.CFTV;
 using DigitalWorldOnline.Management.Api.Data;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using System.Net;
 
 namespace DigitalWorldOnline.Management.Api.Controllers;
 
@@ -261,7 +260,7 @@ public class AccessController : ControllerBase
         }
 
         var device = CFTVDevice.Create(
-                    string.Empty,
+                    cftv.Name,
                     cftv.UserName,
                     cftv.Password,
                     cftv.IpAddress,
@@ -277,7 +276,7 @@ public class AccessController : ControllerBase
 
 
 
-        var res = await new CFTVService().TestAsync(device);
+        var res = await _cftvService.TestAsync(device);
         var anyChannelOk = res.Channels.Any(c => c.RtspOk);
 
         if (!anyChannelOk)
@@ -294,14 +293,28 @@ public class AccessController : ControllerBase
 
         if (result != null)
         {
-            return Created("", new CreateCftvDeviceByLicenseOut { Result = CreateAccessControlDeviceResult.InvalidData, Device = result });
+            return Created("", new CreateCftvDeviceByLicenseOut
+            {
+                Result = CreateAccessControlDeviceResult.Created,
+                Device = new CftvDeviceResponse
+                {
+                    Id = result.Id,
+                    Name = result.Name,
+                    IpAddress = result.IpAddress,
+                    HTTPPort = result.HTTPPort,
+                    RTSPPort = result.RTSPPort,
+                    DeviceType = result.DeviceType,
+                    IsActive = true,
+                    CreatedAt = DateTime.Now,
+                }
+            });
         }
         else
         {
             return Conflict(new CreateCftvDeviceByLicenseOut
             {
                 Result = CreateAccessControlDeviceResult.InvalidData,
-                Errors = "Em desenvolvimento ('_')"
+                Errors = "Não foi possível conectar ao dispositivo, verifique os dados de acesso e tente novamente."
             });
         }
     }
@@ -372,7 +385,7 @@ public class AccessController : ControllerBase
             device.AddChannels(cftv.Channels);
         }
 
-        var res = await new CFTVService().TestAsync(device);
+        var res = await _cftvService.TestAsync(device);
 
         var anyChannelOk = res.Channels.Any(c => c.RtspOk);
 

@@ -51,7 +51,6 @@ builder.Services.AddMediatR(cfg =>
 
 builder.Services.AddScoped<ICondotifyCommandsRepository, CondotifyCommandsRepository>();
 
-// Todos os drivers disponíveis
 builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();
 
 
@@ -61,7 +60,6 @@ builder.Services.AddScoped<IAccessControlDriver, IntelbrasAccessControlDriver>()
 builder.Services.AddScoped<IAccessControlDriver, IntelbrasUHFAccessControlDriver>();
 builder.Services.AddScoped<ICFTVService, CFTVService>();
 
-// Service que usa a factory
 builder.Services.AddScoped<IAccessControlService, AccessControlService>();
 
 var app = builder.Build();
