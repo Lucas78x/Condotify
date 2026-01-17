@@ -3,6 +3,7 @@ using CondotifyAPI.Domain.DTO.Delivers;
 using CondotifyAPI.Domain.DTO.Enterprise;
 using CondotifyAPI.Domain.DTO.Equipments;
 using CondotifyAPI.Domain.DTO.Location;
+using CondotifyAPI.Domain.DTO.Ticket;
 
 namespace CondotifyAPI.Domain.DTO.License
 {
@@ -32,6 +33,7 @@ namespace CondotifyAPI.Domain.DTO.License
         public List<AccessControlDeviceDTO> Devices { get; set; }
         public List<CFTVDeviceDTO> CFTVDevices { get; set; }
         public List<DeliveryDTO> Deliveries { get; set; }
+        public List<TicketDTO> Tickets { get; set; }
         public LocationDTO Location { get; set; }
 
         //Times
