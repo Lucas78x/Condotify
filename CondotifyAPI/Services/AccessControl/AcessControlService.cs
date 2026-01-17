@@ -42,5 +42,17 @@ namespace CondotifyAPI.Services.AccessControl
             var driver = _driverFactory.GetDriver(device.Type);
             return driver.GetEventsAsync(device);
         }
+
+        public Task<bool> OpenDoorAsync(AccessControlDevice device)
+        {
+            var driver = _driverFactory.GetDriver(device.Type);
+            return driver.OpenDoorAsync(device);
+        }
+
+        public Task<bool> TestConnectionAsync(AccessControlDevice device)
+        {
+            var driver = _driverFactory.GetDriver(device.Type);
+            return driver.TestConnectionAsync(device);
+        }
     }
 }

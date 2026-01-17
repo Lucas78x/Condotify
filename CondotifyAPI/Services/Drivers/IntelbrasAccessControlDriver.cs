@@ -2,6 +2,7 @@
 using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Services.Drivers;
 using CondotifyAPI.Services.Extensions;
+using System.Net;
 using System.Net.Http.Headers;
 
 public class IntelbrasAccessControlDriver : IAccessControlDriver
@@ -19,12 +20,16 @@ public class IntelbrasAccessControlDriver : IAccessControlDriver
     {
         var url = $"http://{device.IPAddress}/cgi-bin/configManager.cgi?action=getConfig&name=Network";
 
-        var client = _clientFactory.CreateClient();
-        client.Timeout = TimeSpan.FromSeconds(10);
+        var handler = new HttpClientHandler
+        {
+            Credentials = new NetworkCredential(device.Username, device.Password),
+            PreAuthenticate = true
+        };
 
-        var byteArray = System.Text.Encoding.UTF8.GetBytes($"{device.Username}:{device.Password}");
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Basic", Convert.ToBase64String(byteArray));
+        using var client = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(10)
+        };
 
         var response = await client.GetAsync(url);
         return response.IsSuccessStatusCode;
@@ -41,4 +46,56 @@ public class IntelbrasAccessControlDriver : IAccessControlDriver
 
     public Task<string> GetEventsAsync(AccessControlDevice device)
         => throw new NotImplementedException();
+
+    public async Task<bool> OpenDoorAsync(AccessControlDevice device)
+    {
+        var url = $"http://{device.IPAddress}/cgi-bin/accessControl.cgi?action=openDoor&channel=1";
+
+        var handler = new HttpClientHandler
+        {
+            Credentials = new NetworkCredential(device.Username, device.Password),
+            PreAuthenticate = true
+        };
+
+        using var client = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(10)
+        };
+
+        try
+        {
+            var response = await client.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+                return false;
+
+            var content = await response.Content.ReadAsStringAsync();
+
+            return content.Contains("OK", StringComparison.OrdinalIgnoreCase)
+                || content.Contains("success", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> TestConnectionAsync(AccessControlDevice device)
+    {
+        var url = $"http://{device.IPAddress}/cgi-bin/configManager.cgi?action=getConfig&name=Network";
+
+        var handler = new HttpClientHandler
+        {
+            Credentials = new NetworkCredential(device.Username, device.Password),
+            PreAuthenticate = true
+        };
+
+        using var client = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(10)
+        };
+
+        var response = await client.GetAsync(url);
+        return response.IsSuccessStatusCode;
+    }
 }

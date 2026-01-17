@@ -1,5 +1,6 @@
 ﻿using CondotifyAPI.Commands.Equipments;
 using CondotifyAPI.Data.Equipments;
+using CondotifyAPI.Queries;
 using CondotifyAPI.Services.AccessControl;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -67,6 +68,28 @@ public class DeviceAccessController : ControllerBase
         var ok = await _controlService.TestConnectionAsync(device);
 
         return ok
+            ? Ok(new { Result = "Success" })
+            : BadRequest(new { Result = "Fail" });
+    }
+
+    [HttpPost("OpenDoor")]
+    public async Task<IActionResult> OpenDoor(
+    [FromHeader(Name = "X-API-Key")] string apiKey,
+    [FromBody] CftvDeviceOpenDoor command)
+    {
+        if (apiKey != _apiKey)
+            return Unauthorized();
+
+        var device = await _sender.Send(new GetAccessDeviceByDeviceIdQuery(command.DeviceId));
+
+        if (device == null)
+            return BadRequest(new { Result = $"Device not Found by Id {command.DeviceId}" });
+
+        var isOnline = await _controlService.TestConnectionAsync(device);
+
+        var result = await _controlService.OpenDoorAsync(device);
+
+        return result
             ? Ok(new { Result = "Success" })
             : BadRequest(new { Result = "Fail" });
     }

@@ -1,12 +1,15 @@
 ﻿using AutoMapper;
+using CondotifyAPI.Domain.DTO.Audit;
 using CondotifyAPI.Domain.DTO.Enterprise;
 using CondotifyAPI.Domain.DTO.Equipments;
 using CondotifyAPI.Domain.DTO.License;
+using CondotifyAPI.Domain.DTO.Ticket;
 using CondotifyAPI.Domain.DTO.Users;
 using CondotifyAPI.Domain.Interfaces;
 using CondotifyAPI.Domain.Models.Enterprises;
 using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Domain.Models.License;
+using CondotifyAPI.Domain.Models.Ticket;
 using CondotifyAPI.Domain.Models.Units;
 using CondotifyAPI.Domain.Models.Users;
 using Microsoft.EntityFrameworkCore;
@@ -100,6 +103,50 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
         license.MaskCNPJ();
 
         return license;
+    }
+
+    public async Task<TicketCreateResult> AddTicketAsync(Ticket ticket)
+    {
+        var licenseExists = await _context.Licenses
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == ticket.LicenseId);
+
+        if (!licenseExists)
+            return TicketCreateResult.LicenseNotFound;
+
+        var unitExists = await _context.Units
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == ticket.UnitId);
+
+        if (!unitExists)
+            return TicketCreateResult.UnitNotFound;
+
+        if (ticket.IsSecondCopy)
+        {
+            var originalExists = await _context.Tickets
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.Id == ticket.OriginalTicketId &&
+                    x.LicenseId == ticket.LicenseId);
+
+            if (!originalExists)
+                return TicketCreateResult.OriginalTicketNotFound;
+        }
+
+        var dto = _mapper.Map<TicketDTO>(ticket);
+
+        _context.Tickets.Add(dto);
+
+        foreach (var audit in ticket.Audits)
+        {
+            var auditDto = _mapper.Map<TicketAuditDTO>(audit);
+            auditDto.TicketId = dto.Id;
+            _context.TicketsAudits.Add(auditDto);
+        }
+
+        await _context.SaveChangesAsync();
+
+        return TicketCreateResult.Created;
     }
 
     public async Task<AccessControlDevice?> AddAccessControlDeviceAsync(Guid licenseId, AccessControlDevice device)

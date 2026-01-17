@@ -126,4 +126,16 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
 
         return _mapper.Map<List<CFTVDevice>>(list);
     }
+
+    public async Task<AccessControlDevice?> GetDeviceByDeviceIdAsync(Guid deviceId)
+    {
+        var entity = await _context.Devices
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == deviceId);
+
+        if (entity == null)
+            return null;
+
+        return _mapper.Map<AccessControlDevice>(entity);
+    }
 }

@@ -613,6 +613,44 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
         throw new NotImplementedException();
     }
 
+    public Task<bool> OpenDoorAsync(AccessControlDevice device)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<bool> TestConnectionAsync(AccessControlDevice device)
+    {
+        try
+        {
+            var url = $"http://{device.IPAddress}/cgi-bin/global.cgi?action=getCurrentTime";
+
+            var handler = new HttpClientHandler()
+            {
+                PreAuthenticate = true,
+                UseDefaultCredentials = false,
+                Credentials = new NetworkCredential(device.Username, device.Password)
+            };
+
+            using var client = new HttpClient(handler);
+            client.Timeout = TimeSpan.FromSeconds(10);
+
+            var response = await client.GetAsync(url);
+            var success = response.IsSuccessStatusCode;
+
+            if (!success)
+                return false;
+
+            var version = await GetFirmwareVersionAsync(device.IPAddress, device.Username, device.Password);
+
+            Console.WriteLine($"Device:{device.Type.ToString()} Firmware Version:{version}");
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     #region TODO: Será refeito no User
     public class AccessUser
     {

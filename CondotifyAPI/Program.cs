@@ -50,6 +50,7 @@ builder.Services.AddMediatR(cfg =>
 );
 
 builder.Services.AddScoped<ICondotifyCommandsRepository, CondotifyCommandsRepository>();
+builder.Services.AddScoped<ICondotifyQueriesRepository, CondotifyQueriesRepository>();
 
 builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();
 

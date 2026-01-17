@@ -267,4 +267,27 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
 
     public Task<bool> DeleteUserAsync(AccessControlDevice device, string userId)
         => throw new NotImplementedException();
+
+    public Task<bool> OpenDoorAsync(AccessControlDevice device)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<bool> TestConnectionAsync(AccessControlDevice device)
+    {
+
+        string? session = await LoginAsync(device.IPAddress, device.Username, device.Password);
+
+        if (string.IsNullOrWhiteSpace(session))
+            return false;
+
+        var url = $"http://{device.IPAddress}/get_vpn_information.fcgi?session={session}";
+
+        var http = _clientFactory.CreateClient();
+        http.Timeout = TimeSpan.FromSeconds(10);
+
+        var response = await http.GetAsync(url);
+
+        return response.IsSuccessStatusCode;
+    }
 }
