@@ -8,5 +8,7 @@ public enum TicketStatusTypeEnum
     Send = 1,
     [Description("Visualizado")]
     Viewed = 2,
+    [Description("Expirado")]
+    Expired = 3,
 }
 

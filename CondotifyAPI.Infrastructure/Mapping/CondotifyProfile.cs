@@ -5,12 +5,14 @@ using CondotifyAPI.Domain.DTO.Enterprise;
 using CondotifyAPI.Domain.DTO.Equipments;
 using CondotifyAPI.Domain.DTO.License;
 using CondotifyAPI.Domain.DTO.Location;
+using CondotifyAPI.Domain.DTO.Ticket;
 using CondotifyAPI.Domain.DTO.Users;
 using CondotifyAPI.Domain.Models;
 using CondotifyAPI.Domain.Models.Audit;
 using CondotifyAPI.Domain.Models.Enterprises;
 using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Domain.Models.License;
+using CondotifyAPI.Domain.Models.Ticket;
 using CondotifyAPI.Domain.Models.Users;
 
 namespace CondotifyAPI.Infrastructure.Mapping;
@@ -45,6 +47,11 @@ public class CondotifyProfile : Profile
 
         CreateMap<CFTVChannelDTO, CFTVChannel>()
             .ReverseMap();
+
+        CreateMap<TicketDTO, Ticket>()
+            .ReverseMap();
+
+        CreateMap<TicketAudit, TicketAudit>();
 
     }
 }
