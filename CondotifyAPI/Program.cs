@@ -3,15 +3,19 @@ using CondotifyAPI.Domain.Interfaces;
 using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Infrastructure.Mapping;
 using CondotifyAPI.Infrastructure.Repositories;
+using CondotifyAPI.Jwt;
 using CondotifyAPI.Services.AccessControl;
 using CondotifyAPI.Services.CFTV;
 using CondotifyAPI.Services.Drivers;
 using CondotifyAPI.Services.Factorys;
 using MediatR;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Events;
 using System.Reflection;
+using System.Text;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +33,34 @@ builder.Host.UseSerilog((context, services, configuration) =>
             .WriteTo.File("logs/Error/log.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 5));
 });
 
+var secret = Environment.GetEnvironmentVariable("JWTCondotify_Secret")
+             ?? throw new InvalidOperationException("JWTCondotify_Secret não definido!");
+var issuer = Environment.GetEnvironmentVariable("JWTCondotify_Issuer") ?? "Condotify";
+var audience = Environment.GetEnvironmentVariable("JWTCondotify_Audience") ?? "Condotify";
+var key = Encoding.UTF8.GetBytes(secret);
+
+builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = issuer,
+        ValidAudience = audience,
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -40,7 +72,9 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<DatabaseContext>();
 
+
 builder.Services.AddAutoMapper(typeof(CondotifyProfile));
+
 builder.Services.AddHttpClient<IAccessControlService, AccessControlService>();
 
 builder.Services.AddTransient<Mediator>();
@@ -50,17 +84,13 @@ builder.Services.AddMediatR(cfg =>
 );
 
 builder.Services.AddScoped<ICondotifyCommandsRepository, CondotifyCommandsRepository>();
+builder.Services.AddScoped<ICFTVService, CFTVService>();
+builder.Services.AddScoped<IAccessControlService, AccessControlService>();
 
 builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();
-
-
 builder.Services.AddScoped<IAccessControlDriverFactory, AccessControlDriverFactory>();
 builder.Services.AddScoped<IAccessControlDriver, ControlIdAccessControlDriver>();
-builder.Services.AddScoped<IAccessControlDriver, IntelbrasAccessControlDriver>();
 builder.Services.AddScoped<IAccessControlDriver, IntelbrasUHFAccessControlDriver>();
-builder.Services.AddScoped<ICFTVService, CFTVService>();
-
-builder.Services.AddScoped<IAccessControlService, AccessControlService>();
 
 var app = builder.Build();
 
@@ -77,7 +107,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication(); 
 app.UseAuthorization();
-app.MapControllers();
 
+app.MapControllers();
 app.Run();

@@ -1,5 +1,9 @@
 ﻿@{
     Layout = null;
+
+    // Se você usar TempData para mensagens:
+    // TempData["LoginError"] = "Email ou senha inválidos";
+    var error = TempData["LoginError"] as string;
 }
 
 <!DOCTYPE html>
@@ -10,128 +14,214 @@
     <title>Condotify • Login</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+
+    <style>
+        html, body {
+            font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        }
+    </style>
 </head>
 
-<body class="min-h-screen bg-[#F6F8FC] flex items-center justify-center px-6">
+<body class="min-h-screen text-slate-900">
 
-    <main class="w-full max-w-[420px]">
-
-        <!-- Marca -->
-        <div class="text-center mb-10">
-            <!-- Logo -->
-            <div class="mx-auto h-14 w-14 rounded-xl bg-white border border-slate-200 shadow-sm grid place-items-center">
-                <span class="text-lg font-bold text-slate-900">C</span>
-            </div>
-
-            <h1 class="mt-4 text-3xl font-semibold text-slate-900">
-                Condotify
-            </h1>
-
-            <p class="mt-1 text-sm text-slate-500">
-                Acesse sua conta
-            </p>
+    <!-- Background premium -->
+    <div class="fixed inset-0 -z-10 bg-[#F6F8FC]">
+        <div class="absolute inset-0 opacity-[0.25]"
+             style="background-image: radial-gradient(rgba(15,23,42,0.08) 1px, transparent 1px); background-size: 18px 18px;">
         </div>
 
-        <!-- Card -->
-        <section class="bg-white border border-slate-200 rounded-2xl shadow-sm px-8 py-8">
+        <div class="absolute -top-40 -left-40 h-[520px] w-[520px] rounded-full bg-blue-600/15 blur-3xl"></div>
+        <div class="absolute top-24 -right-52 h-[620px] w-[620px] rounded-full bg-indigo-600/15 blur-3xl"></div>
+        <div class="absolute -bottom-56 left-1/3 h-[720px] w-[720px] rounded-full bg-sky-500/10 blur-3xl"></div>
 
-            <form method="post" action="/Account/Login" class="space-y-5">
+        <div class="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-white/60 to-transparent"></div>
+    </div>
 
-                <!-- Email -->
-                <div>
-                    <input type="text"
-                           name="Username"
-                           placeholder="E-mail"
-                           required
-                           class="w-full h-11 px-4 rounded-lg border border-slate-300 text-slate-900
-                                  placeholder-slate-400
-                                  focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition" />
+    <main class="min-h-screen flex items-center justify-center px-6 py-10">
+        <div class="w-full max-w-[440px]">
+
+            <!-- Brand -->
+            <div class="text-center mb-8">
+                <div class="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white grid place-items-center shadow-sm ring-1 ring-white/60">
+                    <span class="text-lg font-bold">C</span>
                 </div>
 
-                <!-- Senha -->
-                <div class="relative">
-                    <input id="password"
-                           type="password"
-                           name="Password"
-                           placeholder="Senha"
-                           required
-                           class="w-full h-11 px-4 pr-11 rounded-lg border border-slate-300 text-slate-900
-                  placeholder-slate-400
-                  focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition" />
+                <h1 class="mt-4 text-3xl font-semibold tracking-tight">
+                    Condotify
+                </h1>
+                <p class="mt-1 text-sm text-slate-500">
+                    Acesse sua conta para continuar
+                </p>
+            </div>
 
-                    <button type="button"
-                            onclick="togglePassword()"
-                            class="absolute right-2 top-1/2 -translate-y-1/2 h-12 w-12
-                   grid place-items-center text-slate-400
-                   hover:text-slate-600 transition"
-                            aria-label="Mostrar senha">
+            <!-- Card (glass) -->
+            <section class="rounded-3xl border border-slate-200/70 bg-white/75 backdrop-blur-xl shadow-[0_20px_60px_rgba(15,23,42,0.10)] overflow-hidden">
 
-                        <!-- Eye icon (clean) -->
-                        <svg id="eyeOpen" xmlns="http://www.w3.org/2000/svg"
-                             class="h-5 w-5"
-                             fill="none" viewBox="0 0 24 24"
-                             stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                  d="M2.458 12C3.732 7.943 7.523 5 12 5
-                     c4.478 0 8.268 2.943 9.542 7
-                     -1.274 4.057-5.064 7-9.542 7
-                     -4.477 0-8.268-2.943-9.542-7z" />
-                            <circle cx="12" cy="12" r="3" />
-                        </svg>
+                <!-- Top bar -->
+                <div class="px-7 py-6 border-b border-slate-200/60 bg-white/55">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-slate-900">Entrar</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Use seu e-mail e senha</p>
+                        </div>
 
-                        <!-- Eye off -->
-                        <svg id="eyeClosed"
-                             xmlns="http://www.w3.org/2000/svg"
-                             class="h-5 w-5 hidden"
-                             viewBox="0 0 24 24"
-                             fill="none"
-                             stroke="currentColor"
-                             stroke-width="1.8"
-                             stroke-linecap="round"
-                             stroke-linejoin="round">
-
-                            <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20
-                                     C7 20 2.73 16.11 1 12
-                                     a18.4 18.4 0 0 1 5.06-6.94" />
-                                     
-                            <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-
-                            <path d="M21 21L3 3" />
-                        </svg>
-
-                    </button>
+                        <span class="inline-flex items-center gap-2 rounded-full bg-blue-600/10 text-blue-700 px-3 py-1 text-[12px] font-semibold ring-1 ring-blue-600/15">
+                            Seguro
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                <path d="M9 12l2 2 4-4"></path>
+                            </svg>
+                        </span>
+                    </div>
                 </div>
 
-                <!-- Esqueceu -->
-                <div class="flex justify-end">
-                    <a href="#" class="text-sm text-blue-600 hover:text-blue-700 transition">
-                        Esqueceu a senha?
-                    </a>
+                <div class="px-7 py-7">
+                   
+                    <form id="loginForm" method="post" action="/Login/Login" class="space-y-5">
+                        @Html.AntiForgeryToken()
+      
+
+                        <!-- Email -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1.5">E-mail</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                        <path d="M4 4h16v16H4z" stroke="none"></path>
+                                        <path d="M4 7l8 5 8-5"></path>
+                                        <path d="M4 7v13h16V7"></path>
+                                    </svg>
+                                </span>
+
+                                <input type="email"
+                                       name="Username"
+                                       autocomplete="email"
+                                       inputmode="email"
+                                       placeholder="seuemail@exemplo.com"
+                                       required
+                                       class="w-full h-12 pl-11 pr-4 rounded-2xl border border-slate-200 bg-white/80 text-slate-900
+                                              placeholder-slate-400 shadow-sm
+                                              focus:outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 transition" />
+                            </div>
+                        </div>
+
+                        <!-- Senha -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1.5">Senha</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                        <path d="M7 11V8a5 5 0 0110 0v3"></path>
+                                        <path d="M6 11h12v10H6z"></path>
+                                    </svg>
+                                </span>
+
+                                <input id="password"
+                                       type="password"
+                                       name="Password"
+                                       autocomplete="current-password"
+                                       placeholder="Sua senha"
+                                       required
+                                       class="w-full h-12 pl-11 pr-12 rounded-2xl border border-slate-200 bg-white/80 text-slate-900
+                                              placeholder-slate-400 shadow-sm
+                                              focus:outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 transition" />
+
+                                <button type="button"
+                                        onclick="togglePassword()"
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-xl
+                                               grid place-items-center text-slate-400 hover:text-slate-700
+                                               hover:bg-slate-100/70 transition"
+                                        aria-label="Mostrar senha">
+                                    <svg id="eyeOpen" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                        <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+
+                                    <svg id="eyeClosed" class="w-5 h-5 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C7 20 2.73 16.11 1 12a18.4 18.4 0 0 1 5.06-6.94"></path>
+                                        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"></path>
+                                        <path d="M21 21L3 3"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Remember + Forgot -->
+                        <div class="flex items-center justify-between gap-3">
+                            <label class="inline-flex items-center gap-2 text-sm text-slate-600 select-none">
+                                <input type="checkbox"
+                                       name="RememberMe"
+                                       class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30" />
+                                Lembrar de mim
+                            </label>
+
+                            <a href="/Login/ForgotPassword" class="text-sm font-medium text-blue-700 hover:text-blue-800 transition">
+                                Esqueceu a senha?
+                            </a>
+                        </div>
+
+                        <!-- Submit -->
+                        <button id="submitBtn"
+                                type="submit"
+                                class="w-full h-12 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold
+                                       shadow-sm hover:shadow-md hover:from-blue-700 hover:to-indigo-700 transition
+                                       focus:outline-none focus:ring-4 focus:ring-blue-500/25">
+                            <span id="btnText">Entrar</span>
+                            <span id="btnLoading" class="hidden items-center justify-center gap-2">
+                                <svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="white" stroke-width="4"></circle>
+                                    <path class="opacity-75" d="M4 12a8 8 0 018-8" stroke="white" stroke-width="4" stroke-linecap="round"></path>
+                                </svg>
+                                Entrando...
+                            </span>
+                        </button>
+
+                        <p class="text-center text-xs text-slate-500 pt-1">
+                            Ao entrar, você concorda com os termos de uso e política de privacidade.
+                        </p>
+
+                        @if (!string.IsNullOrWhiteSpace(error))
+                        {
+                            <div id="toastError"
+                                 class="fixed bottom-4 right-4 z-50 w-80 rounded-lg bg-rose-500 text-white shadow-lg px-5 py-4 opacity-0 translate-x-20 translate-y-0 transition-all">
+                                <strong class="block font-semibold">Erro ao entrar</strong>
+                                <span class="block text-sm mt-1">@error</span>
+                            </div>
+
+                            <script>
+                                const toast = document.getElementById('toastError');
+                                if (toast) {
+                                    // mostra o toast
+                                    toast.classList.remove('opacity-0', 'translate-x-20');
+                                    toast.classList.add('opacity-100', 'translate-x-0');
+
+                                    // oculta depois de 5s
+                                    setTimeout(() => {
+                                        toast.classList.add('opacity-0', 'translate-x-20');
+                                        toast.classList.remove('opacity-100', 'translate-x-0');
+                                    }, 5000);
+
+                                    // permitir fechar ao clicar
+                                    toast.addEventListener('click', () => {
+                                        toast.classList.add('opacity-0', 'translate-x-20');
+                                        toast.classList.remove('opacity-100', 'translate-x-0');
+                                    });
+                                }
+                            </script>
+                        }
+                    </form>
                 </div>
+            </section>
 
-                <!-- Botão -->
-                <button type="submit"
-                        class="w-full h-11 rounded-lg bg-blue-600 text-white font-medium
-                               hover:bg-blue-700 transition">
-                    Entrar
-                </button>
-
-                <!-- Cadastro -->
-                <a href="#"
-                   class="block text-center text-sm text-slate-600 hover:text-slate-900 transition">
-                    Quero me cadastrar
-                </a>
-
-            </form>
-        </section>
-
-        <p class="text-center text-xs text-slate-400 mt-8">
-            © @DateTime.Now.Year Condotify
-        </p>
+            <p class="text-center text-xs text-slate-400 mt-8">
+                © @DateTime.Now.Year Condotify
+            </p>
+        </div>
     </main>
 
     <script>
-           function togglePassword() {
+        function togglePassword() {
             const input = document.getElementById('password');
             const open = document.getElementById('eyeOpen');
             const closed = document.getElementById('eyeClosed');
@@ -142,6 +232,25 @@
             open.classList.toggle('hidden', isPassword);
             closed.classList.toggle('hidden', !isPassword);
         }
+
+        // Loading state ao enviar
+        (function () {
+            const form = document.getElementById('loginForm');
+            const submitBtn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText');
+            const btnLoading = document.getElementById('btnLoading');
+
+            if (!form) return;
+
+            form.addEventListener('submit', function () {
+                submitBtn.setAttribute('disabled', 'disabled');
+                submitBtn.classList.add('opacity-90', 'cursor-not-allowed');
+
+                btnText.classList.add('hidden');
+                btnLoading.classList.remove('hidden');
+                btnLoading.classList.add('inline-flex');
+            });
+        })();
     </script>
 
 </body>

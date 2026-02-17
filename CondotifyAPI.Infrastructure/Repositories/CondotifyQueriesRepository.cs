@@ -19,9 +19,6 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
         _mapper = mapper;
     }
 
-    // =========================
-    // USERS
-    // =========================
     public async Task<UserAccess?> GetUserByIdAsync(Guid userId)
     {
         var dto = await _context.Users
@@ -40,9 +37,6 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
         return dto == null ? null : _mapper.Map<UserAccess>(dto);
     }
 
-    // =========================
-    // ENTERPRISE
-    // =========================
     public async Task<Enterprise?> GetEnterpriseByIdAsync(Guid enterpriseId)
     {
         var dto = await _context.Enterprises
@@ -61,9 +55,6 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
         return _mapper.Map<List<Enterprise>>(list);
     }
 
-    // =========================
-    // LICENSE
-    // =========================
     public async Task<License?> GetLicenseByIdAsync(Guid licenseId)
     {
         var dto = await _context.Licenses
@@ -82,10 +73,6 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
 
         return _mapper.Map<List<License>>(list);
     }
-
-    // =========================
-    // ACCESS CONTROL DEVICES
-    // =========================
     public async Task<AccessControlDevice?> GetAccessControlDeviceByIdAsync(Guid deviceId)
     {
         var dto = await _context.Devices
@@ -105,9 +92,6 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
         return _mapper.Map<List<AccessControlDevice>>(list);
     }
 
-    // =========================
-    // CFTV DEVICES
-    // =========================
     public async Task<CFTVDevice?> GetCFTVDeviceByIdAsync(Guid deviceId)
     {
         var dto = await _context.CFTVDevices
@@ -125,5 +109,16 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
             .ToListAsync();
 
         return _mapper.Map<List<CFTVDevice>>(list);
+    }
+
+    public async Task<UserAccess> FindByEmailAsync(string email, CancellationToken ct)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(x => x.Email == email);
+        if(user != null)
+        {
+           return _mapper.Map<UserAccess>(user);  
+        }
+
+        return null;
     }
 }

@@ -19,8 +19,9 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.User
             builder.Property(u => u.Email)
                 .HasMaxLength(150);
 
-            builder.Property(u => u.Password)
-                .HasMaxLength(150);
+            builder.Property(u => u.PasswordHash)
+                   .IsRequired()
+                   .HasMaxLength(256);
 
             builder.Property(u => u.PhoneNumber)
                 .HasMaxLength(20);
@@ -52,7 +53,7 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.User
             builder.HasMany(u => u.Audit)
                 .WithOne(a => a.User)
                 .HasForeignKey(a => a.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade);    
         }
     }
 }

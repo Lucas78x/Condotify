@@ -2,6 +2,7 @@
 using CondotifyAPI.Domain.Models.Users;
 using FluentValidation;
 using MediatR;
+using Microsoft.AspNetCore.Identity;
 
 namespace CondotifyAPI.Commands.Users
 {
@@ -50,19 +51,21 @@ namespace CondotifyAPI.Commands.Users
 
             public async Task<UserAccessCreateResult> Handle(CreateUserAccessByEnterpriseCommand request, CancellationToken cancellationToken)
             {
+                var hasher = new PasswordHasher<UserAccess>();
                 var access = UserAccess.Create(
-                    request.Name,
-                    request.Email,
-                    request.Password,
-                    request.PhoneNumber,
-                    request.CPF,
-                    request.RG,
-                    request.BirthDate,
-                    request.Type,
-                    true,
-                    DateTime.Now,
-                    DateTime.Now,
-                    request.EnterpriseId); 
+                     request.Name,
+                     request.Email,
+                     request.Password,
+                     request.PhoneNumber,
+                     request.CPF,
+                     request.RG,
+                     request.BirthDate,
+                     request.Type,
+                     true,
+                     DateTime.Now,
+                     DateTime.Now,
+                     hasher,
+                     request.EnterpriseId);
 
                 return await _repository.AddUserAccessAsync(access);
             }
