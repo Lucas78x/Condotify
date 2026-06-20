@@ -27,5 +27,5 @@ public interface ICondotifyQueriesRepository
     Task<CFTVDevice?> GetCFTVDeviceByIdAsync(Guid deviceId);
     Task<List<CFTVDevice>> GetCFTVDevicesByLicenseAsync(Guid licenseId);
 
-    Task<UserAccess> FindByEmailAsync(string email, CancellationToken ct);
+    Task<UserAccess?> FindByEmailAsync(string email, CancellationToken ct);
 }

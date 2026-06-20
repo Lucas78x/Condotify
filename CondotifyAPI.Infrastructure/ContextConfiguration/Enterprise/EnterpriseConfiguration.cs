@@ -70,5 +70,11 @@ public class EnterpriseConfiguration : IEntityTypeConfiguration<EnterpriseDTO>
             .HasForeignKey(u => u.EnterpriseId)
             .IsRequired(false)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(e => e.CNPJ)
+            .IsUnique();
+
+        builder.HasIndex(e => e.Email)
+            .IsUnique();
     }
 }

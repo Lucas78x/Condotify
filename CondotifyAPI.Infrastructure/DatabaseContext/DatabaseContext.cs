@@ -12,10 +12,16 @@ public partial class DatabaseContext : DbContext
     {
         if (!optionsBuilder.IsConfigured)
         {
-            optionsBuilder.UseNpgsql("Server=localhost;Database=Condotify;User Id=postgres;Pwd=postgres");
+            optionsBuilder.UseNpgsql(GetDefaultConnectionString());
         }
 
         base.OnConfiguring(optionsBuilder);
+    }
+
+    public static string GetDefaultConnectionString()
+    {
+        return Environment.GetEnvironmentVariable("CONDOTIFY_DB_CONNECTION")
+            ?? "Server=localhost;Database=Condotify;User Id=postgres;Pwd=postgres";
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

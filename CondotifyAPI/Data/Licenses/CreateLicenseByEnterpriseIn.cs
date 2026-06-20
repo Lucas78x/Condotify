@@ -5,13 +5,13 @@ namespace DigitalWorldOnline.Management.Api.Data
 {
     public class CreateLicenseByEnterpriseIn
     {
-        public string EnterpriseId { get; set; }
-        public string Name { get; set; }
-        public string CNPJ { get; set; }
+        public string EnterpriseId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string CNPJ { get; set; } = string.Empty;
         public OrganizationTypeEnum Organization { get; set; }
         public BuildingTypeEnum Building { get; set; }
         public LicenseTypeEnum Type { get; set; }
-        public Location Location { get; set; }
+        public Location Location { get; set; } = new();
         public DateTime ExpireDate { get; set; }
     }
 

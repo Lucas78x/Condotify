@@ -69,6 +69,9 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Resident
                 .WithOne(d => d.Resident)   
                 .HasForeignKey(d => d.ResidentId); 
 
+            builder.HasIndex(r => new { r.UnitId, r.CPF })
+                .IsUnique();
+
         }
     }
 }

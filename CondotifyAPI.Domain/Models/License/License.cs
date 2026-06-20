@@ -10,6 +10,11 @@ namespace CondotifyAPI.Domain.Models.License
         public Guid Id { get; set; }
         public string Name { get; set; }
         public string CNPJ { get; set; }
+        public string City { get; set; }
+        public string Country { get; set; }
+        public string Code { get; set; }
+
+
         public OrganizationTypeEnum Organization { get; set; }
         public BuildingTypeEnum Building { get; set; }
         public LicenseTypeEnum Type { get; set; }

@@ -33,7 +33,9 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(x =>
                 x.Email == user.Email ||
-                (!string.IsNullOrWhiteSpace(user.Email)));
+                x.CPF == user.CPF ||
+                x.RG == user.RG ||
+                x.PhoneNumber == user.PhoneNumber);
 
         if (existentAccount != null)
         {
@@ -185,7 +187,7 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
         return true;
     }
 
-    public async Task<CFTVDevice> AddCftvDeviceAsync(Guid licenseId, CFTVDevice device)
+    public async Task<CFTVDevice?> AddCftvDeviceAsync(Guid licenseId, CFTVDevice device)
     {
         var existentDevice = await _context.CFTVDevices
             .Include(x=> x.Channels)

@@ -10,11 +10,16 @@ namespace Condotify.Controllers
     {
         private readonly ILogger<LoginController> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IConfiguration _configuration;
 
-        public LoginController(ILogger<LoginController> logger, IHttpClientFactory httpClientFactory)
+        public LoginController(
+            ILogger<LoginController> logger,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration)
         {
             _logger = logger;
             _httpClientFactory = httpClientFactory;
+            _configuration = configuration;
         }
 
 
@@ -28,8 +33,7 @@ namespace Condotify.Controllers
 
                 try
                 {
-                    var apiUrl = "https://localhost:5001/api/auth/validate";
-                    var response = await client.GetAsync(apiUrl);
+                    var response = await client.GetAsync(BuildApiUrl("api/auth/validate"));
 
                     if (response.IsSuccessStatusCode)
                     {
@@ -67,9 +71,7 @@ namespace Condotify.Controllers
             try
             {
                 var client = _httpClientFactory.CreateClient();
-                var apiUrl = "https://localhost:5001/api/auth/login";
-
-                var response = await client.PostAsJsonAsync(apiUrl, new
+                var response = await client.PostAsJsonAsync(BuildApiUrl("api/auth/login"), new
                 {
                     Email = model.Email,
                     Password = model.Password
@@ -77,7 +79,10 @@ namespace Condotify.Controllers
 
                 var result = await response.Content.ReadFromJsonAsync<LoginOut>();
 
-                if (response.IsSuccessStatusCode && result != null && result.Result == "Success")
+                if (response.IsSuccessStatusCode
+                    && result != null
+                    && result.Result == "Success"
+                    && !string.IsNullOrWhiteSpace(result.AccessToken))
                 {
                     Response.Cookies.Append("AuthToken", result.AccessToken, new Microsoft.AspNetCore.Http.CookieOptions
                     {
@@ -107,6 +112,12 @@ namespace Condotify.Controllers
             {
                 RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier
             });
+        }
+
+        private string BuildApiUrl(string path)
+        {
+            var baseUrl = _configuration["CondotifyApi:BaseUrl"] ?? "https://localhost:5001";
+            return $"{baseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
         }
     }
 }

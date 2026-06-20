@@ -1,89 +1,88 @@
-using Condotify.Models;
+ï»¿using Condotify.Models;
 using Microsoft.AspNetCore.Mvc;
-using System.Diagnostics;
+using System.Net.Http.Headers;
 
-namespace Condotify.Controllers
+public class HomeController : Controller
 {
-    public class HomeController : Controller
+    private readonly ILogger<HomeController> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
+
+    public HomeController(
+        ILogger<HomeController> logger,
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration)
     {
-        private readonly ILogger<HomeController> _logger;
+        _logger = logger;
+        _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
+    }
 
-        public HomeController(ILogger<HomeController> logger)
+    public IActionResult Index()
+    {
+        return RedirectToAction("Index", "Licencas");
+    }
+
+    public async Task<IActionResult> Inicio()
+    {
+        if (!Request.Cookies.TryGetValue("AuthToken", out var token))
+            return RedirectToAction("Login", "Login");
+
+        var client = _httpClientFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        try
         {
-            _logger = logger;
-        }
+            var validateResponse = await client.GetAsync(BuildApiUrl("api/auth/validate"));
 
-        public IActionResult Inicio()
-        {
-            var licencas = new List<LicenseViewModel>
-                {
-                    new LicenseViewModel {Id = 1, Nome="Apart Hotel Porto Smeralda", Codigo="13464", Moradores=164, Cidade="Camaçari", Estado="BA", ProjetoId=2340 },
-                    new LicenseViewModel {Id = 2,Nome="Condomínio Adamas Guarajuba", Codigo="14735", Moradores=103, Cidade="Camaçari", Estado="BA", ProjetoId=2340 },
-                    new LicenseViewModel {Id = 3, Nome="Costa Smeralda", Codigo="19194", Moradores=846, Cidade="Camaçari", Estado="BA", ProjetoId=2340 }
-                };
-
-            return View(licencas);
-        }
-
-        public IActionResult Detalhes(Guid id)
-        {
-            var model = new LicencaDetalhesViewModel
+            if (!validateResponse.IsSuccessStatusCode)
             {
-                Id = id,
-                Nome = "Apart Hotel Porto Smeralda",
-                Blocos = new List<BlocoViewModel>
-            {
-                new() { Nome = "Bloco A", Unidades = 15, Moradores = 38 },
-                new() { Nome = "Bloco ADM", Unidades = 1, Moradores = 10 },
-                new() { Nome = "Bloco B", Unidades = 18, Moradores = 49 },
-                new() { Nome = "Bloco C", Unidades = 33, Moradores = 77 }
+                Response.Cookies.Delete("AuthToken");
+                return RedirectToAction("Login", "Login");
             }
-            };
-
-            return View("~/Views/Licencas/Detalhes.cshtml",model);
         }
-
-        public class LicencaDetalhesViewModel
+        catch (Exception ex)
         {
-            public Guid Id { get; set; }
-            public string Nome { get; set; }
-            public List<BlocoViewModel> Blocos { get; set; }
+            _logger.LogError(ex, "Erro ao validar token");
+            Response.Cookies.Delete("AuthToken");
+            return RedirectToAction("Login", "Login");
         }
 
-        public class BlocoViewModel
+        List<LicenseViewModel> licencas = new();
+        try
         {
-            public string Nome { get; set; }
-            public int Unidades { get; set; }
-            public int Moradores { get; set; }
-        }
+            var response = await client.GetAsync(BuildApiUrl("api/access/licenses"));
 
-        public IActionResult Login()
+            if (response.IsSuccessStatusCode)
+            {
+                licencas = await response.Content.ReadFromJsonAsync<List<LicenseViewModel>>() ?? new();
+            }
+            else
+            {
+                _logger.LogWarning("Erro ao buscar licencas: {StatusCode}", response.StatusCode);
+            }
+        }
+        catch (Exception ex)
         {
-            return View();
+            _logger.LogError(ex, "Falha ao chamar API de licencas");
         }
 
-        public IActionResult Licencas()
-        {
-            var licencas = new List<LicenseViewModel>
-                {
-                    new LicenseViewModel {Id = 1, Nome="Apart Hotel Porto Smeralda", Codigo="13464", Moradores=164, Cidade="Camaçari", Estado="BA", ProjetoId=2340 },
-                    new LicenseViewModel {Id = 2,Nome="Condomínio Adamas Guarajuba", Codigo="14735", Moradores=103, Cidade="Camaçari", Estado="BA", ProjetoId=2340 },
-                    new LicenseViewModel {Id = 3, Nome="Costa Smeralda", Codigo="19194", Moradores=846, Cidade="Camaçari", Estado="BA", ProjetoId=2340 }
-                };
+        return View(licencas);
+    }
 
-            return View("~/Views/Licencas/Licencas.cshtml", licencas);
-        }
+    public IActionResult Login()
+    {
+        return View();
+    }
 
+    public IActionResult Privacy()
+    {
+        return View();
+    }
 
-        public IActionResult Privacy()
-        {
-            return View();
-        }
-
-        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-        public IActionResult Error()
-        {
-            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
-        }
+    private string BuildApiUrl(string path)
+    {
+        var baseUrl = _configuration["CondotifyApi:BaseUrl"] ?? "https://localhost:5001";
+        return $"{baseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
     }
 }

@@ -6,7 +6,7 @@ using System.Net;
 
 namespace CondotifyAPI.Commands.Equipments
 {
-    public class CreateCftvDeviceByLicenseCommand : IRequest<CFTVDevice>
+    public class CreateCftvDeviceByLicenseCommand : IRequest<CFTVDevice?>
     {
         public Guid LicenseId { get; set; }
 
@@ -59,7 +59,7 @@ namespace CondotifyAPI.Commands.Equipments
             Channels = channels;
         }
 
-        internal class Handler : IRequestHandler<CreateCftvDeviceByLicenseCommand, CFTVDevice>
+        internal class Handler : IRequestHandler<CreateCftvDeviceByLicenseCommand, CFTVDevice?>
         {
             private readonly ICondotifyCommandsRepository _repository;
 
@@ -68,7 +68,7 @@ namespace CondotifyAPI.Commands.Equipments
                 _repository = repository;
             }
 
-            public async Task<CFTVDevice> Handle(CreateCftvDeviceByLicenseCommand request, CancellationToken cancellationToken)
+            public async Task<CFTVDevice?> Handle(CreateCftvDeviceByLicenseCommand request, CancellationToken cancellationToken)
             {
                 var device = CFTVDevice.Create(
                     request.Name,

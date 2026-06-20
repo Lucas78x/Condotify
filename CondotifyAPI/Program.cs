@@ -1,4 +1,4 @@
-using CondotifyAPI;
+ï»¿using CondotifyAPI;
 using CondotifyAPI.Domain.Interfaces;
 using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Infrastructure.Mapping;
@@ -34,7 +34,7 @@ builder.Host.UseSerilog((context, services, configuration) =>
 });
 
 var secret = Environment.GetEnvironmentVariable("JWTCondotify_Secret")
-             ?? throw new InvalidOperationException("JWTCondotify_Secret não definido!");
+             ?? throw new InvalidOperationException("JWTCondotify_Secret nao definido!");
 var issuer = Environment.GetEnvironmentVariable("JWTCondotify_Issuer") ?? "Condotify";
 var audience = Environment.GetEnvironmentVariable("JWTCondotify_Audience") ?? "Condotify";
 var key = Encoding.UTF8.GetBytes(secret);
@@ -70,8 +70,12 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<DatabaseContext>();
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+                       ?? Environment.GetEnvironmentVariable("CONDOTIFY_DB_CONNECTION")
+                       ?? DatabaseContext.GetDefaultConnectionString();
 
+builder.Services.AddDbContext<DatabaseContext>(options =>
+    options.UseNpgsql(connectionString));
 
 builder.Services.AddAutoMapper(typeof(CondotifyProfile));
 
@@ -107,7 +111,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseAuthentication(); 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

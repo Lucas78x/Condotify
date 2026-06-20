@@ -7,7 +7,7 @@ using CondotifyAPI.Domain.Models;
 
 namespace CondotifyAPI.Commands.Licenses
 {
-    public class CreateLicenseByEnterpriseCommand : IRequest<License>
+    public class CreateLicenseByEnterpriseCommand : IRequest<License?>
     {
         public Guid EnterpriseId { get; set; }
         public string Name { get; set; }
@@ -39,7 +39,7 @@ namespace CondotifyAPI.Commands.Licenses
             ExpireDate = expireDate;
         }
 
-        internal class Handler : IRequestHandler<CreateLicenseByEnterpriseCommand, License>
+        internal class Handler : IRequestHandler<CreateLicenseByEnterpriseCommand, License?>
         {
             private readonly ICondotifyCommandsRepository _repository;
 
@@ -48,7 +48,7 @@ namespace CondotifyAPI.Commands.Licenses
                 _repository = repository;
             }
 
-            public async Task<License> Handle(CreateLicenseByEnterpriseCommand request, CancellationToken cancellationToken)
+            public async Task<License?> Handle(CreateLicenseByEnterpriseCommand request, CancellationToken cancellationToken)
             {
                 var license = License.Create(
                     request.Name,

@@ -1,70 +1,159 @@
-﻿@using static Condotify.Controllers.HomeController
-@model LicencaDetalhesViewModel
+@model LicenseFullViewModel
 @{
-    ViewData["Title"] = Model.Nome;
+    ViewData["Title"] = Model.Name;
+
+    var modules = new[]
+    {
+        new { Label = "Equipamentos", Action = "Equipamentos", Description = "Controle de acesso, leitores e catracas" },
+        new { Label = "Câmeras", Action = "Cameras", Description = "Câmeras IP, DVR e NVR" },
+        new { Label = "Blocos", Action = "Blocos", Description = "Estrutura física do condomínio" },
+        new { Label = "Unidades", Action = "Unidades", Description = "Apartamentos, casas e salas" },
+        new { Label = "Moradores", Action = "Moradores", Description = "Responsáveis, moradores e temporários" }
+    };
 }
 
-<div class="max-w-[1400px] mx-auto">
+<div class="max-w-[1400px] mx-auto space-y-6">
+    <div class="flex flex-col gap-3">
+        <div class="text-sm text-gray-600">
+            <a class="hover:underline" href="@Url.Action("Index", "Licencas")">Licenças</a>
+            <span class="mx-1">/</span>
+            <span class="font-semibold text-gray-800">@Model.Name</span>
+        </div>
 
-    <!-- Header -->
-    <div class="flex items-center gap-3 mb-6">
-        <a href="/Licencas" class="text-gray-500 hover:text-gray-700">
-            ←
-        </a>
-        <h1 class="text-2xl font-semibold">@Model.Nome</h1>
-    </div>
+        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div class="flex items-start gap-3">
+                <a href="@Url.Action("Index", "Licencas")"
+                   class="shrink-0 px-4 py-2 rounded-2xl border border-gray-200 bg-white text-gray-800 hover:bg-gray-50 transition">
+                    Voltar
+                </a>
 
-    <!-- Tabs -->
-    <div class="flex items-center gap-8 border-b mb-6">
-        <a class="pb-3 border-b-2 border-blue-600 text-blue-600 font-medium">
-            Unidades
-        </a>
-        <a class="pb-3 text-gray-500 hover:text-gray-700">
-            Dados cadastrais
-        </a>
-        <a class="pb-3 text-gray-500 hover:text-gray-700">
-            Recursos
-        </a>
-        <a class="pb-3 text-gray-500 hover:text-gray-700">
-            Equipamentos
-        </a>
-        <a class="pb-3 text-gray-500 hover:text-gray-700">
-            Relatórios
-        </a>
-    </div>
+                <div class="min-w-0">
+                    <h2 class="text-2xl md:text-3xl font-semibold tracking-tight text-gray-900">@Model.Name</h2>
+                    <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-gray-500">
+                        <span>Código: <strong class="text-gray-800">@Model.Code</strong></span>
+                        <span>LicenseId: <strong class="text-gray-800">@Model.Id</strong></span>
+                    </div>
+                </div>
+            </div>
 
-    <!-- Search + Actions -->
-    <div class="flex flex-col lg:flex-row gap-3 mb-6">
-        <input class="flex-1 border rounded-xl px-4 py-3 text-sm"
-               placeholder="Pesquise um(a) bloco..." />
+            <div class="flex flex-wrap gap-2">
+                <button type="button"
+                        onclick="copyToClipboard('@Model.Id')"
+                        class="px-4 py-2 rounded-2xl bg-gray-900 text-white hover:opacity-90 transition">
+                    Copiar LicenseId
+                </button>
 
-        <div class="flex gap-2">
-            <button class="inline-flex items-center gap-2 bg-emerald-500 text-white px-4 py-3 rounded-xl hover:bg-emerald-600">
-                + Incluir bloco
-            </button>
-
-            <button class="inline-flex items-center gap-2 border px-4 py-3 rounded-xl hover:bg-gray-50">
-                Importar cadastros
-            </button>
+                <span class="inline-flex items-center px-4 py-2 rounded-2xl text-sm font-semibold @(Model.IsExpired ? "bg-rose-50 text-rose-700 ring-1 ring-rose-600/20" : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20")">
+                    @Model.Status
+                </span>
+            </div>
         </div>
     </div>
 
-    <!-- Blocos -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        @foreach (var bloco in Model.Blocos)
-        {
-            <div class="bg-white border rounded-2xl p-5 hover:shadow-md transition">
-                <div class="flex items-center justify-between mb-4">
-                    <p class="font-semibold">@bloco.Nome</p>
-                    <span class="text-gray-400">▾</span>
-                </div>
-
-                <div class="text-sm text-gray-700">
-                    <p><strong>@bloco.Unidades</strong> unidades</p>
-                    <p><strong>@bloco.Moradores</strong> moradores</p>
-                </div>
-            </div>
-        }
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-white/85 border border-gray-200/70 rounded-2xl p-4 shadow-sm">
+            <p class="text-xs text-gray-500">Moradores</p>
+            <p class="text-2xl font-semibold text-gray-900">@Model.TotalResidents</p>
+        </div>
+        <div class="bg-white/85 border border-gray-200/70 rounded-2xl p-4 shadow-sm">
+            <p class="text-xs text-gray-500">Blocos</p>
+            <p class="text-2xl font-semibold text-gray-900">@Model.TotalBlocks</p>
+        </div>
+        <div class="bg-white/85 border border-gray-200/70 rounded-2xl p-4 shadow-sm">
+            <p class="text-xs text-gray-500">Unidades</p>
+            <p class="text-2xl font-semibold text-gray-900">@Model.TotalUnits</p>
+        </div>
+        <div class="bg-white/85 border border-gray-200/70 rounded-2xl p-4 shadow-sm">
+            <p class="text-xs text-gray-500">Expira em</p>
+            <p class="text-lg font-semibold text-gray-900">@Model.ExpireDate.ToString("dd/MM/yyyy")</p>
+        </div>
     </div>
 
+    <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+        @foreach (var module in modules)
+        {
+            <a href="@Url.Action(module.Action, "Licencas", new { id = Model.Id })"
+               class="bg-white/85 border border-gray-200/70 rounded-2xl shadow-sm p-5 hover:shadow-md hover:border-blue-200 transition">
+                <p class="font-semibold text-gray-900">@module.Label</p>
+                <p class="text-sm text-gray-500 mt-2">@module.Description</p>
+            </a>
+        }
+    </section>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+        <section class="bg-white/85 border border-gray-200/70 rounded-2xl shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="font-semibold text-gray-900">Blocos</h3>
+                <p class="text-sm text-gray-500">Resumo de unidades e moradores por bloco</p>
+            </div>
+
+            @if (Model.Blocks == null || !Model.Blocks.Any())
+            {
+                <div class="p-8 text-center text-gray-500">
+                    Nenhum bloco cadastrado para esta licença.
+                </div>
+            }
+            else
+            {
+                <div class="divide-y divide-gray-100">
+                    @foreach (var block in Model.Blocks)
+                    {
+                        <div class="px-5 py-4 flex items-center justify-between gap-4">
+                            <div class="min-w-0">
+                                <p class="font-medium text-gray-900 truncate">@block.Name</p>
+                                <p class="text-sm text-gray-500">@block.Id</p>
+                            </div>
+                            <div class="flex gap-6 text-right">
+                                <div>
+                                    <p class="text-xs text-gray-500">Unidades</p>
+                                    <p class="font-semibold">@block.TotalUnits</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Moradores</p>
+                                    <p class="font-semibold">@block.TotalResidents</p>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <aside class="bg-white/85 border border-gray-200/70 rounded-2xl shadow-sm p-5 h-fit">
+            <h3 class="font-semibold text-gray-900">Informações</h3>
+            <dl class="mt-4 space-y-3 text-sm">
+                <div>
+                    <dt class="text-gray-500">Cidade</dt>
+                    <dd class="font-medium text-gray-900">@Model.City</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Estado</dt>
+                    <dd class="font-medium text-gray-900">@Model.State</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Tipo</dt>
+                    <dd class="font-medium text-gray-900">@Model.Type</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Criada em</dt>
+                    <dd class="font-medium text-gray-900">@Model.CreatedAt.ToString("dd/MM/yyyy")</dd>
+                </div>
+            </dl>
+        </aside>
+    </div>
 </div>
+
+<script>
+    async function copyToClipboard(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch {
+            const input = document.createElement("input");
+            input.value = text;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand("copy");
+            document.body.removeChild(input);
+        }
+    }
+</script>

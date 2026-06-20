@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CondotifyAPI.Commands.Equipments
 {
-    public class CreateAccessControlDeviceByLicenseCommand : IRequest<AccessControlDevice>
+    public class CreateAccessControlDeviceByLicenseCommand : IRequest<AccessControlDevice?>
     {
         public Guid LicenseId { get; set; }
         public string Name { get; set; }
@@ -52,7 +52,7 @@ namespace CondotifyAPI.Commands.Equipments
             Location = location;
         }
 
-        internal class Handler : IRequestHandler<CreateAccessControlDeviceByLicenseCommand, AccessControlDevice>
+        internal class Handler : IRequestHandler<CreateAccessControlDeviceByLicenseCommand, AccessControlDevice?>
         {
             private readonly ICondotifyCommandsRepository _repository;
 
@@ -61,7 +61,7 @@ namespace CondotifyAPI.Commands.Equipments
                 _repository = repository;
             }
 
-            public async Task<AccessControlDevice> Handle(CreateAccessControlDeviceByLicenseCommand request, CancellationToken cancellationToken)
+            public async Task<AccessControlDevice?> Handle(CreateAccessControlDeviceByLicenseCommand request, CancellationToken cancellationToken)
             {
                 var device = AccessControlDevice.Create(
                     request.Name,

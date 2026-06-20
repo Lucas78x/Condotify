@@ -69,8 +69,8 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
                 .HasForeignKey(c => c.CFTVDeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            builder.HasIndex(x => new { x.IpAddress, x.HTTPPort })
-                .IsUnique(false);
+            builder.HasIndex(x => new { x.LicenseId, x.IpAddress, x.HTTPPort, x.RTSPPort })
+                .IsUnique();
         }
     }
 }

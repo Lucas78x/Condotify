@@ -1,13 +1,13 @@
-﻿namespace Condotify.Models
+namespace Condotify.Models
 {
     public class LicenseViewModel
     {
-        public int Id { get; set; }
-        public string Nome { get; set; }
-        public string Codigo { get; set; }
+        public string Id { get; set; } = string.Empty;
+        public string Nome { get; set; } = string.Empty;
+        public string Codigo { get; set; } = string.Empty;
         public int Moradores { get; set; }
-        public string Cidade { get; set; }
-        public string Estado { get; set; }
+        public string Cidade { get; set; } = string.Empty;
+        public string Estado { get; set; } = string.Empty;
         public int ProjetoId { get; set; }
     }
 }

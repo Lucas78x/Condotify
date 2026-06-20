@@ -28,6 +28,9 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Block
                 .WithOne(u => u.Block)
                 .HasForeignKey(u => u.BlockId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasIndex(b => new { b.LicenseId, b.Name })
+                .IsUnique();
         }
     }
 }

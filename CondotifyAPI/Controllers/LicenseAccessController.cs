@@ -1,33 +1,99 @@
 ﻿using CondotifyAPI.Commands.Licenses;
-using CondotifyAPI.Data.Enterprise;
+using CondotifyAPI.Data.Licenses;
+using CondotifyAPI.Query;
 using DigitalWorldOnline.Management.Api.Data;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 [ApiController]
 [Route("api/access/licenses")]
 public class LicenseAccessController : ControllerBase
 {
     private readonly ISender _sender;
-    private readonly string _apiKey;
 
     public LicenseAccessController(ISender sender)
     {
         _sender = sender;
-        _apiKey = Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY")!;
-#if DEBUG
-        _apiKey = "1";
-#endif
+    }
+
+    [HttpGet]
+    [Authorize] 
+    public async Task<IActionResult> GetLicenses()
+    {
+        try
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("UserId não encontrado no token");
+
+            var query = new GetLicenseSummariesByUserQuery(userIdClaim);
+
+            var licenses = await _sender.Send(query);
+
+            return Ok(licenses); 
+        }
+        catch (FluentValidation.ValidationException ex)
+        {
+            return BadRequest(new { Result = "InvalidRequest", Errors = ex.Errors.Select(e => e.ErrorMessage) });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Result = "Error", Message = ex.Message });
+        }
+    }
+
+    [HttpGet("by-user/{id:guid}")]
+    [Authorize]
+    public async Task<IActionResult> GetLicensesByUserId(Guid id)
+    {
+        try
+        {
+            var query = new GetLicenseSummariesByUserQuery(id.ToString());
+
+            var licenses = await _sender.Send(query);
+
+            return Ok(licenses);
+        }
+        catch (FluentValidation.ValidationException ex)
+        {
+            return BadRequest(new { Result = "InvalidRequest", Errors = ex.Errors.Select(e => e.ErrorMessage) });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Result = "Error", Message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}")]
+    [Authorize]
+    public async Task<IActionResult> GetLicenseById(Guid id)
+    {
+        try
+        {
+            var query = new GetLicenseByIdQuery(id);
+
+            var license = await _sender.Send(query);
+            if (license == null)
+                return NotFound();
+
+            return Ok(license);
+        }
+        catch (FluentValidation.ValidationException ex)
+        {
+            return BadRequest(new { Result = "InvalidRequest", Errors = ex.Errors.Select(e => e.ErrorMessage) });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Result = "Error", Message = ex.Message });
+        }
     }
 
     [HttpPost("by-enterprise")]
-    public async Task<IActionResult> CreateByEnterprise(
-        [FromHeader(Name = "X-API-Key")] string apiKey,
-        [FromBody] CreateLicenseByEnterpriseIn license)
+    [Authorize] 
+    public async Task<IActionResult> CreateByEnterprise([FromBody] CreateLicenseByEnterpriseIn license)
     {
-        if (apiKey != _apiKey)
-            return Unauthorized();
-
         var command = license.ToCommand();
         var validator = await new CreateLicenseByEnterpriseCommandValidator().ValidateAsync(command);
 
@@ -40,7 +106,7 @@ public class LicenseAccessController : ControllerBase
 
         var result = await _sender.Send(command);
 
-        if (result is not null)
+        if (result != null)
             return Created("", new CreateLicenseOut
             {
                 Result = LicenseCreateResult.Created,

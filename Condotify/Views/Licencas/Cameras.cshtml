@@ -1,0 +1,115 @@
+@model CftvDeviceFormViewModel
+@{
+    ViewData["Title"] = "Câmeras e CFTV";
+}
+
+<div class="max-w-[1400px] mx-auto space-y-6">
+    @await Html.PartialAsync("_LicenseModuleHeader", Model)
+
+    <div class="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-4">
+        <form method="post" class="bg-white/85 border border-gray-200/70 rounded-2xl shadow-sm overflow-hidden">
+            @Html.AntiForgeryToken()
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="font-semibold text-gray-900">Cadastrar câmera ou gravador</h3>
+                <p class="text-sm text-gray-500">Câmera IP, DVR ou NVR com dados RTSP</p>
+            </div>
+
+        <div class="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label class="space-y-1 md:col-span-2">
+                <span class="text-sm font-medium text-gray-700">Nome</span>
+                <input asp-for="Name" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+            </label>
+            <label class="space-y-1">
+                <span class="text-sm font-medium text-gray-700">Tipo</span>
+                <select asp-for="DeviceType" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15">
+                    <option value="1">Câmera</option>
+                    <option value="2">DVR</option>
+                    <option value="3">NVR</option>
+                </select>
+            </label>
+            <label class="space-y-1">
+                <span class="text-sm font-medium text-gray-700">IP</span>
+                <input asp-for="IpAddress" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+            </label>
+            <label class="space-y-1">
+                <span class="text-sm font-medium text-gray-700">Porta HTTP</span>
+                <input asp-for="HTTPPort" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+            </label>
+            <label class="space-y-1">
+                <span class="text-sm font-medium text-gray-700">Porta RTSP</span>
+                <input asp-for="RTSPPort" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+            </label>
+            <label class="space-y-1">
+                <span class="text-sm font-medium text-gray-700">Usuário</span>
+                <input asp-for="UserName" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+            </label>
+            <label class="space-y-1">
+                <span class="text-sm font-medium text-gray-700">Senha</span>
+                <input asp-for="Password" type="password" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+            </label>
+            <label class="space-y-1">
+                <span class="text-sm font-medium text-gray-700">Canais</span>
+                <input asp-for="MaxChannels" type="number" min="1" max="64" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+            </label>
+            <label class="space-y-1">
+                <span class="text-sm font-medium text-gray-700">Tipo de IP</span>
+                <select asp-for="IpType" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15">
+                    <option value="0">Não definido</option>
+                    <option value="1">Fixo</option>
+                    <option value="2">DDNS</option>
+                </select>
+            </label>
+            <label class="space-y-1">
+                <span class="text-sm font-medium text-gray-700">Proporção</span>
+                <select asp-for="Proportion" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15">
+                    <option value="0">Não definido</option>
+                    <option value="1">Widescreen</option>
+                    <option value="2">4:3</option>
+                </select>
+            </label>
+            <label class="space-y-1">
+                <span class="text-sm font-medium text-gray-700">Marca</span>
+                <select asp-for="Mark" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15">
+                    <option value="0">Não definida</option>
+                    <option value="1">Intelbras</option>
+                    <option value="2">Hikvision</option>
+                    <option value="3">Dahua</option>
+                </select>
+            </label>
+        </div>
+
+            <div class="px-5 py-4 border-t border-gray-100 flex justify-end">
+                <button class="px-5 py-3 rounded-2xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition">
+                    Salvar CFTV
+                </button>
+            </div>
+        </form>
+
+        <aside class="bg-white/85 border border-gray-200/70 rounded-2xl shadow-sm overflow-hidden h-fit">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="font-semibold text-gray-900">Cadastradas</h3>
+                <p class="text-sm text-gray-500">@Model.Devices.Count câmera(s)</p>
+            </div>
+            @if (!Model.Devices.Any())
+            {
+                <div class="p-6 text-sm text-gray-500">Nenhuma câmera cadastrada.</div>
+            }
+            else
+            {
+                <div class="divide-y divide-gray-100">
+                    @foreach (var camera in Model.Devices)
+                    {
+                        <div class="p-5">
+                            <p class="font-medium text-gray-900">@camera.Name</p>
+                            <p class="text-sm text-gray-500">@camera.IpAddress · RTSP @camera.RTSPPort</p>
+                            <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
+                                <span>@camera.DeviceType</span>
+                                <strong class="text-gray-800">@camera.MaxChannels canal(is)</strong>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </aside>
+    </div>
+</div>

@@ -25,10 +25,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Views\Licencas\Licencas.cshtml" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Content Update="wwwroot\assets\login\logo.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

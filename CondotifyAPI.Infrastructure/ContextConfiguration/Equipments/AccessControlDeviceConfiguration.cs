@@ -66,6 +66,12 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
                 .WithOne(a => a.Device)
                 .HasForeignKey(a => a.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasIndex(d => new { d.LicenseId, d.SerialNumber })
+                .IsUnique();
+
+            builder.HasIndex(d => new { d.LicenseId, d.MACAddress })
+                .IsUnique();
         }
     }
 }

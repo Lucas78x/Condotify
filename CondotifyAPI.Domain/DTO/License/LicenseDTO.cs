@@ -22,6 +22,9 @@ namespace CondotifyAPI.Domain.DTO.License
         /// </value>
         public string Name { get; set; }
         public string CNPJ { get; set; }
+        public string City { get; set; }
+        public string Country { get; set; }
+        public string Code { get; set; }
 
         //Enums
         public  OrganizationTypeEnum Organization { get; set; }

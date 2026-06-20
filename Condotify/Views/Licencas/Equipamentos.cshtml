@@ -1,0 +1,119 @@
+@model AccessDeviceFormViewModel
+@{
+    ViewData["Title"] = "Equipamentos de acesso";
+}
+
+<div class="max-w-[1400px] mx-auto space-y-6">
+    @await Html.PartialAsync("_LicenseModuleHeader", Model)
+
+    <div class="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-4">
+        <form method="post" class="bg-white/85 border border-gray-200/70 rounded-2xl shadow-sm overflow-hidden">
+            @Html.AntiForgeryToken()
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="font-semibold text-gray-900">Cadastrar equipamento</h3>
+                <p class="text-sm text-gray-500">Controladoras, leitores faciais, catracas e portarias IP</p>
+            </div>
+
+            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Nome</span>
+                    <input asp-for="Name" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                </label>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Tipo</span>
+                    <select asp-for="Type" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15">
+                        <option value="0">Padrão</option>
+                        <option value="1">Facial</option>
+                        <option value="2">Cartão</option>
+                        <option value="3">UHF</option>
+                    </select>
+                </label>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">IP</span>
+                    <input asp-for="IPAddress" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                </label>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Porta</span>
+                    <input asp-for="Port" type="number" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                </label>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Usuário</span>
+                    <input asp-for="Username" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                </label>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Senha</span>
+                    <input asp-for="Password" type="password" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                </label>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">MAC</span>
+                    <input asp-for="MACAddress" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                </label>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Serial</span>
+                    <input asp-for="SerialNumber" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                </label>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Modelo</span>
+                    <input asp-for="DeviceModel" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                </label>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Firmware</span>
+                    <input asp-for="FirmwareVersion" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                </label>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Local X</span>
+                    <input asp-for="LocationX" type="number" step="0.0001" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                </label>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Local Y</span>
+                    <input asp-for="LocationY" type="number" step="0.0001" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                </label>
+                <label class="md:col-span-2 inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input asp-for="IsActive" class="h-4 w-4 rounded border-gray-300 text-blue-600" />
+                    Ativo e testável na criação
+                </label>
+            </div>
+
+            <div class="px-5 py-4 border-t border-gray-100 flex justify-end">
+                <button class="px-5 py-3 rounded-2xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition">
+                    Salvar equipamento
+                </button>
+            </div>
+        </form>
+
+        <aside class="bg-white/85 border border-gray-200/70 rounded-2xl shadow-sm overflow-hidden h-fit">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="font-semibold text-gray-900">Cadastrados</h3>
+                <p class="text-sm text-gray-500">@Model.Devices.Count equipamento(s)</p>
+            </div>
+            @if (!Model.Devices.Any())
+            {
+                <div class="p-6 text-sm text-gray-500">Nenhum equipamento cadastrado.</div>
+            }
+            else
+            {
+                <div class="divide-y divide-gray-100">
+                    @foreach (var device in Model.Devices)
+                    {
+                        <div class="p-5">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="font-medium text-gray-900 truncate">@device.Name</p>
+                                    <p class="text-sm text-gray-500">@device.IPAddress:@device.Port</p>
+                                </div>
+                                <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold @(device.IsActive ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-600")">
+                                    @(device.IsActive ? "Ativo" : "Inativo")
+                                </span>
+                            </div>
+                            <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
+                                <span>Tipo: <strong class="text-gray-800">@device.Type</strong></span>
+                                <span>Modelo: <strong class="text-gray-800">@device.Model</strong></span>
+                                <span class="col-span-2">Serial: <strong class="text-gray-800">@device.SerialNumber</strong></span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </aside>
+    </div>
+</div>

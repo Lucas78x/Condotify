@@ -59,6 +59,9 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
     {
         var dto = await _context.Licenses
             .AsNoTracking()
+            .Include(x => x.Blocks)
+            .ThenInclude(x => x.Units)
+            .ThenInclude(x => x.Residents)
             .FirstOrDefaultAsync(x => x.Id == licenseId);
 
         return dto == null ? null : _mapper.Map<License>(dto);
@@ -68,11 +71,15 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
     {
         var list = await _context.Licenses
             .AsNoTracking()
+            .Include(x=> x.Blocks)
+            .ThenInclude( k => k.Units)
+            .ThenInclude( y => y.Residents)
             .Where(x => x.EnterpriseId == enterpriseId)
             .ToListAsync();
 
         return _mapper.Map<List<License>>(list);
     }
+
     public async Task<AccessControlDevice?> GetAccessControlDeviceByIdAsync(Guid deviceId)
     {
         var dto = await _context.Devices
@@ -111,7 +118,7 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
         return _mapper.Map<List<CFTVDevice>>(list);
     }
 
-    public async Task<UserAccess> FindByEmailAsync(string email, CancellationToken ct)
+    public async Task<UserAccess?> FindByEmailAsync(string email, CancellationToken ct)
     {
         var user = await _context.Users.FirstOrDefaultAsync(x => x.Email == email);
         if(user != null)
