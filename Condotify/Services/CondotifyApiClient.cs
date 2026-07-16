@@ -1,0 +1,610 @@
+using Condotify.Models;
+using Microsoft.AspNetCore.Components.Authorization;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Text.Json;
+
+namespace Condotify.Services;
+
+public sealed class CondotifyApiClient
+{
+    public const string AccessTokenClaim = "condotify_access_token";
+
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AuthenticationStateProvider _authenticationStateProvider;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<CondotifyApiClient> _logger;
+
+    public CondotifyApiClient(
+        IHttpClientFactory httpClientFactory,
+        AuthenticationStateProvider authenticationStateProvider,
+        IConfiguration configuration,
+        ILogger<CondotifyApiClient> logger)
+    {
+        _httpClientFactory = httpClientFactory;
+        _authenticationStateProvider = authenticationStateProvider;
+        _configuration = configuration;
+        _logger = logger;
+    }
+
+    public Task<ApiResult<List<LicenseViewModel>>> GetLicensesAsync(CancellationToken cancellationToken = default) =>
+        GetAsync<List<LicenseViewModel>>("api/access/licenses", cancellationToken);
+
+    public Task<ApiResult<LicenseFullViewModel>> GetLicenseAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<LicenseFullViewModel>($"api/access/licenses/{licenseId}", cancellationToken);
+
+    public Task<ApiResult<LicenseStructureViewModel>> GetStructureAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<LicenseStructureViewModel>($"api/access/licenses/{licenseId}/structure", cancellationToken);
+
+    public Task<ApiResult<UnitDetailViewModel>> GetUnitDetailsAsync(Guid licenseId, Guid unitId, CancellationToken cancellationToken = default) =>
+        GetAsync<UnitDetailViewModel>($"api/access/licenses/{licenseId}/units/{unitId}/details", cancellationToken);
+
+    public Task<ApiResult<PersonProfileViewModel>> GetPersonProfileAsync(Guid licenseId, Guid residentId, CancellationToken cancellationToken = default) =>
+        GetAsync<PersonProfileViewModel>($"api/access/licenses/{licenseId}/residents/{residentId}/profile", cancellationToken);
+
+    public Task<ApiResult<List<RegistrationInviteViewModel>>> GetRegistrationInvitesAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<RegistrationInviteViewModel>>($"api/access/licenses/{licenseId}/registration-invites", cancellationToken);
+
+    public Task<ApiResult<LicenseAdministrationViewModel>> GetLicenseAdministrationAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<LicenseAdministrationViewModel>($"api/access/licenses/{licenseId}/administration", cancellationToken);
+
+    public Task<ApiResult<PublicRegistrationInviteViewModel>> GetPublicRegistrationInviteAsync(string token, CancellationToken cancellationToken = default) =>
+        GetAsync<PublicRegistrationInviteViewModel>($"api/public/registration-invites/{Uri.EscapeDataString(token)}", cancellationToken);
+
+    public Task<ApiResult<List<AccessDeviceRowViewModel>>> GetDevicesAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AccessDeviceRowViewModel>>($"api/access/licenses/{licenseId}/devices", cancellationToken);
+
+    public Task<ApiResult<List<DeviceActionRowViewModel>>> GetDeviceActionsAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<DeviceActionRowViewModel>>($"api/access/licenses/{licenseId}/devices/actions", cancellationToken);
+
+    public Task<ApiResult<List<CredentialRowViewModel>>> GetCredentialsAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<CredentialRowViewModel>>($"api/access/licenses/{licenseId}/credentials", cancellationToken);
+
+    public Task<ApiResult<List<AccessEventRowViewModel>>> GetAccessEventsAsync(Guid licenseId, Guid deviceId, int take = 50, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AccessEventRowViewModel>>($"api/access/licenses/{licenseId}/devices/{deviceId}/access-events?take={take}", cancellationToken);
+
+    public Task<ApiResult<List<CftvDeviceRowViewModel>>> GetCamerasAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<CftvDeviceRowViewModel>>($"api/access/licenses/{licenseId}/cftv", cancellationToken);
+
+    public Task<ApiResult<List<DeliveryRowViewModel>>> GetDeliveriesAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<DeliveryRowViewModel>>($"api/access/licenses/{licenseId}/deliveries", cancellationToken);
+
+    public Task<ApiResult<List<GlobalResidentSearchViewModel>>> SearchResidentsAsync(
+        string? query,
+        string? document,
+        string? phone,
+        string? credential,
+        string? unit,
+        string? licenseId,
+        CancellationToken cancellationToken = default)
+    {
+        var parameters = new Dictionary<string, string?>
+        {
+            ["query"] = query,
+            ["document"] = document,
+            ["phone"] = phone,
+            ["credential"] = credential,
+            ["unit"] = unit,
+            ["licenseId"] = licenseId
+        };
+        var queryString = string.Join("&", parameters
+            .Where(x => !string.IsNullOrWhiteSpace(x.Value))
+            .Select(x => $"{x.Key}={Uri.EscapeDataString(x.Value!.Trim())}"));
+        return GetAsync<List<GlobalResidentSearchViewModel>>($"api/access/operations/residents/search?{queryString}", cancellationToken);
+    }
+
+    public async Task<ApiResult<Guid>> CreateLicenseAsync(CreateLicenseViewModel model, CancellationToken cancellationToken = default)
+    {
+        var user = (await _authenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var enterpriseId = user.FindFirstValue("enterprise_id");
+        if (!Guid.TryParse(enterpriseId, out _))
+            return ApiResult<Guid>.Fail("Nao foi possivel identificar a empresa da sessao. Entre novamente.");
+
+        var payload = new
+        {
+            EnterpriseId = enterpriseId,
+            Name = model.Name.Trim(),
+            CNPJ = OnlyDigits(model.CNPJ),
+            City = model.City.Trim(),
+            Country = model.Country.Trim(),
+            Code = string.IsNullOrWhiteSpace(model.Code) ? $"LIC-{DateTime.UtcNow:yyyyMMddHHmmss}" : model.Code.Trim(),
+            model.Organization,
+            model.Building,
+            model.Type,
+            Location = new { Name = model.City.Trim(), X = model.LocationX, Y = model.LocationY },
+            model.ExpireDate
+        };
+
+        var response = await SendAsync(HttpMethod.Post, "api/access/licenses/by-enterprise", payload, false, cancellationToken);
+        if (!response.Success || response.Document is null)
+            return ApiResult<Guid>.Fail(response.Error!, response.StatusCode);
+
+        using (response.Document)
+        {
+            if (response.Document.RootElement.TryGetProperty("license", out var license) &&
+                license.TryGetProperty("id", out var id) &&
+                Guid.TryParse(id.GetString(), out var createdId))
+            {
+                return ApiResult<Guid>.Ok(createdId, response.StatusCode);
+            }
+        }
+
+        return ApiResult<Guid>.Fail("A licenca foi criada, mas a API nao retornou o identificador.", response.StatusCode);
+    }
+
+    public Task<ApiResult<bool>> CreateBlockAsync(Guid licenseId, BlockFormViewModel model, CancellationToken cancellationToken = default) =>
+        PostAsync($"api/access/licenses/{licenseId}/blocks", new { Name = model.Name?.Trim() ?? string.Empty }, false, cancellationToken);
+
+    public Task<ApiResult<bool>> CreateUnitAsync(Guid licenseId, UnitFormViewModel model, CancellationToken cancellationToken = default) =>
+        PostAsync($"api/access/licenses/{licenseId}/units", new
+        {
+            model.BlockId,
+            Number = model.Number?.Trim() ?? string.Empty,
+            Floor = model.Floor?.Trim() ?? string.Empty
+        }, false, cancellationToken);
+
+    public Task<ApiResult<bool>> CreateResidentAsync(Guid licenseId, ResidentFormViewModel model, CancellationToken cancellationToken = default) =>
+        PostAsync($"api/access/licenses/{licenseId}/residents", new
+        {
+            model.UnitId,
+            Name = model.Name.Trim(),
+            Email = model.Email.Trim(),
+            PhoneNumber = model.PhoneNumber.Trim(),
+            CommercialPhone = model.CommercialPhone.Trim(),
+            CPF = model.CPF.Trim(),
+            RG = model.RG.Trim(),
+            Description = model.Description.Trim(),
+            ApartmentNumber = model.ApartmentNumber.Trim(),
+            model.AccessType,
+            model.Relationship,
+            model.NotifyAccess,
+            model.Temporary,
+            model.Expire
+        }, false, cancellationToken);
+
+    public Task<ApiResult<bool>> UpdateStructureSettingsAsync(Guid licenseId, StructureSettingsViewModel model, CancellationToken cancellationToken = default) =>
+        PatchAsync($"api/access/licenses/{licenseId}/structure/settings", new
+        {
+            GroupLabelSingular = model.GroupLabelSingular.Trim(),
+            GroupLabelPlural = model.GroupLabelPlural.Trim(),
+            UnitLabelSingular = model.UnitLabelSingular.Trim(),
+            UnitLabelPlural = model.UnitLabelPlural.Trim()
+        }, cancellationToken);
+
+    public Task<ApiResult<PersonProfileViewModel>> UpdatePersonProfileAsync(Guid licenseId, Guid residentId, PersonProfileFormViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<PersonProfileViewModel>(HttpMethod.Patch, $"api/access/licenses/{licenseId}/residents/{residentId}/profile", new
+        {
+            model.Name,
+            model.Email,
+            model.PhoneNumber,
+            model.CommercialPhone,
+            model.CPF,
+            model.RG,
+            model.BirthDate,
+            model.Description,
+            model.ImageUrl,
+            model.NotifyAccess,
+            model.IsActive,
+            model.Relationship
+        }, cancellationToken);
+
+    public Task<ApiResult<VehicleViewModel>> CreateVehicleAsync(Guid licenseId, Guid residentId, VehicleFormViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<VehicleViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/residents/{residentId}/vehicles", new
+        {
+            model.UnitId,
+            model.Plate,
+            model.Brand,
+            model.Model,
+            model.Color,
+            model.Type,
+            model.TagIdentifier
+        }, cancellationToken);
+
+    public Task<ApiResult<bool>> SetVehicleStatusAsync(Guid licenseId, Guid residentId, Guid vehicleId, bool isActive, CancellationToken cancellationToken = default) =>
+        PatchAsync($"api/access/licenses/{licenseId}/residents/{residentId}/vehicles/{vehicleId}/status", new { IsActive = isActive }, cancellationToken);
+
+    public Task<ApiResult<RegistrationInviteViewModel>> CreateRegistrationInviteAsync(Guid licenseId, Guid residentId, string contact, int channel = 3, int validDays = 7, CancellationToken cancellationToken = default) =>
+        SendForAsync<RegistrationInviteViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/residents/{residentId}/registration-invites", new
+        {
+            Contact = contact.Trim(),
+            Channel = channel,
+            ValidDays = validDays
+        }, cancellationToken);
+
+    public Task<ApiResult<PublicRegistrationInviteViewModel>> CompleteRegistrationInviteAsync(string token, CompleteRegistrationInviteViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<PublicRegistrationInviteViewModel>(HttpMethod.Post, $"api/public/registration-invites/{Uri.EscapeDataString(token)}/complete", new
+        {
+            model.Name,
+            model.Email,
+            model.PhoneNumber,
+            model.CPF,
+            model.RG,
+            model.BirthDate
+        }, cancellationToken);
+
+    public Task<ApiResult<bool>> CreateDeviceAsync(Guid licenseId, AccessDeviceFormViewModel model, CancellationToken cancellationToken = default)
+    {
+        var option = DeviceCatalog.Find(model.Type);
+        if (option is null)
+            return Task.FromResult(ApiResult<bool>.Fail("Selecione uma marca e um modelo validos."));
+
+        return PostAsync("api/access/devices/by-license", new
+        {
+            LicenseId = licenseId.ToString(),
+            Name = model.Name.Trim(),
+            IPAddress = model.IPAddress.Trim(),
+            model.Port,
+            Username = model.Username.Trim(),
+            model.Password,
+            MACAddress = Optional(model.MACAddress),
+            Model = DeviceCatalog.ApiModel(model.Type),
+            SerialNumber = Optional(model.SerialNumber),
+            FirmwareVersion = Optional(model.FirmwareVersion),
+            model.Type,
+            model.IsActive,
+            Location = new { Name = model.Name.Trim(), X = model.LocationX, Y = model.LocationY }
+        }, true, cancellationToken);
+    }
+
+    public Task<ApiResult<bool>> TestDeviceConnectionAsync(Guid licenseId, Guid deviceId, CancellationToken cancellationToken = default) =>
+        PostAsync($"api/access/licenses/{licenseId}/devices/{deviceId}/test-connection", new { }, false, cancellationToken);
+
+    public Task<ApiResult<bool>> OpenDoorAsync(Guid licenseId, Guid deviceId, int channel, string reason, CancellationToken cancellationToken = default) =>
+        PostAsync($"api/access/licenses/{licenseId}/devices/{deviceId}/open-door", new { Channel = channel, Reason = reason }, false, cancellationToken);
+
+    public Task<ApiResult<CredentialOperationViewModel>> CreateCredentialAsync(Guid licenseId, CredentialFormViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<CredentialOperationViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/credentials", new
+        {
+            model.ResidentId,
+            model.DeviceId,
+            model.Type,
+            model.Identifier,
+            model.ImageBase64,
+            model.ValidFrom,
+            model.ValidTo,
+            model.IsTemporary,
+            model.MaxRenewals,
+            model.MaxUses
+        }, cancellationToken);
+
+    public Task<ApiResult<CredentialOperationViewModel>> RenewCredentialAsync(Guid licenseId, Guid credentialId, CancellationToken cancellationToken = default) =>
+        SendForAsync<CredentialOperationViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/credentials/{credentialId}/renew", new { }, cancellationToken);
+
+    public Task<ApiResult<LicenseUserAccessViewModel>> CreateLicenseUserAsync(Guid licenseId, LicenseUserFormViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<LicenseUserAccessViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/administration/users", new
+        {
+            model.Name, model.Email, model.PhoneNumber, model.Password, model.Role,
+            Permissions = model.Permissions == 0 ? (long?)null : model.Permissions
+        }, cancellationToken);
+
+    public Task<ApiResult<LicenseUserAccessViewModel>> UpdateLicenseUserAsync(Guid licenseId, Guid accessId, LicenseUserFormViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<LicenseUserAccessViewModel>(HttpMethod.Patch, $"api/access/licenses/{licenseId}/administration/users/{accessId}", new
+        {
+            model.Role, model.Permissions, model.IsActive
+        }, cancellationToken);
+
+    public Task<ApiResult<CredentialPolicyViewModel>> UpdateCredentialPolicyAsync(Guid licenseId, CredentialPolicyViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<CredentialPolicyViewModel>(HttpMethod.Patch, $"api/access/licenses/{licenseId}/administration/credential-policy", model, cancellationToken);
+
+    public Task<ApiResult<CredentialOperationViewModel>> SetCredentialStatusAsync(Guid licenseId, Guid credentialId, bool isActive, CancellationToken cancellationToken = default) =>
+        SendForAsync<CredentialOperationViewModel>(HttpMethod.Patch, $"api/access/licenses/{licenseId}/credentials/{credentialId}/status", new { IsActive = isActive }, cancellationToken);
+
+    public Task<ApiResult<CredentialOperationViewModel>> RestoreCredentialAsync(Guid licenseId, Guid credentialId, Guid deviceId, string? imageBase64 = null, CancellationToken cancellationToken = default) =>
+        SendForAsync<CredentialOperationViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/credentials/{credentialId}/restore", new { DeviceId = deviceId, ImageBase64 = imageBase64 }, cancellationToken);
+
+    public Task<ApiResult<bool>> StartFaceEnrollmentAsync(Guid licenseId, Guid credentialId, Guid deviceId, CancellationToken cancellationToken = default) =>
+        PostAsync($"api/access/licenses/{licenseId}/credentials/{credentialId}/face-enrollment", new { DeviceId = deviceId }, false, cancellationToken);
+
+    public Task<ApiResult<bool>> CancelFaceEnrollmentAsync(Guid licenseId, Guid deviceId, CancellationToken cancellationToken = default) =>
+        PostAsync($"api/access/licenses/{licenseId}/devices/{deviceId}/face-enrollment/cancel", new { }, false, cancellationToken);
+
+    public Task<ApiResult<bool>> RemoveCredentialFromDeviceAsync(Guid licenseId, Guid credentialId, Guid deviceId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/credentials/{credentialId}/devices/{deviceId}", cancellationToken);
+
+    public Task<ApiResult<CredentialOperationViewModel>> DeleteCredentialAsync(Guid licenseId, Guid credentialId, CancellationToken cancellationToken = default) =>
+        SendForAsync<CredentialOperationViewModel>(HttpMethod.Delete, $"api/access/licenses/{licenseId}/credentials/{credentialId}", new { }, cancellationToken);
+
+    public Task<ApiResult<List<AccessRouteViewModel>>> GetAccessRoutesAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AccessRouteViewModel>>($"api/access/licenses/{licenseId}/routes", cancellationToken);
+
+    public Task<ApiResult<ResidentRouteResolutionViewModel>> GetResidentRouteResolutionAsync(Guid licenseId, Guid residentId, CancellationToken cancellationToken = default) =>
+        GetAsync<ResidentRouteResolutionViewModel>($"api/access/licenses/{licenseId}/routes/resolution/residents/{residentId}", cancellationToken);
+
+    public Task<ApiResult<AccessRouteViewModel>> SaveAccessRouteAsync(Guid licenseId, Guid? routeId, AccessRouteFormViewModel model, CancellationToken cancellationToken = default)
+    {
+        var payload = new
+        {
+            Name = model.Name.Trim(),
+            Description = model.Description.Trim(),
+            model.Audience,
+            model.IsActive,
+            model.AllowTemporary,
+            model.DaysOfWeekMask,
+            StartTime = model.StartTime ?? TimeSpan.Zero,
+            EndTime = model.EndTime ?? new TimeSpan(23, 59, 59),
+            Devices = model.Devices.Where(x => x.Selected).Select(x => new
+            {
+                x.DeviceId,
+                x.PortalNumber,
+                x.Direction,
+                x.IsActive
+            })
+        };
+        return SendForAsync<AccessRouteViewModel>(routeId.HasValue ? HttpMethod.Put : HttpMethod.Post,
+            routeId.HasValue ? $"api/access/licenses/{licenseId}/routes/{routeId}" : $"api/access/licenses/{licenseId}/routes",
+            payload,
+            cancellationToken);
+    }
+
+    public Task<ApiResult<bool>> DeleteAccessRouteAsync(Guid licenseId, Guid routeId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/routes/{routeId}", cancellationToken);
+
+    public Task<ApiResult<CredentialOperationViewModel>> ActivateFacialByRoutesAsync(Guid licenseId, Guid residentId, string imageBase64, CancellationToken cancellationToken = default) =>
+        SendForAsync<CredentialOperationViewModel>(HttpMethod.Post,
+            $"api/access/licenses/{licenseId}/residents/{residentId}/facial/activate-by-routes",
+            new { ImageBase64 = imageBase64 }, cancellationToken);
+
+    public Task<ApiResult<DeviceInspectionViewModel>> InspectDeviceAsync(Guid licenseId, Guid deviceId, CancellationToken cancellationToken = default) =>
+        SendForAsync<DeviceInspectionViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/access-control/devices/{deviceId}/inspect", new { }, cancellationToken);
+
+    public Task<ApiResult<ReconciliationPreviewViewModel>> PreviewReconciliationAsync(Guid licenseId, IReadOnlyCollection<Guid>? credentialIds = null, CancellationToken cancellationToken = default) =>
+        SendForAsync<ReconciliationPreviewViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/access-control/reconciliation/preview", new { CredentialIds = credentialIds ?? [] }, cancellationToken);
+
+    public Task<ApiResult<AccessBatchOperationViewModel>> QueueReconciliationAsync(Guid licenseId, IReadOnlyCollection<Guid>? credentialIds = null, CancellationToken cancellationToken = default) =>
+        SendForAsync<AccessBatchOperationViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/access-control/reconciliation/batches", new { CredentialIds = credentialIds ?? [] }, cancellationToken);
+
+    public Task<ApiResult<List<AccessBatchOperationViewModel>>> GetReconciliationBatchesAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AccessBatchOperationViewModel>>($"api/access/licenses/{licenseId}/access-control/reconciliation/batches", cancellationToken);
+
+    public Task<ApiResult<bool>> CancelReconciliationBatchAsync(Guid licenseId, Guid batchId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/access-control/reconciliation/batches/{batchId}", cancellationToken);
+
+    public Task<ApiResult<List<AccessAuditViewModel>>> GetAccessAuditsAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AccessAuditViewModel>>($"api/access/licenses/{licenseId}/access-control/audits", cancellationToken);
+
+    public Task<ApiResult<CredentialBackupViewModel>> ExportCredentialBackupAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<CredentialBackupViewModel>($"api/access/licenses/{licenseId}/access-control/credentials/backup", cancellationToken);
+
+    public Task<ApiResult<AccessBatchOperationViewModel>> RestoreCredentialBackupAsync(Guid licenseId, CredentialBackupViewModel backup, CancellationToken cancellationToken = default) =>
+        SendForAsync<AccessBatchOperationViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/access-control/credentials/backup/restore", backup, cancellationToken);
+
+    public Task<ApiResult<List<ResidentRouteOverrideViewModel>>> GetResidentRouteOverridesAsync(Guid licenseId, Guid residentId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<ResidentRouteOverrideViewModel>>($"api/access/licenses/{licenseId}/access-control/residents/{residentId}/route-overrides", cancellationToken);
+
+    public Task<ApiResult<bool>> SaveResidentRouteOverrideAsync(Guid licenseId, Guid residentId, Guid routeId, int mode, string reason, CancellationToken cancellationToken = default) =>
+        SendForBoolAsync(HttpMethod.Put, $"api/access/licenses/{licenseId}/access-control/residents/{residentId}/route-overrides", new { RouteId = routeId, Mode = mode, Reason = reason }, cancellationToken);
+
+    public Task<ApiResult<bool>> DeleteResidentRouteOverrideAsync(Guid licenseId, Guid residentId, Guid routeId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/access-control/residents/{residentId}/route-overrides/{routeId}", cancellationToken);
+
+    public Task<ApiResult<bool>> CreateCameraAsync(Guid licenseId, CftvDeviceFormViewModel model, CancellationToken cancellationToken = default) =>
+        PostAsync("api/access/cftv/by-license", new
+        {
+            LicenseId = licenseId.ToString(),
+            Name = model.Name.Trim(),
+            IpAddress = model.IpAddress.Trim(),
+            UserName = model.UserName.Trim(),
+            model.Password,
+            model.HTTPPort,
+            model.RTSPPort,
+            model.IpType,
+            model.Proportion,
+            model.Mark,
+            model.DeviceType,
+            model.MaxChannels,
+            Channels = Enumerable.Range(1, Math.Max(1, model.MaxChannels)).Select(channel => new
+            {
+                ChannelNumber = channel,
+                Name = $"Canal {channel}",
+                RtspPath = string.Empty,
+                IsEnabled = true
+            })
+        }, true, cancellationToken);
+
+    public Task<ApiResult<bool>> CreateDeliveryAsync(Guid licenseId, DeliveryFormViewModel model, CancellationToken cancellationToken = default) =>
+        PostAsync($"api/access/licenses/{licenseId}/deliveries", new
+        {
+            model.Type,
+            Name = model.Name.Trim(),
+            Description = model.Description.Trim(),
+            TrackingCode = model.TrackingCode.Trim(),
+            PhotoUrl = model.PhotoUrl.Trim(),
+            ReceivedBy = model.ReceivedBy.Trim()
+        }, false, cancellationToken);
+
+    public Task<ApiResult<bool>> UpdateDeliveryStatusAsync(Guid licenseId, Guid deliveryId, int status, string personName, CancellationToken cancellationToken = default) =>
+        PatchAsync($"api/access/licenses/{licenseId}/deliveries/{deliveryId}/status", new { Status = status, PersonName = personName }, cancellationToken);
+
+    private async Task<ApiResult<T>> GetAsync<T>(string path, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var client = await CreateClientAsync();
+            using var response = await client.GetAsync(BuildApiUrl(path), cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return ApiResult<T>.Fail(await ReadErrorAsync(response, "Nao foi possivel carregar os dados."), response.StatusCode);
+
+            var value = await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
+            return value is null
+                ? ApiResult<T>.Fail("A API retornou uma resposta vazia.", response.StatusCode)
+                : ApiResult<T>.Ok(value, response.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falha ao consultar {ApiPath}", path);
+            return ApiResult<T>.Fail("A API esta indisponivel. Verifique se ela e o banco de dados estao em execucao.");
+        }
+    }
+
+    private async Task<ApiResult<bool>> PostAsync(string path, object payload, bool includeApiKey, CancellationToken cancellationToken)
+    {
+        var response = await SendAsync(HttpMethod.Post, path, payload, includeApiKey, cancellationToken);
+        response.Document?.Dispose();
+        return response.Success
+            ? ApiResult<bool>.Ok(true, response.StatusCode)
+            : ApiResult<bool>.Fail(response.Error!, response.StatusCode);
+    }
+
+    private async Task<ApiResult<bool>> PatchAsync(string path, object payload, CancellationToken cancellationToken)
+    {
+        var response = await SendAsync(HttpMethod.Patch, path, payload, false, cancellationToken);
+        response.Document?.Dispose();
+        return response.Success
+            ? ApiResult<bool>.Ok(true, response.StatusCode)
+            : ApiResult<bool>.Fail(response.Error!, response.StatusCode);
+    }
+
+    private async Task<ApiResult<bool>> SendForBoolAsync(HttpMethod method, string path, object payload, CancellationToken cancellationToken)
+    {
+        var response = await SendAsync(method, path, payload, false, cancellationToken);
+        response.Document?.Dispose();
+        return response.Success
+            ? ApiResult<bool>.Ok(true, response.StatusCode)
+            : ApiResult<bool>.Fail(response.Error!, response.StatusCode);
+    }
+
+    private async Task<ApiResult<T>> SendForAsync<T>(HttpMethod method, string path, object payload, CancellationToken cancellationToken)
+    {
+        var response = await SendAsync(method, path, payload, false, cancellationToken);
+        if (!response.Success || response.Document is null)
+        {
+            response.Document?.Dispose();
+            return ApiResult<T>.Fail(response.Error ?? "A API retornou uma resposta vazia.", response.StatusCode);
+        }
+
+        using (response.Document)
+        {
+            var value = response.Document.RootElement.Deserialize<T>(new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            return value is null
+                ? ApiResult<T>.Fail("Nao foi possivel interpretar a resposta da API.", response.StatusCode)
+                : ApiResult<T>.Ok(value, response.StatusCode);
+        }
+    }
+
+    private async Task<ApiResult<bool>> DeleteAsync(string path, CancellationToken cancellationToken)
+    {
+        var response = await SendAsync(HttpMethod.Delete, path, new { }, false, cancellationToken);
+        response.Document?.Dispose();
+        return response.Success
+            ? ApiResult<bool>.Ok(true, response.StatusCode)
+            : ApiResult<bool>.Fail(response.Error!, response.StatusCode);
+    }
+
+    private async Task<(bool Success, JsonDocument? Document, string? Error, System.Net.HttpStatusCode? StatusCode)> SendAsync(
+        HttpMethod method,
+        string path,
+        object payload,
+        bool includeApiKey,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var client = await CreateClientAsync();
+            if (includeApiKey)
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-API-Key", GetApiKey());
+
+            using var request = new HttpRequestMessage(method, BuildApiUrl(path))
+            {
+                Content = JsonContent.Create(payload)
+            };
+            using var response = await client.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return (false, null, await ReadErrorAsync(response, "Nao foi possivel concluir a operacao."), response.StatusCode);
+
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            var document = string.IsNullOrWhiteSpace(body) ? null : JsonDocument.Parse(body);
+            return (true, document, null, response.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falha ao enviar dados para {ApiPath}", path);
+            return (false, null, "A API esta indisponivel. Tente novamente em instantes.", null);
+        }
+    }
+
+    private async Task<HttpClient> CreateClientAsync()
+    {
+        var client = _httpClientFactory.CreateClient();
+        var user = (await _authenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var token = user.FindFirstValue(AccessTokenClaim);
+        if (!string.IsNullOrWhiteSpace(token))
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    private string BuildApiUrl(string path)
+    {
+        var baseUrl = _configuration["CondotifyApi:BaseUrl"] ?? "https://localhost:7118";
+        return $"{baseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
+    }
+
+    private string GetApiKey() =>
+        _configuration["CondotifyApi:ApiKey"] ?? Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY") ?? "1";
+
+    private static async Task<string> ReadErrorAsync(HttpResponseMessage response, string fallback)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+        if (string.IsNullOrWhiteSpace(body))
+            return ErrorFallback(response.StatusCode, fallback);
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            if (root.TryGetProperty("errors", out var modelErrors) || root.TryGetProperty("Errors", out modelErrors))
+                return FormatErrors(modelErrors, fallback);
+            if (root.TryGetProperty("message", out var message) || root.TryGetProperty("Message", out message))
+                return message.GetString() ?? fallback;
+            if (root.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String)
+            {
+                var text = detail.GetString() ?? fallback;
+                if (root.TryGetProperty("traceId", out var traceId) && traceId.ValueKind == JsonValueKind.String)
+                    return $"{text} Codigo: {traceId.GetString()}.";
+                return text;
+            }
+            if (root.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String)
+                return title.GetString() ?? fallback;
+        }
+        catch (JsonException)
+        {
+            return ErrorFallback(response.StatusCode, fallback);
+        }
+
+        return ErrorFallback(response.StatusCode, fallback);
+    }
+
+    private static string ErrorFallback(System.Net.HttpStatusCode statusCode, string fallback) => statusCode switch
+    {
+        System.Net.HttpStatusCode.Unauthorized => "Sua sessao expirou. Entre novamente.",
+        System.Net.HttpStatusCode.Forbidden => "Voce nao tem permissao para realizar esta operacao.",
+        System.Net.HttpStatusCode.NotFound => "O recurso solicitado nao foi encontrado.",
+        System.Net.HttpStatusCode.BadGateway or System.Net.HttpStatusCode.ServiceUnavailable or System.Net.HttpStatusCode.GatewayTimeout =>
+            "Nao foi possivel comunicar com o equipamento ou servico. Verifique a conexao e tente novamente.",
+        >= System.Net.HttpStatusCode.InternalServerError => "Ocorreu um erro interno na API. Tente novamente em instantes.",
+        _ => fallback
+    };
+
+    private static string FormatErrors(JsonElement element, string fallback)
+    {
+        if (element.ValueKind == JsonValueKind.String)
+            return element.GetString() ?? fallback;
+
+        if (element.ValueKind == JsonValueKind.Array)
+            return string.Join("; ", element.EnumerateArray().Select(x => x.ToString()));
+
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            var messages = element.EnumerateObject().SelectMany(property =>
+                property.Value.ValueKind == JsonValueKind.Array
+                    ? property.Value.EnumerateArray().Select(value => $"{property.Name}: {value}")
+                    : [$"{property.Name}: {property.Value}"]);
+            return string.Join("; ", messages);
+        }
+
+        return fallback;
+    }
+
+    private static string OnlyDigits(string value) => new(value.Where(char.IsDigit).ToArray());
+    private static string? Optional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

@@ -1,0 +1,114 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Class="portal-appbar">
+        <MudIconButton Icon="@Icons.Material.Outlined.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" Class="mobile-menu" />
+        <div class="appbar-context">
+            <MudText Typo="Typo.subtitle1" Class="appbar-title">Central de operacoes</MudText>
+            <MudText Typo="Typo.caption" Class="appbar-date">@DateTime.Now.ToString("dddd, dd 'de' MMMM")</MudText>
+        </div>
+        <MudSpacer />
+        <MudIconButton Icon="@Icons.Material.Outlined.NotificationsNone" Color="Color.Inherit" Class="appbar-action" />
+        <AuthorizeView>
+            <Authorized Context="auth">
+                <div class="user-summary">
+                    <MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(auth.User)</MudAvatar>
+                    <div class="user-copy">
+                        <MudText Typo="Typo.body2" Class="user-name">@(auth.User.Identity?.Name ?? "Administrador")</MudText>
+                        <MudText Typo="Typo.caption">@AccessLabel(auth.User)</MudText>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Outlined.Logout" Href="/Login/Logout" Color="Color.Inherit" Size="Size.Small" />
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="0" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md" Class="portal-drawer">
+        <div class="brand-block">
+            <div class="brand-mark">C</div>
+            <div>
+                <MudText Typo="Typo.subtitle1" Class="brand-name">Condotify</MudText>
+                <MudText Typo="Typo.caption" Class="brand-subtitle">Gestao inteligente</MudText>
+            </div>
+        </div>
+        <NavMenu />
+        <div class="drawer-footer">
+            <MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" Size="Size.Small" />
+            <div>
+                <MudText Typo="Typo.caption" Class="drawer-footer-title">Ambiente protegido</MudText>
+                <MudText Typo="Typo.caption" Class="drawer-footer-copy">Dados isolados por empresa</MudText>
+            </div>
+        </div>
+    </MudDrawer>
+
+    <MudMainContent Class="portal-content">
+        <main class="portal-container">
+            @Body
+        </main>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#3156D3",
+            Secondary = "#657083",
+            Tertiary = "#007A67",
+            Success = "#16845B",
+            Warning = "#B86B00",
+            Error = "#C13D4B",
+            Info = "#1976A3",
+            Background = "#F4F6F8",
+            Surface = "#FFFFFF",
+            DrawerBackground = "#FFFFFF",
+            DrawerText = "#465063",
+            AppbarBackground = "#FFFFFF",
+            AppbarText = "#202532",
+            TextPrimary = "#202532",
+            TextSecondary = "#697386",
+            LinesDefault = "#E3E7ED"
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "6px",
+            DrawerWidthLeft = "264px",
+            AppbarHeight = "72px"
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography { FontFamily = ["Inter", "Segoe UI", "sans-serif"] },
+            H1 = new H1Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "2rem", FontWeight = "700", LineHeight = "1.2" },
+            H2 = new H2Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.45rem", FontWeight = "700", LineHeight = "1.3" },
+            H5 = new H5Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.1rem", FontWeight = "600" },
+            Subtitle1 = new Subtitle1Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontWeight = "600" }
+        }
+    };
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private static string Initials(ClaimsPrincipal user)
+    {
+        var name = user.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(name)) return "AD";
+        return string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+    }
+
+    private static string AccessLabel(ClaimsPrincipal user) => user.FindFirstValue("access_type") switch
+    {
+        "Developer" => "Desenvolvedor",
+        "Admin" => "Administrador geral",
+        "Manager" => "Gestor",
+        "Editor" => "Editor",
+        "Viewer" => "Usuario",
+        _ => "Usuario"
+    };
+}

@@ -1,8 +1,14 @@
 ﻿using Condotify.Models;
 using Condotify.Out;
+using Condotify.Services;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Net.Http.Headers;
+using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 
 namespace Condotify.Controllers
 {
@@ -26,7 +32,8 @@ namespace Condotify.Controllers
         [HttpGet]
         public async Task<IActionResult> Login()
         {
-            if (Request.Cookies.TryGetValue("AuthToken", out var token))
+            var token = User.FindFirstValue(CondotifyApiClient.AccessTokenClaim);
+            if (User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(token))
             {
                 var client = _httpClientFactory.CreateClient();
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -37,16 +44,16 @@ namespace Condotify.Controllers
 
                     if (response.IsSuccessStatusCode)
                     {
-                        return RedirectToAction("Index", "Home");
+                        return Redirect("/");
                     }
                     else
                     {
-                        Response.Cookies.Delete("AuthToken");
+                        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                     }
                 }
                 catch
                 {
-                    Response.Cookies.Delete("AuthToken");
+                    await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                 }
             }
 
@@ -84,14 +91,19 @@ namespace Condotify.Controllers
                     && result.Result == "Success"
                     && !string.IsNullOrWhiteSpace(result.AccessToken))
                 {
-                    Response.Cookies.Append("AuthToken", result.AccessToken, new Microsoft.AspNetCore.Http.CookieOptions
+                    var principal = CreatePrincipal(result.AccessToken, model.Email);
+                    await HttpContext.SignInAsync(
+                        CookieAuthenticationDefaults.AuthenticationScheme,
+                        principal,
+                        new AuthenticationProperties
                     {
-                        HttpOnly = true,
-                        Secure = true,
-                        SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict
+                        IsPersistent = true,
+                        AllowRefresh = true,
+                        ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
                     });
 
-                    return RedirectToAction("Index", "Home");
+                    Response.Cookies.Delete("AuthToken");
+                    return Redirect("/");
                 }
 
                 ModelState.AddModelError("", result?.Result ?? "Erro ao realizar login");
@@ -114,10 +126,59 @@ namespace Condotify.Controllers
             });
         }
 
+        [HttpGet]
+        public async Task<IActionResult> Logout()
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            Response.Cookies.Delete("AuthToken");
+            return RedirectToAction(nameof(Login));
+        }
+
         private string BuildApiUrl(string path)
         {
-            var baseUrl = _configuration["CondotifyApi:BaseUrl"] ?? "https://localhost:5001";
+            var baseUrl = _configuration["CondotifyApi:BaseUrl"] ?? "https://localhost:7118";
             return $"{baseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
+        }
+
+        private static ClaimsPrincipal CreatePrincipal(string accessToken, string fallbackEmail)
+        {
+            var claims = new List<Claim>
+            {
+                new(CondotifyApiClient.AccessTokenClaim, accessToken),
+                new(ClaimTypes.Email, fallbackEmail)
+            };
+
+            try
+            {
+                var parts = accessToken.Split('.');
+                if (parts.Length >= 2)
+                {
+                    var payload = parts[1].Replace('-', '+').Replace('_', '/');
+                    payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
+                    using var json = JsonDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(payload)));
+
+                    AddClaim(json.RootElement, claims, "sub", ClaimTypes.NameIdentifier);
+                    AddClaim(json.RootElement, claims, "name", ClaimTypes.Name);
+                    AddClaim(json.RootElement, claims, "enterprise_id", "enterprise_id");
+                    AddClaim(json.RootElement, claims, "access_type", "access_type");
+                }
+            }
+            catch
+            {
+                // A API validou o token; os dados opcionais do perfil podem ser recuperados depois.
+            }
+
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            return new ClaimsPrincipal(identity);
+        }
+
+        private static void AddClaim(JsonElement payload, ICollection<Claim> claims, string jsonName, string claimType)
+        {
+            if (!payload.TryGetProperty(jsonName, out var value)) return;
+
+            var text = value.GetString();
+            if (!string.IsNullOrWhiteSpace(text) && !claims.Any(x => x.Type == claimType))
+                claims.Add(new Claim(claimType, text));
         }
     }
 }

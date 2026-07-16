@@ -1,0 +1,101 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog route-override-dialog">
+    <DialogContent>
+        <div class="dialog-lead">
+            <span class="dialog-lead-icon"><MudIcon Icon="@Icons.Material.Outlined.AltRoute" /></span>
+            <div><strong>@PersonName</strong><span>Use excecoes apenas quando esta pessoa precisar fugir das regras do seu perfil.</span></div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+
+        <div class="route-override-list">
+            @foreach (var route in Routes.OrderBy(x => x.Name))
+            {
+                var state = StateFor(route.Id);
+                <div class="route-override-row">
+                    <span class="route-target-icon"><MudIcon Icon="@Icons.Material.Outlined.Route" /></span>
+                    <div><strong>@route.Name</strong><span>@(string.IsNullOrWhiteSpace(route.Description) ? "Regra definida pelo perfil da pessoa" : route.Description)</span></div>
+                    <MudSelect T="int" Value="@state.Mode" ValueChanged="@(value => SetMode(route.Id, value))" Label="Aplicacao" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="-1">Seguir perfil</MudSelectItem>
+                        <MudSelectItem Value="0">Sempre incluir</MudSelectItem>
+                        <MudSelectItem Value="1">Sempre excluir</MudSelectItem>
+                    </MudSelect>
+                    <MudTextField T="string" Value="@state.Reason" ValueChanged="@(value => SetReason(route.Id, value))" Label="Motivo" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(state.Mode == -1)" />
+                </div>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveAsync">@(_saving ? "Salvando..." : "Salvar excecoes")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public Guid ResidentId { get; set; }
+    [Parameter] public string PersonName { get; set; } = string.Empty;
+    [Parameter] public List<AccessRouteViewModel> Routes { get; set; } = [];
+    [Parameter] public List<ResidentRouteOverrideViewModel> Overrides { get; set; } = [];
+
+    private readonly Dictionary<Guid, RouteOverrideState> _states = [];
+    private bool _saving;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        foreach (var route in Routes)
+        {
+            var existing = Overrides.FirstOrDefault(x => x.RouteId == route.Id);
+            _states[route.Id] = new RouteOverrideState
+            {
+                Mode = existing?.Mode switch { "Include" => 0, "Exclude" => 1, _ => -1 },
+                OriginalMode = existing?.Mode switch { "Include" => 0, "Exclude" => 1, _ => -1 },
+                Reason = existing?.Reason ?? string.Empty,
+                OriginalReason = existing?.Reason ?? string.Empty
+            };
+        }
+    }
+
+    private RouteOverrideState StateFor(Guid routeId) => _states[routeId];
+    private void SetMode(Guid routeId, int mode) => _states[routeId].Mode = mode;
+    private void SetReason(Guid routeId, string reason) => _states[routeId].Reason = reason;
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        foreach (var (routeId, state) in _states.Where(x => x.Value.IsChanged))
+        {
+            var result = state.Mode == -1
+                ? await Api.DeleteResidentRouteOverrideAsync(LicenseId, ResidentId, routeId)
+                : await Api.SaveResidentRouteOverrideAsync(LicenseId, ResidentId, routeId, state.Mode, state.Reason);
+            if (!result.Success)
+            {
+                _saving = false;
+                _error = result.Error ?? "Nao foi possivel salvar todas as excecoes.";
+                Snackbar.Add(_error, Severity.Error);
+                return;
+            }
+        }
+        _saving = false;
+        Dialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private sealed class RouteOverrideState
+    {
+        public int Mode { get; set; } = -1;
+        public int OriginalMode { get; set; } = -1;
+        public string Reason { get; set; } = string.Empty;
+        public string OriginalReason { get; set; } = string.Empty;
+        public bool IsChanged => Mode != OriginalMode || !string.Equals(Reason, OriginalReason, StringComparison.Ordinal);
+    }
+}

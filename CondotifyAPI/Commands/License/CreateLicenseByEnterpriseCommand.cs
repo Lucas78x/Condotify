@@ -12,6 +12,9 @@ namespace CondotifyAPI.Commands.Licenses
         public Guid EnterpriseId { get; set; }
         public string Name { get; set; }
         public string CNPJ { get; set; }
+        public string City { get; set; }
+        public string Country { get; set; }
+        public string Code { get; set; }
         public OrganizationTypeEnum Organization { get; set; }
         public BuildingTypeEnum Building { get; set; }
         public LicenseTypeEnum Type { get; set; }
@@ -23,6 +26,9 @@ namespace CondotifyAPI.Commands.Licenses
             Guid enterpriseId,
             string name,
             string cnpj,
+            string city,
+            string country,
+            string code,
             OrganizationTypeEnum organization,
             BuildingTypeEnum building,
             LicenseTypeEnum type,
@@ -32,6 +38,9 @@ namespace CondotifyAPI.Commands.Licenses
             EnterpriseId = enterpriseId;
             Name = name;
             CNPJ = cnpj;
+            City = city;
+            Country = country;
+            Code = code;
             Organization = organization;
             Building = building;
             Type = type;
@@ -57,6 +66,12 @@ namespace CondotifyAPI.Commands.Licenses
                     request.Location,
                     request.ExpireDate,
                     DateTime.Now);
+
+                license.City = request.City;
+                license.Country = request.Country;
+                license.Code = request.Code;
+                license.Organization = request.Organization;
+                license.Building = request.Building;
                 
                 return await _repository.AddLicenseAsync(request.EnterpriseId, license);
             }
@@ -75,6 +90,18 @@ namespace CondotifyAPI.Commands.Licenses
                 .NotEmpty().WithMessage("O CNPJ é obrigatório.")
                 .Length(14).WithMessage("O CNPJ deve ter 14 dígitos.")
                 .Matches("^[0-9]+$").WithMessage("O CNPJ deve conter apenas números.");
+
+            RuleFor(x => x.City)
+                .NotEmpty()
+                .MaximumLength(100);
+
+            RuleFor(x => x.Country)
+                .NotEmpty()
+                .MaximumLength(100);
+
+            RuleFor(x => x.Code)
+                .NotEmpty()
+                .MaximumLength(80);
                 
             RuleFor(x => x.EnterpriseId)
                 .NotEmpty();

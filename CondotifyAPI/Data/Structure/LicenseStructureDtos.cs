@@ -2,14 +2,14 @@ namespace CondotifyAPI.Data.Structure
 {
     public class CreateBlockIn
     {
-        public string Name { get; set; } = string.Empty;
+        public string? Name { get; set; }
     }
 
     public class CreateUnitIn
     {
         public Guid BlockId { get; set; }
-        public string Number { get; set; } = string.Empty;
-        public string Floor { get; set; } = string.Empty;
+        public string? Number { get; set; }
+        public string? Floor { get; set; }
     }
 
     public class CreateResidentIn
@@ -19,10 +19,14 @@ namespace CondotifyAPI.Data.Structure
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string PhoneNumber { get; set; } = string.Empty;
+        public string CommercialPhone { get; set; } = string.Empty;
         public string CPF { get; set; } = string.Empty;
         public string RG { get; set; } = string.Empty;
         public string BirthDate { get; set; } = string.Empty;
         public string ApartmentNumber { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public bool NotifyAccess { get; set; }
+        public CondotifyAPI.Domain.Enums.Resident.ResidentUnitRelationshipEnum Relationship { get; set; } = CondotifyAPI.Domain.Enums.Resident.ResidentUnitRelationshipEnum.Resident;
         public ResidentAccessTypeEnum AccessType { get; set; } = ResidentAccessTypeEnum.Responsible;
         public bool Temporary { get; set; }
         public DateTime? Expire { get; set; }
@@ -31,7 +35,19 @@ namespace CondotifyAPI.Data.Structure
     public class LicenseStructureOut
     {
         public Guid LicenseId { get; set; }
+        public string GroupLabelSingular { get; set; } = "Bloco";
+        public string GroupLabelPlural { get; set; } = "Blocos";
+        public string UnitLabelSingular { get; set; } = "Unidade";
+        public string UnitLabelPlural { get; set; } = "Unidades";
         public List<BlockOut> Blocks { get; set; } = new();
+    }
+
+    public class UpdateStructureSettingsIn
+    {
+        public string? GroupLabelSingular { get; set; }
+        public string? GroupLabelPlural { get; set; }
+        public string? UnitLabelSingular { get; set; }
+        public string? UnitLabelPlural { get; set; }
     }
 
     public class BlockOut
@@ -81,6 +97,12 @@ namespace CondotifyAPI.Data.Structure
         public string MACAddress { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
         public bool IsActive { get; set; }
+        public string FirmwareVersion { get; set; } = string.Empty;
+        public DateTime? LastHealthCheckAt { get; set; }
+        public DateTime? LastSeenAt { get; set; }
+        public int? LastResponseTimeMs { get; set; }
+        public string HealthMessage { get; set; } = string.Empty;
+        public string DiscoveredPortalsJson { get; set; } = "[]";
     }
 
     public class CftvDeviceOut

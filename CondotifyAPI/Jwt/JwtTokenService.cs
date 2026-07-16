@@ -19,9 +19,15 @@ namespace CondotifyAPI.Jwt
 
         public JwtTokenService(IConfiguration config)
         {
-            _secret = config["JWT:Secret"]!;
-            _issuer = config["JWT:Issuer"] ?? "Condotify";
-            _audience = config["JWT:Audience"] ?? "Condotify";
+            _secret = Environment.GetEnvironmentVariable("JWTCondotify_Secret")
+                ?? config["JWT:Secret"]
+                ?? throw new InvalidOperationException("JWTCondotify_Secret nao definido!");
+            _issuer = Environment.GetEnvironmentVariable("JWTCondotify_Issuer")
+                ?? config["JWT:Issuer"]
+                ?? "Condotify";
+            _audience = Environment.GetEnvironmentVariable("JWTCondotify_Audience")
+                ?? config["JWT:Audience"]
+                ?? "Condotify";
         }
 
         public string CreateAccessToken(UserAccess user)
@@ -32,9 +38,11 @@ namespace CondotifyAPI.Jwt
             var claims = new List<Claim>
             {
                 new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+                new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new("enterprise_id", user.EnterpriseId.ToString()),
                 new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
-                new("name", user.Name ?? "")
-                // aqui você pode adicionar roles/permissões se precisar
+                new("name", user.Name ?? ""),
+                new("access_type", user.AccessType.ToString())
             };
 
             var token = new JwtSecurityToken(

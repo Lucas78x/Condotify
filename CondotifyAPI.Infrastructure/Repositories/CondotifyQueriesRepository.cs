@@ -25,7 +25,7 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == userId);
 
-        return dto == null ? null : _mapper.Map<UserAccess>(dto);
+        return dto == null ? null : MapUser(dto);
     }
 
     public async Task<UserAccess?> GetUserByEmailAsync(string email)
@@ -34,7 +34,7 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Email == email);
 
-        return dto == null ? null : _mapper.Map<UserAccess>(dto);
+        return dto == null ? null : MapUser(dto);
     }
 
     public async Task<Enterprise?> GetEnterpriseByIdAsync(Guid enterpriseId)
@@ -120,12 +120,21 @@ public class CondotifyQueriesRepository : ICondotifyQueriesRepository
 
     public async Task<UserAccess?> FindByEmailAsync(string email, CancellationToken ct)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(x => x.Email == email);
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Email == email);
         if(user != null)
         {
-           return _mapper.Map<UserAccess>(user);  
+           return MapUser(user);
         }
 
         return null;
+    }
+
+    private UserAccess MapUser(CondotifyAPI.Domain.DTO.Users.UserAccessDTO dto)
+    {
+        var user = _mapper.Map<UserAccess>(dto);
+        if (dto.EnterpriseId.HasValue)
+            user.SetEnterpriseId(dto.EnterpriseId.Value);
+
+        return user;
     }
 }

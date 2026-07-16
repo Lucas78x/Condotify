@@ -5,26 +5,29 @@ namespace CondotifyAPI.Data.Equipments
 {
     public class CreateAccessControlDeviceByLicenseIn
     {
-        public string LicenseId { get; set; }
+        public string LicenseId { get; set; } = string.Empty;
 
-        public string Name { get; set; }
-        public string IPAddress { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string IPAddress { get; set; } = string.Empty;
         public int Port { get; set; }
-        public string Username { get; set; }
-        public string Password { get; set; }
-        public string MACAddress { get; set; }
-        public string Model { get; set; }
-        public string SerialNumber { get; set; }
-        public string FirmwareVersion { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string? MACAddress { get; set; }
+        public string Model { get; set; } = string.Empty;
+        public string? SerialNumber { get; set; }
+        public string? FirmwareVersion { get; set; }
         public DeviceTypeEnum Type { get; set; }
         public bool IsActive { get; set; }
-        public Location Location { get; set; }
+        public Location Location { get; set; } = new();
     }
 
     public static class CreateAccessControlDeviceByLicenseInConverter
     {
         public static CreateAccessControlDeviceByLicenseCommand ToCommand(this CreateAccessControlDeviceByLicenseIn device)
         {
+            if (string.IsNullOrWhiteSpace(device.Location.Name))
+                device.Location.Name = device.Name;
+
             return new CreateAccessControlDeviceByLicenseCommand(
                 Guid.Parse(device.LicenseId),
                 device.Name,

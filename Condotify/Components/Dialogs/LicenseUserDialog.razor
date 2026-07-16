@@ -1,0 +1,79 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog entity-dialog-wide access-user-dialog">
+    <DialogContent>
+        <div class="dialog-description"><MudIcon Icon="@Icons.Material.Outlined.AdminPanelSettings" /><div><strong>@(Existing is null ? "Novo usuario da operacao" : "Acesso de usuario")</strong><span>O acesso vale somente para este condominio.</span></div></div>
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <div class="form-grid">
+                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome completo" Required Disabled="@(Existing is not null)" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.Email" Label="E-mail de acesso" Required Disabled="@(Existing is not null)" Variant="Variant.Outlined" />
+                @if (Existing is null)
+                {
+                    <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Variant="Variant.Outlined" />
+                    <MudTextField T="string" @bind-Value="_form.Password" Label="Senha temporaria" Required InputType="InputType.Password" Variant="Variant.Outlined" HelperText="Minimo de 8 caracteres; a troca sera solicitada no primeiro acesso." />
+                }
+                <MudSelect T="int" Value="_form.Role" ValueChanged="RoleChanged" Label="Perfil inicial" Variant="Variant.Outlined" Class="full">
+                    <MudSelectItem Value="0">Administrador da licenca</MudSelectItem>
+                    <MudSelectItem Value="1">Gestor</MudSelectItem>
+                    <MudSelectItem Value="2">Portaria</MudSelectItem>
+                    <MudSelectItem Value="3">Operador</MudSelectItem>
+                    <MudSelectItem Value="4">Somente leitura</MudSelectItem>
+                </MudSelect>
+            </div>
+
+            <div class="permission-editor">
+                <div class="permission-editor-head"><div><strong>Permissoes deste usuario</strong><span>Ajuste excecoes ao perfil selecionado.</span></div><MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ResetPermissions">Restaurar perfil</MudButton></div>
+                @foreach (var group in LicensePermissionCatalog.Options.GroupBy(x => x.Group))
+                {
+                    <section class="permission-group"><h4>@group.Key</h4><div class="permission-grid">
+                        @foreach (var option in group)
+                        {
+                            <label class="permission-option"><MudCheckBox T="bool" Value="@HasPermission(option.Permission)" ValueChanged="@(value => SetPermission(option.Permission, value))" Color="Color.Primary" /><span><strong>@option.Name</strong><small>@option.Description</small></span></label>
+                        }
+                    </div></section>
+                }
+            </div>
+
+            @if (Existing is not null)
+            {
+                <MudSwitch T="bool" @bind-Value="_form.IsActive" Label="Acesso ativo para esta licenca" Color="Color.Success" Class="mt-3" />
+            }
+            <div class="form-actions dialog-form-actions"><MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : "Salvar acesso")</MudButton></div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public LicenseUserAccessViewModel? Existing { get; set; }
+    private readonly LicenseUserFormViewModel _form = new();
+    private bool _saving;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (Existing is null) { _form.Permissions = LicensePermissionCatalog.Defaults(_form.Role); return; }
+        _form.Name = Existing.Name; _form.Email = Existing.Email; _form.PhoneNumber = Existing.PhoneNumber;
+        _form.Role = RoleValue(Existing.Role); _form.Permissions = Existing.Permissions; _form.IsActive = Existing.IsActive;
+    }
+
+    private void Cancel() => Dialog.Cancel();
+    private void RoleChanged(int role) { _form.Role = role; _form.Permissions = LicensePermissionCatalog.Defaults(role); }
+    private void ResetPermissions() => _form.Permissions = LicensePermissionCatalog.Defaults(_form.Role);
+    private bool HasPermission(LicensePermission permission) => (_form.Permissions & (long)permission) == (long)permission;
+    private void SetPermission(LicensePermission permission, bool enabled) => _form.Permissions = enabled
+        ? LicensePermissionCatalog.Normalize(_form.Permissions | (long)permission)
+        : LicensePermissionCatalog.RemoveDependents(_form.Permissions, permission);
+    private async Task SaveAsync()
+    {
+        _saving = true; _error = null;
+        var result = Existing is null ? await Api.CreateLicenseUserAsync(LicenseId, _form) : await Api.UpdateLicenseUserAsync(LicenseId, Existing.Id, _form);
+        _saving = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+    private static int RoleValue(string role) => role switch { "Administrator" => 0, "Manager" => 1, "Concierge" => 2, "Operator" => 3, _ => 4 };
+}

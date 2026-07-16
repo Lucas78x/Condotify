@@ -56,6 +56,10 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
                 .IsRequired()
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+            builder.Property(d => d.HealthMessage).HasMaxLength(300);
+            builder.Property(d => d.CapacityJson).HasColumnType("jsonb").HasDefaultValue("{}");
+            builder.Property(d => d.DiscoveredPortalsJson).HasColumnType("jsonb").HasDefaultValue("[]");
+
             builder.OwnsOne(l => l.Location, loc =>
             {
                 loc.Property(p => p.X).HasColumnName("LocationX");

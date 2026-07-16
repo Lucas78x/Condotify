@@ -1,5 +1,6 @@
 ﻿using CondotifyAPI.Domain.DTO.Audit;
 using CondotifyAPI.Domain.DTO.Enterprise;
+using CondotifyAPI.Domain.DTO.License;
 
 namespace CondotifyAPI.Domain.DTO.Users
 {
@@ -22,5 +23,11 @@ namespace CondotifyAPI.Domain.DTO.Users
 
         public Guid? EnterpriseId { get; set; }
         public EnterpriseDTO Enterprise { get; set; }
+        public List<LicenseUserAccessDTO> LicenseAccesses { get; set; } = new();
+
+        public void SetPasswordHash(string passwordHash)
+        {
+            PasswordHash = passwordHash;
+        }
     }
 }

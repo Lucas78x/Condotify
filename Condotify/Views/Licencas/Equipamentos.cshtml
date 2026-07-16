@@ -1,90 +1,169 @@
 @model AccessDeviceFormViewModel
 @{
     ViewData["Title"] = "Equipamentos de acesso";
+
+    var intelbrasModels = new[]
+    {
+        new { Value = 0, Label = "SS5520" },
+        new { Value = 1, Label = "SS5530 MF Face" },
+        new { Value = 2, Label = "SS5530 MF Face Lite" },
+        new { Value = 3, Label = "SS3530 MF Face W" },
+        new { Value = 4, Label = "SS3430 Bio" },
+        new { Value = 5, Label = "SS3430 MF Bio" },
+        new { Value = 6, Label = "SS7520 Face T" },
+        new { Value = 7, Label = "SS7530 Face" },
+        new { Value = 8, Label = "SS3530 MF Face" },
+        new { Value = 9, Label = "SS3540 MF Face Ex" },
+        new { Value = 10, Label = "SS1540 MF W" },
+        new { Value = 11, Label = "SS1530 MF W" },
+        new { Value = 12, Label = "SS3540 MF Face Bio Ex" },
+        new { Value = 13, Label = "SS3540 MF Face Bio" },
+        new { Value = 14, Label = "SS3532 MF W" },
+        new { Value = 15, Label = "SS3532 MF" },
+        new { Value = 16, Label = "SS3542 MF W" },
+        new { Value = 17, Label = "SS3531 MF" },
+        new { Value = 18, Label = "SS5531 MF W" },
+        new { Value = 19, Label = "SS5541 MF W" },
+        new { Value = 20, Label = "SS5532 MF W" },
+        new { Value = 21, Label = "SS5542 MF W" },
+        new { Value = 22, Label = "SS5430 MF Bio FT" },
+        new { Value = 23, Label = "SS3541 MF" },
+        new { Value = 24, Label = "CT 3000 2PB" },
+        new { Value = 25, Label = "CT 3000 4PB" },
+        new { Value = 26, Label = "SS3710 UHF" }
+    };
+
+    var controlIdModels = new[]
+    {
+        new { Value = 27, Label = "IdFace" },
+        new { Value = 28, Label = "IdFace Max" },
+        new { Value = 29, Label = "Control ID UHF" }
+    };
 }
 
-<div class="max-w-[1400px] mx-auto space-y-6">
+<div class="mx-auto max-w-[1400px] space-y-6">
     @await Html.PartialAsync("_LicenseModuleHeader", Model)
 
-    <div class="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-4">
-        <form method="post" class="bg-white/85 border border-gray-200/70 rounded-2xl shadow-sm overflow-hidden">
+    <div class="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_420px]">
+        <form method="post"
+              asp-controller="Licencas"
+              asp-action="Equipamentos"
+              asp-route-id="@Model.LicenseId"
+              class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
             @Html.AntiForgeryToken()
-            <div class="px-5 py-4 border-b border-gray-100">
-                <h3 class="font-semibold text-gray-900">Cadastrar equipamento</h3>
-                <p class="text-sm text-gray-500">Controladoras, leitores faciais, catracas e portarias IP</p>
+            <input asp-for="DeviceModel" type="hidden" />
+
+            <div class="border-b border-gray-200 px-5 py-4">
+                <h3 class="font-semibold text-gray-950">Cadastrar equipamento</h3>
+                <p class="mt-1 text-sm text-gray-500">Selecione a marca, escolha o modelo e informe os dados de conexão.</p>
             </div>
 
-            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <label class="space-y-1">
+            <div class="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div asp-validation-summary="ModelOnly" class="md:col-span-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"></div>
+                }
+
+                <label class="space-y-1 md:col-span-2">
                     <span class="text-sm font-medium text-gray-700">Nome</span>
-                    <input asp-for="Name" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                    <input asp-for="Name" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" placeholder="Ex.: Facial entrada principal" />
+                    <span asp-validation-for="Name" class="text-xs text-rose-600"></span>
                 </label>
+
                 <label class="space-y-1">
-                    <span class="text-sm font-medium text-gray-700">Tipo</span>
-                    <select asp-for="Type" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15">
-                        <option value="0">Padrão</option>
-                        <option value="1">Facial</option>
-                        <option value="2">Cartão</option>
-                        <option value="3">UHF</option>
+                    <span class="text-sm font-medium text-gray-700">Marca</span>
+                    <select asp-for="DeviceBrand" id="deviceBrand" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50">
+                        <option value="Intelbras">Intelbras</option>
+                        <option value="ControlId">Control ID</option>
                     </select>
                 </label>
-                <label class="space-y-1">
-                    <span class="text-sm font-medium text-gray-700">IP</span>
-                    <input asp-for="IPAddress" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
-                </label>
-                <label class="space-y-1">
-                    <span class="text-sm font-medium text-gray-700">Porta</span>
-                    <input asp-for="Port" type="number" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
-                </label>
-                <label class="space-y-1">
-                    <span class="text-sm font-medium text-gray-700">Usuário</span>
-                    <input asp-for="Username" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
-                </label>
-                <label class="space-y-1">
-                    <span class="text-sm font-medium text-gray-700">Senha</span>
-                    <input asp-for="Password" type="password" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
-                </label>
-                <label class="space-y-1">
-                    <span class="text-sm font-medium text-gray-700">MAC</span>
-                    <input asp-for="MACAddress" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
-                </label>
-                <label class="space-y-1">
-                    <span class="text-sm font-medium text-gray-700">Serial</span>
-                    <input asp-for="SerialNumber" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
-                </label>
+
                 <label class="space-y-1">
                     <span class="text-sm font-medium text-gray-700">Modelo</span>
-                    <input asp-for="DeviceModel" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                    <select asp-for="Type" id="deviceType" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50">
+                        @foreach (var item in intelbrasModels)
+                        {
+                            <option value="@item.Value" data-brand="Intelbras" data-model="@item.Label">@item.Label</option>
+                        }
+                        @foreach (var item in controlIdModels)
+                        {
+                            <option value="@item.Value" data-brand="ControlId" data-model="@item.Label">@item.Label</option>
+                        }
+                    </select>
+                    <span asp-validation-for="Type" class="text-xs text-rose-600"></span>
                 </label>
+
                 <label class="space-y-1">
-                    <span class="text-sm font-medium text-gray-700">Firmware</span>
-                    <input asp-for="FirmwareVersion" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                    <span class="text-sm font-medium text-gray-700">IP</span>
+                    <input asp-for="IPAddress" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" placeholder="192.168.0.10" />
+                    <span asp-validation-for="IPAddress" class="text-xs text-rose-600"></span>
                 </label>
+
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Porta</span>
+                    <input asp-for="Port" type="number" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" />
+                    <span asp-validation-for="Port" class="text-xs text-rose-600"></span>
+                </label>
+
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Usuário</span>
+                    <input asp-for="Username" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" />
+                    <span asp-validation-for="Username" class="text-xs text-rose-600"></span>
+                </label>
+
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Senha</span>
+                    <input asp-for="Password" type="password" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" />
+                    <span asp-validation-for="Password" class="text-xs text-rose-600"></span>
+                </label>
+
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">MAC <span class="font-normal text-gray-400">opcional</span></span>
+                    <input asp-for="MACAddress" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" placeholder="AA:BB:CC:DD:EE:FF" />
+                    <span asp-validation-for="MACAddress" class="text-xs text-rose-600"></span>
+                </label>
+
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Serial <span class="font-normal text-gray-400">opcional</span></span>
+                    <input asp-for="SerialNumber" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" />
+                    <span asp-validation-for="SerialNumber" class="text-xs text-rose-600"></span>
+                </label>
+
+                <label class="space-y-1">
+                    <span class="text-sm font-medium text-gray-700">Firmware <span class="font-normal text-gray-400">opcional</span></span>
+                    <input asp-for="FirmwareVersion" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" />
+                </label>
+
                 <label class="space-y-1">
                     <span class="text-sm font-medium text-gray-700">Local X</span>
-                    <input asp-for="LocationX" type="number" step="0.0001" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                    <input asp-for="LocationX" type="number" step="0.0001" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" />
                 </label>
+
                 <label class="space-y-1">
                     <span class="text-sm font-medium text-gray-700">Local Y</span>
-                    <input asp-for="LocationY" type="number" step="0.0001" class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-500/15" />
+                    <input asp-for="LocationY" type="number" step="0.0001" class="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" />
                 </label>
-                <label class="md:col-span-2 inline-flex items-center gap-2 text-sm text-gray-700">
-                    <input asp-for="IsActive" class="h-4 w-4 rounded border-gray-300 text-blue-600" />
-                    Ativo e testável na criação
+
+                <label class="md:col-span-2 flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                    <input asp-for="IsActive" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
+                    <span>
+                        <span class="block font-medium text-gray-800">Ativar e testar conexão ao salvar</span>
+                        <span class="block text-xs text-gray-500">Deixe desmarcado para apenas cadastrar o equipamento. Marque quando o dispositivo estiver acessível na rede.</span>
+                    </span>
                 </label>
             </div>
 
-            <div class="px-5 py-4 border-t border-gray-100 flex justify-end">
-                <button class="px-5 py-3 rounded-2xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition">
+            <div class="flex justify-end border-t border-gray-200 px-5 py-4">
+                <button class="h-11 rounded-lg bg-gray-950 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800">
                     Salvar equipamento
                 </button>
             </div>
         </form>
 
-        <aside class="bg-white/85 border border-gray-200/70 rounded-2xl shadow-sm overflow-hidden h-fit">
-            <div class="px-5 py-4 border-b border-gray-100">
-                <h3 class="font-semibold text-gray-900">Cadastrados</h3>
-                <p class="text-sm text-gray-500">@Model.Devices.Count equipamento(s)</p>
+        <aside class="h-fit overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div class="border-b border-gray-200 px-5 py-4">
+                <h3 class="font-semibold text-gray-950">Cadastrados</h3>
+                <p class="mt-1 text-sm text-gray-500">@Model.Devices.Count equipamento(s)</p>
             </div>
             @if (!Model.Devices.Any())
             {
@@ -98,10 +177,10 @@
                         <div class="p-5">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="min-w-0">
-                                    <p class="font-medium text-gray-900 truncate">@device.Name</p>
+                                    <p class="truncate font-medium text-gray-950">@device.Name</p>
                                     <p class="text-sm text-gray-500">@device.IPAddress:@device.Port</p>
                                 </div>
-                                <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold @(device.IsActive ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-600")">
+                                <span class="shrink-0 rounded-md px-2.5 py-1 text-xs font-semibold @(device.IsActive ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "bg-gray-100 text-gray-600")">
                                     @(device.IsActive ? "Ativo" : "Inativo")
                                 </span>
                             </div>
@@ -117,3 +196,32 @@
         </aside>
     </div>
 </div>
+
+<script>
+    (() => {
+        const brandSelect = document.getElementById("deviceBrand");
+        const typeSelect = document.getElementById("deviceType");
+        const modelInput = document.getElementById("DeviceModel");
+
+        function syncModels() {
+            const brand = brandSelect.value;
+            const options = Array.from(typeSelect.options);
+            const selectedOption = typeSelect.selectedOptions[0];
+
+            options.forEach(option => {
+                option.hidden = option.dataset.brand !== brand;
+            });
+
+            if (!selectedOption || selectedOption.hidden) {
+                const firstVisible = options.find(option => !option.hidden);
+                if (firstVisible) typeSelect.value = firstVisible.value;
+            }
+
+            modelInput.value = typeSelect.selectedOptions[0]?.dataset.model ?? "";
+        }
+
+        brandSelect.addEventListener("change", syncModels);
+        typeSelect.addEventListener("change", syncModels);
+        syncModels();
+    })();
+</script>

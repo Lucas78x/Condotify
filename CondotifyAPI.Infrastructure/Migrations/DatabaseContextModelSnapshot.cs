@@ -22,6 +22,340 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessBatchOperationDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("Error")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("FailedItems")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FilterJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("{}");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("ProcessedItems")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SuccessfulItems")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalItems")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LicenseId");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("AccessBatchOperations", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessEventRecordDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Authorized")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("Credential")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("CredentialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Event")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("ExternalEventId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ExternalUserId")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PersonName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Portal")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CredentialId");
+
+                    b.HasIndex("DeviceId", "ExternalEventId")
+                        .IsUnique();
+
+                    b.HasIndex("LicenseId", "OccurredAt");
+
+                    b.ToTable("AccessEventRecords", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessOperationAuditDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("DetailsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("{}");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.HasIndex("LicenseId", "CreatedAt");
+
+                    b.ToTable("AccessOperationAudits", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessRouteDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AllowTemporary")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<long>("Audience")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<int>("DaysOfWeekMask")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(127);
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<TimeSpan>("EndTime")
+                        .HasColumnType("interval");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<TimeSpan>("StartTime")
+                        .HasColumnType("interval");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LicenseId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("AccessRoutes", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessRouteDeviceDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccessRouteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("PortalNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeviceId");
+
+                    b.HasIndex("AccessRouteId", "DeviceId", "PortalNumber")
+                        .IsUnique();
+
+                    b.ToTable("AccessRouteDevices", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessRouteResidentOverrideDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccessRouteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("ResidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ResidentId");
+
+                    b.HasIndex("AccessRouteId", "ResidentId")
+                        .IsUnique();
+
+                    b.ToTable("AccessRouteResidentOverrides", (string)null);
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Audit.DeviceAuditDTO", b =>
                 {
                     b.Property<Guid>("Id")
@@ -41,7 +375,7 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("Timestamp")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<Guid>("UserId")
@@ -70,8 +404,8 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<Guid>("TicketId")
                         .HasColumnType("uuid");
@@ -140,12 +474,12 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<DateTime>("LastUpdatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<Guid>("LicenseId")
@@ -172,11 +506,11 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<DateTime?>("DeliveredAt")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeliveredTo")
                         .IsRequired()
@@ -210,7 +544,7 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<DateTime?>("ReceivedAt")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ReceivedBy")
                         .IsRequired()
@@ -233,12 +567,14 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LicenseId");
+                    b.HasIndex("LicenseId", "TrackingCode");
+
+                    b.HasIndex("LicenseId", "Status", "CreatedAt");
 
                     b.ToTable("Deliveries", (string)null);
                 });
@@ -286,8 +622,8 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -358,7 +694,7 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Website")
                         .IsRequired()
@@ -382,15 +718,31 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CapacityJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("{}");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("DiscoveredPortalsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("[]");
 
                     b.Property<string>("FirmwareVersion")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<string>("HealthMessage")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.Property<string>("IPAddress")
                         .IsRequired()
@@ -402,16 +754,24 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
+                    b.Property<DateTime?>("LastHealthCheckAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("LastResponseTimeMs")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("LastUpdatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<Guid>("LicenseId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("MACAddress")
-                        .IsRequired()
                         .HasMaxLength(17)
                         .HasColumnType("character varying(17)");
 
@@ -434,7 +794,6 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("SerialNumber")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
@@ -576,7 +935,7 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("NOW()");
 
                     b.Property<bool>("IsActive")
@@ -593,22 +952,150 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<long>("UserId")
                         .HasColumnType("bigint");
 
                     b.Property<DateTime>("ValidFrom")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("ValidTo")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ResidentId");
 
                     b.ToTable("ResidentDevices");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Invitation.RegistrationInviteDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Contact")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("OpenedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ResidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SendCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ResidentId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("LicenseId", "Status", "SentAt");
+
+                    b.ToTable("RegistrationInvites", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.License.LicenseCredentialPolicyDTO", b =>
+                {
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AllowQrCodeRenewal")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("AutoDeactivateExpiredCredentials")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("MaxQrCodeRenewals")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(2);
+
+                    b.Property<int>("MaxTemporaryFaceValidityMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(10080);
+
+                    b.Property<int>("QrCodeRenewalMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1440);
+
+                    b.Property<int>("QrCodeValidityMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1440);
+
+                    b.Property<bool>("RemoveExpiredCredentialsFromDevices")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("RequireFacePhoto")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("TemporaryFaceValidityMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1440);
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("LicenseId");
+
+                    b.ToTable("LicenseCredentialPolicies", (string)null);
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.License.LicenseDTO", b =>
@@ -641,14 +1128,28 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<Guid>("EnterpriseId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("ExpireDate")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("GroupLabelPlural")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("Blocos");
+
+                    b.Property<string>("GroupLabelSingular")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("Bloco");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -665,12 +1166,69 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
 
+                    b.Property<string>("UnitLabelPlural")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("Unidades");
+
+                    b.Property<string>("UnitLabelSingular")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("Unidade");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EnterpriseId", "Name")
                         .IsUnique();
 
                     b.ToTable("Licenses", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.License.LicenseUserAccessDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Permissions")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LicenseId", "UserId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "IsActive");
+
+                    b.ToTable("LicenseUserAccesses", (string)null);
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentAccessCredentialDTO", b =>
@@ -681,8 +1239,8 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<int>("CredentialType")
                         .HasColumnType("integer");
@@ -697,17 +1255,40 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
+                    b.Property<bool>("IsTemporary")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("MaxRenewals")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<int?>("MaxUses")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RenewalCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<Guid>("ResidentId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UseCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<DateTime>("ValidFrom")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("ValidTo")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
@@ -742,10 +1323,20 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasMaxLength(14)
                         .HasColumnType("character varying(14)");
 
+                    b.Property<string>("CommercialPhone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -753,7 +1344,7 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasColumnType("character varying(150)");
 
                     b.Property<DateTime>("Expire")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("FirstAccess")
                         .ValueGeneratedOnAdd()
@@ -764,15 +1355,25 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<DateTime>("LastAccess")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
+
+                    b.Property<bool>("NotifyAccess")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Password")
                         .IsRequired()
@@ -805,6 +1406,58 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.ToTable("Resident", (string)null);
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentUnitLinkDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("EndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Relationship")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ResidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ResidentId", "UnitId")
+                        .IsUnique();
+
+                    b.HasIndex("UnitId", "IsActive");
+
+                    b.ToTable("ResidentUnitLinks", (string)null);
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Ticket.TicketDTO", b =>
                 {
                     b.Property<Guid>("Id")
@@ -823,11 +1476,11 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<DateTime>("ExpiredDate")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsSecondCopy")
                         .ValueGeneratedOnAdd()
@@ -906,8 +1559,8 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -924,7 +1577,7 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("LastAccess")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("Name")
@@ -950,7 +1603,8 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CPF")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"CPF\" <> ''");
 
                     b.HasIndex("Email")
                         .IsUnique();
@@ -958,12 +1612,81 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.HasIndex("EnterpriseId");
 
                     b.HasIndex("PhoneNumber")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"PhoneNumber\" <> ''");
 
                     b.HasIndex("RG")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"RG\" <> ''");
 
                     b.ToTable("UserAccess", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Vehicle.VehicleDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Brand")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Plate")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<Guid?>("ResidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TagIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ResidentId");
+
+                    b.HasIndex("TagIdentifier");
+
+                    b.HasIndex("UnitId", "Plate")
+                        .IsUnique();
+
+                    b.ToTable("Vehicles", (string)null);
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.Enums.Resident.ResidentAccessDeviceDTO", b =>
@@ -971,6 +1694,11 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<Guid>("DeviceId")
                         .HasColumnType("uuid");
@@ -997,17 +1725,142 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<DateTime?>("LastErrorAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastSuccessAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("LastSyncAt")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PortalNumbers")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<Guid>("ResidentAccessCredentialId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("RouteNames")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("SyncStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.HasKey("Id");
+
+                    b.HasIndex("DeviceId");
 
                     b.HasIndex("ResidentAccessCredentialId");
 
+                    b.HasIndex("SyncStatus", "NextAttemptAt");
+
                     b.ToTable("ResidentAccessDevices", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessBatchOperationDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessEventRecordDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Resident.ResidentAccessCredentialDTO", "AccessCredential")
+                        .WithMany()
+                        .HasForeignKey("CredentialId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Equipments.AccessControlDeviceDTO", "Device")
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AccessCredential");
+
+                    b.Navigation("Device");
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessOperationAuditDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessRouteDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany("AccessRoutes")
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessRouteDeviceDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.AccessControl.AccessRouteDTO", "AccessRoute")
+                        .WithMany("Devices")
+                        .HasForeignKey("AccessRouteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Equipments.AccessControlDeviceDTO", "Device")
+                        .WithMany("AccessRoutes")
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AccessRoute");
+
+                    b.Navigation("Device");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessRouteResidentOverrideDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.AccessControl.AccessRouteDTO", "AccessRoute")
+                        .WithMany("ResidentOverrides")
+                        .HasForeignKey("AccessRouteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Resident.ResidentAccessDTO", "Resident")
+                        .WithMany()
+                        .HasForeignKey("ResidentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AccessRoute");
+
+                    b.Navigation("Resident");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Audit.DeviceAuditDTO", b =>
@@ -1144,6 +1997,36 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("Resident");
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Invitation.RegistrationInviteDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany("RegistrationInvites")
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Resident.ResidentAccessDTO", "Resident")
+                        .WithMany("RegistrationInvites")
+                        .HasForeignKey("ResidentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+
+                    b.Navigation("Resident");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.License.LicenseCredentialPolicyDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithOne("CredentialPolicy")
+                        .HasForeignKey("CondotifyAPI.Domain.DTO.License.LicenseCredentialPolicyDTO", "LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.License.LicenseDTO", b =>
                 {
                     b.HasOne("CondotifyAPI.Domain.DTO.Enterprise.EnterpriseDTO", "Enterprise")
@@ -1182,6 +2065,25 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.License.LicenseUserAccessDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany("UserAccesses")
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Users.UserAccessDTO", "User")
+                        .WithMany("LicenseAccesses")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentAccessCredentialDTO", b =>
                 {
                     b.HasOne("CondotifyAPI.Domain.DTO.Resident.ResidentAccessDTO", "Resident")
@@ -1200,6 +2102,25 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasForeignKey("UnitId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentUnitLinkDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Resident.ResidentAccessDTO", "Resident")
+                        .WithMany("UnitLinks")
+                        .HasForeignKey("ResidentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Unit.UnitDTO", "Unit")
+                        .WithMany("ResidentLinks")
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Resident");
 
                     b.Navigation("Unit");
                 });
@@ -1236,8 +2157,32 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("Enterprise");
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Vehicle.VehicleDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Resident.ResidentAccessDTO", "Resident")
+                        .WithMany("Vehicles")
+                        .HasForeignKey("ResidentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Unit.UnitDTO", "Unit")
+                        .WithMany("Vehicles")
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Resident");
+
+                    b.Navigation("Unit");
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.Enums.Resident.ResidentAccessDeviceDTO", b =>
                 {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Equipments.AccessControlDeviceDTO", "Device")
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("CondotifyAPI.Domain.DTO.Resident.ResidentAccessCredentialDTO", "Credential")
                         .WithMany("Devices")
                         .HasForeignKey("ResidentAccessCredentialId")
@@ -1245,6 +2190,15 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Credential");
+
+                    b.Navigation("Device");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.AccessRouteDTO", b =>
+                {
+                    b.Navigation("Devices");
+
+                    b.Navigation("ResidentOverrides");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Block.BlockDTO", b =>
@@ -1261,6 +2215,8 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Equipments.AccessControlDeviceDTO", b =>
                 {
+                    b.Navigation("AccessRoutes");
+
                     b.Navigation("Audit");
                 });
 
@@ -1271,15 +2227,23 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.License.LicenseDTO", b =>
                 {
+                    b.Navigation("AccessRoutes");
+
                     b.Navigation("Blocks");
 
                     b.Navigation("CFTVDevices");
+
+                    b.Navigation("CredentialPolicy");
 
                     b.Navigation("Deliveries");
 
                     b.Navigation("Devices");
 
+                    b.Navigation("RegistrationInvites");
+
                     b.Navigation("Tickets");
+
+                    b.Navigation("UserAccesses");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentAccessCredentialDTO", b =>
@@ -1290,6 +2254,12 @@ namespace CondotifyAPI.Infrastructure.Migrations
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentAccessDTO", b =>
                 {
                     b.Navigation("AccessCredentials");
+
+                    b.Navigation("RegistrationInvites");
+
+                    b.Navigation("UnitLinks");
+
+                    b.Navigation("Vehicles");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Ticket.TicketDTO", b =>
@@ -1299,12 +2269,18 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Unit.UnitDTO", b =>
                 {
+                    b.Navigation("ResidentLinks");
+
                     b.Navigation("Residents");
+
+                    b.Navigation("Vehicles");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Users.UserAccessDTO", b =>
                 {
                     b.Navigation("Audit");
+
+                    b.Navigation("LicenseAccesses");
                 });
 #pragma warning restore 612, 618
         }

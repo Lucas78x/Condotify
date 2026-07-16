@@ -1,0 +1,169 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+@inject Microsoft.JSInterop.IJSRuntime JS
+
+<MudDialog Class="entity-dialog access-operations-dialog">
+    <DialogContent>
+        <div class="operations-command-bar">
+            <div><strong>Sincronizacao e recuperacao</strong><span>Revise o impacto antes de distribuir credenciais para os terminais.</span></div>
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Visibility" Disabled="_busy" OnClick="PreviewAsync">Previa</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Sync" Disabled="_busy" OnClick="QueueAsync">Reconciliar base</MudButton>
+            <MudMenu Icon="@Icons.Material.Outlined.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <MudMenuItem Icon="@Icons.Material.Outlined.Download" OnClick="ExportBackupAsync">Exportar backup</MudMenuItem>
+                <label class="mud-menu-item backup-upload-item"><MudIcon Icon="@Icons.Material.Outlined.UploadFile" /><span>Restaurar backup</span><InputFile OnChange="RestoreBackupAsync" accept="application/json,.json" /></label>
+            </MudMenu>
+        </div>
+
+        @if (_preview is not null)
+        {
+            <div class="operation-preview-grid">
+                <div><strong>@_preview.CredentialCount</strong><span>Credenciais</span></div>
+                <div><strong>@_preview.ResidentCount</strong><span>Pessoas</span></div>
+                <div><strong>@_preview.TargetCount</strong><span>Destinos</span></div>
+                <div><strong>@_preview.PendingCount</strong><span>Pendencias atuais</span></div>
+            </div>
+            @if (_preview.Warnings.Count > 0)
+            {
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense Class="mb-4">@string.Join(" | ", _preview.Warnings.Take(5))</MudAlert>
+            }
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+
+        <MudTabs Elevation="0" Class="operations-tabs">
+            <MudTabPanel Text="Processamentos" Icon="@Icons.Material.Outlined.Sync">
+                @if (_batches.Count == 0)
+                {
+                    <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.HourglassEmpty" /><span>Nenhum processamento solicitado.</span></div>
+                }
+                else
+                {
+                    <div class="operation-batch-list">
+                        @foreach (var batch in _batches)
+                        {
+                            <div class="operation-batch-row">
+                                <span class="operation-status-icon @batch.Status.ToLowerInvariant()"><MudIcon Icon="@BatchIcon(batch.Status)" /></span>
+                                <div class="operation-batch-main"><strong>@BatchLabel(batch.Status)</strong><span>Solicitado por @batch.RequestedBy em @batch.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</span></div>
+                                <div class="operation-progress"><MudProgressLinear Value="@BatchProgress(batch)" Color="@BatchColor(batch.Status)" Rounded="false" /><small>@batch.ProcessedItems de @batch.TotalItems | @batch.FailedItems falha(s)</small></div>
+                                @if (batch.Status == "Queued")
+                                {
+                                    <MudTooltip Text="Cancelar processamento"><MudIconButton Icon="@Icons.Material.Outlined.Close" Color="Color.Error" OnClick="@(() => CancelBatchAsync(batch))" /></MudTooltip>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </MudTabPanel>
+            <MudTabPanel Text="Auditoria" Icon="@Icons.Material.Outlined.History">
+                @if (_audits.Count == 0)
+                {
+                    <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.History" /><span>Nenhuma alteracao registrada.</span></div>
+                }
+                else
+                {
+                    <MudTable Items="_audits" Hover Dense Elevation="0">
+                        <HeaderContent><MudTh>Quando</MudTh><MudTh>Operacao</MudTh><MudTh>Resultado</MudTh><MudTh>Responsavel</MudTh></HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Quando">@context.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
+                            <MudTd DataLabel="Operacao"><strong>@context.Action</strong><small class="audit-summary">@context.Summary</small></MudTd>
+                            <MudTd DataLabel="Resultado"><MudChip T="string" Size="Size.Small" Color="@AuditColor(context.Status)" Variant="Variant.Outlined">@AuditLabel(context.Status)</MudChip></MudTd>
+                            <MudTd DataLabel="Responsavel">@context.UserName</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    </DialogContent>
+    <DialogActions><MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+
+    private List<AccessBatchOperationViewModel> _batches = [];
+    private List<AccessAuditViewModel> _audits = [];
+    private ReconciliationPreviewViewModel? _preview;
+    private bool _busy;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var batchesTask = Api.GetReconciliationBatchesAsync(LicenseId);
+        var auditsTask = Api.GetAccessAuditsAsync(LicenseId);
+        await Task.WhenAll(batchesTask, auditsTask);
+        if (batchesTask.Result.Success) _batches = batchesTask.Result.Value ?? [];
+        if (auditsTask.Result.Success) _audits = auditsTask.Result.Value ?? [];
+        _error = batchesTask.Result.Error ?? auditsTask.Result.Error;
+    }
+
+    private async Task PreviewAsync()
+    {
+        _busy = true; _error = null;
+        var result = await Api.PreviewReconciliationAsync(LicenseId);
+        _busy = false;
+        if (!result.Success) { _error = result.Error; return; }
+        _preview = result.Value;
+    }
+
+    private async Task QueueAsync()
+    {
+        await PreviewAsync();
+        if (_preview is null) return;
+        _busy = true;
+        var result = await Api.QueueReconciliationAsync(LicenseId);
+        _busy = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Snackbar.Add("Reconciliacao adicionada a fila.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task CancelBatchAsync(AccessBatchOperationViewModel batch)
+    {
+        var result = await Api.CancelReconciliationBatchAsync(LicenseId, batch.Id);
+        if (!result.Success) { _error = result.Error; return; }
+        Snackbar.Add("Processamento cancelado.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task ExportBackupAsync()
+    {
+        _busy = true;
+        var result = await Api.ExportCredentialBackupAsync(LicenseId);
+        _busy = false;
+        if (!result.Success || result.Value is null) { _error = result.Error; return; }
+        var json = System.Text.Json.JsonSerializer.Serialize(result.Value, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web) { WriteIndented = true });
+        await JS.InvokeVoidAsync("portalInterop.downloadText", $"condotify-credenciais-{DateTime.Now:yyyyMMdd-HHmm}.json", json, "application/json");
+        Snackbar.Add("Backup exportado.", Severity.Success);
+    }
+
+    private async Task RestoreBackupAsync(InputFileChangeEventArgs args)
+    {
+        _busy = true; _error = null;
+        try
+        {
+            await using var stream = args.File.OpenReadStream(5_000_000);
+            var backup = await System.Text.Json.JsonSerializer.DeserializeAsync<CredentialBackupViewModel>(stream, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+            if (backup is null) { _error = "O arquivo nao possui um backup valido."; return; }
+            var result = await Api.RestoreCredentialBackupAsync(LicenseId, backup);
+            if (!result.Success) { _error = result.Error; return; }
+            Snackbar.Add("Backup restaurado e enviado para reconciliacao.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _busy = false; }
+    }
+
+    private void Close() => Dialog.Close(DialogResult.Ok(true));
+    private static double BatchProgress(AccessBatchOperationViewModel x) => x.TotalItems <= 0 ? 0 : x.ProcessedItems * 100d / x.TotalItems;
+    private static string BatchIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.CheckCircle, "CompletedWithErrors" => Icons.Material.Outlined.WarningAmber, "Failed" => Icons.Material.Outlined.Error, "Running" => Icons.Material.Outlined.Sync, "Canceled" => Icons.Material.Outlined.Cancel, _ => Icons.Material.Outlined.Schedule };
+    private static string BatchLabel(string status) => status switch { "Completed" => "Concluido", "CompletedWithErrors" => "Concluido com pendencias", "Failed" => "Falhou", "Running" => "Em processamento", "Canceled" => "Cancelado", _ => "Na fila" };
+    private static Color BatchColor(string status) => status switch { "Completed" => Color.Success, "CompletedWithErrors" => Color.Warning, "Failed" => Color.Error, "Running" => Color.Info, _ => Color.Default };
+    private static string AuditLabel(string status) => status switch { "Success" => "Sucesso", "Pending" or "Queued" => "Pendente", "NoRoute" => "Sem rota", _ => status };
+    private static Color AuditColor(string status) => status switch { "Success" => Color.Success, "Pending" or "Queued" => Color.Warning, "NoRoute" => Color.Error, _ => Color.Default };
+}

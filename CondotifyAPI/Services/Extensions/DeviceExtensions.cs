@@ -59,6 +59,31 @@
             };
         }
 
+        public static bool SupportsFace(this DeviceTypeEnum deviceType)
+        {
+            return deviceType switch
+            {
+                DeviceTypeEnum.SS5520 or
+                DeviceTypeEnum.SS5530MFFace or
+                DeviceTypeEnum.SS5530MFFaceLite or
+                DeviceTypeEnum.SS3530MFFaceW or
+                DeviceTypeEnum.SS7520FaceT or
+                DeviceTypeEnum.SS7530Face or
+                DeviceTypeEnum.SS3530MFFace or
+                DeviceTypeEnum.SS3540MFFaceEx or
+                DeviceTypeEnum.SS3540MFFaceBioEx or
+                DeviceTypeEnum.SS3540MFFaceBio or
+                DeviceTypeEnum.SS5531MFW or
+                DeviceTypeEnum.SS5541MFW or
+                DeviceTypeEnum.SS5532MFW or
+                DeviceTypeEnum.SS5542MFW or
+                DeviceTypeEnum.SS5430MFBioFT or
+                DeviceTypeEnum.IdFace or
+                DeviceTypeEnum.IdFaceMax => true,
+                _ => false
+            };
+        }
+
         public static string ToHexCard(string raw)
         {
             return raw.Replace(" ", "").Trim().ToUpper();

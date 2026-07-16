@@ -2,9 +2,13 @@ using CondotifyAPI.Domain.DTO.Enterprise;
 using CondotifyAPI.Domain.DTO.Equipments;
 using CondotifyAPI.Domain.DTO.License;
 using CondotifyAPI.Domain.DTO.Block;
+using CondotifyAPI.Domain.DTO.Delivers;
 using CondotifyAPI.Domain.DTO.Resident;
 using CondotifyAPI.Domain.DTO.Unit;
 using CondotifyAPI.Domain.DTO.Users;
+using CondotifyAPI.Domain.DTO.Vehicle;
+using CondotifyAPI.Domain.DTO.Invitation;
+using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -76,6 +80,100 @@ namespace CondotifyAPI.Tests
             Assert.True(HasUniqueIndex(resident!, nameof(ResidentAccessDTO.UnitId), nameof(ResidentAccessDTO.CPF)));
         }
 
+        [Fact]
+        public void PropertyPeopleAndVehicles_ShouldKeepTenantScopedIntegrity()
+        {
+            using var context = CreateContext();
+            var link = context.Model.FindEntityType(typeof(ResidentUnitLinkDTO));
+            var vehicle = context.Model.FindEntityType(typeof(VehicleDTO));
+            var invite = context.Model.FindEntityType(typeof(RegistrationInviteDTO));
+
+            Assert.NotNull(link);
+            Assert.NotNull(vehicle);
+            Assert.NotNull(invite);
+            Assert.True(HasUniqueIndex(link!, nameof(ResidentUnitLinkDTO.ResidentId), nameof(ResidentUnitLinkDTO.UnitId)));
+            Assert.True(HasUniqueIndex(vehicle!, nameof(VehicleDTO.UnitId), nameof(VehicleDTO.Plate)));
+            Assert.True(HasUniqueIndex(invite!, nameof(RegistrationInviteDTO.TokenHash)));
+            Assert.True(HasIndex(invite!, nameof(RegistrationInviteDTO.LicenseId), nameof(RegistrationInviteDTO.Status), nameof(RegistrationInviteDTO.SentAt)));
+        }
+
+        [Fact]
+        public void Deliveries_ShouldHaveLookupIndexesScopedByLicense()
+        {
+            using var context = CreateContext();
+            var entity = context.Model.FindEntityType(typeof(DeliveryDTO));
+
+            Assert.NotNull(entity);
+            Assert.True(HasIndex(entity!, nameof(DeliveryDTO.LicenseId), nameof(DeliveryDTO.Status), nameof(DeliveryDTO.CreatedAt)));
+            Assert.True(HasIndex(entity!, nameof(DeliveryDTO.LicenseId), nameof(DeliveryDTO.TrackingCode)));
+        }
+
+        [Fact]
+        public void LicenseAdministration_ShouldKeepUserScopeAndSinglePolicy()
+        {
+            using var context = CreateContext();
+            var access = context.Model.FindEntityType(typeof(LicenseUserAccessDTO));
+            var policy = context.Model.FindEntityType(typeof(LicenseCredentialPolicyDTO));
+
+            Assert.NotNull(access);
+            Assert.NotNull(policy);
+            Assert.True(HasUniqueIndex(access!, nameof(LicenseUserAccessDTO.LicenseId), nameof(LicenseUserAccessDTO.UserId)));
+            Assert.True(HasIndex(access!, nameof(LicenseUserAccessDTO.UserId), nameof(LicenseUserAccessDTO.IsActive)));
+            Assert.Equal(nameof(LicenseCredentialPolicyDTO.LicenseId), policy!.FindPrimaryKey()!.Properties.Single().Name);
+        }
+
+        [Fact]
+        public void CredentialDeletion_ShouldCascadeToDeviceBindings()
+        {
+            using var context = CreateContext();
+            var binding = context.Model.FindEntityType(typeof(CondotifyAPI.Domain.Enums.Resident.ResidentAccessDeviceDTO));
+
+            Assert.NotNull(binding);
+            var foreignKey = binding!.GetForeignKeys().Single(x => x.PrincipalEntityType.ClrType == typeof(ResidentAccessCredentialDTO));
+            Assert.Equal(DeleteBehavior.Cascade, foreignKey.DeleteBehavior);
+        }
+
+        [Fact]
+        public void AccessRoutes_ShouldBeScopedAndKeepUniqueDevicePortals()
+        {
+            using var context = CreateContext();
+            var route = context.Model.FindEntityType(typeof(AccessRouteDTO));
+            var target = context.Model.FindEntityType(typeof(AccessRouteDeviceDTO));
+
+            Assert.NotNull(route);
+            Assert.NotNull(target);
+            Assert.True(HasUniqueIndex(route!, nameof(AccessRouteDTO.LicenseId), nameof(AccessRouteDTO.Name)));
+            Assert.True(HasUniqueIndex(target!, nameof(AccessRouteDeviceDTO.AccessRouteId), nameof(AccessRouteDeviceDTO.DeviceId), nameof(AccessRouteDeviceDTO.PortalNumber)));
+            Assert.All(target!.GetForeignKeys(), foreignKey => Assert.Equal(DeleteBehavior.Cascade, foreignKey.DeleteBehavior));
+        }
+
+        [Fact]
+        public void AccessOperations_ShouldDeduplicateEventsAndRouteOverrides()
+        {
+            using var context = CreateContext();
+            var accessEvent = context.Model.FindEntityType(typeof(AccessEventRecordDTO));
+            var routeOverride = context.Model.FindEntityType(typeof(AccessRouteResidentOverrideDTO));
+
+            Assert.NotNull(accessEvent);
+            Assert.NotNull(routeOverride);
+            Assert.True(HasUniqueIndex(accessEvent!, nameof(AccessEventRecordDTO.DeviceId), nameof(AccessEventRecordDTO.ExternalEventId)));
+            Assert.True(HasUniqueIndex(routeOverride!, nameof(AccessRouteResidentOverrideDTO.AccessRouteId), nameof(AccessRouteResidentOverrideDTO.ResidentId)));
+        }
+
+        [Fact]
+        public void DateTimes_ShouldBeStoredAsUtcTimestamps()
+        {
+            using var context = CreateContext();
+
+            var dateProperties = context.Model.GetEntityTypes()
+                .SelectMany(entity => entity.GetProperties())
+                .Where(property => property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
+                .ToList();
+
+            Assert.NotEmpty(dateProperties);
+            Assert.All(dateProperties, property => Assert.Equal("timestamp with time zone", property.GetColumnType()));
+        }
+
         private static DatabaseContext CreateContext()
         {
             var options = new DbContextOptionsBuilder<DatabaseContext>()
@@ -89,6 +187,12 @@ namespace CondotifyAPI.Tests
         {
             return entity.GetIndexes().Any(index =>
                 index.IsUnique &&
+                index.Properties.Select(property => property.Name).SequenceEqual(propertyNames));
+        }
+
+        private static bool HasIndex(Microsoft.EntityFrameworkCore.Metadata.IEntityType entity, params string[] propertyNames)
+        {
+            return entity.GetIndexes().Any(index =>
                 index.Properties.Select(property => property.Name).SequenceEqual(propertyNames));
         }
     }

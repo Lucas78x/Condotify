@@ -1,0 +1,104 @@
+@page "/pesquisa"
+@attribute [Authorize]
+@inject CondotifyApiClient Api
+
+<PageTitle>Pesquisa global | Condotify</PageTitle>
+
+<PageHeader Title="Pesquisa global" Subtitle="Localize pessoas e credenciais em todos os condominios da empresa." Eyebrow="CENTRAL DE CONSULTA" />
+
+<MudPaper Class="content-panel search-workbench" Elevation="0">
+    <div class="panel-toolbar">
+        <div><MudText Typo="Typo.h6" Class="panel-title">Filtros de pesquisa</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Combine os campos para encontrar o cadastro correto com rapidez.</MudText></div>
+    </div>
+    <div class="panel-body">
+        <div class="global-search-grid">
+            <MudTextField T="string" @bind-Value="_name" Label="Pessoa" Placeholder="Nome ou e-mail" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.PersonSearch" Immediate />
+            <MudTextField T="string" @bind-Value="_document" Label="Documento" Placeholder="CPF ou RG" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Badge" Immediate />
+            <MudTextField T="string" @bind-Value="_phone" Label="Telefone" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Phone" Immediate />
+            <MudTextField T="string" @bind-Value="_credential" Label="Credencial" Placeholder="Cartao, tag ou QR Code" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Contactless" Immediate />
+            <MudSelect T="string" @bind-Value="_licenseId" Label="Condominio" Variant="Variant.Outlined">
+                <MudSelectItem T="string" Value="@("all")">Todos os condominios</MudSelectItem>
+                @foreach (var license in _licenses.OrderBy(x => x.Nome)) { <MudSelectItem T="string" Value="@license.Id">@license.Nome</MudSelectItem> }
+            </MudSelect>
+            <MudTextField T="string" @bind-Value="_unit" Label="Bloco ou unidade" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Apartment" Immediate />
+        </div>
+        <div class="form-actions search-actions">
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Clear" Disabled="@(!HasFilters || _loading)" OnClick="ClearAsync">Limpar</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Search" Disabled="@(!HasFilters || _loading)" OnClick="SearchAsync">@(_loading ? "Pesquisando..." : "Pesquisar")</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-4">@_error</MudAlert>
+}
+
+<MudPaper Class="content-panel search-results" Elevation="0">
+    <div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Resultados</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">@ResultSubtitle</MudText></div></div>
+    @if (_loading)
+    {
+        <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+    }
+    else if (!_searched)
+    {
+        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.ManageSearch" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Informe ao menos um filtro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A pesquisa consulta todos os condominios aos quais sua empresa tem acesso.</MudText></div>
+    }
+    else if (_results.Count == 0)
+    {
+        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.PersonOff" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum cadastro encontrado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Revise os filtros ou tente uma informacao diferente.</MudText></div>
+    }
+    else
+    {
+        <div class="table-wrap"><MudTable Items="_results" Hover Dense Elevation="0" RowsPerPage="20">
+            <HeaderContent><MudTh>Pessoa</MudTh><MudTh>Condominio</MudTh><MudTh>Unidade</MudTh><MudTh>Contato</MudTh><MudTh>Credenciais</MudTh><MudTh></MudTh></HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Pessoa"><div class="license-name-cell"><span class="person-monogram">@Monogram(context.Name)</span><span class="license-meta"><span class="license-title">@context.Name</span><span class="license-code">@DocumentLabel(context)</span></span></div></MudTd>
+                <MudTd DataLabel="Condominio">@context.LicenseName</MudTd>
+                <MudTd DataLabel="Unidade"><strong>@context.UnitNumber</strong><div class="license-code">@context.BlockName</div></MudTd>
+                <MudTd DataLabel="Contato">@(!string.IsNullOrWhiteSpace(context.PhoneNumber) ? context.PhoneNumber : context.Email)</MudTd>
+                <MudTd DataLabel="Credenciais"><div class="credential-bindings">@foreach (var credential in context.Credentials) { <span class="sync-state @(credential.IsActive ? "ok" : "pending")">@CredentialLabel(credential.Type) @credential.Identifier</span> }</div></MudTd>
+                <MudTd><MudTooltip Text="Abrir cadastro no condominio"><MudIconButton Href="@($"/licencas/{context.LicenseId}/moradores")" Icon="@Icons.Material.Outlined.ArrowForward" Color="Color.Primary" /></MudTooltip></MudTd>
+            </RowTemplate>
+            <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 20, 50, 100 })" /></PagerContent>
+        </MudTable></div>
+    }
+</MudPaper>
+
+@code {
+    private List<LicenseViewModel> _licenses = [];
+    private List<GlobalResidentSearchViewModel> _results = [];
+    private string? _name;
+    private string? _document;
+    private string? _phone;
+    private string? _credential;
+    private string? _unit;
+    private string _licenseId = "all";
+    private string? _error;
+    private bool _loading;
+    private bool _searched;
+    private bool HasFilters => _licenseId != "all" || new[] { _name, _document, _phone, _credential, _unit }.Any(x => !string.IsNullOrWhiteSpace(x));
+    private string ResultSubtitle => !_searched ? "Aguardando pesquisa" : $"{_results.Count} pessoa(s) encontrada(s)";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.GetLicensesAsync();
+        if (result.Success) _licenses = result.Value ?? []; else _error = result.Error;
+    }
+    private async Task SearchAsync()
+    {
+        if (!HasFilters) return;
+        _loading = true; _error = null; _searched = true;
+        var result = await Api.SearchResidentsAsync(_name, _document, _phone, _credential, _unit, _licenseId == "all" ? null : _licenseId);
+        _loading = false;
+        if (result.Success) _results = result.Value ?? []; else { _results = []; _error = result.Error; }
+    }
+    private Task ClearAsync()
+    {
+        _name = _document = _phone = _credential = _unit = null; _licenseId = "all"; _results = []; _searched = false; _error = null;
+        return Task.CompletedTask;
+    }
+    private static string Monogram(string name) => string.IsNullOrWhiteSpace(name) ? "P" : name.Trim()[0].ToString().ToUpperInvariant();
+    private static string DocumentLabel(GlobalResidentSearchViewModel item) => !string.IsNullOrWhiteSpace(item.CPF) ? $"CPF {item.CPF}" : !string.IsNullOrWhiteSpace(item.RG) ? $"RG {item.RG}" : item.AccessType;
+    private static string CredentialLabel(string type) => type switch { "Face" => "Facial", "QrCode" => "QR", "Card" => "Cartao", "VehicleTag" => "Veicular", "Password" => "PIN", _ => "Tag" };
+}

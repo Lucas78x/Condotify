@@ -1,0 +1,48 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" />
+            <div><strong>Novo veiculo</strong><span>A tag veicular, quando informada, tambem sera criada como credencial de acesso.</span></div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+        <EditForm Model="_model" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <div class="form-grid">
+                <MudTextField T="string" @bind-Value="_model.Plate" Label="Placa" Placeholder="ABC1D23" Required For="@(() => _model.Plate)" Variant="Variant.Outlined" />
+                <MudSelect T="string" @bind-Value="_model.Type" Label="Tipo" Variant="Variant.Outlined">
+                    <MudSelectItem Value='@("Carro")'>Carro</MudSelectItem><MudSelectItem Value='@("Moto")'>Moto</MudSelectItem><MudSelectItem Value='@("Utilitario")'>Utilitario</MudSelectItem><MudSelectItem Value='@("Outro")'>Outro</MudSelectItem>
+                </MudSelect>
+                <MudTextField T="string" @bind-Value="_model.Brand" Label="Marca" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_model.Model" Label="Modelo" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_model.Color" Label="Cor" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_model.TagIdentifier" Label="Tag veicular" HelperText="Opcional. Sera vinculada ao morador." Variant="Variant.Outlined" />
+            </div>
+            <div class="form-actions dialog-form-actions">
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" Disabled="_saving">@(_saving ? "Salvando..." : "Cadastrar veiculo")</MudButton>
+            </div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public Guid ResidentId { get; set; }
+    [Parameter, EditorRequired] public Guid UnitId { get; set; }
+    private readonly VehicleFormViewModel _model = new();
+    private bool _saving;
+    private string? _error;
+    protected override void OnInitialized() => _model.UnitId = UnitId;
+    private void Cancel() => Dialog.Cancel();
+    private async Task SaveAsync()
+    {
+        _saving = true; _error = null;
+        var result = await Api.CreateVehicleAsync(LicenseId, ResidentId, _model);
+        _saving = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+}

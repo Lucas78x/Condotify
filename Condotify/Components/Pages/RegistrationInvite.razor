@@ -1,0 +1,76 @@
+@page "/cadastro/convite/{Token}"
+@layout PublicLayout
+@inject CondotifyApiClient Api
+
+<PageTitle>Concluir cadastro | Condotify</PageTitle>
+
+<MudPaper Class="invite-public-card" Elevation="0">
+    @if (_loading)
+    {
+        <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+    }
+    else if (_invite is null)
+    {
+        <div class="public-result error"><MudIcon Icon="@Icons.Material.Outlined.LinkOff" /><MudText Typo="Typo.h5">Convite indisponivel</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@(_error ?? "O link e invalido ou nao esta mais disponivel.")</MudText></div>
+    }
+    else if (_completed || _invite.Status == "Completed")
+    {
+        <div class="public-result success"><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" /><MudText Typo="Typo.h5">Cadastro concluido</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Seus dados foram enviados para @_invite.LicenseName.</MudText></div>
+    }
+    else if (_invite.Status is "Expired" or "Canceled")
+    {
+        <div class="public-result error"><MudIcon Icon="@Icons.Material.Outlined.EventBusy" /><MudText Typo="Typo.h5">Convite expirado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Solicite um novo convite a administracao de @_invite.LicenseName.</MudText></div>
+    }
+    else
+    {
+        <header class="invite-public-head">
+            <span class="invite-public-icon"><MudIcon Icon="@Icons.Material.Outlined.PersonAdd" /></span>
+            <div><MudText Typo="Typo.h5">Conclua seu cadastro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_invite.LicenseName | @_invite.BlockName / Unidade @_invite.UnitNumber</MudText></div>
+        </header>
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+        <EditForm Model="_form" OnValidSubmit="CompleteAsync">
+            <DataAnnotationsValidator />
+            <div class="form-grid">
+                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome completo" Required For="@(() => _form.Name)" Variant="Variant.Outlined" Class="full" />
+                <MudTextField T="string" @bind-Value="_form.CPF" Label="CPF" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.RG" Label="RG" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.BirthDate" Label="Data de nascimento" Placeholder="dd/mm/aaaa" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.Email" Label="E-mail" InputType="InputType.Email" For="@(() => _form.Email)" Variant="Variant.Outlined" Class="full" />
+            </div>
+            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="public-privacy-note">Os dados serao usados somente para identificacao e controle de acesso da propriedade.</MudAlert>
+            <MudButton ButtonType="ButtonType.Submit" FullWidth Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Outlined.Check" Disabled="_saving">@(_saving ? "Enviando..." : "Concluir cadastro")</MudButton>
+        </EditForm>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+    private PublicRegistrationInviteViewModel? _invite;
+    private readonly CompleteRegistrationInviteViewModel _form = new();
+    private bool _loading = true;
+    private bool _saving;
+    private bool _completed;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        var result = await Api.GetPublicRegistrationInviteAsync(Token);
+        _loading = false;
+        if (!result.Success || result.Value is null) { _error = result.Error; return; }
+        _invite = result.Value;
+        _form.Name = _invite.ResidentName;
+        _form.Email = _invite.Email;
+        _form.PhoneNumber = _invite.PhoneNumber;
+    }
+
+    private async Task CompleteAsync()
+    {
+        _saving = true; _error = null;
+        var result = await Api.CompleteRegistrationInviteAsync(Token, _form);
+        _saving = false;
+        if (!result.Success) { _error = result.Error; return; }
+        _invite = result.Value; _completed = true;
+    }
+}

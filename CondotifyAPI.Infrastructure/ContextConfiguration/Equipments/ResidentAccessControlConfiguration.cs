@@ -32,6 +32,12 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
                    .IsRequired()
                    .HasDefaultValue(true);
 
+            builder.Property(x => x.IsTemporary).IsRequired().HasDefaultValue(false);
+            builder.Property(x => x.RenewalCount).IsRequired().HasDefaultValue(0);
+            builder.Property(x => x.MaxRenewals).IsRequired().HasDefaultValue(0);
+            builder.Property(x => x.UseCount).IsRequired().HasDefaultValue(0);
+            builder.Property(x => x.MaxUses);
+
             builder.Property(x => x.ValidFrom)
                    .IsRequired();
 

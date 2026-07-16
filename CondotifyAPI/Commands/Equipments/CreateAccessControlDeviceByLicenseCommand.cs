@@ -14,10 +14,10 @@ namespace CondotifyAPI.Commands.Equipments
         public int Port { get; set; }
         public string Username { get; set; }
         public string Password { get; set; }
-        public string MACAddress { get; set; }
+        public string? MACAddress { get; set; }
         public string Model { get; set; }
-        public string SerialNumber { get; set; }
-        public string FirmwareVersion { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FirmwareVersion { get; set; }
         public DeviceTypeEnum Type { get; set; }
         public bool IsActive { get; set; }
         public Location Location { get; set; }
@@ -29,10 +29,10 @@ namespace CondotifyAPI.Commands.Equipments
             int port,
             string username,
             string password,
-            string macAddress,
+            string? macAddress,
             string model,
-            string serialNumber,
-            string firmwareVersion,
+            string? serialNumber,
+            string? firmwareVersion,
             DeviceTypeEnum type,
             bool isActive,
             Location location)
@@ -106,9 +106,6 @@ namespace CondotifyAPI.Commands.Equipments
 
             RuleFor(x => x.Password)
                 .NotEmpty();
-
-            RuleFor(x => x.MACAddress)
-                .NotEmpty().WithMessage("MAC Address é obrigatório.");
 
             RuleFor(x => x.Type)
                 .IsInEnum();

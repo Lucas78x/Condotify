@@ -1,0 +1,27 @@
+<div class="stats-grid">
+    <StatTile Label="Blocos" Value="@License.TotalBlocks.ToString()" Icon="@Icons.Material.Outlined.Apartment" Tone="blue" />
+    <StatTile Label="Unidades" Value="@License.TotalUnits.ToString()" Icon="@Icons.Material.Outlined.MeetingRoom" Tone="amber" />
+    <StatTile Label="Moradores" Value="@License.TotalResidents.ToString()" Icon="@Icons.Material.Outlined.Groups" Tone="green" />
+    <StatTile Label="Validade" Value="@License.ExpireDate.ToString("dd/MM/yyyy")" Icon="@Icons.Material.Outlined.EventAvailable" Tone="red" />
+</div>
+
+<MudPaper Class="content-panel" Elevation="0">
+    <div class="panel-toolbar">
+        <div><MudText Typo="Typo.h5" Class="panel-title">Estrutura do condominio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Distribuicao cadastrada por bloco</MudText></div>
+    </div>
+    @if (License.Blocks.Count == 0)
+    {
+        <div class="panel-body"><MudAlert Severity="Severity.Info" Variant="Variant.Outlined">A estrutura ainda nao foi cadastrada. Comece criando o primeiro bloco.</MudAlert></div>
+    }
+    else
+    {
+        <MudTable Items="License.Blocks" Hover Dense Elevation="0">
+            <HeaderContent><MudTh>Bloco</MudTh><MudTh>Unidades</MudTh><MudTh>Moradores</MudTh></HeaderContent>
+            <RowTemplate><MudTd DataLabel="Bloco">@context.Name</MudTd><MudTd DataLabel="Unidades">@context.TotalUnits</MudTd><MudTd DataLabel="Moradores">@context.TotalResidents</MudTd></RowTemplate>
+        </MudTable>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public LicenseFullViewModel License { get; set; } = new();
+}

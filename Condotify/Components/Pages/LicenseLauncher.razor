@@ -1,0 +1,67 @@
+@page "/portaria"
+@page "/cadastros"
+@page "/credenciais"
+@page "/equipamentos"
+@attribute [Authorize]
+@inject CondotifyApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>@Title | Condotify</PageTitle>
+
+<PageHeader Title="@Title" Subtitle="@Subtitle" Eyebrow="ACESSO RAPIDO" />
+
+<MudPaper Class="content-panel" Elevation="0">
+    <div class="panel-toolbar launcher-toolbar">
+        <div><MudText Typo="Typo.h6" Class="panel-title">Selecione um condominio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">A selecao mantem cada operacao no ambiente correto.</MudText></div>
+        <MudTextField T="string" @bind-Value="_search" Immediate Placeholder="Filtrar por nome, codigo ou cidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
+    </div>
+    @if (_loading)
+    {
+        <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="panel-body"><MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert></div>
+    }
+    else if (!Filtered.Any())
+    {
+        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.DomainDisabled" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum condominio encontrado</MudText></div>
+    }
+    else
+    {
+        <div class="launcher-list">
+            @foreach (var license in Filtered)
+            {
+                <a class="launcher-row" href="@Target(license)">
+                    <span class="license-monogram">@Monogram(license.Nome)</span>
+                    <span class="launcher-code">@license.Codigo</span>
+                    <span class="launcher-name">@license.Nome</span>
+                    <span class="launcher-residents"><MudIcon Icon="@Icons.Material.Outlined.Groups" Size="Size.Small" /> @license.Moradores moradores</span>
+                    <span class="launcher-location"><MudIcon Icon="@Icons.Material.Outlined.LocationOn" Size="Size.Small" /> @Location(license)</span>
+                    <span class="launcher-arrow"><MudIcon Icon="@Icons.Material.Outlined.ArrowForward" /></span>
+                </a>
+            }
+        </div>
+    }
+</MudPaper>
+
+@code {
+    private List<LicenseViewModel> _licenses = [];
+    private string _search = string.Empty;
+    private string? _error;
+    private bool _loading = true;
+    private string Mode => new Uri(Navigation.Uri).AbsolutePath.Trim('/').ToLowerInvariant();
+    private string Title => Mode switch { "portaria" => "Portaria", "credenciais" => "Credenciais", "equipamentos" => "Equipamentos", _ => "Cadastros" };
+    private string Subtitle => Mode switch { "portaria" => "Acesse encomendas e rotinas de atendimento de cada condominio.", "credenciais" => "Gerencie identificadores e sincronizacao com os equipamentos.", "equipamentos" => "Configure terminais, conexoes e acionamentos de cada condominio.", _ => "Administre blocos, unidades e moradores." };
+    private string Section => Mode switch { "portaria" => "encomendas", "credenciais" => "credenciais", "equipamentos" => "equipamentos", _ => "moradores" };
+    private IEnumerable<LicenseViewModel> Filtered => string.IsNullOrWhiteSpace(_search) ? _licenses : _licenses.Where(x => $"{x.Nome} {x.Codigo} {x.Cidade} {x.Estado}".Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.GetLicensesAsync(); _loading = false;
+        if (result.Success) _licenses = result.Value ?? []; else _error = result.Error;
+    }
+    private string Target(LicenseViewModel license) => $"/licencas/{license.Id}/{Section}";
+    private static string Location(LicenseViewModel license) => string.IsNullOrWhiteSpace(license.Cidade) ? "Localizacao nao informada" : $"{license.Cidade}{(string.IsNullOrWhiteSpace(license.Estado) ? string.Empty : $" - {license.Estado}")}";
+    private static string Monogram(string name) => string.IsNullOrWhiteSpace(name) ? "C" : name.Trim()[0].ToString().ToUpperInvariant();
+}

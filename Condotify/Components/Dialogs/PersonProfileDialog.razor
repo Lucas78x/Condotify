@@ -1,0 +1,527 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject Microsoft.JSInterop.IJSRuntime JS
+
+<MudDialog Class="entity-dialog entity-dialog-wide person-profile-dialog">
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+        }
+        else if (_profile is null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@(_error ?? "Nao foi possivel carregar o cadastro.")</MudAlert>
+        }
+        else
+        {
+            <header class="person-profile-head">
+                <div class="person-profile-photo">
+                    @if (HasProfilePhoto)
+                    {
+                        <img src="@_form.ImageUrl" alt="Foto de @_profile.Name" />
+                    }
+                    else
+                    {
+                        <MudAvatar Color="Color.Primary" Size="Size.Large">@Initials(_profile.Name)</MudAvatar>
+                    }
+                </div>
+                <div class="person-profile-identity">
+                    <MudText Typo="Typo.h6">@_profile.Name</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_profile.BlockName / Unidade @_profile.UnitNumber</MudText>
+                </div>
+                <div class="person-profile-head-actions">
+                    <MudChip T="string" Size="Size.Small" Color="@(_profile.IsActive ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(_profile.IsActive ? "Ativo" : "Inativo")</MudChip>
+                    @if (CanManagePeople)
+                    {
+                        <label class="file-button photo-file-button @(_savingPhoto ? "disabled" : null)">
+                            @if (_savingPhoto) { <MudProgressCircular Indeterminate Size="Size.Small" /> } else { <MudIcon Icon="@Icons.Material.Outlined.AddAPhoto" /> }
+                            <span>@(HasProfilePhoto ? "Trocar foto" : "Adicionar foto")</span>
+                            <InputFile OnChange="ReadProfilePhotoAsync" accept="image/jpeg,image/png" disabled="@_savingPhoto" />
+                        </label>
+                        @if (HasProfilePhoto)
+                        {
+                            <MudTooltip Text="Remover foto"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Size="Size.Small" Color="Color.Error" Disabled="_savingPhoto" OnClick="RemoveProfilePhotoAsync" /></MudTooltip>
+                        }
+                    }
+                </div>
+            </header>
+
+            @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+
+            <MudTabs Elevation="0" Class="person-profile-tabs" @bind-ActivePanelIndex="_activeTabIndex">
+                <MudTabPanel Text="Dados" Icon="@Icons.Material.Outlined.Person">
+                    <EditForm Model="_form" OnValidSubmit="SaveProfileAsync">
+                        <DataAnnotationsValidator />
+                        <fieldset disabled="@(!CanManagePeople)" class="profile-readonly-fieldset">
+                        <div class="form-grid">
+                            <MudTextField T="string" @bind-Value="_form.Name" Label="Nome completo" Required For="@(() => _form.Name)" Variant="Variant.Outlined" Class="full" />
+                            <MudTextField T="string" @bind-Value="_form.CPF" Label="CPF" Variant="Variant.Outlined" />
+                            <MudTextField T="string" @bind-Value="_form.RG" Label="RG" Variant="Variant.Outlined" />
+                            <MudTextField T="string" @bind-Value="_form.BirthDate" Label="Data de nascimento" Placeholder="dd/mm/aaaa" Variant="Variant.Outlined" />
+                            <MudSelect T="int" @bind-Value="_form.Relationship" Label="Vinculo com a unidade" Variant="Variant.Outlined">
+                                <MudSelectItem Value="1">Proprietario responsavel</MudSelectItem>
+                                <MudSelectItem Value="2">Locatario responsavel</MudSelectItem>
+                                <MudSelectItem Value="3">Apenas responsavel</MudSelectItem>
+                                <MudSelectItem Value="0">Morador</MudSelectItem>
+                                <MudSelectItem Value="4">Dependente</MudSelectItem>
+                            </MudSelect>
+                            <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Variant="Variant.Outlined" />
+                            <MudTextField T="string" @bind-Value="_form.CommercialPhone" Label="Telefone comercial" Variant="Variant.Outlined" />
+                            <MudTextField T="string" @bind-Value="_form.Email" Label="E-mail" InputType="InputType.Email" For="@(() => _form.Email)" Variant="Variant.Outlined" Class="full" />
+                            <MudTextField T="string" @bind-Value="_form.Description" Label="Observacoes" Lines="3" Variant="Variant.Outlined" Class="full" />
+                            <MudSwitch T="bool" @bind-Value="_form.NotifyAccess" Label="Notificar acessos desta pessoa" Color="Color.Primary" />
+                            <MudSwitch T="bool" @bind-Value="_form.IsActive" Label="Cadastro ativo" Color="Color.Success" />
+                        </div>
+                        @if (CanManagePeople) { <div class="form-actions"><MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : "Salvar dados")</MudButton></div> }
+                        </fieldset>
+                    </EditForm>
+                </MudTabPanel>
+
+                <MudTabPanel Text="Credenciais" Icon="@Icons.Material.Outlined.Badge">
+                    <section class="facial-enrollment-card @(HasPreparedFacePhoto ? "ready" : null)">
+                        <div class="facial-photo-preview">
+                            @if (HasProfilePhoto) { <img src="@_form.ImageUrl" alt="Foto facial de @_profile.Name" /> }
+                            else { <MudIcon Icon="@Icons.Material.Outlined.Face" /> }
+                            <span class="facial-photo-state"><MudIcon Icon="@(HasPreparedFacePhoto ? Icons.Material.Outlined.CheckCircle : Icons.Material.Outlined.AddAPhoto)" /></span>
+                        </div>
+                        <div class="facial-enrollment-copy">
+                            <div class="facial-title-line">
+                                <strong>Reconhecimento facial</strong>
+                                <MudChip T="string" Size="Size.Small" Color="@FaceStatusColor" Variant="Variant.Outlined">@FaceStatusLabel</MudChip>
+                            </div>
+                            <span>@FaceGuidance</span>
+                        </div>
+                        <div class="facial-enrollment-actions">
+                            @if (!HasPreparedFacePhoto && CanManagePeople)
+                            {
+                                <label class="file-button photo-file-button @(_savingPhoto ? "disabled" : null)"><MudIcon Icon="@Icons.Material.Outlined.AddAPhoto" /><span>Selecionar foto</span><InputFile OnChange="ReadProfilePhotoAsync" accept="image/jpeg,image/png" disabled="@_savingPhoto" /></label>
+                            }
+                            @if (_loadingRoutes)
+                            {
+                                <div class="facial-route-loading"><MudProgressCircular Indeterminate Size="Size.Small" /><span>Resolvendo rotas...</span></div>
+                            }
+                            else if (_routeResolution is { Devices.Count: > 0 })
+                            {
+                                <div class="facial-route-summary">
+                                    <MudIcon Icon="@Icons.Material.Outlined.AltRoute" />
+                                    <div><strong>@_routeResolution.AudienceName</strong><span>@RouteNamesLabel</span></div>
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">@RouteDeviceCountLabel</MudChip>
+                                </div>
+                            }
+                            @if (CanManageCredentials && !_loadingRoutes)
+                            {
+                                <MudTooltip Text="Configurar excecoes individuais de rota"><MudIconButton Icon="@Icons.Material.Outlined.Tune" Color="Color.Primary" OnClick="OpenRouteOverridesAsync" /></MudTooltip>
+                            }
+                            @if (CanManageCredentials) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.FaceRetouchingNatural" Disabled="@(!CanActivateFace)" OnClick="ActivateFaceAsync">@(_activatingFace ? "Sincronizando..." : FaceActionLabel)</MudButton> }
+                        </div>
+                    </section>
+                    @if (_routeResolution is { Devices.Count: > 0 })
+                    {
+                        <div class="facial-target-preview">
+                            @foreach (var target in _routeResolution.Devices)
+                            {
+                                <div><span class="terminal-state-dot"></span><strong>@target.DeviceName</strong><small>@string.Join(", ", target.RouteNames) | @PortalLabel(target.Portals)</small></div>
+                            }
+                        </div>
+                    }
+                    @if (!_loadingRoutes && (_routeResolution is null || _routeResolution.Devices.Count == 0))
+                    {
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense Class="mb-4">Nenhuma rota ativa com equipamento facial atende ao perfil desta pessoa. Configure o publico e os destinos em Rotas.</MudAlert>
+                    }
+                    <div class="profile-subsection-head">
+                        <div><strong>Credenciais vinculadas</strong><span>Controle o estado e a presenca de cada credencial nos equipamentos.</span></div>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_profile.Credentials.Count</MudChip>
+                    </div>
+                    @if (_profile.Credentials.Count == 0)
+                    {
+                        <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.Badge" /><span>Nenhuma credencial vinculada a esta pessoa.</span></div>
+                    }
+                    else
+                    {
+                        <div class="profile-list">
+                            @foreach (var credential in _profile.Credentials)
+                            {
+                                <div class="profile-list-row profile-credential-row">
+                                    <div class="profile-row-icon"><MudIcon Icon="@CredentialIcon(credential.Type)" /></div>
+                                    <div class="profile-row-main"><strong>@CredentialLabel(credential.Type)</strong><span>@CredentialIdentifier(credential)</span></div>
+                                    <div class="profile-credential-state">
+                                        <MudChip T="string" Size="Size.Small" Color="@PersonCredentialStatusColor(credential)" Variant="Variant.Outlined">@PersonCredentialStatus(credential)</MudChip>
+                                        <small>@CredentialSyncLabel(credential)</small>
+                                    </div>
+                                    <div class="profile-row-meta"><span>Valida ate</span><strong>@credential.ValidTo.ToLocalTime().ToString("dd/MM/yyyy")</strong></div>
+                                    @if (CanManageCredentials)
+                                    {
+                                        <div class="profile-row-actions">
+                                            <MudTooltip Text="@(credential.IsActive ? "Suspender credencial" : "Ativar credencial")">
+                                                <MudIconButton Icon="@(credential.IsActive ? Icons.Material.Outlined.PauseCircle : Icons.Material.Outlined.PlayCircle)" Color="@(credential.IsActive ? Color.Warning : Color.Success)" Disabled="@IsOperatingCredential(credential.Id)" OnClick="@(() => SetCredentialStatusAsync(credential))" />
+                                            </MudTooltip>
+                                            <MudMenu Icon="@Icons.Material.Outlined.MoreVert" Dense Disabled="@IsOperatingCredential(credential.Id)">
+                                                <MudMenuItem Icon="@Icons.Material.Outlined.DeleteOutline" Class="danger-menu-item" OnClick="@(() => DeleteCredentialAsync(credential))">Excluir credencial</MudMenuItem>
+                                            </MudMenu>
+                                        </div>
+                                    }
+                                </div>
+                                @if (credential.Devices.Count > 0)
+                                {
+                                    <div class="profile-credential-terminals">
+                                        @foreach (var terminal in credential.Devices)
+                                        {
+                                            <div class="credential-terminal-item">
+                                                <span class="terminal-status-icon @TerminalStatusClass(terminal.Status)"><MudIcon Icon="@TerminalStatusIcon(terminal.Status)" Size="Size.Small" /></span>
+                                                <div><strong>@terminal.DeviceName</strong><small>@TerminalRouteLabel(terminal)</small></div>
+                                                <MudChip T="string" Size="Size.Small" Color="@TerminalStatusColor(terminal.Status)" Variant="Variant.Outlined">@TerminalStatusLabel(terminal.Status)</MudChip>
+                                                <MudTooltip Text="@terminal.Message"><span class="terminal-sync-time">@TerminalTimeLabel(terminal)</span></MudTooltip>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </MudTabPanel>
+
+                <MudTabPanel Text="Veiculos" Icon="@Icons.Material.Outlined.DirectionsCar">
+                    <div class="profile-panel-toolbar"><div><strong>Veiculos da unidade</strong><span>Tags criadas aqui passam a integrar a base de credenciais.</span></div>@if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenVehicleDialogAsync">Novo veiculo</MudButton> }</div>
+                    @if (_profile.Vehicles.Count == 0)
+                    {
+                        <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /><span>Nenhum veiculo cadastrado.</span></div>
+                    }
+                    else
+                    {
+                        <div class="profile-list">
+                            @foreach (var vehicle in _profile.Vehicles)
+                            {
+                                <div class="profile-list-row">
+                                    <div class="profile-row-icon"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></div>
+                                    <div class="profile-row-main"><strong>@vehicle.Plate</strong><span>@VehicleDescription(vehicle)</span></div>
+                                    <div class="profile-row-meta">@(!string.IsNullOrWhiteSpace(vehicle.TagIdentifier) ? $"Tag {vehicle.TagIdentifier}" : "Sem tag")</div>
+                                    @if (CanManagePeople) { <MudTooltip Text="@(vehicle.IsActive ? "Desativar veiculo e tag" : "Ativar veiculo e tag")">
+                                        <MudIconButton Icon="@(vehicle.IsActive ? Icons.Material.Outlined.ToggleOn : Icons.Material.Outlined.ToggleOff)" Color="@(vehicle.IsActive ? Color.Success : Color.Default)" OnClick="@(() => SetVehicleStatusAsync(vehicle))" />
+                                    </MudTooltip> }
+                                </div>
+                            }
+                        </div>
+                    }
+                </MudTabPanel>
+
+                <MudTabPanel Text="Convites" Icon="@Icons.Material.Outlined.Send">
+                    <div class="invite-composer">
+                        <MudTextField T="string" @bind-Value="_inviteContact" Label="Celular ou e-mail" Placeholder="Use o contato do cadastro ou informe outro" Variant="Variant.Outlined" />
+                        <MudSelect T="int" @bind-Value="_inviteChannel" Label="Canal" Variant="Variant.Outlined"><MudSelectItem Value="3">Link</MudSelectItem><MudSelectItem Value="2">WhatsApp</MudSelectItem><MudSelectItem Value="0">E-mail</MudSelectItem><MudSelectItem Value="1">SMS</MudSelectItem></MudSelect>
+                        @if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Send" Disabled="_sendingInvite" OnClick="CreateInviteAsync">@(_sendingInvite ? "Gerando..." : "Gerar convite")</MudButton> }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(_latestInviteUrl))
+                    {
+                        <div class="invite-link-ready"><div><MudIcon Icon="@Icons.Material.Outlined.Link" /><span><strong>Link pronto para envio</strong><small>@_latestInviteUrl</small></span></div><MudTooltip Text="Copiar link"><MudIconButton Icon="@Icons.Material.Outlined.ContentCopy" Color="Color.Primary" OnClick="CopyInviteLinkAsync" /></MudTooltip></div>
+                    }
+                    @if (_profile.Invites.Count == 0)
+                    {
+                        <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.MarkEmailUnread" /><span>Nenhum convite enviado.</span></div>
+                    }
+                    else
+                    {
+                        <div class="profile-list">
+                            @foreach (var invite in _profile.Invites)
+                            {
+                                <div class="profile-list-row invite-row"><div class="profile-row-icon"><MudIcon Icon="@Icons.Material.Outlined.Send" /></div><div class="profile-row-main"><strong>@invite.Contact</strong><span>@invite.Channel por @invite.CreatedBy</span></div><MudChip T="string" Size="Size.Small" Color="@InviteColor(invite.Status)" Variant="Variant.Outlined">@InviteLabel(invite.Status)</MudChip><div class="profile-row-meta">@invite.SentAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div></div>
+                            }
+                        </div>
+                    }
+                </MudTabPanel>
+            </MudTabs>
+        }
+    </DialogContent>
+    <DialogActions><MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public Guid ResidentId { get; set; }
+    [Parameter] public bool CanManagePeople { get; set; }
+    [Parameter] public bool CanManageCredentials { get; set; }
+    [Parameter] public int InitialTabIndex { get; set; }
+    private PersonProfileViewModel? _profile;
+    private readonly PersonProfileFormViewModel _form = new();
+    private bool _loading = true;
+    private bool _saving;
+    private bool _savingPhoto;
+    private bool _loadingRoutes;
+    private bool _activatingFace;
+    private Guid? _operatingCredentialId;
+    private bool _sendingInvite;
+    private string? _error;
+    private string _inviteContact = string.Empty;
+    private int _inviteChannel = 3;
+    private string? _latestInviteUrl;
+    private ResidentRouteResolutionViewModel? _routeResolution;
+    private List<AccessRouteViewModel> _allRoutes = [];
+    private List<ResidentRouteOverrideViewModel> _routeOverrides = [];
+    private int _activeTabIndex;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _activeTabIndex = Math.Clamp(InitialTabIndex, 0, 3);
+        await LoadAsync();
+        await LoadRouteResolutionAsync();
+    }
+    private void Close() => Dialog.Close(DialogResult.Ok(true));
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var result = await Api.GetPersonProfileAsync(LicenseId, ResidentId);
+        _loading = false;
+        if (!result.Success || result.Value is null) { _error = result.Error; return; }
+        _profile = result.Value;
+        _form.Name = _profile.Name; _form.Email = _profile.Email; _form.PhoneNumber = _profile.PhoneNumber;
+        _form.CommercialPhone = _profile.CommercialPhone; _form.CPF = _profile.CPF; _form.RG = _profile.RG;
+        _form.BirthDate = _profile.BirthDate; _form.Description = _profile.Description; _form.ImageUrl = _profile.ImageUrl;
+        _form.NotifyAccess = _profile.NotifyAccess; _form.IsActive = _profile.IsActive; _form.Relationship = RelationshipValue(_profile.Relationship);
+        _inviteContact = !string.IsNullOrWhiteSpace(_profile.PhoneNumber) ? _profile.PhoneNumber : _profile.Email;
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        _saving = true; _error = null;
+        var result = await Api.UpdatePersonProfileAsync(LicenseId, ResidentId, _form);
+        _saving = false;
+        if (!result.Success || result.Value is null) { _error = result.Error; return; }
+        _profile = result.Value;
+        await LoadRouteResolutionAsync();
+        Snackbar.Add("Cadastro atualizado.", Severity.Success);
+    }
+
+    private async Task LoadRouteResolutionAsync()
+    {
+        _loadingRoutes = true;
+        var resolutionTask = Api.GetResidentRouteResolutionAsync(LicenseId, ResidentId);
+        var routesTask = CanManageCredentials ? Api.GetAccessRoutesAsync(LicenseId) : Task.FromResult(ApiResult<List<AccessRouteViewModel>>.Ok([]));
+        var overridesTask = CanManageCredentials ? Api.GetResidentRouteOverridesAsync(LicenseId, ResidentId) : Task.FromResult(ApiResult<List<ResidentRouteOverrideViewModel>>.Ok([]));
+        await Task.WhenAll(resolutionTask, routesTask, overridesTask);
+        var result = resolutionTask.Result;
+        _loadingRoutes = false;
+        if (!result.Success || result.Value is null)
+        {
+            _routeResolution = null;
+            Snackbar.Add(result.Error ?? "Nao foi possivel resolver as rotas de acesso.", Severity.Error);
+            return;
+        }
+        _routeResolution = result.Value;
+        if (routesTask.Result.Success) _allRoutes = routesTask.Result.Value ?? [];
+        if (overridesTask.Result.Success) _routeOverrides = overridesTask.Result.Value ?? [];
+    }
+
+    private async Task ReadProfilePhotoAsync(InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        _savingPhoto = true; _error = null;
+        try
+        {
+            using var processingTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var prepared = await FacePhotoProcessor.PrepareAsync(file, processingTimeout.Token).WaitAsync(processingTimeout.Token);
+            var analysis = await JS.InvokeAsync<FacePhotoAnalysis>("portalInterop.analyzeFacePhoto", prepared);
+            if (analysis.Width < 200 || analysis.Height < 200)
+                throw new InvalidOperationException("Use uma foto com pelo menos 200 por 200 pixels.");
+            if (analysis.Supported && analysis.FaceCount != 1)
+                throw new InvalidOperationException(analysis.FaceCount == 0 ? "Nenhum rosto foi identificado na foto." : "A foto deve conter somente uma pessoa.");
+            var previous = _form.ImageUrl;
+            _form.ImageUrl = prepared;
+            using var uploadTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var result = await Api.UpdatePersonProfileAsync(LicenseId, ResidentId, _form, uploadTimeout.Token);
+            if (!result.Success || result.Value is null)
+            {
+                _form.ImageUrl = previous;
+                _error = result.Error ?? "Nao foi possivel salvar a foto.";
+                Snackbar.Add(_error, Severity.Error);
+                return;
+            }
+            _profile = result.Value;
+            Snackbar.Add("Foto preparada e salva. A facial ja pode ser ativada.", Severity.Success);
+        }
+        catch (OperationCanceledException)
+        {
+            _error = "O envio da foto demorou demais. Verifique a API e tente novamente.";
+            Snackbar.Add(_error, Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Snackbar.Add(_error, Severity.Error);
+        }
+        finally { _savingPhoto = false; }
+    }
+
+    private async Task RemoveProfilePhotoAsync()
+    {
+        var previous = _form.ImageUrl;
+        _form.ImageUrl = string.Empty;
+        _savingPhoto = true;
+        var result = await Api.UpdatePersonProfileAsync(LicenseId, ResidentId, _form);
+        _savingPhoto = false;
+        if (!result.Success || result.Value is null)
+        {
+            _form.ImageUrl = previous;
+            Snackbar.Add(result.Error ?? "Nao foi possivel remover a foto.", Severity.Error);
+            return;
+        }
+        _profile = result.Value;
+        Snackbar.Add("Foto removida do cadastro.", Severity.Success);
+    }
+
+    private async Task ActivateFaceAsync()
+    {
+        if (_profile is null || !CanActivateFace) return;
+        var targets = _routeResolution!.Devices.Select(x => $"{x.DeviceName} ({PortalLabel(x.Portals)})");
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            FaceActionLabel,
+            $"A foto sera distribuida para {string.Join(", ", targets)}. Confirmar a operacao?",
+            yesText: FaceActionLabel,
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+        _activatingFace = true; _error = null;
+        var operation = await Api.ActivateFacialByRoutesAsync(LicenseId, ResidentId, _form.ImageUrl);
+        _activatingFace = false;
+        if (!operation.Success)
+        {
+            _error = operation.Error ?? "Nao foi possivel sincronizar a facial.";
+            Snackbar.Add(_error, Severity.Error);
+            return;
+        }
+
+        await LoadAsync();
+        await LoadRouteResolutionAsync();
+        Snackbar.Add(operation.Value?.Message ?? "Facial ativada.", operation.Value?.Synced == false ? Severity.Warning : Severity.Success);
+    }
+
+    private async Task OpenRouteOverridesAsync()
+    {
+        if (_profile is null) return;
+        var parameters = new DialogParameters
+        {
+            [nameof(RouteOverrideDialog.LicenseId)] = LicenseId,
+            [nameof(RouteOverrideDialog.ResidentId)] = ResidentId,
+            [nameof(RouteOverrideDialog.PersonName)] = _profile.Name,
+            [nameof(RouteOverrideDialog.Routes)] = _allRoutes,
+            [nameof(RouteOverrideDialog.Overrides)] = _routeOverrides
+        };
+        var dialog = await DialogService.ShowAsync<RouteOverrideDialog>("Excecoes de rota", parameters,
+            new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        await LoadRouteResolutionAsync();
+        Snackbar.Add("Rotas atualizadas. A reconciliacao foi agendada.", Severity.Success);
+    }
+
+    private async Task SetCredentialStatusAsync(PersonCredentialViewModel credential)
+    {
+        _operatingCredentialId = credential.Id;
+        var result = await Api.SetCredentialStatusAsync(LicenseId, credential.Id, !credential.IsActive);
+        _operatingCredentialId = null;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao alterar a credencial.", Severity.Error); return; }
+        await LoadAsync(); Snackbar.Add(result.Value?.Message ?? "Credencial atualizada.", result.Value?.Synced == false ? Severity.Warning : Severity.Success);
+    }
+
+    private async Task DeleteCredentialAsync(PersonCredentialViewModel credential)
+    {
+        var equipmentText = credential.DeviceCount == 0
+            ? "Ela sera apagada do Condotify."
+            : $"Ela sera removida de {credential.DeviceCount} equipamento(s) antes de ser apagada do Condotify.";
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Excluir credencial",
+            $"Excluir {CredentialLabel(credential.Type).ToLowerInvariant()} de {_profile?.Name}? {equipmentText} A foto da pessoa permanecera no cadastro.",
+            yesText: "Excluir credencial",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        _operatingCredentialId = credential.Id;
+        _error = null;
+        var result = await Api.DeleteCredentialAsync(LicenseId, credential.Id);
+        _operatingCredentialId = null;
+        if (!result.Success)
+        {
+            _error = result.Error ?? "Nao foi possivel excluir a credencial.";
+            Snackbar.Add(_error, Severity.Error);
+            await LoadAsync();
+            return;
+        }
+
+        await LoadAsync();
+        Snackbar.Add(result.Value?.Message ?? "Credencial excluida.", Severity.Success);
+    }
+
+    private async Task OpenVehicleDialogAsync()
+    {
+        if (_profile is null) return;
+        var parameters = new DialogParameters { [nameof(VehicleFormDialog.LicenseId)] = LicenseId, [nameof(VehicleFormDialog.ResidentId)] = ResidentId, [nameof(VehicleFormDialog.UnitId)] = _profile.UnitId };
+        var dialog = await DialogService.ShowAsync<VehicleFormDialog>("Novo veiculo", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Small });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        await LoadAsync(); Snackbar.Add("Veiculo cadastrado. A tag esta pronta para sincronizacao.", Severity.Success);
+    }
+
+    private async Task SetVehicleStatusAsync(VehicleViewModel vehicle)
+    {
+        var result = await Api.SetVehicleStatusAsync(LicenseId, ResidentId, vehicle.Id, !vehicle.IsActive);
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao alterar o veiculo.", Severity.Error); return; }
+        await LoadAsync(); Snackbar.Add("Veiculo e credencial atualizados.", Severity.Success);
+    }
+
+    private async Task CreateInviteAsync()
+    {
+        _sendingInvite = true;
+        var result = await Api.CreateRegistrationInviteAsync(LicenseId, ResidentId, _inviteContact, _inviteChannel);
+        _sendingInvite = false;
+        if (!result.Success || result.Value is null) { Snackbar.Add(result.Error ?? "Falha ao gerar convite.", Severity.Error); return; }
+        _latestInviteUrl = string.IsNullOrWhiteSpace(result.Value.InviteUrl) ? null : Navigation.ToAbsoluteUri(result.Value.InviteUrl).ToString();
+        await LoadAsync();
+        Snackbar.Add("Convite gerado e pronto para envio.", Severity.Success);
+    }
+
+    private async Task CopyInviteLinkAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_latestInviteUrl)) return;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", _latestInviteUrl);
+        Snackbar.Add("Link copiado.", Severity.Success);
+    }
+
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+    private static int RelationshipValue(string value) => value switch { "OwnerResponsible" => 1, "TenantResponsible" => 2, "Dependent" => 4, "Resident" => 0, _ => 3 };
+    private PersonCredentialViewModel? FaceCredential => _profile?.Credentials.FirstOrDefault(x => IsFace(x.Type));
+    private bool HasProfilePhoto => !string.IsNullOrWhiteSpace(_form.ImageUrl);
+    private bool HasPreparedFacePhoto => _form.ImageUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase);
+    private bool CanActivateFace => CanManageCredentials && !_activatingFace && !_savingPhoto && HasPreparedFacePhoto && _routeResolution?.Devices.Count > 0;
+    private string FaceActionLabel => FaceCredential is null ? "Ativar facial" : FaceCredential.IsActive ? "Sincronizar facial" : "Reativar facial";
+    private string FaceStatusLabel => FaceCredential is null ? HasPreparedFacePhoto ? "Foto pronta" : "Sem foto" : FaceCredential.IsActive ? "Facial ativa" : "Facial inativa";
+    private string FaceGuidance => !HasPreparedFacePhoto ? "Adicione uma foto frontal e bem iluminada para liberar a ativacao." : FaceCredential is null ? "A foto sera distribuida para todos os terminais definidos pelas rotas desta pessoa." : "Sincronize novamente para aplicar alteracoes de rota, validade ou foto.";
+    private string RouteNamesLabel => _routeResolution is null || _routeResolution.Routes.Count == 0 ? "Sem rota compativel" : string.Join(" | ", _routeResolution.Routes);
+    private string RouteDeviceCountLabel => _routeResolution?.Devices.Count == 1 ? "1 terminal" : $"{_routeResolution?.Devices.Count ?? 0} terminais";
+    private Color FaceStatusColor => FaceCredential?.IsActive == true ? Color.Success : HasPreparedFacePhoto ? Color.Info : Color.Warning;
+    private static bool IsFace(string type) => type is "Face" or "Facial";
+    private static string CredentialLabel(string type) => type switch { "Face" or "Facial" => "Reconhecimento facial", "VehicleTag" => "Tag veicular", "Card" => "Cartao", "Password" => "Senha", _ => type };
+    private static string CredentialIcon(string type) => type switch { "Face" or "Facial" => Icons.Material.Outlined.Face, "VehicleTag" => Icons.Material.Outlined.DirectionsCar, "Password" => Icons.Material.Outlined.Password, _ => Icons.Material.Outlined.Badge };
+    private static string CredentialIdentifier(PersonCredentialViewModel item) => string.IsNullOrWhiteSpace(item.Identifier) ? "Sem identificador" : item.Identifier;
+    private bool IsOperatingCredential(Guid id) => _operatingCredentialId == id;
+    private static string PersonCredentialStatus(PersonCredentialViewModel item) => item.ValidTo <= DateTime.UtcNow ? "Expirada" : item.IsActive ? item.IsTemporary ? "Temporaria" : "Ativa" : "Suspensa";
+    private static Color PersonCredentialStatusColor(PersonCredentialViewModel item) => item.ValidTo <= DateTime.UtcNow ? Color.Error : item.IsActive ? item.IsTemporary ? Color.Info : Color.Success : Color.Default;
+    private static string CredentialSyncLabel(PersonCredentialViewModel item) => item.DeviceCount == 0 ? "Sem equipamento" : item.SyncedDeviceCount == item.DeviceCount ? $"Sincronizada em {item.DeviceCount}" : $"{item.SyncedDeviceCount} de {item.DeviceCount} sincronizado(s)";
+    private static string PortalLabel(IReadOnlyCollection<int> portals) => portals.Count == 1 ? $"porta {portals.First()}" : $"portas {string.Join(", ", portals)}";
+    private static string TerminalStatusLabel(string status) => status switch { "Synced" => "Sincronizado", "Syncing" => "Sincronizando", "RemovalPending" => "Remocao pendente", "Removed" => "Removido", "Failed" => "Falha", _ => "Pendente" };
+    private static Color TerminalStatusColor(string status) => status switch { "Synced" => Color.Success, "Syncing" => Color.Info, "Failed" or "RemovalPending" => Color.Error, "Removed" => Color.Default, _ => Color.Warning };
+    private static string TerminalStatusIcon(string status) => status switch { "Synced" => Icons.Material.Outlined.CloudDone, "Syncing" => Icons.Material.Outlined.Sync, "Failed" or "RemovalPending" => Icons.Material.Outlined.ErrorOutline, "Removed" => Icons.Material.Outlined.LinkOff, _ => Icons.Material.Outlined.Schedule };
+    private static string TerminalStatusClass(string status) => status.ToLowerInvariant();
+    private static string TerminalRouteLabel(PersonCredentialDeviceViewModel item) => string.IsNullOrWhiteSpace(item.RouteNames) ? item.DeviceType : $"{item.RouteNames} | portas {item.PortalNumbers}";
+    private static string TerminalTimeLabel(PersonCredentialDeviceViewModel item) => item.NextAttemptAt.HasValue ? $"Nova tentativa {item.NextAttemptAt.Value.ToLocalTime():dd/MM HH:mm}" : $"Atualizado {item.LastSyncAt.ToLocalTime():dd/MM HH:mm}";
+    private static string VehicleDescription(VehicleViewModel item) => string.Join(" ", new[] { item.Brand, item.Model, item.Color }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    private static Color InviteColor(string status) => status switch { "Completed" => Color.Success, "Expired" or "Canceled" => Color.Error, "Opened" => Color.Info, _ => Color.Warning };
+    private static string InviteLabel(string status) => status switch { "Completed" => "Finalizado", "Expired" => "Expirado", "Canceled" => "Cancelado", "Opened" => "Aberto", _ => "Pendente" };
+    private sealed class FacePhotoAnalysis
+    {
+        public bool Supported { get; set; }
+        public int FaceCount { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+}

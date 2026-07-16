@@ -6,7 +6,7 @@ namespace CondotifyAPI.Domain.Models
         public Location() { }
 
         public Guid Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
         public float X { get; set; }
         public float Y { get; set; }
 

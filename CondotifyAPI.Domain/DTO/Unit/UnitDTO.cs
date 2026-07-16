@@ -1,5 +1,6 @@
 ﻿using CondotifyAPI.Domain.DTO.Block;
 using CondotifyAPI.Domain.DTO.Resident;
+using CondotifyAPI.Domain.DTO.Vehicle;
 
 namespace CondotifyAPI.Domain.DTO.Unit
 {
@@ -9,6 +10,8 @@ namespace CondotifyAPI.Domain.DTO.Unit
         public string Number { get; set; }
         public string Floor { get; set; }
         public List<ResidentAccessDTO> Residents { get; set; }
+        public List<ResidentUnitLinkDTO> ResidentLinks { get; set; } = new();
+        public List<VehicleDTO> Vehicles { get; set; } = new();
 
         public Guid BlockId { get; set; }
         public BlockDTO Block { get; set; }

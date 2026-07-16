@@ -1,0 +1,267 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<section class="module-intro">
+    <div>
+        <MudText Typo="Typo.h2">Controle de acesso</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Monitore os terminais e execute acionamentos remotos com rastreabilidade.</MudText>
+    </div>
+    @if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateDialogAsync">Novo equipamento</MudButton> }
+</section>
+
+<div class="module-kpis">
+    <div class="mini-kpi"><span class="mini-kpi-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Sensors" /></span><div><strong>@_devices.Count</strong><span>Equipamentos</span></div></div>
+    <div class="mini-kpi"><span class="mini-kpi-icon green"><MudIcon Icon="@Icons.Material.Outlined.Wifi" /></span><div><strong>@_devices.Count(x => x.IsActive)</strong><span>Online</span></div></div>
+    <div class="mini-kpi"><span class="mini-kpi-icon amber"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></span><div><strong>@_devices.Count(x => !x.IsActive)</strong><span>Requerem teste</span></div></div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" CloseIcon="@Icons.Material.Outlined.Close" OnClick="ClearError" Class="mb-4">@_error</MudAlert>
+}
+
+<MudPaper Class="content-panel" Elevation="0">
+    <div class="panel-toolbar device-toolbar">
+        <div><MudText Typo="Typo.h5" Class="panel-title">Equipamentos instalados</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Acione, teste e acompanhe cada ponto de acesso</MudText></div>
+        <div class="toolbar-filters">
+            <MudTextField T="string" @bind-Value="_search" Immediate Placeholder="Buscar equipamento" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
+            <MudSelect T="string" @bind-Value="_status" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:140px">
+                <MudSelectItem Value="@("todos")">Todos</MudSelectItem>
+                <MudSelectItem Value="@("online")">Online</MudSelectItem>
+                <MudSelectItem Value="@("offline")">Offline</MudSelectItem>
+            </MudSelect>
+            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" />
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+    }
+    else if (!FilteredDevices.Any())
+    {
+        <div class="empty-state compact-empty">
+            <MudIcon Icon="@Icons.Material.Outlined.SensorsOff" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">Nenhum equipamento encontrado</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Cadastre um terminal ou ajuste os filtros.</MudText>
+        </div>
+    }
+    else
+    {
+        <div class="device-grid">
+            @foreach (var device in FilteredDevices)
+            {
+                <article class="device-card">
+                    <div class="device-card-head">
+                        <span class="device-type-icon"><MudIcon Icon="@DeviceIcon(device.Type)" /></span>
+                        <div class="device-identity">
+                            <MudText Typo="Typo.subtitle1">@device.Name</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@device.Model</MudText>
+                        </div>
+                        <MudChip T="string" Size="Size.Small" Color="@(device.IsActive ? Color.Success : Color.Warning)" Variant="Variant.Outlined" Icon="@(device.IsActive ? Icons.Material.Outlined.CheckCircle : Icons.Material.Outlined.ErrorOutline)">
+                            @(device.IsActive ? "Online" : "Nao testado")
+                        </MudChip>
+                    </div>
+
+                    <div class="device-network">
+                        <span><MudIcon Icon="@Icons.Material.Outlined.Lan" Size="Size.Small" /> @device.IPAddress:@device.Port</span>
+                        @if (!string.IsNullOrWhiteSpace(device.MACAddress))
+                        {
+                            <span><MudIcon Icon="@Icons.Material.Outlined.Fingerprint" Size="Size.Small" /> @device.MACAddress</span>
+                        }
+                        @if (device.LastResponseTimeMs.HasValue)
+                        {
+                            <span><MudIcon Icon="@Icons.Material.Outlined.Speed" Size="Size.Small" /> @device.LastResponseTimeMs ms</span>
+                        }
+                    </div>
+
+                    <div class="device-health-line">
+                        <span>@(string.IsNullOrWhiteSpace(device.HealthMessage) ? "Diagnostico ainda nao executado" : device.HealthMessage)</span>
+                        @if (!string.IsNullOrWhiteSpace(device.FirmwareVersion)) { <small>@ShortFirmware(device.FirmwareVersion)</small> }
+                    </div>
+
+                    <div class="device-card-actions">
+                        @if (device.IsActive && CanOperate)
+                        {
+                            <MudMenu Label="Abrir porta" StartIcon="@Icons.Material.Outlined.SensorDoor" Variant="Variant.Filled" Color="Color.Success" Disabled="@(_operatingDeviceId == device.Id)">
+                                @foreach (var portal in DevicePortals(device))
+                                {
+                                    <MudMenuItem OnClick="@(() => OpenDoorAsync(device, portal.Number))" Icon="@Icons.Material.Outlined.MeetingRoom">@portal.Name</MudMenuItem>
+                                }
+                            </MudMenu>
+                            @if (CanManage) { <MudTooltip Text="Atualizar diagnostico e portas"><MudIconButton Icon="@Icons.Material.Outlined.MonitorHeart" Color="Color.Primary" OnClick="@(() => InspectDeviceAsync(device))" Disabled="@(_operatingDeviceId == device.Id)" /></MudTooltip> }
+                        }
+                        @if (CanManage && !device.IsActive)
+                        {
+                            <MudTooltip Text="Executar diagnostico detalhado"><MudIconButton Icon="@Icons.Material.Outlined.MonitorHeart" Color="Color.Primary" OnClick="@(() => InspectDeviceAsync(device))" Disabled="@(_operatingDeviceId == device.Id)" /></MudTooltip>
+                        }
+                        else if (!device.IsActive && CanManage)
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Outlined.WifiTethering" OnClick="@(() => TestConnectionAsync(device))" Disabled="@(_operatingDeviceId == device.Id)">
+                                @(_operatingDeviceId == device.Id ? "Testando..." : "Testar conexao")
+                            </MudButton>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</MudPaper>
+
+<MudPaper Class="content-panel action-history" Elevation="0">
+    <div class="panel-toolbar">
+        <div><MudText Typo="Typo.h5" Class="panel-title">Atividade recente</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Testes e acionamentos registrados pela operacao</MudText></div>
+    </div>
+    @if (_actions.Count == 0)
+    {
+        <div class="panel-body"><MudText Typo="Typo.body2" Color="Color.Secondary">Ainda nao ha acionamentos registrados.</MudText></div>
+    }
+    else
+    {
+        <MudTable Items="_actions" Hover Dense Elevation="0">
+            <HeaderContent><MudTh>Horario</MudTh><MudTh>Equipamento</MudTh><MudTh>Operacao</MudTh><MudTh>Detalhes</MudTh><MudTh>Usuario</MudTh></HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Horario">@context.Timestamp.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
+                <MudTd DataLabel="Equipamento">@context.DeviceName</MudTd>
+                <MudTd DataLabel="Operacao"><MudChip T="string" Size="Size.Small" Color="@ActionColor(context.Action)" Variant="Variant.Outlined">@ActionLabel(context.Action)</MudChip></MudTd>
+                <MudTd DataLabel="Detalhes">@context.Details</MudTd>
+                <MudTd DataLabel="Usuario">@context.UserName</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public bool CanOperate { get; set; }
+
+    private List<AccessDeviceRowViewModel> _devices = [];
+    private List<DeviceActionRowViewModel> _actions = [];
+    private string _search = string.Empty;
+    private string _status = "todos";
+    private string? _error;
+    private Guid? _operatingDeviceId;
+    private bool _loading = true;
+    private IEnumerable<AccessDeviceRowViewModel> FilteredDevices => _devices
+        .Where(x => string.IsNullOrWhiteSpace(_search) || $"{x.Name} {x.Model} {x.IPAddress}".Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .Where(x => _status == "todos" || (_status == "online" && x.IsActive) || (_status == "offline" && !x.IsActive));
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        var devicesTask = Api.GetDevicesAsync(LicenseId);
+        var actionsTask = Api.GetDeviceActionsAsync(LicenseId);
+        await Task.WhenAll(devicesTask, actionsTask);
+        _loading = false;
+
+        if (devicesTask.Result.Success) _devices = devicesTask.Result.Value ?? [];
+        else _error = devicesTask.Result.Error;
+
+        if (actionsTask.Result.Success) _actions = actionsTask.Result.Value ?? [];
+    }
+
+    private void ClearError() => _error = null;
+
+    private async Task OpenCreateDialogAsync()
+    {
+        var parameters = new DialogParameters { [nameof(DeviceFormDialog.LicenseId)] = LicenseId };
+        var dialog = await DialogService.ShowAsync<DeviceFormDialog>("Novo equipamento", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Large });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        Snackbar.Add("Equipamento cadastrado com sucesso.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task TestConnectionAsync(AccessDeviceRowViewModel device)
+    {
+        _operatingDeviceId = device.Id;
+        _error = null;
+        var result = await Api.TestDeviceConnectionAsync(LicenseId, device.Id);
+        _operatingDeviceId = null;
+        if (!result.Success) { _error = result.Error; return; }
+
+        Snackbar.Add($"{device.Name} conectado e ativado.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task InspectDeviceAsync(AccessDeviceRowViewModel device)
+    {
+        _operatingDeviceId = device.Id;
+        _error = null;
+        var result = await Api.InspectDeviceAsync(LicenseId, device.Id);
+        _operatingDeviceId = null;
+        if (!result.Success || result.Value is null)
+        {
+            _error = result.Error ?? "Nao foi possivel concluir o diagnostico.";
+            return;
+        }
+        Snackbar.Add(result.Value.Message, result.Value.Online ? Severity.Success : Severity.Warning);
+        await LoadAsync();
+    }
+
+    private async Task OpenDoorAsync(AccessDeviceRowViewModel device, int channel)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Confirmar acionamento",
+            $"Abrir a porta {channel} pelo equipamento {device.Name}? Esta operacao ficara registrada no historico.",
+            yesText: "Abrir porta",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        _operatingDeviceId = device.Id;
+        _error = null;
+        var result = await Api.OpenDoorAsync(LicenseId, device.Id, channel, "Acionamento manual pelo portal");
+        _operatingDeviceId = null;
+        if (!result.Success) { _error = result.Error; await LoadAsync(); return; }
+
+        Snackbar.Add($"Porta {channel} acionada em {device.Name}.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private static string DeviceIcon(string type) => type.Contains("UHF", StringComparison.OrdinalIgnoreCase)
+        ? Icons.Material.Outlined.Contactless
+        : type.Contains("Face", StringComparison.OrdinalIgnoreCase)
+            ? Icons.Material.Outlined.Face
+            : Icons.Material.Outlined.SensorDoor;
+
+    private static List<DevicePortalCapabilityViewModel> DevicePortals(AccessDeviceRowViewModel device)
+    {
+        try
+        {
+            var portals = System.Text.Json.JsonSerializer.Deserialize<List<DevicePortalCapabilityViewModel>>(
+                device.DiscoveredPortalsJson,
+                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+            if (portals is { Count: > 0 }) return portals;
+        }
+        catch { }
+        return [new() { Number = 1, Name = "Porta 1" }];
+    }
+
+    private static string ShortFirmware(string value) => value.Length <= 42 ? value : $"{value[..39]}...";
+
+    private static string ActionLabel(string action) => action switch
+    {
+        "OpenDoor" => "Abrir porta",
+        "ProvisionCredential" => "Provisionar",
+        "ActivateCredential" => "Ativar credencial",
+        "DeactivateCredential" => "Suspender credencial",
+        "RestoreCredential" => "Restaurar",
+        "RenewCredential" => "Renovar QR Code",
+        "RemoveCredential" => "Remover vinculo",
+        "FaceEnrollment" => "Cadastro facial",
+        "ReadAccessLogs" => "Consultar acessos",
+        _ => "Teste de conexao"
+    };
+
+    private static Color ActionColor(string action) => action switch
+    {
+        "OpenDoor" or "ActivateCredential" or "RestoreCredential" or "RenewCredential" => Color.Success,
+        "DeactivateCredential" or "RemoveCredential" => Color.Warning,
+        _ => Color.Info
+    };
+}

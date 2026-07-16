@@ -4,6 +4,8 @@ using CondotifyAPI.Domain.DTO.Enterprise;
 using CondotifyAPI.Domain.DTO.Equipments;
 using CondotifyAPI.Domain.DTO.Location;
 using CondotifyAPI.Domain.DTO.Ticket;
+using CondotifyAPI.Domain.DTO.Invitation;
+using CondotifyAPI.Domain.DTO.AccessControl;
 
 namespace CondotifyAPI.Domain.DTO.License
 {
@@ -25,6 +27,10 @@ namespace CondotifyAPI.Domain.DTO.License
         public string City { get; set; }
         public string Country { get; set; }
         public string Code { get; set; }
+        public string GroupLabelSingular { get; set; } = "Bloco";
+        public string GroupLabelPlural { get; set; } = "Blocos";
+        public string UnitLabelSingular { get; set; } = "Unidade";
+        public string UnitLabelPlural { get; set; } = "Unidades";
 
         //Enums
         public  OrganizationTypeEnum Organization { get; set; }
@@ -37,6 +43,10 @@ namespace CondotifyAPI.Domain.DTO.License
         public List<CFTVDeviceDTO> CFTVDevices { get; set; }
         public List<DeliveryDTO> Deliveries { get; set; }
         public List<TicketDTO> Tickets { get; set; }
+        public List<RegistrationInviteDTO> RegistrationInvites { get; set; } = new();
+        public List<LicenseUserAccessDTO> UserAccesses { get; set; } = new();
+        public LicenseCredentialPolicyDTO? CredentialPolicy { get; set; }
+        public List<AccessRouteDTO> AccessRoutes { get; set; } = new();
         public LocationDTO Location { get; set; }
 
         //Times

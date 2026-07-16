@@ -6,16 +6,23 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using CondotifyAPI.Services.Authorization;
+using CondotifyAPI.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 [ApiController]
 [Route("api/access/licenses")]
 public class LicenseAccessController : ControllerBase
 {
     private readonly ISender _sender;
+    private readonly ILicenseAuthorizationService _authorization;
+    private readonly DatabaseContext _context;
 
-    public LicenseAccessController(ISender sender)
+    public LicenseAccessController(ISender sender, ILicenseAuthorizationService authorization, DatabaseContext context)
     {
         _sender = sender;
+        _authorization = authorization;
+        _context = context;
     }
 
     [HttpGet]
@@ -31,16 +38,16 @@ public class LicenseAccessController : ControllerBase
             var query = new GetLicenseSummariesByUserQuery(userIdClaim);
 
             var licenses = await _sender.Send(query);
-
-            return Ok(licenses); 
+            var allowed = await _authorization.GetAccessibleLicenseIdsAsync(User);
+            return Ok(licenses.Where(x => allowed.Contains(x.Id)).ToList()); 
         }
         catch (FluentValidation.ValidationException ex)
         {
             return BadRequest(new { Result = "InvalidRequest", Errors = ex.Errors.Select(e => e.ErrorMessage) });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return StatusCode(500, new { Result = "Error", Message = ex.Message });
+            throw;
         }
     }
 
@@ -53,16 +60,16 @@ public class LicenseAccessController : ControllerBase
             var query = new GetLicenseSummariesByUserQuery(id.ToString());
 
             var licenses = await _sender.Send(query);
-
-            return Ok(licenses);
+            var allowed = await _authorization.GetAccessibleLicenseIdsAsync(User);
+            return Ok(licenses.Where(x => allowed.Contains(x.Id)).ToList());
         }
         catch (FluentValidation.ValidationException ex)
         {
             return BadRequest(new { Result = "InvalidRequest", Errors = ex.Errors.Select(e => e.ErrorMessage) });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return StatusCode(500, new { Result = "Error", Message = ex.Message });
+            throw;
         }
     }
 
@@ -72,6 +79,8 @@ public class LicenseAccessController : ControllerBase
     {
         try
         {
+            if (await _authorization.GetGrantAsync(User, id) is null)
+                return Forbid();
             var query = new GetLicenseByIdQuery(id);
 
             var license = await _sender.Send(query);
@@ -84,9 +93,9 @@ public class LicenseAccessController : ControllerBase
         {
             return BadRequest(new { Result = "InvalidRequest", Errors = ex.Errors.Select(e => e.ErrorMessage) });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return StatusCode(500, new { Result = "Error", Message = ex.Message });
+            throw;
         }
     }
 
@@ -94,6 +103,17 @@ public class LicenseAccessController : ControllerBase
     [Authorize] 
     public async Task<IActionResult> CreateByEnterprise([FromBody] CreateLicenseByEnterpriseIn license)
     {
+        if (!Guid.TryParse(license.EnterpriseId, out var enterpriseId) ||
+            !Guid.TryParse(User.FindFirstValue("enterprise_id"), out var currentEnterpriseId) ||
+            enterpriseId != currentEnterpriseId ||
+            !Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            return Forbid();
+
+        var canCreate = await _context.Users.AsNoTracking().AnyAsync(x =>
+            x.Id == userId && x.EnterpriseId == enterpriseId &&
+            (x.AccessType == AccessTypeEnum.Admin || x.AccessType == AccessTypeEnum.Developer));
+        if (!canCreate) return Forbid();
+
         var command = license.ToCommand();
         var validator = await new CreateLicenseByEnterpriseCommandValidator().ValidateAsync(command);
 

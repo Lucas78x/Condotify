@@ -21,6 +21,11 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.License
             builder.Property(l => l.CNPJ)
                 .HasMaxLength(18);
 
+            builder.Property(l => l.GroupLabelSingular).IsRequired().HasMaxLength(40).HasDefaultValue("Bloco");
+            builder.Property(l => l.GroupLabelPlural).IsRequired().HasMaxLength(40).HasDefaultValue("Blocos");
+            builder.Property(l => l.UnitLabelSingular).IsRequired().HasMaxLength(40).HasDefaultValue("Unidade");
+            builder.Property(l => l.UnitLabelPlural).IsRequired().HasMaxLength(40).HasDefaultValue("Unidades");
+
             builder.Property(l => l.ExpireDate)
                 .IsRequired();
 
@@ -84,6 +89,11 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.License
              .WithOne(b => b.License)
              .HasForeignKey(b => b.LicenseId)
              .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasMany(l => l.RegistrationInvites)
+                .WithOne(x => x.License)
+                .HasForeignKey(x => x.LicenseId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             builder.HasIndex(l => new { l.EnterpriseId, l.Name })
                 .IsUnique();

@@ -60,13 +60,13 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.User
                 .IsUnique();
 
             builder.HasIndex(u => u.CPF)
-                .IsUnique();
+                .IsUnique().HasFilter("\"CPF\" <> ''");
 
             builder.HasIndex(u => u.RG)
-                .IsUnique();
+                .IsUnique().HasFilter("\"RG\" <> ''");
 
             builder.HasIndex(u => u.PhoneNumber)
-                .IsUnique();
+                .IsUnique().HasFilter("\"PhoneNumber\" <> ''");
         }
     }
 }

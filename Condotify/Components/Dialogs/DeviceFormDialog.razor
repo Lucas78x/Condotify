@@ -1,0 +1,82 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog entity-dialog-wide">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.Sensors" />
+            <div><strong>Novo terminal de acesso</strong><span>Selecione o fabricante e informe como o Condotify deve se conectar.</span></div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <MudText Typo="Typo.overline" Class="form-section-label">IDENTIFICACAO</MudText>
+            <div class="form-grid form-grid-three">
+                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome do equipamento" Placeholder="Ex.: Facial portaria" Required Variant="Variant.Outlined" For="@(() => _form.Name)" />
+                <MudSelect T="string" Value="_brand" ValueChanged="BrandChanged" Label="Marca" Required Variant="Variant.Outlined">
+                    @foreach (var brand in DeviceCatalog.AccessDevices.Select(x => x.Brand).Distinct())
+                    {
+                        <MudSelectItem Value="@brand">@brand</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="int" @bind-Value="_form.Type" Label="Modelo" Required Variant="Variant.Outlined">
+                    @foreach (var device in AvailableModels)
+                    {
+                        <MudSelectItem Value="@device.Type">@device.Model</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+
+            <MudDivider Class="form-divider" />
+            <MudText Typo="Typo.overline" Class="form-section-label">CONEXAO</MudText>
+            <div class="form-grid form-grid-three">
+                <MudTextField T="string" @bind-Value="_form.IPAddress" Label="Endereco IP" Placeholder="192.168.0.10" Required Variant="Variant.Outlined" For="@(() => _form.IPAddress)" />
+                <MudNumericField T="int" @bind-Value="_form.Port" Label="Porta HTTP" Min="1" Max="65535" Variant="Variant.Outlined" />
+                <MudSwitch T="bool" @bind-Value="_form.IsActive" Color="Color.Success" Label="Testar e ativar ao cadastrar" />
+                <MudTextField T="string" @bind-Value="_form.Username" Label="Usuario" Required Variant="Variant.Outlined" For="@(() => _form.Username)" />
+                <MudTextField T="string" @bind-Value="_form.Password" Label="Senha" Required InputType="InputType.Password" Variant="Variant.Outlined" For="@(() => _form.Password)" />
+            </div>
+
+            <MudExpansionPanels Elevation="0" Class="advanced-fields">
+                <MudExpansionPanel Text="Informacoes avancadas e opcionais" Icon="@Icons.Material.Outlined.Tune">
+                    <div class="form-grid form-grid-three pt-3">
+                        <MudTextField T="string" @bind-Value="_form.MACAddress" Label="Endereco MAC" Placeholder="AA:BB:CC:DD:EE:FF" Variant="Variant.Outlined" />
+                        <MudTextField T="string" @bind-Value="_form.SerialNumber" Label="Numero de serie" Variant="Variant.Outlined" />
+                        <MudTextField T="string" @bind-Value="_form.FirmwareVersion" Label="Firmware" Variant="Variant.Outlined" />
+                    </div>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+            <div class="form-actions dialog-form-actions">
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : "Salvar equipamento")</MudButton>
+            </div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    private readonly AccessDeviceFormViewModel _form = new();
+    private string _brand = "Intelbras";
+    private bool _saving;
+    private string? _error;
+    private IEnumerable<AccessDeviceOption> AvailableModels => DeviceCatalog.AccessDevices.Where(x => x.Brand == _brand);
+
+    protected override void OnInitialized() => _form.Type = AvailableModels.First().Type;
+    private void Cancel() => Dialog.Cancel();
+    private void BrandChanged(string brand) { _brand = brand; _form.Type = AvailableModels.First().Type; }
+
+    private async Task SaveAsync()
+    {
+        var selected = DeviceCatalog.Find(_form.Type);
+        if (selected is null || selected.Brand != _brand) { _error = "Selecione um modelo da marca informada."; return; }
+        _saving = true; _error = null;
+        var result = await Api.CreateDeviceAsync(LicenseId, _form);
+        _saving = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Dialog.Close(DialogResult.Ok(true));
+    }
+}

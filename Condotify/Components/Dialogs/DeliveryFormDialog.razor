@@ -1,0 +1,42 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.Inventory2" />
+            <div><strong>Entrada na portaria</strong><span>Registre os dados necessários para localizar e entregar o volume.</span></div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <div class="form-grid">
+                <MudTextField T="string" @bind-Value="_form.Name" Label="Destinatario ou identificacao" Required Variant="Variant.Outlined" For="@(() => _form.Name)" Class="full" />
+                <MudSelect T="int" @bind-Value="_form.Type" Label="Origem" Variant="Variant.Outlined"><MudSelectItem Value="1">Correios</MudSelectItem><MudSelectItem Value="2">SEDEX</MudSelectItem><MudSelectItem Value="30">Mercado Livre</MudSelectItem><MudSelectItem Value="31">Amazon</MudSelectItem><MudSelectItem Value="32">Shopee</MudSelectItem><MudSelectItem Value="999">Outros</MudSelectItem></MudSelect>
+                <MudTextField T="string" @bind-Value="_form.TrackingCode" Label="Codigo de rastreio" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.ReceivedBy" Label="Recebido por" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.Description" Label="Observacoes" Lines="3" Variant="Variant.Outlined" Class="full" />
+            </div>
+            <div class="form-actions dialog-form-actions">
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Inventory" Disabled="_saving">@(_saving ? "Registrando..." : "Registrar entrada")</MudButton>
+            </div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    private readonly DeliveryFormViewModel _form = new();
+    private bool _saving;
+    private string? _error;
+    private void Cancel() => Dialog.Cancel();
+    private async Task SaveAsync()
+    {
+        _saving = true; _error = null;
+        var result = await Api.CreateDeliveryAsync(LicenseId, _form);
+        _saving = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Dialog.Close(DialogResult.Ok(true));
+    }
+}

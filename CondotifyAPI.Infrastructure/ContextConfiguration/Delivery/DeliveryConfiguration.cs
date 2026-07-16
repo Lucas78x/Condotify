@@ -65,6 +65,9 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Delivery
 
             builder.Property(d => d.DeliveredToId)
                 .IsRequired(false);
+
+            builder.HasIndex(d => new { d.LicenseId, d.Status, d.CreatedAt });
+            builder.HasIndex(d => new { d.LicenseId, d.TrackingCode });
         }
     }
 }

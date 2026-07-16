@@ -2,6 +2,35 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Condotify.Models
 {
+    public class CreateLicenseViewModel
+    {
+        [Required]
+        public string Name { get; set; } = string.Empty;
+
+        [Required]
+        public string CNPJ { get; set; } = string.Empty;
+
+        [Required]
+        public string City { get; set; } = string.Empty;
+
+        [Required]
+        public string Country { get; set; } = "Brasil";
+
+        [Required]
+        public string Code { get; set; } = string.Empty;
+
+        public int Organization { get; set; } = 1;
+        public int Building { get; set; } = 2;
+        public int Type { get; set; } = 1;
+
+        [DataType(DataType.Date)]
+        public DateTime ExpireDate { get; set; } = DateTime.Today.AddYears(1);
+
+        public float LocationX { get; set; }
+        public float LocationY { get; set; }
+        public string? ErrorMessage { get; set; }
+    }
+
     public class LicenseModuleViewModel
     {
         public Guid LicenseId { get; set; }
@@ -31,11 +60,16 @@ namespace Condotify.Models
         public string Password { get; set; } = string.Empty;
 
         public string MACAddress { get; set; } = string.Empty;
+
         public string DeviceModel { get; set; } = string.Empty;
+
+        public string DeviceBrand { get; set; } = "Intelbras";
+
         public string SerialNumber { get; set; } = string.Empty;
+
         public string FirmwareVersion { get; set; } = string.Empty;
         public int Type { get; set; }
-        public bool IsActive { get; set; } = true;
+        public bool IsActive { get; set; }
         public float LocationX { get; set; }
         public float LocationY { get; set; }
     }
@@ -130,10 +164,14 @@ namespace Condotify.Models
         public string Email { get; set; } = string.Empty;
 
         public string PhoneNumber { get; set; } = string.Empty;
+        public string CommercialPhone { get; set; } = string.Empty;
         public string CPF { get; set; } = string.Empty;
         public string RG { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
         public string ApartmentNumber { get; set; } = string.Empty;
         public int AccessType { get; set; }
+        public int Relationship { get; set; } = 3;
+        public bool NotifyAccess { get; set; }
         public bool Temporary { get; set; }
         public DateTime? Expire { get; set; }
     }
@@ -152,6 +190,53 @@ namespace Condotify.Models
         public DateTime Expire { get; set; }
     }
 
+    public class DeliveriesPageViewModel : LicenseModuleViewModel
+    {
+        public DeliveryFormViewModel Form { get; set; } = new();
+        public List<DeliveryRowViewModel> Deliveries { get; set; } = new();
+    }
+
+    public class DeliveryFormViewModel
+    {
+        public int Type { get; set; } = 999;
+
+        [Required]
+        public string Name { get; set; } = string.Empty;
+
+        public string Description { get; set; } = string.Empty;
+        public string TrackingCode { get; set; } = string.Empty;
+        public string PhotoUrl { get; set; } = string.Empty;
+        public string ReceivedBy { get; set; } = string.Empty;
+    }
+
+    public class DeliveryStatusFormViewModel
+    {
+        public Guid DeliveryId { get; set; }
+        public int Status { get; set; }
+        public string PersonName { get; set; } = string.Empty;
+        public string ProofUrl { get; set; } = string.Empty;
+    }
+
+    public class DeliveryRowViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid LicenseId { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public int StatusValue { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string TrackingCode { get; set; } = string.Empty;
+        public string PhotoUrl { get; set; } = string.Empty;
+        public string DeliveryProofUrl { get; set; } = string.Empty;
+        public string ReceivedBy { get; set; } = string.Empty;
+        public DateTime? ReceivedAt { get; set; }
+        public string DeliveredTo { get; set; } = string.Empty;
+        public DateTime? DeliveredAt { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+    }
+
     public class AccessDeviceRowViewModel
     {
         public Guid Id { get; set; }
@@ -162,6 +247,286 @@ namespace Condotify.Models
         public string SerialNumber { get; set; } = string.Empty;
         public string MACAddress { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public string FirmwareVersion { get; set; } = string.Empty;
+        public DateTime? LastHealthCheckAt { get; set; }
+        public DateTime? LastSeenAt { get; set; }
+        public int? LastResponseTimeMs { get; set; }
+        public string HealthMessage { get; set; } = string.Empty;
+        public string DiscoveredPortalsJson { get; set; } = "[]";
+    }
+
+    public class DeviceActionRowViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid DeviceId { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public string Action { get; set; } = string.Empty;
+        public string Details { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
+    }
+
+    public class CredentialFormViewModel
+    {
+        [Required]
+        public Guid ResidentId { get; set; }
+
+        [Required]
+        public Guid DeviceId { get; set; }
+
+        public int Type { get; set; } = 1;
+        public string Identifier { get; set; } = string.Empty;
+        public string? ImageBase64 { get; set; }
+        public DateTime? ValidFrom { get; set; } = DateTime.Today;
+        public DateTime? ValidTo { get; set; } = DateTime.Today.AddYears(1);
+        public bool IsTemporary { get; set; }
+        public int? MaxRenewals { get; set; }
+        public int? MaxUses { get; set; }
+    }
+
+    public class CredentialRowViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid ResidentId { get; set; }
+        public string ResidentName { get; set; } = string.Empty;
+        public string UnitNumber { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Identifier { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public bool IsTemporary { get; set; }
+        public int RenewalCount { get; set; }
+        public int MaxRenewals { get; set; }
+        public int UseCount { get; set; }
+        public int? MaxUses { get; set; }
+        public bool CanRenew { get; set; }
+        public DateTime ValidFrom { get; set; }
+        public DateTime ValidTo { get; set; }
+        public List<CredentialDeviceRowViewModel> Devices { get; set; } = new();
+    }
+
+    public class CredentialDeviceRowViewModel
+    {
+        public Guid DeviceId { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public string DeviceType { get; set; } = string.Empty;
+        public string ExternalUserId { get; set; } = string.Empty;
+        public string ExternalCredentialId { get; set; } = string.Empty;
+        public bool IsSynced { get; set; }
+        public DateTime LastSyncAt { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public int AttemptCount { get; set; }
+        public DateTime? NextAttemptAt { get; set; }
+        public DateTime? LastSuccessAt { get; set; }
+        public string RouteNames { get; set; } = string.Empty;
+        public string PortalNumbers { get; set; } = string.Empty;
+    }
+
+    public class CredentialOperationViewModel
+    {
+        public bool Success { get; set; }
+        public bool Synced { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public CredentialRowViewModel? Credential { get; set; }
+    }
+
+    [Flags]
+    public enum AccessRouteAudience : long
+    {
+        None = 0,
+        OwnerResponsible = 1L << 0,
+        TenantResponsible = 1L << 1,
+        Responsible = 1L << 2,
+        Resident = 1L << 3,
+        Dependent = 1L << 4,
+        Visitor = 1L << 5,
+        ServiceProvider = 1L << 6,
+        All = OwnerResponsible | TenantResponsible | Responsible | Resident | Dependent | Visitor | ServiceProvider
+    }
+
+    public class AccessRouteViewModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public long Audience { get; set; }
+        public bool IsActive { get; set; }
+        public bool AllowTemporary { get; set; }
+        public int DaysOfWeekMask { get; set; } = 127;
+        public TimeSpan StartTime { get; set; }
+        public TimeSpan EndTime { get; set; } = new(23, 59, 59);
+        public List<AccessRouteDeviceViewModel> Devices { get; set; } = [];
+    }
+
+    public class AccessRouteDeviceViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid DeviceId { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public string DeviceType { get; set; } = string.Empty;
+        public int PortalNumber { get; set; } = 1;
+        public string Direction { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+
+    public class AccessRouteFormViewModel
+    {
+        [Required] public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public long Audience { get; set; }
+        public bool IsActive { get; set; } = true;
+        public bool AllowTemporary { get; set; }
+        public int DaysOfWeekMask { get; set; } = 127;
+        public TimeSpan? StartTime { get; set; } = TimeSpan.Zero;
+        public TimeSpan? EndTime { get; set; } = new TimeSpan(23, 59, 59);
+        public List<AccessRouteTargetFormViewModel> Devices { get; set; } = [];
+    }
+
+    public class AccessRouteTargetFormViewModel
+    {
+        public Guid DeviceId { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public string DeviceModel { get; set; } = string.Empty;
+        public string DeviceType { get; set; } = string.Empty;
+        public bool DeviceIsActive { get; set; }
+        public bool Selected { get; set; }
+        public int PortalNumber { get; set; } = 1;
+        public int Direction { get; set; }
+        public bool IsActive { get; set; } = true;
+        public List<DevicePortalCapabilityViewModel> Portals { get; set; } = [];
+    }
+
+    public class ResidentRouteResolutionViewModel
+    {
+        public long Audience { get; set; }
+        public string AudienceName { get; set; } = string.Empty;
+        public List<string> Routes { get; set; } = [];
+        public List<ResolvedRouteDeviceViewModel> Devices { get; set; } = [];
+    }
+
+    public class ResolvedRouteDeviceViewModel
+    {
+        public Guid DeviceId { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public string DeviceType { get; set; } = string.Empty;
+        public List<string> RouteNames { get; set; } = [];
+        public List<int> Portals { get; set; } = [];
+    }
+
+    [Flags]
+    public enum LicensePermission : long
+    {
+        None = 0,
+        ViewDashboard = 1L << 0,
+        ViewStructure = 1L << 1,
+        ManageStructure = 1L << 2,
+        ViewPeople = 1L << 3,
+        ManagePeople = 1L << 4,
+        ViewCredentials = 1L << 5,
+        ManageCredentials = 1L << 6,
+        ViewDevices = 1L << 7,
+        ManageDevices = 1L << 8,
+        OperateDevices = 1L << 9,
+        ViewEvents = 1L << 10,
+        ViewDeliveries = 1L << 11,
+        ManageDeliveries = 1L << 12,
+        ViewUsers = 1L << 13,
+        ManageUsers = 1L << 14,
+        ViewSettings = 1L << 15,
+        ManageSettings = 1L << 16,
+        All = (1L << 17) - 1
+    }
+
+    public class LicenseAdministrationViewModel
+    {
+        public CurrentLicenseAccessViewModel CurrentAccess { get; set; } = new();
+        public List<LicenseUserAccessViewModel> Users { get; set; } = [];
+        public CredentialPolicyViewModel Policy { get; set; } = new();
+    }
+
+    public class CurrentLicenseAccessViewModel
+    {
+        public string Role { get; set; } = string.Empty;
+        public long Permissions { get; set; }
+        public bool IsEnterpriseAdministrator { get; set; }
+        public bool Has(LicensePermission permission) => (Permissions & (long)permission) == (long)permission;
+    }
+
+    public class LicenseUserAccessViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid UserId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public long Permissions { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime LastAccess { get; set; }
+    }
+
+    public class LicenseUserFormViewModel
+    {
+        [Required] public string Name { get; set; } = string.Empty;
+        [Required, EmailAddress] public string Email { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        [MinLength(8)] public string Password { get; set; } = string.Empty;
+        public int Role { get; set; } = 3;
+        public long Permissions { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class CredentialPolicyViewModel
+    {
+        [Range(5, 43200)] public int QrCodeValidityMinutes { get; set; } = 1440;
+        public bool AllowQrCodeRenewal { get; set; } = true;
+        [Range(0, 50)] public int MaxQrCodeRenewals { get; set; } = 2;
+        [Range(5, 43200)] public int QrCodeRenewalMinutes { get; set; } = 1440;
+        [Range(5, 43200)] public int TemporaryFaceValidityMinutes { get; set; } = 1440;
+        [Range(5, 525600)] public int MaxTemporaryFaceValidityMinutes { get; set; } = 10080;
+        public bool RequireFacePhoto { get; set; } = true;
+        public bool AutoDeactivateExpiredCredentials { get; set; } = true;
+        public bool RemoveExpiredCredentialsFromDevices { get; set; } = true;
+    }
+
+    public class AccessEventRowViewModel
+    {
+        public string Id { get; set; } = string.Empty;
+        public Guid DeviceId { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public string Event { get; set; } = string.Empty;
+        public bool Authorized { get; set; }
+        public DateTime OccurredAt { get; set; }
+        public string ExternalUserId { get; set; } = string.Empty;
+        public string PersonName { get; set; } = string.Empty;
+        public string Credential { get; set; } = string.Empty;
+        public string Portal { get; set; } = string.Empty;
+        public string Details { get; set; } = string.Empty;
+    }
+
+    public class GlobalResidentSearchViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid LicenseId { get; set; }
+        public string LicenseName { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string BlockName { get; set; } = string.Empty;
+        public string UnitNumber { get; set; } = string.Empty;
+        public string CPF { get; set; } = string.Empty;
+        public string RG { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string AccessType { get; set; } = string.Empty;
+        public bool Temporary { get; set; }
+        public DateTime Expire { get; set; }
+        public List<GlobalCredentialSearchViewModel> Credentials { get; set; } = [];
+    }
+
+    public class GlobalCredentialSearchViewModel
+    {
+        public string Type { get; set; } = string.Empty;
+        public string Identifier { get; set; } = string.Empty;
         public bool IsActive { get; set; }
     }
 
@@ -179,6 +544,261 @@ namespace Condotify.Models
     public class LicenseStructureViewModel
     {
         public Guid LicenseId { get; set; }
+        public string GroupLabelSingular { get; set; } = "Bloco";
+        public string GroupLabelPlural { get; set; } = "Blocos";
+        public string UnitLabelSingular { get; set; } = "Unidade";
+        public string UnitLabelPlural { get; set; } = "Unidades";
         public List<BlockRowViewModel> Blocks { get; set; } = new();
+    }
+
+    public class StructureSettingsViewModel
+    {
+        [Required] public string GroupLabelSingular { get; set; } = "Bloco";
+        [Required] public string GroupLabelPlural { get; set; } = "Blocos";
+        [Required] public string UnitLabelSingular { get; set; } = "Unidade";
+        [Required] public string UnitLabelPlural { get; set; } = "Unidades";
+    }
+
+    public class UnitDetailViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid BlockId { get; set; }
+        public string BlockName { get; set; } = string.Empty;
+        public string Number { get; set; } = string.Empty;
+        public string Floor { get; set; } = string.Empty;
+        public List<PersonSummaryViewModel> People { get; set; } = new();
+        public List<VehicleViewModel> Vehicles { get; set; } = new();
+    }
+
+    public class PersonSummaryViewModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Document { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string ImageUrl { get; set; } = string.Empty;
+        public string Relationship { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public int CredentialCount { get; set; }
+        public int VehicleCount { get; set; }
+        public bool HasFaceCredential { get; set; }
+        public bool HasActiveFaceCredential { get; set; }
+    }
+
+    public class PersonProfileViewModel : PersonSummaryViewModel
+    {
+        public Guid UnitId { get; set; }
+        public string UnitNumber { get; set; } = string.Empty;
+        public string BlockName { get; set; } = string.Empty;
+        public string CPF { get; set; } = string.Empty;
+        public string RG { get; set; } = string.Empty;
+        public string BirthDate { get; set; } = string.Empty;
+        public string CommercialPhone { get; set; } = string.Empty;
+        public bool NotifyAccess { get; set; }
+        public List<PersonCredentialViewModel> Credentials { get; set; } = new();
+        public List<VehicleViewModel> Vehicles { get; set; } = new();
+        public List<RegistrationInviteViewModel> Invites { get; set; } = new();
+    }
+
+    public class PersonProfileFormViewModel
+    {
+        [Required] public string Name { get; set; } = string.Empty;
+        [EmailAddress] public string Email { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string CommercialPhone { get; set; } = string.Empty;
+        public string CPF { get; set; } = string.Empty;
+        public string RG { get; set; } = string.Empty;
+        public string BirthDate { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string ImageUrl { get; set; } = string.Empty;
+        public bool NotifyAccess { get; set; }
+        public bool IsActive { get; set; } = true;
+        public int Relationship { get; set; } = 3;
+    }
+
+    public class PersonCredentialViewModel
+    {
+        public Guid Id { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string Identifier { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public bool IsTemporary { get; set; }
+        public int RenewalCount { get; set; }
+        public int MaxRenewals { get; set; }
+        public int DeviceCount { get; set; }
+        public int SyncedDeviceCount { get; set; }
+        public int UseCount { get; set; }
+        public int? MaxUses { get; set; }
+        public DateTime ValidFrom { get; set; }
+        public DateTime ValidTo { get; set; }
+        public List<PersonCredentialDeviceViewModel> Devices { get; set; } = [];
+    }
+
+    public class PersonCredentialDeviceViewModel
+    {
+        public Guid DeviceId { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public string DeviceType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public string RouteNames { get; set; } = string.Empty;
+        public string PortalNumbers { get; set; } = string.Empty;
+        public int AttemptCount { get; set; }
+        public DateTime LastSyncAt { get; set; }
+        public DateTime? NextAttemptAt { get; set; }
+    }
+
+    public class DeviceInspectionViewModel
+    {
+        public Guid DeviceId { get; set; }
+        public bool Online { get; set; }
+        public int? ResponseTimeMs { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string FirmwareVersion { get; set; } = string.Empty;
+        public DateTime CheckedAt { get; set; }
+        public List<DevicePortalCapabilityViewModel> Portals { get; set; } = [];
+    }
+
+    public class DevicePortalCapabilityViewModel
+    {
+        public int Number { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Direction { get; set; } = string.Empty;
+        public bool Discovered { get; set; }
+    }
+
+    public class ReconciliationPreviewViewModel
+    {
+        public int CredentialCount { get; set; }
+        public int ResidentCount { get; set; }
+        public int TargetCount { get; set; }
+        public int PendingCount { get; set; }
+        public List<string> Warnings { get; set; } = [];
+    }
+
+    public class AccessBatchOperationViewModel
+    {
+        public Guid Id { get; set; }
+        public string Operation { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public int TotalItems { get; set; }
+        public int ProcessedItems { get; set; }
+        public int SuccessfulItems { get; set; }
+        public int FailedItems { get; set; }
+        public string RequestedBy { get; set; } = string.Empty;
+        public string Error { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
+    }
+
+    public class AccessAuditViewModel
+    {
+        public Guid Id { get; set; }
+        public string EntityType { get; set; } = string.Empty;
+        public Guid? EntityId { get; set; }
+        public string Action { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Summary { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class ResidentRouteOverrideViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid RouteId { get; set; }
+        public string RouteName { get; set; } = string.Empty;
+        public string Mode { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+    }
+
+    public class CredentialBackupViewModel
+    {
+        public int SchemaVersion { get; set; } = 1;
+        public Guid LicenseId { get; set; }
+        public DateTime ExportedAt { get; set; }
+        public List<CredentialBackupItemViewModel> Credentials { get; set; } = [];
+    }
+
+    public class CredentialBackupItemViewModel
+    {
+        public Guid ResidentId { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string Identifier { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public bool IsTemporary { get; set; }
+        public int RenewalCount { get; set; }
+        public int MaxRenewals { get; set; }
+        public int UseCount { get; set; }
+        public int? MaxUses { get; set; }
+        public DateTime ValidFrom { get; set; }
+        public DateTime ValidTo { get; set; }
+    }
+
+    public class VehicleViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid UnitId { get; set; }
+        public Guid? ResidentId { get; set; }
+        public string OwnerName { get; set; } = string.Empty;
+        public string Plate { get; set; } = string.Empty;
+        public string Brand { get; set; } = string.Empty;
+        public string Model { get; set; } = string.Empty;
+        public string Color { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string TagIdentifier { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+
+    public class VehicleFormViewModel
+    {
+        public Guid UnitId { get; set; }
+        [Required] public string Plate { get; set; } = string.Empty;
+        public string Brand { get; set; } = string.Empty;
+        public string Model { get; set; } = string.Empty;
+        public string Color { get; set; } = string.Empty;
+        public string Type { get; set; } = "Carro";
+        public string TagIdentifier { get; set; } = string.Empty;
+    }
+
+    public class RegistrationInviteViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid ResidentId { get; set; }
+        public string ResidentName { get; set; } = string.Empty;
+        public string Contact { get; set; } = string.Empty;
+        public string Channel { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string CreatedBy { get; set; } = string.Empty;
+        public int SendCount { get; set; }
+        public DateTime SentAt { get; set; }
+        public DateTime ExpiresAt { get; set; }
+        public string? InviteUrl { get; set; }
+    }
+
+    public class PublicRegistrationInviteViewModel
+    {
+        public string ResidentName { get; set; } = string.Empty;
+        public string LicenseName { get; set; } = string.Empty;
+        public string BlockName { get; set; } = string.Empty;
+        public string UnitNumber { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime ExpiresAt { get; set; }
+    }
+
+    public class CompleteRegistrationInviteViewModel
+    {
+        [Required] public string Name { get; set; } = string.Empty;
+        [EmailAddress] public string Email { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string CPF { get; set; } = string.Empty;
+        public string RG { get; set; } = string.Empty;
+        public string BirthDate { get; set; } = string.Empty;
     }
 }

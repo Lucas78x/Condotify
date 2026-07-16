@@ -1,0 +1,51 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.Videocam" />
+            <div><strong>Dados do dispositivo</strong><span>Configure a rede e a capacidade de canais.</span></div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <div class="form-grid">
+                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome" Placeholder="Ex.: Camera entrada social" Required Variant="Variant.Outlined" For="@(() => _form.Name)" Class="full" />
+                <MudSelect T="int" @bind-Value="_form.DeviceType" Label="Tipo" Variant="Variant.Outlined"><MudSelectItem Value="1">Camera IP</MudSelectItem><MudSelectItem Value="2">DVR</MudSelectItem><MudSelectItem Value="3">NVR</MudSelectItem></MudSelect>
+                <MudSelect T="int" @bind-Value="_form.Mark" Label="Marca" Variant="Variant.Outlined"><MudSelectItem Value="11">Intelbras</MudSelectItem><MudSelectItem Value="8">Hikvision</MudSelectItem><MudSelectItem Value="4">Dahua</MudSelectItem><MudSelectItem Value="0">Outra</MudSelectItem></MudSelect>
+                <MudTextField T="string" @bind-Value="_form.IpAddress" Label="Endereco IP" Placeholder="192.168.0.20" Required Variant="Variant.Outlined" For="@(() => _form.IpAddress)" />
+                <MudNumericField T="int" @bind-Value="_form.MaxChannels" Label="Quantidade de canais" Min="1" Max="128" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.HTTPPort" Label="Porta HTTP" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.RTSPPort" Label="Porta RTSP" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.UserName" Label="Usuario" Required Variant="Variant.Outlined" For="@(() => _form.UserName)" />
+                <MudTextField T="string" @bind-Value="_form.Password" Label="Senha" Required InputType="InputType.Password" Variant="Variant.Outlined" For="@(() => _form.Password)" />
+            </div>
+            <div class="form-actions dialog-form-actions">
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" Disabled="_saving">@(_saving ? "Cadastrando..." : "Cadastrar dispositivo")</MudButton>
+            </div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    private readonly CftvDeviceFormViewModel _form = new() { Mark = 11 };
+    private bool _saving;
+    private string? _error;
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        _saving = true; _error = null;
+        var result = await Api.CreateCameraAsync(LicenseId, _form);
+        _saving = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Dialog.Close(DialogResult.Ok(true));
+    }
+}

@@ -28,29 +28,29 @@ public partial class DatabaseContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            foreach (var property in entityType.GetProperties())
-            {
-                if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
-                    property.SetColumnType("timestamp");
-
-                if (property.Name == "CreatedAt" && property.ClrType == typeof(DateTime))
-                {
-                    property.SetDefaultValueSql("NOW()");
-                }
-            }
-        }
-
         EnterprisesEntityConfiguration(modelBuilder);
         UsersEntityConfiguration(modelBuilder);
         LicensesEntityConfiguration(modelBuilder);
+        LicenseAdministrationEntityConfiguration(modelBuilder);
         DevicesEntityConfiguration(modelBuilder);
+        AccessRoutesEntityConfiguration(modelBuilder);
         DeliveriesEntityConfiguration(modelBuilder); 
         TicketsEntityConfiguration(modelBuilder);
         BlocksEntityConfiguration(modelBuilder);
         UnitsEntityConfiguration(modelBuilder);
         ResidentsEntityConfiguration(modelBuilder);
         AuditsEntityConfiguration(modelBuilder);
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
+                    property.SetColumnType("timestamp with time zone");
+
+                if (property.Name == "CreatedAt" && property.ClrType == typeof(DateTime))
+                    property.SetDefaultValueSql("NOW()");
+            }
+        }
     }
 }

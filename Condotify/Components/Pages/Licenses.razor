@@ -1,0 +1,93 @@
+@page "/licencas"
+@attribute [Authorize]
+@inject CondotifyApiClient Api
+
+<PageTitle>Condominios | Condotify</PageTitle>
+
+<PageHeader Title="Condominios" Subtitle="Licencas, estrutura e operacao de cada empreendimento." Eyebrow="PORTFOLIO">
+    <Actions>
+        <AuthorizeView Context="licenseAuth">
+            <Authorized>
+                @if (CanCreateLicense(licenseAuth.User))
+                {
+                    <MudButton Href="/licencas/nova" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add">Nova licenca</MudButton>
+                }
+            </Authorized>
+        </AuthorizeView>
+    </Actions>
+</PageHeader>
+
+<div class="stats-grid">
+    <StatTile Label="Total" Value="@_licenses.Count.ToString()" Icon="@Icons.Material.Outlined.Domain" Tone="blue" />
+    <StatTile Label="Moradores" Value="@_licenses.Sum(x => x.Moradores).ToString()" Icon="@Icons.Material.Outlined.Groups" Tone="green" />
+    <StatTile Label="Cidades" Value="@_licenses.Select(x => x.Cidade).Distinct().Count().ToString()" Icon="@Icons.Material.Outlined.LocationCity" Tone="amber" />
+    <StatTile Label="Resultados" Value="@Filtered.Count().ToString()" Icon="@Icons.Material.Outlined.FilterAlt" Tone="red" />
+</div>
+
+<MudPaper Class="content-panel" Elevation="0">
+    <div class="panel-toolbar">
+        <MudTextField T="string" @bind-Value="_search" Immediate Label="Buscar por nome, codigo ou cidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Style="min-width:min(430px,100%)" />
+        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" aria-label="Atualizar lista" />
+    </div>
+
+    @if (_loading)
+    {
+        <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="panel-body"><MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert></div>
+    }
+    else if (!Filtered.Any())
+    {
+        <div class="panel-body"><MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhuma licenca corresponde aos filtros informados.</MudAlert></div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <MudTable Items="Filtered" Hover Dense Elevation="0" RowsPerPage="10">
+                <HeaderContent>
+                    <MudTh>Condominio</MudTh><MudTh>Cidade</MudTh><MudTh>Moradores</MudTh><MudTh>Acesso</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Condominio">
+                        <div class="license-name-cell">
+                            <span class="license-monogram">@Monogram(context.Nome)</span>
+                            <span class="license-meta"><span class="license-title">@context.Nome</span><span class="license-code">@context.Codigo</span></span>
+                        </div>
+                    </MudTd>
+                    <MudTd DataLabel="Cidade">@context.Cidade</MudTd>
+                    <MudTd DataLabel="Moradores">@context.Moradores</MudTd>
+                    <MudTd DataLabel="Acesso"><MudButton Href="@($"/licencas/{context.Id}")" Variant="Variant.Text" EndIcon="@Icons.Material.Outlined.ArrowForward">Gerenciar</MudButton></MudTd>
+                </RowTemplate>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 10, 20, 50 })" /></PagerContent>
+            </MudTable>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private string _search = string.Empty;
+    private List<LicenseViewModel> _licenses = [];
+
+    private IEnumerable<LicenseViewModel> Filtered => string.IsNullOrWhiteSpace(_search)
+        ? _licenses
+        : _licenses.Where(x => $"{x.Nome} {x.Codigo} {x.Cidade}".Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        var result = await Api.GetLicensesAsync();
+        _loading = false;
+        if (result.Success) _licenses = result.Value ?? [];
+        else _error = result.Error;
+    }
+
+    private static string Monogram(string name) => string.IsNullOrWhiteSpace(name) ? "C" : name.Trim()[0].ToString().ToUpperInvariant();
+    private static bool CanCreateLicense(System.Security.Claims.ClaimsPrincipal user) => user.FindFirst("access_type")?.Value is "Admin" or "Developer";
+}

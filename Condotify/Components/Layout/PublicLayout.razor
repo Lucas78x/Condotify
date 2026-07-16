@@ -1,0 +1,28 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div class="public-shell">
+    <header class="public-header">
+        <div class="brand-mark">C</div>
+        <div><strong>Condotify</strong><span>Cadastro seguro de acesso</span></div>
+    </header>
+    <main class="public-content">@Body</main>
+</div>
+
+@code {
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#3156D3", Success = "#16845B", Warning = "#B86B00", Error = "#C13D4B",
+            Background = "#F4F6F8", Surface = "#FFFFFF", TextPrimary = "#202532", TextSecondary = "#697386",
+            LinesDefault = "#E3E7ED"
+        },
+        LayoutProperties = new LayoutProperties { DefaultBorderRadius = "6px" },
+        Typography = new Typography { Default = new DefaultTypography { FontFamily = ["Inter", "Segoe UI", "sans-serif"] } }
+    };
+}

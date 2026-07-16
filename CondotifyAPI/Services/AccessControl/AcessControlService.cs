@@ -19,6 +19,33 @@ namespace CondotifyAPI.Services.AccessControl
             return driver.TestConnectionAsync(device);
         }
 
+        public Task<bool> OpenDoorAsync(AccessControlDevice device, int channel)
+        {
+            var driver = _driverFactory.GetDriver(device.Type);
+            return driver.OpenDoorAsync(device, channel);
+        }
+
+        public Task<CredentialOperationResult> UpsertCredentialAsync(AccessControlDevice device, CredentialProvisionRequest request) =>
+            _driverFactory.GetDriver(device.Type).UpsertCredentialAsync(device, request);
+
+        public Task<CredentialOperationResult> SetCredentialActiveAsync(AccessControlDevice device, CredentialProvisionRequest request, bool isActive) =>
+            _driverFactory.GetDriver(device.Type).SetCredentialActiveAsync(device, request, isActive);
+
+        public Task<CredentialOperationResult> RemoveCredentialAsync(AccessControlDevice device, CredentialProvisionRequest request) =>
+            _driverFactory.GetDriver(device.Type).RemoveCredentialAsync(device, request);
+
+        public Task<CredentialOperationResult> StartFaceEnrollmentAsync(AccessControlDevice device, string externalUserId) =>
+            _driverFactory.GetDriver(device.Type).StartFaceEnrollmentAsync(device, externalUserId);
+
+        public Task<CredentialOperationResult> CancelFaceEnrollmentAsync(AccessControlDevice device) =>
+            _driverFactory.GetDriver(device.Type).CancelFaceEnrollmentAsync(device);
+
+        public Task<IReadOnlyList<DeviceAccessEvent>> GetAccessEventsAsync(AccessControlDevice device, int take) =>
+            _driverFactory.GetDriver(device.Type).GetAccessEventsAsync(device, take);
+
+        public Task<DeviceInspectionResult> InspectAsync(AccessControlDevice device) =>
+            _driverFactory.GetDriver(device.Type).InspectAsync(device);
+
         public Task<string> GetUsersAsync(AccessControlDevice device)
         {
             var driver = _driverFactory.GetDriver(device.Type);

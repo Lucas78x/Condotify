@@ -5,6 +5,7 @@ namespace CondotifyAPI.Data.Equipments
 {
     public class TestCftvConnectionIn
     {
+        public string LicenseId { get; set; } = string.Empty;
         public string IpAddress { get; set; } = "";
         public string UserName { get; set; } = "";
         public string Password { get; set; } = "";
@@ -23,6 +24,10 @@ namespace CondotifyAPI.Data.Equipments
     {
         public TestCftvConnectionInValidator()
         {
+            RuleFor(x => x.LicenseId)
+                .Must(value => Guid.TryParse(value, out _))
+                .WithMessage("Licenca invalida.");
+
             RuleFor(x => x.IpAddress)
                 .NotEmpty()
                 .Must(BeAValidIp)

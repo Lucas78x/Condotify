@@ -40,6 +40,8 @@
            href="@Url.Action("Unidades", "Licencas", new { id = Model.LicenseId })">Unidades</a>
         <a class="px-4 py-2 rounded-2xl text-sm font-medium transition @TabClass("moradores")"
            href="@Url.Action("Moradores", "Licencas", new { id = Model.LicenseId })">Moradores</a>
+        <a class="px-4 py-2 rounded-2xl text-sm font-medium transition @TabClass("encomendas")"
+           href="@Url.Action("Encomendas", "Licencas", new { id = Model.LicenseId })">Encomendas</a>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(Model.SuccessMessage))

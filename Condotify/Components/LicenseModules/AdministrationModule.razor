@@ -1,0 +1,59 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (_loading) { <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div> }
+else if (_data is null) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@(_error ?? "Nao foi possivel carregar a administracao.")</MudAlert> }
+else
+{
+    <section class="administration-shell">
+        <div class="module-intro"><div><MudText Typo="Typo.h6">Administracao da licenca</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Equipe, niveis de acesso e ciclo de vida das credenciais.</MudText></div><MudChip T="string" Variant="Variant.Outlined" Color="Color.Info" Icon="@Icons.Material.Outlined.Security">@RoleLabel(_data.CurrentAccess.Role)</MudChip></div>
+        <MudPaper Class="content-panel administration-panel" Elevation="0">
+            <MudTabs Elevation="0" Class="administration-tabs">
+                @if (CanViewUsers)
+                {
+                    <MudTabPanel Text="Usuarios e acesso" Icon="@Icons.Material.Outlined.ManageAccounts">
+                        <div class="admin-tab-head"><div><strong>Equipe deste condominio</strong><span>Cada usuario enxerga e opera apenas o que foi permitido.</span></div>@if (CanManageUsers) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" OnClick="@(() => OpenUserAsync(null))">Novo usuario</MudButton> }</div>
+                        <div class="admin-summary-strip"><div><strong>@_data.Users.Count</strong><span>Usuarios vinculados</span></div><div><strong>@_data.Users.Count(x => x.IsActive)</strong><span>Acessos ativos</span></div><div><strong>@_data.Users.Count(x => x.Role is "Administrator" or "Manager")</strong><span>Gestores</span></div></div>
+                        @if (_data.Users.Count == 0) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.GroupOff" /><span>Nenhum usuario vinculado a esta licenca.</span></div> }
+                        else
+                        {
+                            <div class="access-user-list">@foreach (var user in _data.Users) { <div class="access-user-row"><MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(user.Name)</MudAvatar><div class="access-user-main"><strong>@user.Name</strong><span>@user.Email@(!string.IsNullOrWhiteSpace(user.PhoneNumber) ? $" | {user.PhoneNumber}" : string.Empty)</span></div><div class="access-user-role"><strong>@RoleLabel(user.Role)</strong><span>@PermissionCount(user.Permissions) permissoes</span></div><MudChip T="string" Size="Size.Small" Color="@(user.IsActive ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(user.IsActive ? "Ativo" : "Inativo")</MudChip>@if (CanManageUsers) { <MudTooltip Text="Editar acesso"><MudIconButton Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenUserAsync(user))" /></MudTooltip> }</div> }</div>
+                        }
+                    </MudTabPanel>
+                }
+                @if (CanViewSettings)
+                {
+                    <MudTabPanel Text="Politicas de credenciais" Icon="@Icons.Material.Outlined.Policy">
+                        <EditForm Model="_data.Policy" OnValidSubmit="SavePolicyAsync"><DataAnnotationsValidator />
+                            <div class="policy-section"><div class="policy-section-title"><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.QrCode2" /></span><div><strong>QR Code temporario</strong><span>Defina o periodo inicial e quantas vezes a portaria podera renovar.</span></div></div><div class="policy-fields"><MudNumericField T="int" @bind-Value="_data.Policy.QrCodeValidityMinutes" Label="Validade inicial" Adornment="Adornment.End" AdornmentText="min" Variant="Variant.Outlined" /><MudSwitch T="bool" @bind-Value="_data.Policy.AllowQrCodeRenewal" Label="Permitir renovacoes" Color="Color.Primary" /><MudNumericField T="int" @bind-Value="_data.Policy.MaxQrCodeRenewals" Label="Quantidade maxima" Disabled="@(!_data.Policy.AllowQrCodeRenewal)" Variant="Variant.Outlined" /><MudNumericField T="int" @bind-Value="_data.Policy.QrCodeRenewalMinutes" Label="Tempo por renovacao" Adornment="Adornment.End" AdornmentText="min" Disabled="@(!_data.Policy.AllowQrCodeRenewal)" Variant="Variant.Outlined" /></div></div>
+                            <div class="policy-section"><div class="policy-section-title"><span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.Face" /></span><div><strong>Faces temporarias</strong><span>Controle a permanencia de visitantes e prestadores nos terminais.</span></div></div><div class="policy-fields"><MudNumericField T="int" @bind-Value="_data.Policy.TemporaryFaceValidityMinutes" Label="Validade padrao" Adornment="Adornment.End" AdornmentText="min" Variant="Variant.Outlined" /><MudNumericField T="int" @bind-Value="_data.Policy.MaxTemporaryFaceValidityMinutes" Label="Limite maximo" Adornment="Adornment.End" AdornmentText="min" Variant="Variant.Outlined" /><MudSwitch T="bool" @bind-Value="_data.Policy.RequireFacePhoto" Label="Exigir foto no cadastro temporario" Color="Color.Primary" /></div></div>
+                            <div class="policy-section"><div class="policy-section-title"><span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.AutoDelete" /></span><div><strong>Expiracao e limpeza</strong><span>Evite credenciais vencidas permanecendo ativas na base.</span></div></div><div class="policy-switches"><MudSwitch T="bool" @bind-Value="_data.Policy.AutoDeactivateExpiredCredentials" Label="Desativar automaticamente ao expirar" Color="Color.Primary" /><MudSwitch T="bool" @bind-Value="_data.Policy.RemoveExpiredCredentialsFromDevices" Label="Remover credenciais expiradas dos equipamentos" Color="Color.Primary" /></div></div>
+                            @if (CanManageSettings) { <div class="form-actions"><MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_savingPolicy">@(_savingPolicy ? "Salvando..." : "Salvar politicas")</MudButton></div> }
+                        </EditForm>
+                    </MudTabPanel>
+                }
+            </MudTabs>
+        </MudPaper>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public LicenseAdministrationViewModel? InitialData { get; set; }
+    private LicenseAdministrationViewModel? _data;
+    private bool _loading = true;
+    private bool _savingPolicy;
+    private string? _error;
+    private bool CanViewUsers => _data?.CurrentAccess.Has(LicensePermission.ViewUsers) == true;
+    private bool CanManageUsers => _data?.CurrentAccess.Has(LicensePermission.ManageUsers) == true;
+    private bool CanViewSettings => _data?.CurrentAccess.Has(LicensePermission.ViewSettings) == true;
+    private bool CanManageSettings => _data?.CurrentAccess.Has(LicensePermission.ManageSettings) == true;
+    protected override async Task OnInitializedAsync() { if (InitialData is not null) { _data = InitialData; _loading = false; } else await LoadAsync(); }
+    private async Task LoadAsync() { _loading = true; var result = await Api.GetLicenseAdministrationAsync(LicenseId); _loading = false; if (result.Success) _data = result.Value; else _error = result.Error; }
+    private async Task OpenUserAsync(LicenseUserAccessViewModel? user) { var parameters = new DialogParameters { [nameof(LicenseUserDialog.LicenseId)] = LicenseId, [nameof(LicenseUserDialog.Existing)] = user }; var dialog = await DialogService.ShowAsync<LicenseUserDialog>(user is null ? "Novo usuario" : "Editar acesso", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium }); var result = await dialog.Result; if (result?.Canceled != false) return; await LoadAsync(); Snackbar.Add("Acesso atualizado.", Severity.Success); }
+    private async Task SavePolicyAsync() { if (_data is null || !CanManageSettings) return; _savingPolicy = true; var result = await Api.UpdateCredentialPolicyAsync(LicenseId, _data.Policy); _savingPolicy = false; if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao salvar as politicas.", Severity.Error); return; } _data.Policy = result.Value ?? _data.Policy; Snackbar.Add("Politicas de credenciais atualizadas.", Severity.Success); }
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+    private static int PermissionCount(long value) => LicensePermissionCatalog.Options.Count(x => (value & (long)x.Permission) == (long)x.Permission);
+    private static string RoleLabel(string role) => role switch { "Administrator" => "Administrador", "Manager" => "Gestor", "Concierge" => "Portaria", "Operator" => "Operador", "Viewer" => "Somente leitura", _ => role };
+}

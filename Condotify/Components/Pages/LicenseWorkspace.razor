@@ -1,0 +1,138 @@
+@page "/licencas/{LicenseId:guid}"
+@page "/licencas/{LicenseId:guid}/{Section}"
+@attribute [Authorize]
+@inject CondotifyApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>@(_license?.Name ?? "Condominio") | Condotify</PageTitle>
+
+@if (_loading)
+{
+    <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+}
+else if (_license is null)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@(_error ?? "Licenca nao encontrada.")</MudAlert>
+}
+else
+{
+    <PageHeader Title="@_license.Name" Subtitle="@($"{_license.Code} | {_license.City} | Valida ate {_license.ExpireDate:dd/MM/yyyy}")" Eyebrow="AMBIENTE DO CONDOMINIO">
+        <Actions>
+            <MudChip T="string" Color="@(_license.IsExpired ? Color.Error : Color.Success)" Variant="Variant.Outlined" Icon="@(_license.IsExpired ? Icons.Material.Outlined.EventBusy : Icons.Material.Outlined.Verified)">@_license.Status</MudChip>
+            <MudButton Href="/licencas" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.ArrowBack">Condominios</MudButton>
+        </Actions>
+    </PageHeader>
+
+    <nav class="workspace-nav" aria-label="Modulos do condominio">
+        @if (Has(LicensePermission.ViewDashboard)) { @NavButton("visao-geral", "Visao geral", Icons.Material.Outlined.Dashboard) }
+        @if (Has(LicensePermission.ViewDevices))
+        {
+            @NavButton("equipamentos", "Equipamentos", Icons.Material.Outlined.Sensors)
+            @NavButton("rotas", "Rotas", Icons.Material.Outlined.AltRoute)
+            @NavButton("cameras", "Cameras", Icons.Material.Outlined.Videocam)
+        }
+        @if (Has(LicensePermission.ViewStructure)) { @NavButton("estrutura", "Estrutura", Icons.Material.Outlined.AccountTree) }
+        @if (Has(LicensePermission.ViewCredentials)) { @NavButton("credenciais", "Credenciais", Icons.Material.Outlined.Badge) }
+        @if (Has(LicensePermission.ViewEvents)) { @NavButton("acessos", "Acessos", Icons.Material.Outlined.FactCheck) }
+        @if (Has(LicensePermission.ViewDeliveries)) { @NavButton("encomendas", "Encomendas", Icons.Material.Outlined.Inventory2) }
+        @if (Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings)) { @NavButton("administracao", "Administracao", Icons.Material.Outlined.AdminPanelSettings) }
+    </nav>
+
+    @if (!SectionAllowed(CurrentSection))
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.Lock">Seu perfil nao possui permissao para acessar este modulo.</MudAlert>
+    }
+    else
+    {
+        @switch (CurrentSection)
+        {
+            case "equipamentos":
+                <DevicesModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDevices)" CanOperate="@Has(LicensePermission.OperateDevices)" />
+                break;
+            case "cameras":
+                <CamerasModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDevices)" />
+                break;
+            case "rotas":
+                <AccessRoutesModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDevices)" />
+                break;
+            case "estrutura":
+                <StructureModule LicenseId="LicenseId" ActiveSection="estrutura" CanManageStructure="@Has(LicensePermission.ManageStructure)" CanManagePeople="@Has(LicensePermission.ManagePeople)" CanManageCredentials="@Has(LicensePermission.ManageCredentials)" />
+                break;
+            case "encomendas":
+                <DeliveriesModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDeliveries)" />
+                break;
+            case "credenciais":
+                <CredentialsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageCredentials)" />
+                break;
+            case "acessos":
+                <AccessEventsModule LicenseId="LicenseId" />
+                break;
+            case "administracao":
+                <AdministrationModule LicenseId="LicenseId" InitialData="_administration" />
+                break;
+            default:
+                <OverviewModule License="_license" />
+                break;
+        }
+    }
+}
+
+@code {
+    [Parameter] public Guid LicenseId { get; set; }
+    [Parameter] public string? Section { get; set; }
+
+    private bool _loading = true;
+    private string? _error;
+    private LicenseFullViewModel? _license;
+    private LicenseAdministrationViewModel? _administration;
+    private string CurrentSection => string.IsNullOrWhiteSpace(Section)
+        ? DefaultSection
+        : Section.ToLowerInvariant() is "blocos" or "unidades" or "moradores" ? "estrutura" : Section.ToLowerInvariant();
+    private string DefaultSection => Has(LicensePermission.ViewDashboard) ? "visao-geral"
+        : Has(LicensePermission.ViewStructure) ? "estrutura"
+        : Has(LicensePermission.ViewDevices) ? "equipamentos"
+        : Has(LicensePermission.ViewCredentials) ? "credenciais"
+        : Has(LicensePermission.ViewEvents) ? "acessos"
+        : Has(LicensePermission.ViewDeliveries) ? "encomendas"
+        : Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) ? "administracao"
+        : "sem-acesso";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_license?.Id == LicenseId) return;
+        _loading = true;
+        var licenseTask = Api.GetLicenseAsync(LicenseId);
+        var administrationTask = Api.GetLicenseAdministrationAsync(LicenseId);
+        await Task.WhenAll(licenseTask, administrationTask);
+        var result = await licenseTask;
+        var administration = await administrationTask;
+        _loading = false;
+        if (result.Success) _license = result.Value;
+        else _error = result.Error;
+        if (administration.Success) _administration = administration.Value;
+    }
+
+    private RenderFragment NavButton(string section, string text, string icon) => builder =>
+    {
+        builder.OpenComponent<MudButton>(0);
+        builder.AddAttribute(1, nameof(MudButton.Variant), CurrentSection == section ? Variant.Filled : Variant.Text);
+        builder.AddAttribute(2, nameof(MudButton.Color), CurrentSection == section ? Color.Primary : Color.Default);
+        builder.AddAttribute(3, nameof(MudButton.StartIcon), icon);
+        builder.AddAttribute(4, nameof(MudButton.OnClick), EventCallback.Factory.Create<MouseEventArgs>(this, () => Navigation.NavigateTo($"/licencas/{LicenseId}/{section}")));
+        builder.AddAttribute(5, nameof(MudButton.ChildContent), (RenderFragment)(content => content.AddContent(0, text)));
+        builder.CloseComponent();
+    };
+
+    private bool Has(LicensePermission permission) => _administration?.CurrentAccess.Has(permission) == true;
+    private bool SectionAllowed(string section) => section switch
+    {
+        "visao-geral" => Has(LicensePermission.ViewDashboard),
+        "equipamentos" or "rotas" or "cameras" => Has(LicensePermission.ViewDevices),
+        "estrutura" => Has(LicensePermission.ViewStructure),
+        "credenciais" => Has(LicensePermission.ViewCredentials),
+        "acessos" => Has(LicensePermission.ViewEvents),
+        "encomendas" => Has(LicensePermission.ViewDeliveries),
+        "administracao" => Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings),
+        _ => false
+    };
+}

@@ -1,22 +1,27 @@
 ﻿using CondotifyAPI.Commands.Equipments;
 using CondotifyAPI.Data.Equipments;
 using CondotifyAPI.Domain.Models.Equipments;
+using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.CFTV;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
+[Authorize]
 [Route("api/access/cftv")]
 public class CftvAccessController : ControllerBase
 {
     private readonly ISender _sender;
     private readonly ICFTVService _cftvService;
+    private readonly ILicenseAuthorizationService _authorization;
     private readonly string _apiKey;
 
-    public CftvAccessController(ISender sender, ICFTVService cftvService)
+    public CftvAccessController(ISender sender, ICFTVService cftvService, ILicenseAuthorizationService authorization)
     {
         _sender = sender;
         _cftvService = cftvService;
+        _authorization = authorization;
         _apiKey = Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY")!;
 #if DEBUG
         _apiKey = "1";
@@ -29,6 +34,12 @@ public class CftvAccessController : ControllerBase
         [FromBody] CreateCftvDeviceByLicenseIn cftv)
     {
         if (apiKey != _apiKey) return Unauthorized();
+
+        if (!Guid.TryParse(cftv.LicenseId, out var licenseId))
+            return BadRequest(new { Result = "InvalidRequest", Errors = "A licenca informada e invalida." });
+
+        if (!await _authorization.HasPermissionAsync(User, licenseId, LicensePermissionEnum.ManageDevices, HttpContext.RequestAborted))
+            return Forbid();
 
         var command = cftv.ToCommand();
         var validator = await new CreateCftvDeviceByLicenseCommandValidator().ValidateAsync(command);
@@ -52,6 +63,12 @@ public class CftvAccessController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(apiKey) || apiKey != _apiKey)
             return Unauthorized();
+
+        if (!Guid.TryParse(cftv.LicenseId, out var licenseId))
+            return BadRequest(new { Result = "ValidationError", Errors = new[] { "Licenca invalida." } });
+
+        if (!await _authorization.HasPermissionAsync(User, licenseId, LicensePermissionEnum.ManageDevices, HttpContext.RequestAborted))
+            return Forbid();
 
         var validator = new TestCftvConnectionInValidator();
         var validation = validator.Validate(cftv);

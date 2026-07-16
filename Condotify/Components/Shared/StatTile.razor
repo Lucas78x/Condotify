@@ -1,0 +1,19 @@
+<MudPaper Class="stat-tile" Elevation="0">
+    <div class="stat-icon @Tone"><MudIcon Icon="@Icon" Size="Size.Medium" /></div>
+    <div class="stat-copy">
+        <MudText Typo="Typo.caption" Color="Color.Secondary">@Label</MudText>
+        <MudText Typo="Typo.h5" Class="stat-value">@Value</MudText>
+        @if (!string.IsNullOrWhiteSpace(Hint))
+        {
+            <MudText Typo="Typo.caption" Class="stat-hint">@Hint</MudText>
+        }
+    </div>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Value { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
+    [Parameter] public string Hint { get; set; } = string.Empty;
+    [Parameter] public string Tone { get; set; } = "blue";
+}

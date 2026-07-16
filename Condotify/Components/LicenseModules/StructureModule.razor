@@ -1,0 +1,306 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+}
+
+@if (_loading)
+{
+    <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+}
+else
+{
+    <section class="structure-shell">
+        <nav class="hierarchy-breadcrumb" aria-label="Localizacao na estrutura">
+            <button type="button" class="breadcrumb-home @(_selectedBlockId is null ? "current" : null)" @onclick="GoToRoot">
+                <MudIcon Icon="@Icons.Material.Outlined.AccountTree" />
+                <span>Estrutura</span>
+            </button>
+            @if (SelectedBlock is not null)
+            {
+                <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+                <button type="button" class="@(_selectedUnitId is null ? "current" : null)" @onclick="GoToBlock">@SelectedBlock.Name</button>
+            }
+            @if (_unit is not null)
+            {
+                <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+                <span class="current">@_structure.UnitLabelSingular @_unit.Number</span>
+            }
+        </nav>
+
+        @if (_selectedBlockId is null)
+        {
+            <div class="structure-level-head">
+                <div>
+                    <MudText Typo="Typo.h5">Estrutura da propriedade</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Organize os agrupamentos e entre em cada area para administrar suas unidades.</MudText>
+                </div>
+                @if (CanManageStructure)
+                {
+                    <div class="structure-actions">
+                        <MudTooltip Text="Configurar nomenclatura"><MudIconButton Icon="@Icons.Material.Outlined.Tune" Variant="Variant.Outlined" OnClick="OpenSettingsAsync" /></MudTooltip>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddBusiness" OnClick="@(() => OpenCreateAsync("blocos"))">Novo @_structure.GroupLabelSingular.ToLowerInvariant()</MudButton>
+                    </div>
+                }
+            </div>
+
+            <div class="structure-overview-strip">
+                <div><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span><span><strong>@Blocks.Count</strong><small>@_structure.GroupLabelPlural</small></span></div>
+                <div><span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><span><strong>@Units.Count</strong><small>@_structure.UnitLabelPlural</small></span></div>
+                <div><span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><span><strong>@Residents.Count</strong><small>Pessoas vinculadas</small></span></div>
+            </div>
+
+            @if (Blocks.Count == 0)
+            {
+                <div class="structure-empty"><span><MudIcon Icon="@Icons.Material.Outlined.DomainAdd" /></span><MudText Typo="Typo.h6">Nenhum @_structure.GroupLabelSingular.ToLowerInvariant() cadastrado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A estrutura fisica ainda nao foi configurada.</MudText>@if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenCreateAsync("blocos"))">Comecar cadastro</MudButton> }</div>
+            }
+            else
+            {
+                <div class="hierarchy-grid group-card-grid">
+                    @foreach (var block in Blocks)
+                    {
+                        <button type="button" class="hierarchy-card group-card" @onclick="@(() => SelectBlock(block.Id))">
+                            <span class="hierarchy-card-icon"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span>
+                            <span class="hierarchy-card-main"><strong>@block.Name</strong><small>@_structure.GroupLabelSingular</small></span>
+                            <span class="hierarchy-card-stats"><span><strong>@block.TotalUnits</strong>@_structure.UnitLabelPlural.ToLowerInvariant()</span><span><strong>@block.TotalResidents</strong>pessoas</span></span>
+                            <span class="hierarchy-card-action"><span>Acessar</span><MudIcon Icon="@Icons.Material.Outlined.ArrowForward" /></span>
+                        </button>
+                    }
+                </div>
+            }
+        }
+        else if (_selectedUnitId is null && SelectedBlock is not null)
+        {
+            <div class="structure-level-head">
+                <div>
+                    <MudText Typo="Typo.h5">@SelectedBlock.Name</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Selecione uma @_structure.UnitLabelSingular.ToLowerInvariant() para acessar pessoas, veiculos e credenciais.</MudText>
+                </div>
+                @if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddHomeWork" OnClick="@(() => OpenCreateAsync("unidades"))">Nova @_structure.UnitLabelSingular.ToLowerInvariant()</MudButton> }
+            </div>
+
+            <div class="level-context-bar">
+                <span class="context-icon"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span>
+                <div><strong>@SelectedBlock.TotalUnits @_structure.UnitLabelPlural.ToLowerInvariant()</strong><span>@SelectedBlock.TotalResidents pessoa(s) vinculada(s)</span></div>
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.ArrowBack" OnClick="GoToRoot">Voltar para @_structure.GroupLabelPlural.ToLowerInvariant()</MudButton>
+            </div>
+
+            @if (SelectedBlock.Units.Count == 0)
+            {
+                <div class="structure-empty"><span><MudIcon Icon="@Icons.Material.Outlined.OtherHouses" /></span><MudText Typo="Typo.h6">Nenhuma @_structure.UnitLabelSingular.ToLowerInvariant() cadastrada</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Esta area ainda nao possui unidades.</MudText>@if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenCreateAsync("unidades"))">Cadastrar @_structure.UnitLabelSingular.ToLowerInvariant()</MudButton> }</div>
+            }
+            else
+            {
+                <div class="hierarchy-grid unit-card-grid">
+                    @foreach (var unit in SelectedBlock.Units.OrderBy(x => x.Number))
+                    {
+                        <button type="button" class="hierarchy-card unit-card" @onclick="@(() => SelectUnitAsync(unit.Id))">
+                            <span class="unit-number-icon"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span>
+                            <span class="hierarchy-card-main"><strong>@_structure.UnitLabelSingular @unit.Number</strong><small>@(string.IsNullOrWhiteSpace(unit.Floor) ? SelectedBlock.Name : $"{SelectedBlock.Name} | {unit.Floor}")</small></span>
+                            <span class="unit-card-count"><MudIcon Icon="@Icons.Material.Outlined.Groups" /> @unit.TotalResidents</span>
+                            <MudIcon Icon="@Icons.Material.Outlined.ArrowForward" />
+                        </button>
+                    }
+                </div>
+            }
+        }
+        else if (_loadingUnit)
+        {
+            <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+        }
+        else if (_unit is not null)
+        {
+            <div class="unit-detail-head">
+                <div class="unit-detail-identity">
+                    <span class="unit-detail-icon"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span>
+                    <div><MudText Typo="Typo.h5">@_structure.UnitLabelSingular @_unit.Number</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_unit.BlockName@(string.IsNullOrWhiteSpace(_unit.Floor) ? string.Empty : $" | {_unit.Floor}")</MudText></div>
+                </div>
+                @if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" OnClick="@(() => OpenCreateAsync("moradores"))">Nova pessoa</MudButton> }
+            </div>
+
+            <div class="unit-detail-kpis">
+                <div><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><span><strong>@_unit.People.Count</strong><small>Pessoas</small></span></div>
+                <div><span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.Badge" /></span><span><strong>@_unit.People.Sum(x => x.CredentialCount)</strong><small>Credenciais</small></span></div>
+                <div><span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></span><span><strong>@_unit.Vehicles.Count</strong><small>Veiculos</small></span></div>
+            </div>
+
+            <MudPaper Class="unit-detail-panel" Elevation="0">
+                <MudTabs Elevation="0" Class="unit-tabs">
+                    <MudTabPanel Text="Pessoas" Icon="@Icons.Material.Outlined.Groups">
+                        <div class="unit-toolbar">
+                            <MudTextField T="string" @bind-Value="_personSearch" Placeholder="Buscar nome, documento ou contato" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Immediate Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudSelect T="string" @bind-Value="_peopleFilter" Label="Exibicao" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem Value='@("all")'>Todas as pessoas</MudSelectItem><MudSelectItem Value='@("residents")'>Moradores</MudSelectItem><MudSelectItem Value='@("visitors")'>Visitantes</MudSelectItem><MudSelectItem Value='@("providers")'>Prestadores</MudSelectItem></MudSelect>
+                        </div>
+                        @if (FilteredPeople.Count == 0)
+                        {
+                            <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.PersonSearch" /><span>Nenhuma pessoa encontrada nesta unidade.</span></div>
+                        }
+                        else
+                        {
+                            <div class="people-list">
+                                @foreach (var person in FilteredPeople)
+                                {
+                                    <div class="person-row" role="button" tabindex="0" @onclick="@(() => OpenProfileAsync(person.Id))" @onkeydown="@(args => HandlePersonRowKeyDownAsync(args, person.Id))">
+                                        @if (!string.IsNullOrWhiteSpace(person.ImageUrl)) { <span class="person-list-photo"><img src="@person.ImageUrl" alt="Foto de @person.Name" /></span> } else { <MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(person.Name)</MudAvatar> }
+                                        <span class="person-row-main"><strong>@person.Name</strong><small>@RelationshipLabel(person.Relationship)@(!string.IsNullOrWhiteSpace(person.Description) ? $" | {person.Description}" : string.Empty)</small></span>
+                                        <span class="person-row-contact">@PrimaryContact(person)</span>
+                                        <span class="person-row-assets"><MudIcon Icon="@Icons.Material.Outlined.Badge" /> @person.CredentialCount <MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /> @person.VehicleCount</span>
+                                        <MudChip T="string" Size="Size.Small" Color="@(person.IsActive ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(person.IsActive ? "Ativo" : "Inativo")</MudChip>
+                                        <span class="person-row-actions">
+                                            <MudTooltip Text="@FaceActionTooltip(person)">
+                                                <span class="person-face-action" @onclick:stopPropagation="true">
+                                                    <MudIconButton Icon="@Icons.Material.Outlined.FaceRetouchingNatural"
+                                                                   Size="Size.Small"
+                                                                   Color="@(person.HasActiveFaceCredential ? Color.Success : Color.Primary)"
+                                                                   Disabled="@FaceActionDisabled(person)"
+                                                                   aria-label="@FaceActionTooltip(person)"
+                                                                   OnClick="@(() => OpenProfileAsync(person.Id, 1))" />
+                                                </span>
+                                            </MudTooltip>
+                                            <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+                                        </span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </MudTabPanel>
+                    <MudTabPanel Text="Veiculos" Icon="@Icons.Material.Outlined.DirectionsCar">
+                        @if (_unit.Vehicles.Count == 0) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /><span>Nenhum veiculo cadastrado nesta unidade. Abra uma pessoa para vincular o primeiro.</span></div> }
+                        else { <div class="profile-list">@foreach (var vehicle in _unit.Vehicles) { <div class="profile-list-row"><div class="profile-row-icon"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></div><div class="profile-row-main"><strong>@vehicle.Plate</strong><span>@vehicle.Brand @vehicle.Model | @vehicle.OwnerName</span></div><div class="profile-row-meta">@(!string.IsNullOrWhiteSpace(vehicle.TagIdentifier) ? $"Tag {vehicle.TagIdentifier}" : "Sem tag")</div><MudChip T="string" Size="Size.Small" Color="@(vehicle.IsActive ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(vehicle.IsActive ? "Ativo" : "Inativo")</MudChip></div> }</div> }
+                    </MudTabPanel>
+                    <MudTabPanel Text="Credenciais" Icon="@Icons.Material.Outlined.Badge">
+                        @if (_unit.People.All(x => x.CredentialCount == 0)) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.Badge" /><span>Nenhuma credencial vinculada nesta unidade.</span></div> }
+                        else { <div class="people-list">@foreach (var person in _unit.People.Where(x => x.CredentialCount > 0)) { <button type="button" class="person-row compact-person-row" @onclick="@(() => OpenProfileAsync(person.Id))">@if (!string.IsNullOrWhiteSpace(person.ImageUrl)) { <span class="person-list-photo"><img src="@person.ImageUrl" alt="Foto de @person.Name" /></span> } else { <MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(person.Name)</MudAvatar> }<span class="person-row-main"><strong>@person.Name</strong><small>@person.CredentialCount credencial(is)</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></button> }</div> }
+                    </MudTabPanel>
+                </MudTabs>
+            </MudPaper>
+        }
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public string ActiveSection { get; set; } = "estrutura";
+    [Parameter] public bool CanManageStructure { get; set; }
+    [Parameter] public bool CanManagePeople { get; set; }
+    [Parameter] public bool CanManageCredentials { get; set; }
+    private LicenseStructureViewModel _structure = new();
+    private UnitDetailViewModel? _unit;
+    private Guid? _selectedBlockId;
+    private Guid? _selectedUnitId;
+    private Guid _loadedLicenseId;
+    private bool _loading = true;
+    private bool _loadingUnit;
+    private string? _error;
+    private string _personSearch = string.Empty;
+    private string _peopleFilter = "all";
+    private List<BlockRowViewModel> Blocks => _structure.Blocks;
+    private List<UnitRowViewModel> Units => Blocks.SelectMany(x => x.Units).ToList();
+    private List<ResidentRowViewModel> Residents => Units.SelectMany(x => x.Residents).ToList();
+    private BlockRowViewModel? SelectedBlock => Blocks.FirstOrDefault(x => x.Id == _selectedBlockId);
+    private List<PersonSummaryViewModel> FilteredPeople => (_unit?.People ?? []).Where(MatchesPerson).OrderBy(x => x.Name).ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedLicenseId == LicenseId) return;
+        _loadedLicenseId = LicenseId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync(Guid? preferredBlock = null, Guid? preferredUnit = null)
+    {
+        _loading = true; _error = null;
+        var result = await Api.GetStructureAsync(LicenseId);
+        _loading = false;
+        if (!result.Success || result.Value is null) { _error = result.Error; return; }
+        _structure = result.Value;
+        _selectedBlockId = preferredBlock is { } blockId && Blocks.Any(x => x.Id == blockId) ? blockId : null;
+        _selectedUnitId = preferredUnit is { } unitId && SelectedBlock?.Units.Any(x => x.Id == unitId) == true ? unitId : null;
+        if (_selectedUnitId is not null) await LoadUnitAsync(); else _unit = null;
+    }
+
+    private void SelectBlock(Guid blockId) { _selectedBlockId = blockId; _selectedUnitId = null; _unit = null; }
+    private async Task SelectUnitAsync(Guid unitId) { _selectedUnitId = unitId; _personSearch = string.Empty; await LoadUnitAsync(); }
+    private void GoToRoot() { _selectedBlockId = null; _selectedUnitId = null; _unit = null; _personSearch = string.Empty; }
+    private void GoToBlock() { _selectedUnitId = null; _unit = null; _personSearch = string.Empty; }
+
+    private async Task LoadUnitAsync()
+    {
+        _unit = null;
+        if (_selectedUnitId is not { } unitId) return;
+        _loadingUnit = true;
+        var result = await Api.GetUnitDetailsAsync(LicenseId, unitId);
+        _loadingUnit = false;
+        if (result.Success) _unit = result.Value; else _error = result.Error;
+    }
+
+    private async Task OpenCreateAsync(string section)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(StructureFormDialog.LicenseId)] = LicenseId, [nameof(StructureFormDialog.ActiveSection)] = section,
+            [nameof(StructureFormDialog.Blocks)] = Blocks, [nameof(StructureFormDialog.InitialBlockId)] = _selectedBlockId,
+            [nameof(StructureFormDialog.InitialUnitId)] = _selectedUnitId, [nameof(StructureFormDialog.GroupLabelSingular)] = _structure.GroupLabelSingular,
+            [nameof(StructureFormDialog.UnitLabelSingular)] = _structure.UnitLabelSingular
+        };
+        var title = section switch { "unidades" => $"Nova {_structure.UnitLabelSingular.ToLowerInvariant()}", "moradores" => "Nova pessoa", _ => $"Novo {_structure.GroupLabelSingular.ToLowerInvariant()}" };
+        var dialog = await DialogService.ShowAsync<StructureFormDialog>(title, parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = section == "moradores" ? MaxWidth.Medium : MaxWidth.Small });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        Snackbar.Add("Cadastro concluido com sucesso.", Severity.Success);
+        await LoadAsync(_selectedBlockId, _selectedUnitId);
+    }
+
+    private async Task OpenSettingsAsync()
+    {
+        var model = new StructureSettingsViewModel { GroupLabelSingular = _structure.GroupLabelSingular, GroupLabelPlural = _structure.GroupLabelPlural, UnitLabelSingular = _structure.UnitLabelSingular, UnitLabelPlural = _structure.UnitLabelPlural };
+        var parameters = new DialogParameters { [nameof(StructureSettingsDialog.LicenseId)] = LicenseId, [nameof(StructureSettingsDialog.Model)] = model };
+        var dialog = await DialogService.ShowAsync<StructureSettingsDialog>("Configurar estrutura", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Small });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        Snackbar.Add("Nomenclatura atualizada.", Severity.Success); await LoadAsync();
+    }
+
+    private async Task OpenProfileAsync(Guid residentId, int initialTabIndex = 0)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(PersonProfileDialog.LicenseId)] = LicenseId,
+            [nameof(PersonProfileDialog.ResidentId)] = residentId,
+            [nameof(PersonProfileDialog.CanManagePeople)] = CanManagePeople,
+            [nameof(PersonProfileDialog.CanManageCredentials)] = CanManageCredentials,
+            [nameof(PersonProfileDialog.InitialTabIndex)] = initialTabIndex
+        };
+        var dialog = await DialogService.ShowAsync<PersonProfileDialog>("Cadastro da pessoa", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Large });
+        await dialog.Result; await LoadAsync(_selectedBlockId, _selectedUnitId);
+    }
+
+    private async Task HandlePersonRowKeyDownAsync(KeyboardEventArgs args, Guid residentId)
+    {
+        if (args.Key is "Enter" or " ") await OpenProfileAsync(residentId);
+    }
+
+    private bool MatchesPerson(PersonSummaryViewModel person)
+    {
+        var categoryMatches = _peopleFilter switch { "visitors" => person.Category == "Guest", "providers" => person.Category == "ServiceProvider", "residents" => person.Category is not "Guest" and not "ServiceProvider", _ => true };
+        if (!categoryMatches) return false;
+        if (string.IsNullOrWhiteSpace(_personSearch)) return true;
+        var term = _personSearch.Trim();
+        return person.Name.Contains(term, StringComparison.OrdinalIgnoreCase) || person.Document.Contains(term, StringComparison.OrdinalIgnoreCase) || person.PhoneNumber.Contains(term, StringComparison.OrdinalIgnoreCase) || person.Email.Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+    private static string PrimaryContact(PersonSummaryViewModel person) => !string.IsNullOrWhiteSpace(person.PhoneNumber) ? person.PhoneNumber : !string.IsNullOrWhiteSpace(person.Email) ? person.Email : "Sem contato";
+    private static string RelationshipLabel(string relationship) => relationship switch { "OwnerResponsible" => "Proprietario responsavel", "TenantResponsible" => "Locatario responsavel", "Responsible" => "Responsavel", "Dependent" => "Dependente", _ => "Morador" };
+    private bool FaceActionDisabled(PersonSummaryViewModel person) => !CanManageCredentials || !HasPreparedFacePhoto(person);
+    private string FaceActionTooltip(PersonSummaryViewModel person) => !CanManageCredentials
+        ? "Sem permissao para gerenciar credenciais"
+        : !HasPreparedFacePhoto(person)
+            ? "Adicione uma foto para ativar a facial"
+            : person.HasActiveFaceCredential ? "Gerenciar facial ativa" : "Ativar reconhecimento facial";
+    private static bool HasPreparedFacePhoto(PersonSummaryViewModel person) =>
+        person.ImageUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase);
+}

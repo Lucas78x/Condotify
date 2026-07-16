@@ -1,6 +1,8 @@
 ﻿using System;
 using CondotifyAPI.Domain.Models;
 using CondotifyAPI.Domain.Models.Equipments;
+using CondotifyAPI.Data.Equipments;
+using CondotifyAPI.Services.Extensions;
 using Xunit;
 
 namespace CondotifyAPI.Tests
@@ -113,6 +115,42 @@ namespace CondotifyAPI.Tests
 
             // Assert
             Assert.NotEqual(device1.Id, device2.Id);
+        }
+
+        [Fact]
+        public void InputConverter_ShouldUseDeviceNameForUnnamedLocation_AndKeepOptionalFieldsNull()
+        {
+            var input = new CreateAccessControlDeviceByLicenseIn
+            {
+                LicenseId = Guid.NewGuid().ToString(),
+                Name = "Portaria principal",
+                IPAddress = "192.168.1.50",
+                Port = 80,
+                Username = "admin",
+                Password = "secret",
+                Model = "SS5520",
+                Type = DeviceTypeEnum.SS5520,
+                Location = new Location { X = -12.9f, Y = -38.5f }
+            };
+
+            var command = input.ToCommand();
+
+            Assert.Equal("Portaria principal", command.Name);
+            Assert.Equal("Portaria principal", command.Location.Name);
+            Assert.Null(command.MACAddress);
+            Assert.Null(command.SerialNumber);
+            Assert.Null(command.FirmwareVersion);
+        }
+
+        [Theory]
+        [InlineData(DeviceTypeEnum.SS5520, true)]
+        [InlineData(DeviceTypeEnum.IdFaceMax, true)]
+        [InlineData(DeviceTypeEnum.SS3710UHF, false)]
+        [InlineData(DeviceTypeEnum.ControlIdUHF, false)]
+        [InlineData(DeviceTypeEnum.CT30002PB, false)]
+        public void SupportsFace_ShouldMatchDeviceCapability(DeviceTypeEnum type, bool expected)
+        {
+            Assert.Equal(expected, type.SupportsFace());
         }
     }
 }

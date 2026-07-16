@@ -82,7 +82,7 @@ public class HomeController : Controller
 
     private string BuildApiUrl(string path)
     {
-        var baseUrl = _configuration["CondotifyApi:BaseUrl"] ?? "https://localhost:5001";
+        var baseUrl = _configuration["CondotifyApi:BaseUrl"] ?? "https://localhost:7118";
         return $"{baseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
     }
 }

@@ -1,0 +1,70 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<section class="module-intro">
+    <div>
+        <MudText Typo="Typo.h5">Cameras e gravadores</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Gerencie os dispositivos de video e a capacidade de canais do condominio.</MudText>
+    </div>
+    @if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateDialogAsync">Novo dispositivo</MudButton> }
+</section>
+
+<div class="module-kpis">
+    <div class="mini-kpi"><span class="mini-kpi-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><div><strong>@_devices.Count</strong><span>Dispositivos</span></div></div>
+    <div class="mini-kpi"><span class="mini-kpi-icon green"><MudIcon Icon="@Icons.Material.Outlined.PhotoCamera" /></span><div><strong>@_devices.Count(x => x.DeviceType.Contains("Camera", StringComparison.OrdinalIgnoreCase))</strong><span>Cameras IP</span></div></div>
+    <div class="mini-kpi"><span class="mini-kpi-icon amber"><MudIcon Icon="@Icons.Material.Outlined.VideoSettings" /></span><div><strong>@_devices.Sum(x => x.MaxChannels)</strong><span>Canais configurados</span></div></div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+}
+
+<MudPaper Class="content-panel" Elevation="0">
+    <div class="panel-toolbar">
+        <div><MudText Typo="Typo.h6" Class="panel-title">Dispositivos instalados</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">@_devices.Count camera(s) ou gravador(es) configurado(s)</MudText></div>
+        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" />
+    </div>
+    @if (_loading)
+    {
+        <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+    }
+    else if (_devices.Count == 0)
+    {
+        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.VideocamOff" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum dispositivo de video</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Adicione a primeira camera ou gravador para iniciar o monitoramento.</MudText>@if (CanManage) { <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateDialogAsync">Adicionar dispositivo</MudButton> }</div>
+    }
+    else
+    {
+        <div class="table-wrap"><MudTable Items="_devices" Hover Dense Elevation="0">
+            <HeaderContent><MudTh>Dispositivo</MudTh><MudTh>Tipo</MudTh><MudTh>Rede</MudTh><MudTh>Canais</MudTh></HeaderContent>
+            <RowTemplate><MudTd DataLabel="Dispositivo"><div class="license-name-cell"><span class="device-type-icon"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><strong>@context.Name</strong></div></MudTd><MudTd DataLabel="Tipo">@context.DeviceType</MudTd><MudTd DataLabel="Rede">@context.IpAddress:@context.RTSPPort</MudTd><MudTd DataLabel="Canais">@context.MaxChannels</MudTd></RowTemplate>
+        </MudTable></div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    private List<CftvDeviceRowViewModel> _devices = [];
+    private string? _error;
+    private bool _loading = true;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        var result = await Api.GetCamerasAsync(LicenseId);
+        _loading = false;
+        if (result.Success) _devices = result.Value ?? []; else _error = result.Error;
+    }
+    private async Task OpenCreateDialogAsync()
+    {
+        var parameters = new DialogParameters { [nameof(CameraFormDialog.LicenseId)] = LicenseId };
+        var dialog = await DialogService.ShowAsync<CameraFormDialog>("Nova camera ou gravador", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        Snackbar.Add("Camera ou gravador cadastrado com sucesso.", Severity.Success);
+        await LoadAsync();
+    }
+}

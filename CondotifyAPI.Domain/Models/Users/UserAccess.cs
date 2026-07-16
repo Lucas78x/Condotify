@@ -125,6 +125,7 @@ namespace CondotifyAPI.Domain.Models.Users
         public void SetFirstAccess(bool firstAccess) => FirstAccess = firstAccess;
         public void SetLastAccess(DateTime lastAccess) => LastAccess = lastAccess;
         public void SetCreatedAt(DateTime createdAt) => CreatedAt = createdAt;
+        public void SetEnterpriseId(Guid enterpriseId) => EnterpriseId = enterpriseId;
 
         public bool VerifyPassword(string password, IPasswordHasher<UserAccess> hasher)
         {

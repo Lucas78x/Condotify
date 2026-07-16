@@ -26,6 +26,9 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Resident
             builder.Property(r => r.PhoneNumber)
                 .HasMaxLength(20);
 
+            builder.Property(r => r.CommercialPhone).HasMaxLength(20);
+            builder.Property(r => r.Description).HasMaxLength(200);
+
             builder.Property(r => r.CPF)
                 .HasMaxLength(14);
 
@@ -50,6 +53,9 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Resident
                 .IsRequired()
                 .HasDefaultValue(true);
 
+            builder.Property(r => r.NotifyAccess).IsRequired().HasDefaultValue(false);
+            builder.Property(r => r.IsActive).IsRequired().HasDefaultValue(true);
+
             builder.Property(r => r.Temporary)
                 .IsRequired()
                 .HasDefaultValue(false);
@@ -68,6 +74,21 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Resident
             builder.HasMany(r => r.AccessCredentials)
                 .WithOne(d => d.Resident)   
                 .HasForeignKey(d => d.ResidentId); 
+
+            builder.HasMany(r => r.UnitLinks)
+                .WithOne(x => x.Resident)
+                .HasForeignKey(x => x.ResidentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasMany(r => r.Vehicles)
+                .WithOne(x => x.Resident)
+                .HasForeignKey(x => x.ResidentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.HasMany(r => r.RegistrationInvites)
+                .WithOne(x => x.Resident)
+                .HasForeignKey(x => x.ResidentId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             builder.HasIndex(r => new { r.UnitId, r.CPF })
                 .IsUnique();

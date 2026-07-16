@@ -1,0 +1,218 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog route-dialog">
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+        }
+        else
+        {
+            <EditForm Model="_form" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+                }
+
+                <div class="route-form-section">
+                    <div class="section-heading"><div><strong>Identificacao</strong><span>Defina como esta rota sera reconhecida pela operacao.</span></div></div>
+                    <div class="form-grid">
+                        <MudTextField T="string" @bind-Value="_form.Name" Label="Nome da rota" Required For="@(() => _form.Name)" Variant="Variant.Outlined" />
+                        <MudTextField T="string" @bind-Value="_form.Description" Label="Descricao" Variant="Variant.Outlined" Class="full" />
+                    </div>
+                </div>
+
+                <div class="route-form-section">
+                    <div class="section-heading"><div><strong>Publico permitido</strong><span>Uma pessoa pode receber varias rotas, mas cada rota deve ter um publico claro.</span></div></div>
+                    <div class="audience-grid">
+                        @foreach (var option in AudienceOptions)
+                        {
+                            <label class="audience-option @(HasAudience(option.Value) ? "selected" : null)">
+                                <MudCheckBox T="bool" Value="@HasAudience(option.Value)" ValueChanged="@(value => SetAudience(option.Value, value))" Color="Color.Primary" />
+                                <span><strong>@option.Label</strong><small>@option.Description</small></span>
+                            </label>
+                        }
+                    </div>
+                    <div class="route-toggle-line">
+                        <MudSwitch T="bool" @bind-Value="_form.AllowTemporary" Color="Color.Primary" Label="Permitir pessoas e faces temporarias" />
+                        <MudSwitch T="bool" @bind-Value="_form.IsActive" Color="Color.Success" Label="Rota ativa" />
+                    </div>
+                </div>
+
+                <div class="route-form-section">
+                    <div class="section-heading"><div><strong>Janela de acesso</strong><span>Configure os dias e o intervalo diario desta rota.</span></div></div>
+                    <div class="weekday-selector">
+                        @foreach (var day in Days)
+                        {
+                            <MudButton Variant="@(HasDay(day.Bit) ? Variant.Filled : Variant.Outlined)" Color="@(HasDay(day.Bit) ? Color.Primary : Color.Default)" OnClick="@(() => ToggleDay(day.Bit))">@day.Label</MudButton>
+                        }
+                    </div>
+                    <div class="route-time-grid">
+                        <MudTimePicker @bind-Time="_form.StartTime" Label="Inicio" Variant="Variant.Outlined" AmPm="false" />
+                        <MudTimePicker @bind-Time="_form.EndTime" Label="Fim" Variant="Variant.Outlined" AmPm="false" />
+                    </div>
+                </div>
+
+                <div class="route-form-section">
+                    <div class="section-heading"><div><strong>Equipamentos e portas</strong><span>A credencial sera enviada para todos os destinos selecionados.</span></div><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_form.Devices.Count(x => x.Selected) selecionado(s)</MudChip></div>
+                    @if (_form.Devices.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Cadastre equipamentos de controle de acesso antes de criar a rota.</MudAlert>
+                    }
+                    else
+                    {
+                        <div class="route-target-list">
+                            @foreach (var target in _form.Devices)
+                            {
+                                <div class="route-target-row @(target.Selected ? "selected" : null)">
+                                    <MudCheckBox T="bool" @bind-Value="target.Selected" Color="Color.Primary" />
+                                    <span class="route-target-icon"><MudIcon Icon="@Icons.Material.Outlined.Sensors" /></span>
+                                    <div class="route-target-main"><strong>@target.DeviceName</strong><span>@target.DeviceModel | @target.DeviceType</span></div>
+                                    <MudChip T="string" Size="Size.Small" Color="@(target.DeviceIsActive ? Color.Success : Color.Warning)" Variant="Variant.Outlined">@(target.DeviceIsActive ? "Ativo" : "Inativo")</MudChip>
+                                    @if (target.Portals.Count > 0)
+                                    {
+                                        <MudSelect T="int" @bind-Value="target.PortalNumber" Label="Porta/canal" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(!target.Selected)">
+                                            @foreach (var portal in target.Portals)
+                                            {
+                                                <MudSelectItem Value="@portal.Number">@portal.Name</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    }
+                                    else
+                                    {
+                                        <MudNumericField T="int" @bind-Value="target.PortalNumber" Label="Porta/canal" Min="1" Max="128" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(!target.Selected)" />
+                                    }
+                                    <MudSelect T="int" @bind-Value="target.Direction" Label="Sentido" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(!target.Selected)">
+                                        <MudSelectItem Value="0">Entrada</MudSelectItem>
+                                        <MudSelectItem Value="1">Saida</MudSelectItem>
+                                        <MudSelectItem Value="2">Bidirecional</MudSelectItem>
+                                    </MudSelect>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </EditForm>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="@(_saving || _loading)" OnClick="SaveAsync">@(_saving ? "Salvando..." : "Salvar rota")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public AccessRouteViewModel? Route { get; set; }
+
+    private readonly AccessRouteFormViewModel _form = new();
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+
+    private static readonly (AccessRouteAudience Value, string Label, string Description)[] AudienceOptions =
+    [
+        (AccessRouteAudience.OwnerResponsible, "Proprietario responsavel", "Titular proprietario da unidade"),
+        (AccessRouteAudience.TenantResponsible, "Locatario responsavel", "Titular locatario da unidade"),
+        (AccessRouteAudience.Responsible, "Responsavel", "Responsavel sem vinculo de posse"),
+        (AccessRouteAudience.Resident, "Morador", "Moradores sem responsabilidade principal"),
+        (AccessRouteAudience.Dependent, "Dependente", "Dependentes vinculados a unidade"),
+        (AccessRouteAudience.Visitor, "Visitante", "Acessos temporarios de visitantes"),
+        (AccessRouteAudience.ServiceProvider, "Prestador", "Prestadores e equipes de servico")
+    ];
+
+    private static readonly (int Bit, string Label)[] Days =
+    [
+        (1, "Dom"), (2, "Seg"), (4, "Ter"), (8, "Qua"), (16, "Qui"), (32, "Sex"), (64, "Sab")
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var devicesResult = await Api.GetDevicesAsync(LicenseId);
+        _loading = false;
+        if (!devicesResult.Success || devicesResult.Value is null)
+        {
+            _error = devicesResult.Error ?? "Nao foi possivel carregar os equipamentos.";
+            return;
+        }
+
+        if (Route is not null)
+        {
+            _form.Name = Route.Name;
+            _form.Description = Route.Description;
+            _form.Audience = Route.Audience;
+            _form.IsActive = Route.IsActive;
+            _form.AllowTemporary = Route.AllowTemporary;
+            _form.DaysOfWeekMask = Route.DaysOfWeekMask;
+            _form.StartTime = Route.StartTime;
+            _form.EndTime = Route.EndTime;
+        }
+
+        foreach (var device in devicesResult.Value.OrderBy(x => x.Name))
+        {
+            var existing = Route?.Devices.FirstOrDefault(x => x.DeviceId == device.Id);
+            _form.Devices.Add(new AccessRouteTargetFormViewModel
+            {
+                DeviceId = device.Id,
+                DeviceName = device.Name,
+                DeviceModel = device.Model,
+                DeviceType = device.Type,
+                DeviceIsActive = device.IsActive,
+                Selected = existing is not null,
+                PortalNumber = existing?.PortalNumber ?? 1,
+                Direction = existing?.Direction switch { "Exit" => 1, "Bidirectional" => 2, _ => 0 },
+                IsActive = existing?.IsActive ?? true,
+                Portals = ReadPortals(device.DiscoveredPortalsJson)
+            });
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving || _loading) return;
+        _error = Validate();
+        if (_error is not null) return;
+        _saving = true;
+        var result = await Api.SaveAccessRouteAsync(LicenseId, Route?.Id, _form);
+        _saving = false;
+        if (!result.Success)
+        {
+            _error = result.Error ?? "Nao foi possivel salvar a rota.";
+            Snackbar.Add(_error, Severity.Error);
+            return;
+        }
+
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+
+    private string? Validate()
+    {
+        if (string.IsNullOrWhiteSpace(_form.Name)) return "Informe o nome da rota.";
+        if (_form.Audience == 0) return "Selecione ao menos um publico permitido.";
+        if (_form.DaysOfWeekMask == 0) return "Selecione ao menos um dia da semana.";
+        if (_form.StartTime is null || _form.EndTime is null || _form.StartTime >= _form.EndTime) return "Revise o horario inicial e final.";
+        if (_form.Devices.All(x => !x.Selected)) return "Selecione ao menos um equipamento.";
+        return null;
+    }
+
+    private bool HasAudience(AccessRouteAudience value) => (_form.Audience & (long)value) != 0;
+    private void SetAudience(AccessRouteAudience value, bool selected) =>
+        _form.Audience = selected ? _form.Audience | (long)value : _form.Audience & ~(long)value;
+    private bool HasDay(int bit) => (_form.DaysOfWeekMask & bit) != 0;
+    private void ToggleDay(int bit) => _form.DaysOfWeekMask = HasDay(bit) ? _form.DaysOfWeekMask & ~bit : _form.DaysOfWeekMask | bit;
+    private void Cancel() => Dialog.Cancel();
+
+    private static List<DevicePortalCapabilityViewModel> ReadPortals(string json)
+    {
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<DevicePortalCapabilityViewModel>>(
+                json,
+                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? [];
+        }
+        catch { return []; }
+    }
+}

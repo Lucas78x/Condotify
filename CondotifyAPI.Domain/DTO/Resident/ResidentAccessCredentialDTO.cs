@@ -22,6 +22,11 @@ namespace CondotifyAPI.Domain.DTO.Resident
         public string Identifier { get; set; }
 
         public bool IsActive { get; set; }
+        public bool IsTemporary { get; set; }
+        public int RenewalCount { get; set; }
+        public int MaxRenewals { get; set; }
+        public int UseCount { get; set; }
+        public int? MaxUses { get; set; }
         public DateTime ValidFrom { get; set; }
         public DateTime ValidTo { get; set; }
 

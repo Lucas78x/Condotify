@@ -2,9 +2,13 @@
 using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Services.Drivers;
 using CondotifyAPI.Services.Extensions;
+using CondotifyAPI.Services.AccessControl;
+using CondotifyAPI.Domain.Enums.Resident;
+using CondotifyAPI.Domain.Enums.AccessControl;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
 {
@@ -23,7 +27,8 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
     {
         try
         {
-            var url = $"http://{device.IPAddress}/cgi-bin/global.cgi?action=getCurrentTime";
+            var address = Address(device.IPAddress, device.Port);
+            var url = $"http://{address}/cgi-bin/global.cgi?action=getCurrentTime";
 
             var handler = new HttpClientHandler()
             {
@@ -41,7 +46,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
             if (!success)
                 return false;
 
-            var version = await GetFirmwareVersionAsync(device.IPAddress,device.Username,device.Password);
+            var version = await GetFirmwareVersionAsync(address, device.Username, device.Password);
 
             Console.WriteLine($"Device:{device.Type.ToString()} Firmware Version:{version}");
             return true;
@@ -52,7 +57,33 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
         }
     }
 
-    public async Task<string?> OpenDoorAsync(
+    public async Task<bool> OpenDoorAsync(AccessControlDevice device, int channel)
+    {
+        var response = await SendOpenDoorCommandAsync(device, channel);
+        return !string.IsNullOrWhiteSpace(response);
+    }
+
+    public async Task<DeviceInspectionResult> InspectAsync(AccessControlDevice device)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var version = await GetFirmwareVersionAsync(Address(device.IPAddress, device.Port), device.Username, device.Password);
+        stopwatch.Stop();
+        if (string.IsNullOrWhiteSpace(version))
+            return DeviceInspectionResult.Unavailable("O terminal UHF nao respondeu ao diagnostico.");
+
+        return new DeviceInspectionResult(
+            true,
+            (int)stopwatch.ElapsedMilliseconds,
+            "Terminal online. Canais sugeridos pelo perfil UHF.",
+            version.Trim(),
+            "{}",
+            [
+                new DevicePortalCapability(1, "Canal 1", AccessRouteDirectionEnum.Entry, false),
+                new DevicePortalCapability(2, "Canal 2", AccessRouteDirectionEnum.Entry, false)
+            ]);
+    }
+
+    private async Task<string?> SendOpenDoorCommandAsync(
     AccessControlDevice device,
     int channel,
     string? userId = null,
@@ -72,7 +103,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
             if (time.HasValue)
                 query += $"&Time={time.Value}";
 
-            var url = $"http://{device.IPAddress}/cgi-bin/accessControl.cgi?{query}";
+            var url = $"{BaseAddress(device)}/cgi-bin/accessControl.cgi?{query}";
 
             var credentialCache = new CredentialCache();
             credentialCache.Add(
@@ -108,7 +139,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
         try
         {
             var url =
-                $"http://{device.IPAddress}/cgi-bin/accessControl.cgi?action=closeDoor&channel={channel}";
+                $"{BaseAddress(device)}/cgi-bin/accessControl.cgi?action=closeDoor&channel={channel}";
 
             var credentialCache = new CredentialCache();
             credentialCache.Add(
@@ -146,7 +177,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
     AccessControlDevice device,
     List<AccessUserCreate> users)
     {
-        var url = $"http://{device.IPAddress}/cgi-bin/AccessUser.cgi?action=insertMulti";
+        var url = $"{BaseAddress(device)}/cgi-bin/AccessUser.cgi?action=insertMulti";
 
         var wrapper = new UserListWrapper<AccessUserCreate>
         {
@@ -160,7 +191,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
     AccessControlDevice device,
     List<AccessCard> cards)
     {
-        var url = $"http://{device.IPAddress}/cgi-bin/AccessCard.cgi?action=insertMulti";
+        var url = $"{BaseAddress(device)}/cgi-bin/AccessCard.cgi?action=insertMulti";
 
         var wrapper = new CardListWrapper
         {
@@ -211,7 +242,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
     AccessControlDevice device,
     List<AccessUserUpdate> users)
     {
-        var url = $"http://{device.IPAddress}/cgi-bin/AccessUser.cgi?action=updateMulti";
+        var url = $"{BaseAddress(device)}/cgi-bin/AccessUser.cgi?action=updateMulti";
 
         var wrapper = new UserListWrapper<AccessUserUpdate>
         {
@@ -260,7 +291,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
 
     public async Task<List<AccessUser>> GetUsersAsync(AccessControlDevice device)
     {
-        var baseUrl = $"http://{device.IPAddress}";
+        var baseUrl = BaseAddress(device);
         var users = new List<AccessUser>();
 
         try
@@ -317,7 +348,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
         try
         {
             var url =
-                $"http://{device.IPAddress}/cgi-bin/recordFinder.cgi?action=getQuerySize&name=AccessCardInfo";
+                $"{BaseAddress(device)}/cgi-bin/recordFinder.cgi?action=getQuerySize&name=AccessCardInfo";
 
             var credentialCache = new CredentialCache();
             credentialCache.Add(
@@ -490,7 +521,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
             cardNo = cardNo.Trim().Replace(" ", "").ToUpper();
 
             var url =
-                $"http://{device.IPAddress}/cgi-bin/AccessCard.cgi?action=removeMulti&CardNoList[0]={cardNo}";
+                $"{BaseAddress(device)}/cgi-bin/AccessCard.cgi?action=removeMulti&CardNoList[0]={cardNo}";
 
             var credentialCache = new CredentialCache();
             credentialCache.Add(
@@ -532,7 +563,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
             );
 
             var url =
-                $"http://{device.IPAddress}/cgi-bin/AccessCard.cgi?action=removeMulti&{parameters}";
+                $"{BaseAddress(device)}/cgi-bin/AccessCard.cgi?action=removeMulti&{parameters}";
 
             var credentialCache = new CredentialCache();
             credentialCache.Add(
@@ -567,7 +598,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
         try
         {
             var url =
-                $"http://{device.IPAddress}/cgi-bin/AccessUser.cgi?action=removeAll";
+                $"{BaseAddress(device)}/cgi-bin/AccessUser.cgi?action=removeAll";
 
             var credentialCache = new CredentialCache();
             credentialCache.Add(
@@ -611,6 +642,135 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
     Task<string> IAccessControlDriver.GetUsersAsync(AccessControlDevice device)
     {
         throw new NotImplementedException();
+    }
+
+    public async Task<CredentialOperationResult> UpsertCredentialAsync(AccessControlDevice device, CredentialProvisionRequest request)
+    {
+        if (request.Type is not (AccessCredentialTypeEnum.Card or AccessCredentialTypeEnum.Tag or AccessCredentialTypeEnum.VehicleTag or AccessCredentialTypeEnum.Password))
+            return CredentialOperationResult.Fail("Este equipamento UHF aceita tag, cartao ou senha; facial nao e suportado.");
+
+        var userId = string.IsNullOrWhiteSpace(request.ExternalUserId) ? request.Registration : request.ExternalUserId;
+        var configuredDoors = request.Portals?.Select(x => x.PortalNumber).Distinct().OrderBy(x => x).ToArray();
+        var doors = configuredDoors is { Length: > 0 } ? configuredDoors : [0];
+        var user = new AccessUserCreate
+        {
+            UserID = userId!,
+            UserName = request.ResidentName,
+            UserType = 0,
+            UseTime = 0,
+            UserStatus = request.IsActive ? 0 : 1,
+            Authority = 0,
+            Doors = doors,
+            TimeSections = [255],
+            SpecialDaysSchedule = [255],
+            Password = request.Type == AccessCredentialTypeEnum.Password ? request.Identifier : null,
+            ValidFrom = request.ValidFrom.ToString("yyyy-MM-dd HH:mm:ss"),
+            ValidTo = request.ValidTo.ToString("yyyy-MM-dd HH:mm:ss")
+        };
+
+        var userResult = await InsertUsersAsync(device, [user]);
+        if (string.IsNullOrWhiteSpace(userResult) && !string.IsNullOrWhiteSpace(request.ExternalUserId))
+        {
+            var update = new AccessUserUpdate
+            {
+                UserID = userId!,
+                UserName = request.ResidentName,
+                Doors = doors,
+                TimeSections = [255],
+                Password = user.Password,
+                ValidFrom = user.ValidFrom,
+                ValidTo = user.ValidTo
+            };
+            userResult = await UpdateUsersAsync(device, [update]);
+        }
+
+        if (string.IsNullOrWhiteSpace(userResult))
+            return CredentialOperationResult.Fail("O equipamento UHF recusou o cadastro do usuario.");
+
+        if (request.Type != AccessCredentialTypeEnum.Password)
+        {
+            var cardResult = await InsertCardsAsync(device,
+            [
+                new AccessCard { UserID = userId!, CardNo = request.Identifier.Trim(), CardType = 0, CardStatus = request.IsActive ? 0 : 1 }
+            ]);
+            if (string.IsNullOrWhiteSpace(cardResult))
+                return CredentialOperationResult.Fail("O usuario foi criado, mas o equipamento recusou a tag ou cartao.");
+        }
+
+        return CredentialOperationResult.Ok(userId, request.Identifier.Trim(), "Credencial sincronizada com o equipamento UHF.");
+    }
+
+    public async Task<CredentialOperationResult> SetCredentialActiveAsync(AccessControlDevice device, CredentialProvisionRequest request, bool isActive)
+    {
+        if (string.IsNullOrWhiteSpace(request.ExternalUserId))
+            return CredentialOperationResult.Fail("A credencial ainda nao possui usuario vinculado neste equipamento.");
+        var configuredDoors = request.Portals?.Select(x => x.PortalNumber).Distinct().OrderBy(x => x).ToArray();
+
+        var result = await UpdateUsersAsync(device,
+        [
+            new AccessUserUpdate
+            {
+                UserID = request.ExternalUserId,
+                Doors = configuredDoors is { Length: > 0 } ? configuredDoors : [0],
+                TimeSections = [255],
+                ValidFrom = request.ValidFrom.ToString("yyyy-MM-dd HH:mm:ss"),
+                ValidTo = (isActive ? request.ValidTo : DateTime.UtcNow.AddSeconds(-1)).ToString("yyyy-MM-dd HH:mm:ss")
+            }
+        ]);
+        return !string.IsNullOrWhiteSpace(result)
+            ? CredentialOperationResult.Ok(request.ExternalUserId, request.ExternalCredentialId, isActive ? "Credencial ativada." : "Credencial suspensa.")
+            : CredentialOperationResult.Fail("O equipamento UHF nao confirmou a alteracao de status.");
+    }
+
+    public async Task<CredentialOperationResult> RemoveCredentialAsync(AccessControlDevice device, CredentialProvisionRequest request)
+    {
+        string? result = request.Type is AccessCredentialTypeEnum.Card or AccessCredentialTypeEnum.Tag or AccessCredentialTypeEnum.VehicleTag
+            ? await RemoveCardAsync(device, request.Identifier)
+            : int.TryParse(request.ExternalUserId, out var userId)
+                ? await RemoveUserAsync(Address(device.IPAddress, device.Port), device.Username, device.Password, userId)
+                : null;
+        return !string.IsNullOrWhiteSpace(result)
+            ? CredentialOperationResult.Ok(request.ExternalUserId, request.ExternalCredentialId, "Credencial removida do equipamento UHF.")
+            : CredentialOperationResult.Fail("O equipamento UHF nao confirmou a remocao.");
+    }
+
+    public Task<CredentialOperationResult> StartFaceEnrollmentAsync(AccessControlDevice device, string externalUserId) =>
+        Task.FromResult(CredentialOperationResult.Fail("Equipamentos UHF nao realizam captura facial."));
+
+    public Task<CredentialOperationResult> CancelFaceEnrollmentAsync(AccessControlDevice device) =>
+        Task.FromResult(CredentialOperationResult.Fail("Equipamentos UHF nao realizam captura facial."));
+
+    public async Task<IReadOnlyList<DeviceAccessEvent>> GetAccessEventsAsync(AccessControlDevice device, int take)
+    {
+        var url = $"{BaseAddress(device)}/cgi-bin/recordFinder.cgi?action=find&name=AccessControlCardRec&condition.count={Math.Clamp(take, 1, 200)}";
+        var body = await DigestGetAsync(url, device.Username, device.Password);
+        if (string.IsNullOrWhiteSpace(body)) return [];
+
+        var records = new Dictionary<int, Dictionary<string, string>>();
+        foreach (var line in body.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var match = Regex.Match(line, @"^records\[(\d+)\]\.([^=]+)=(.*)$");
+            if (!match.Success) continue;
+            var index = int.Parse(match.Groups[1].Value);
+            if (!records.TryGetValue(index, out var values)) records[index] = values = new();
+            values[match.Groups[2].Value] = match.Groups[3].Value;
+        }
+
+        return records.Select(pair =>
+        {
+            var value = pair.Value;
+            _ = DateTime.TryParse(value.GetValueOrDefault("CreateTime"), out var occurredAt);
+            var authorized = value.GetValueOrDefault("Status") == "1";
+            return new DeviceAccessEvent(
+                value.GetValueOrDefault("RecNo") ?? pair.Key.ToString(),
+                authorized ? "Acesso autorizado" : "Acesso negado",
+                authorized,
+                occurredAt == default ? DateTime.UtcNow : occurredAt,
+                value.GetValueOrDefault("UserID"),
+                value.GetValueOrDefault("CardName"),
+                value.GetValueOrDefault("CardNo"),
+                value.GetValueOrDefault("Door"));
+        }).OrderByDescending(x => x.OccurredAt).Take(take).ToList();
     }
 
     #region TODO: Será refeito no User
@@ -686,6 +846,9 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
     {
         public List<AccessCard> CardList { get; set; }
     }
+
+    private static string Address(string ip, int port) => port is <= 0 or 80 ? ip : $"{ip}:{port}";
+    private static string BaseAddress(AccessControlDevice device) => $"http://{Address(device.IPAddress, device.Port)}";
     #endregion
 
 }
