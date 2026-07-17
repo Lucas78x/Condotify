@@ -18,6 +18,8 @@ namespace CondotifyAPI.Services.Drivers
         Task<IReadOnlyList<DeviceAccessEvent>> GetAccessEventsAsync(AccessControlDevice device, int take);
         Task<DeviceInspectionResult> InspectAsync(AccessControlDevice device) =>
             Task.FromResult(DeviceInspectionResult.Unavailable("Este driver ainda nao fornece diagnostico detalhado."));
+        Task<DeviceCredentialInventoryResult> ReadCredentialInventoryAsync(AccessControlDevice device) =>
+            Task.FromResult(DeviceCredentialInventoryResult.Unavailable("Este driver ainda nao fornece inventario remoto."));
 
         Task<string> GetUsersAsync(AccessControlDevice device);
 

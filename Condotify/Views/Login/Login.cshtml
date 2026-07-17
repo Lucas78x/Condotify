@@ -1,128 +1,229 @@
 @model Condotify.Models.LoginViewModel
 @{
     Layout = null;
+    var isMfa = Model?.MfaRequired == true;
     var errors = ViewData.ModelState.Values
-        .SelectMany(value => value.Errors)
-        .Select(value => value.ErrorMessage)
-        .Where(value => !string.IsNullOrWhiteSpace(value))
+        .SelectMany(x => x.Errors)
+        .Select(x => x.ErrorMessage)
+        .Where(x => !string.IsNullOrWhiteSpace(x))
         .ToList();
     var tempError = TempData["LoginError"] as string;
     if (!string.IsNullOrWhiteSpace(tempError)) errors.Add(tempError);
 }
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f7fa" />
     <title>Entrar | Condotify</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
+        :root {
+            color-scheme: light;
+            --ink: #182033;
+            --muted: #667085;
+            --line: #dce2eb;
+            --primary: #3156d3;
+            --primary-hover: #2949b5;
+        }
+
         * { box-sizing: border-box; }
         html, body { min-height: 100%; margin: 0; }
-        body { font-family: Inter, "Segoe UI", sans-serif; color: #202532; background: #f4f6f8; }
-        .login-shell { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; }
-        .login-frame { width: min(100%, 430px); }
-        .brand { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 24px; }
-        .brand-mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 8px; background: #3156d3; color: white; font-weight: 700; font-size: 18px; }
-        .brand-name { margin: 0; font-size: 22px; font-weight: 700; }
-        .brand-copy { margin: 2px 0 0; color: #697386; font-size: 12px; }
-        .login-card { border: 1px solid #dfe4eb; border-radius: 8px; background: white; box-shadow: 0 14px 36px rgba(32,37,50,.08); overflow: hidden; }
-        .card-header { padding: 26px 28px 20px; border-bottom: 1px solid #e7eaf0; }
-        .card-header h1 { margin: 0; font-size: 24px; letter-spacing: 0; }
-        .card-header p { margin: 7px 0 0; color: #697386; font-size: 14px; line-height: 1.5; }
-        .login-form { padding: 24px 28px 28px; }
+        body {
+            font-family: Inter, "Segoe UI", Arial, sans-serif;
+            color: var(--ink);
+            background: #f5f7fa;
+            letter-spacing: 0;
+        }
+
+        button, input { font: inherit; }
+        .page { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; }
+        .frame { width: min(100%, 420px); }
+        .brand { display: flex; align-items: center; justify-content: center; gap: 11px; margin-bottom: 26px; }
+        .mark {
+            width: 38px;
+            height: 38px;
+            display: grid;
+            place-items: center;
+            border-radius: 7px;
+            background: var(--primary);
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            box-shadow: 0 7px 18px rgba(49, 86, 211, .18);
+        }
+        .brand strong { display: block; font-size: 18px; line-height: 1.2; }
+        .brand small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+        .box { padding: 30px; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: 0 16px 42px rgba(24, 32, 51, .07); }
+        .head { margin-bottom: 26px; text-align: center; }
+        .head h1 { margin: 0; font-size: 24px; line-height: 1.25; font-weight: 700; }
+        .head p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
         .field { margin-bottom: 17px; }
-        .field label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 600; color: #384152; }
-        .field input { width: 100%; height: 46px; padding: 0 13px; border: 1px solid #cfd5de; border-radius: 6px; background: white; color: #202532; font: inherit; font-size: 14px; outline: none; transition: border-color .15s, box-shadow .15s; }
-        .field input:focus { border-color: #3156d3; box-shadow: 0 0 0 3px rgba(49,86,211,.12); }
-        .field input::placeholder { color: #98a1af; }
-        .password-wrap { position: relative; }
-        .password-wrap input { padding-right: 48px; }
-        .password-toggle { position: absolute; right: 5px; top: 5px; width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #697386; cursor: pointer; }
-        .password-toggle:hover { background: #f0f2f5; color: #202532; }
-        .form-meta { display: flex; align-items: center; justify-content: space-between; margin: 3px 0 20px; font-size: 13px; color: #697386; }
-        .remember { display: inline-flex; align-items: center; gap: 7px; }
-        .remember input { accent-color: #3156d3; }
-        .login-button { width: 100%; height: 46px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 6px; background: #3156d3; color: white; font: inherit; font-weight: 600; cursor: pointer; transition: background .15s; }
-        .login-button:hover { background: #2949b5; }
-        .login-button:disabled { opacity: .7; cursor: wait; }
-        .error-box { margin-bottom: 18px; padding: 12px 14px; border: 1px solid #efb8bf; border-radius: 6px; background: #fff1f3; color: #9b2634; font-size: 13px; line-height: 1.45; }
-        .demo-box { margin-top: 18px; padding: 12px 14px; border: 1px solid #c9ded7; border-radius: 6px; background: #eef8f5; color: #285f50; font-size: 12px; line-height: 1.5; }
-        .demo-box strong { display: block; margin-bottom: 2px; color: #174f40; }
-        .footer { margin: 22px 0 0; text-align: center; color: #8992a0; font-size: 12px; }
-        .spinner { display: none; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.45); border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite; }
-        .is-loading .spinner { display: block; }
+        .field label { display: block; margin-bottom: 7px; color: #344054; font-size: 12px; font-weight: 600; }
+        .field input {
+            width: 100%;
+            height: 46px;
+            padding: 0 13px;
+            border: 1px solid #cbd3df;
+            border-radius: 6px;
+            background: #fff;
+            color: var(--ink);
+            font-size: 14px;
+            outline: none;
+            transition: border-color .15s ease, box-shadow .15s ease;
+        }
+        .field input::placeholder { color: #98a2b3; }
+        .field input:hover { border-color: #aab4c3; }
+        .field input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(49, 86, 211, .11); }
+        .password { position: relative; }
+        .password input { padding-right: 62px; }
+        .toggle {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            height: 36px;
+            padding: 0 9px;
+            border: 0;
+            border-radius: 5px;
+            background: transparent;
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .toggle:hover { background: #f1f4ff; }
+        .meta { min-height: 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 20px; color: var(--muted); font-size: 11px; }
+        .meta a { color: var(--primary); font-weight: 600; text-decoration: none; }
+        .remember { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+        .remember input { width: 14px; height: 14px; margin: 0; accent-color: var(--primary); }
+        .submit {
+            width: 100%;
+            height: 46px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: 0;
+            border-radius: 6px;
+            background: var(--primary);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .15s ease, box-shadow .15s ease;
+        }
+        .submit:hover { background: var(--primary-hover); box-shadow: 0 7px 18px rgba(49, 86, 211, .18); }
+        .submit:disabled { cursor: wait; opacity: .72; }
+        .error { margin-bottom: 18px; padding: 11px 12px; border: 1px solid #efb8bf; border-radius: 6px; background: #fff3f4; color: #9b2634; font-size: 12px; line-height: 1.45; }
+        .demo { margin-top: 17px; padding: 11px 12px; border-radius: 6px; background: #f0f7f5; color: #306356; font-size: 11px; line-height: 1.45; }
+        .demo strong { display: block; margin-bottom: 2px; }
+        .footer { margin: 22px 0 0; color: #8a94a3; font-size: 11px; text-align: center; }
+        .spinner { display: none; width: 15px; height: 15px; border: 2px solid rgba(255, 255, 255, .45); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+        .loading .spinner { display: block; }
         @@keyframes spin { to { transform: rotate(360deg); } }
+
+        @@media (max-width: 480px) {
+            .page { align-items: start; padding: 28px 16px; }
+            .frame { width: 100%; max-width: 420px; min-width: 0; }
+            .box { padding: 25px 20px; }
+            .brand { margin-bottom: 22px; }
+            .meta { flex-wrap: wrap; }
+        }
+        @@media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; animation-duration: .01ms !important; }
+        }
     </style>
 </head>
 <body>
-    <main class="login-shell">
-        <div class="login-frame">
-            <div class="brand">
-                <div class="brand-mark">C</div>
-                <div><p class="brand-name">Condotify</p><p class="brand-copy">Gestao condominial inteligente</p></div>
-            </div>
+<main class="page">
+    <div class="frame">
+        <div class="brand" aria-label="Condotify">
+            <div class="mark" aria-hidden="true">C</div>
+            <div><strong>Condotify</strong><small>Controle inteligente de acesso</small></div>
+        </div>
 
-            <section class="login-card">
-                <header class="card-header">
-                    <h1>Bem-vindo</h1>
-                    <p>Entre com as credenciais da sua empresa para acessar a central de operacoes.</p>
-                </header>
+        <section class="box">
+            <header class="head">
+                <h1>@(isMfa ? "Confirme sua identidade" : "Acesse sua conta")</h1>
+                <p>@(isMfa ? "Digite o código do autenticador ou use um código de recuperação." : "Entre com seu e-mail e senha para continuar.")</p>
+            </header>
 
-                <form id="loginForm" method="post" action="/Login/Login" class="login-form">
-                    @Html.AntiForgeryToken()
+            <form id="loginForm" method="post" action="/Login/Login">
+                @Html.AntiForgeryToken()
+                @if (errors.Count > 0)
+                {
+                    <div class="error" role="alert" aria-live="polite">@string.Join(" ", errors.Distinct())</div>
+                }
 
-                    @if (errors.Count > 0)
-                    {
-                        <div class="error-box" role="alert">@string.Join(" ", errors.Distinct())</div>
-                    }
-
+                @if (isMfa)
+                {
+                    <input type="hidden" name="MfaRequired" value="true" />
+                    <input type="hidden" name="MfaChallengeToken" value="@Model!.MfaChallengeToken" />
+                    <input type="hidden" name="Email" value="@Model.Email" />
+                    <input type="hidden" name="RememberMe" value="@(Model.RememberMe ? "true" : "false")" />
+                    <div class="field">
+                        <label for="mfaCode">Código de segurança</label>
+                        <input id="mfaCode" type="text" name="MfaCode" autocomplete="one-time-code" inputmode="numeric" maxlength="20" placeholder="000000" required autofocus />
+                    </div>
+                    <div class="meta"><a href="/Login">Voltar ao login</a><span>Válido por 5 minutos</span></div>
+                }
+                else
+                {
                     <div class="field">
                         <label for="email">E-mail</label>
                         <input id="email" type="email" name="Email" value="@Model?.Email" autocomplete="email" placeholder="nome@empresa.com.br" required autofocus />
                     </div>
-
                     <div class="field">
                         <label for="password">Senha</label>
-                        <div class="password-wrap">
+                        <div class="password">
                             <input id="password" type="password" name="Password" autocomplete="current-password" placeholder="Digite sua senha" required />
-                            <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Mostrar ou ocultar senha" title="Mostrar ou ocultar senha">
-                                <span id="eyeIcon">◉</span>
-                            </button>
+                            <button id="passwordToggle" type="button" class="toggle" onclick="togglePassword()" aria-label="Mostrar senha" aria-pressed="false">Ver</button>
                         </div>
                     </div>
-
-                    <div class="form-meta">
-                        <label class="remember"><input type="checkbox" name="RememberMe" /> Manter conectado</label>
-                        <span>Ambiente seguro</span>
+                    <div class="meta">
+                        <label class="remember">
+                            @if (Model?.RememberMe == true)
+                            {
+                                <input type="checkbox" name="RememberMe" value="true" checked />
+                            }
+                            else
+                            {
+                                <input type="checkbox" name="RememberMe" value="true" />
+                            }
+                            Manter conectado
+                        </label>
+                        <span>Ambiente protegido</span>
                     </div>
+                }
 
-                    <button id="submitButton" class="login-button" type="submit"><span class="spinner"></span><span id="buttonText">Entrar</span></button>
+                <button id="submitButton" class="submit" type="submit">
+                    <span class="spinner" aria-hidden="true"></span>
+                    <span id="buttonText">@(isMfa ? "Confirmar acesso" : "Entrar")</span>
+                </button>
 
-                    @if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
-                    {
-                        <div class="demo-box"><strong>Acesso de desenvolvimento</strong>teste@condotify.local · Teste@@123</div>
-                    }
-                </form>
-            </section>
-            <p class="footer">© @DateTime.Now.Year Condotify. Acesso restrito.</p>
-        </div>
-    </main>
+            </form>
+        </section>
+        <p class="footer">&copy; @DateTime.Now.Year Condotify. Acesso restrito.</p>
+    </div>
+</main>
+<script>
+    function togglePassword() {
+        const input = document.getElementById('password');
+        const button = document.getElementById('passwordToggle');
+        if (!input || !button) return;
 
-    <script>
-        function togglePassword() {
-            const input = document.getElementById('password');
-            input.type = input.type === 'password' ? 'text' : 'password';
-        }
-        document.getElementById('loginForm').addEventListener('submit', function () {
-            const button = document.getElementById('submitButton');
-            button.disabled = true;
-            button.classList.add('is-loading');
-            document.getElementById('buttonText').textContent = 'Entrando...';
-        });
-    </script>
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        button.textContent = show ? 'Ocultar' : 'Ver';
+        button.setAttribute('aria-label', show ? 'Ocultar senha' : 'Mostrar senha');
+        button.setAttribute('aria-pressed', show ? 'true' : 'false');
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', function () {
+        const button = document.getElementById('submitButton');
+        button.disabled = true;
+        button.classList.add('loading');
+        document.getElementById('buttonText').textContent = 'Validando...';
+    });
+</script>
 </body>
 </html>

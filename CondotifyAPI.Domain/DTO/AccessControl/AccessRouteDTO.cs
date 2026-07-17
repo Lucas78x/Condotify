@@ -59,6 +59,7 @@ public class AccessBatchOperationDTO
     public Guid LicenseId { get; set; }
     public LicenseDTO License { get; set; } = null!;
     public string Operation { get; set; } = string.Empty;
+    public string IdempotencyKey { get; set; } = Guid.NewGuid().ToString("N");
     public AccessBatchStatusEnum Status { get; set; }
     public int TotalItems { get; set; }
     public int ProcessedItems { get; set; }
@@ -67,9 +68,58 @@ public class AccessBatchOperationDTO
     public string RequestedBy { get; set; } = string.Empty;
     public string FilterJson { get; set; } = "{}";
     public string Error { get; set; } = string.Empty;
+    public int Priority { get; set; }
+    public int AttemptCount { get; set; }
+    public int MaxAttempts { get; set; } = 5;
+    public string LeaseOwner { get; set; } = string.Empty;
+    public DateTime? LeaseExpiresAt { get; set; }
+    public DateTime? LastHeartbeatAt { get; set; }
+    public DateTime? NextAttemptAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? StartedAt { get; set; }
     public DateTime? FinishedAt { get; set; }
+    public ICollection<AccessOperationItemDTO> Items { get; set; } = new List<AccessOperationItemDTO>();
+}
+
+public class AccessOperationItemDTO
+{
+    public Guid Id { get; set; }
+    public Guid BatchId { get; set; }
+    public AccessBatchOperationDTO Batch { get; set; } = null!;
+    public Guid? CredentialId { get; set; }
+    public ResidentAccessCredentialDTO? Credential { get; set; }
+    public Guid? DeviceId { get; set; }
+    public AccessControlDeviceDTO? Device { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public AccessOperationItemStatusEnum Status { get; set; }
+    public string IdempotencyKey { get; set; } = string.Empty;
+    public int AttemptCount { get; set; }
+    public string Error { get; set; } = string.Empty;
+    public DateTime? NextAttemptAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? StartedAt { get; set; }
+    public DateTime? FinishedAt { get; set; }
+}
+
+public class AccessInventoryItemDTO
+{
+    public Guid Id { get; set; }
+    public Guid LicenseId { get; set; }
+    public LicenseDTO License { get; set; } = null!;
+    public Guid DeviceId { get; set; }
+    public AccessControlDeviceDTO Device { get; set; } = null!;
+    public Guid? CredentialId { get; set; }
+    public ResidentAccessCredentialDTO? Credential { get; set; }
+    public string RemoteKey { get; set; } = string.Empty;
+    public string ExternalUserId { get; set; } = string.Empty;
+    public string ExternalCredentialId { get; set; } = string.Empty;
+    public string CredentialType { get; set; } = string.Empty;
+    public string Identifier { get; set; } = string.Empty;
+    public string PersonName { get; set; } = string.Empty;
+    public bool RemoteActive { get; set; }
+    public InventoryMatchStatusEnum Status { get; set; }
+    public string DetailsJson { get; set; } = "{}";
+    public DateTime ObservedAt { get; set; }
 }
 
 public class AccessEventRecordDTO

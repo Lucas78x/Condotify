@@ -14,6 +14,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CondotifyAPI.Services.Authorization;
+using CondotifyAPI.Services.AccessControl;
+using CondotifyAPI.Services.Security;
 
 namespace CondotifyAPI.Controllers;
 
@@ -23,8 +25,13 @@ namespace CondotifyAPI.Controllers;
 public class PeopleManagementController : ControllerBase
 {
     private readonly DatabaseContext _context;
+    private readonly IPrivateMediaStore _media;
 
-    public PeopleManagementController(DatabaseContext context) => _context = context;
+    public PeopleManagementController(DatabaseContext context, IPrivateMediaStore media)
+    {
+        _context = context;
+        _media = media;
+    }
 
     [HttpGet("units/{unitId:guid}/details")]
     [RequireLicensePermission(LicensePermissionEnum.ViewPeople)]
@@ -78,7 +85,20 @@ public class PeopleManagementController : ControllerBase
         resident.RG = input.RG?.Trim() ?? string.Empty;
         resident.BirthDate = input.BirthDate?.Trim() ?? string.Empty;
         resident.Description = input.Description?.Trim() ?? string.Empty;
-        resident.ImgUrl = input.ImageUrl?.Trim() ?? resident.ImgUrl;
+        var previousPhoto = resident.ImgUrl;
+        var requestedPhoto = input.ImageUrl?.Trim();
+        if (requestedPhoto is not null && !string.Equals(requestedPhoto, previousPhoto, StringComparison.Ordinal))
+        {
+            if (requestedPhoto.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+            {
+                var validation = FaceImageValidator.Validate(requestedPhoto, 1_000_000);
+                if (!validation.Success) return BadRequest(new { Errors = validation.Error });
+                resident.ImgUrl = await _media.StoreDataUriAsync(licenseId, requestedPhoto, HttpContext.RequestAborted);
+            }
+            else if (string.IsNullOrWhiteSpace(requestedPhoto)) resident.ImgUrl = string.Empty;
+            else if (requestedPhoto.StartsWith($"/private-media/{licenseId:D}/", StringComparison.OrdinalIgnoreCase)) resident.ImgUrl = requestedPhoto;
+            else return BadRequest(new { Errors = "A referencia da foto nao e valida." });
+        }
         resident.NotifyAccess = input.NotifyAccess;
         resident.IsActive = input.IsActive;
         var link = resident.UnitLinks.FirstOrDefault(x => x.IsPrimary) ?? resident.UnitLinks.FirstOrDefault();
@@ -108,6 +128,8 @@ public class PeopleManagementController : ControllerBase
             });
         }
         await _context.SaveChangesAsync();
+        if (!string.Equals(previousPhoto, resident.ImgUrl, StringComparison.Ordinal))
+            await _media.DeleteAsync(licenseId, previousPhoto, HttpContext.RequestAborted);
         return Ok(ToProfile(resident));
     }
 

@@ -14,5 +14,14 @@ namespace Condotify.Models
         [StringLength(100, MinimumLength = 6, ErrorMessage = "A senha deve ter entre 6 e 100 caracteres.")]
         [Display(Name = "Senha")]
         public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; }
+
+        public bool MfaRequired { get; set; }
+        public string MfaChallengeToken { get; set; } = string.Empty;
+
+        [Display(Name = "Codigo de seguranca")]
+        [StringLength(20, ErrorMessage = "Digite um codigo valido.")]
+        public string MfaCode { get; set; } = string.Empty;
     }
 }

@@ -72,6 +72,9 @@ public sealed class CredentialDeviceOut
 public sealed class CreateReconciliationBatchIn
 {
     public bool DryRun { get; set; }
+    [Range(0, 100)]
+    public int Priority { get; set; } = 50;
+    public string IdempotencyKey { get; set; } = string.Empty;
     public List<Guid> CredentialIds { get; set; } = [];
 }
 
@@ -84,11 +87,30 @@ public sealed class AccessBatchOperationOut
     public int ProcessedItems { get; set; }
     public int SuccessfulItems { get; set; }
     public int FailedItems { get; set; }
+    public int Priority { get; set; }
+    public int AttemptCount { get; set; }
+    public int MaxAttempts { get; set; }
     public string RequestedBy { get; set; } = string.Empty;
     public string Error { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime? StartedAt { get; set; }
     public DateTime? FinishedAt { get; set; }
+    public DateTime? NextAttemptAt { get; set; }
+    public List<AccessOperationItemOut> Items { get; set; } = [];
+}
+
+public sealed class AccessOperationItemOut
+{
+    public Guid Id { get; set; }
+    public Guid? CredentialId { get; set; }
+    public Guid? DeviceId { get; set; }
+    public string CredentialName { get; set; } = string.Empty;
+    public string DeviceName { get; set; } = string.Empty;
+    public string Action { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public int AttemptCount { get; set; }
+    public string Error { get; set; } = string.Empty;
+    public DateTime? NextAttemptAt { get; set; }
 }
 
 public sealed class AccessAuditOut
@@ -139,6 +161,29 @@ public sealed class ReconciliationPreviewOut
     public int TargetCount { get; set; }
     public int PendingCount { get; set; }
     public List<string> Warnings { get; set; } = [];
+}
+
+public sealed class RouteSimulationIn
+{
+    public Guid ResidentId { get; set; }
+    public AccessCredentialTypeEnum CredentialType { get; set; }
+}
+
+public sealed class RouteSimulationOut
+{
+    public string Audience { get; set; } = string.Empty;
+    public List<string> Routes { get; set; } = [];
+    public List<RouteSimulationTargetOut> Targets { get; set; } = [];
+    public List<string> Warnings { get; set; } = [];
+}
+
+public sealed class RouteSimulationTargetOut
+{
+    public Guid DeviceId { get; set; }
+    public string DeviceName { get; set; } = string.Empty;
+    public string DeviceType { get; set; } = string.Empty;
+    public bool Online { get; set; }
+    public List<string> Portals { get; set; } = [];
 }
 
 public sealed class CredentialOperationOut

@@ -101,6 +101,38 @@ public sealed class DeviceInspectionOut
     public int? ResponseTimeMs { get; set; }
     public string Message { get; set; } = string.Empty;
     public string FirmwareVersion { get; set; } = string.Empty;
+    public string SerialNumber { get; set; } = string.Empty;
+    public string MacAddress { get; set; } = string.Empty;
     public DateTime CheckedAt { get; set; }
     public List<DevicePortalCapabilityOut> Portals { get; set; } = [];
+}
+
+public sealed class DeviceInventoryItemOut
+{
+    public Guid Id { get; set; }
+    public Guid? CredentialId { get; set; }
+    public string RemoteKey { get; set; } = string.Empty;
+    public string ExternalUserId { get; set; } = string.Empty;
+    public string CredentialType { get; set; } = string.Empty;
+    public string Identifier { get; set; } = string.Empty;
+    public string PersonName { get; set; } = string.Empty;
+    public bool RemoteActive { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateTime ObservedAt { get; set; }
+}
+
+public sealed class DeviceInventorySummaryOut
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public int Synced { get; set; }
+    public int Divergent { get; set; }
+    public int Missing { get; set; }
+    public int Orphan { get; set; }
+}
+
+public sealed class RepairInventoryIn
+{
+    public List<Guid> InventoryItemIds { get; set; } = [];
+    public string IdempotencyKey { get; set; } = string.Empty;
 }

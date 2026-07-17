@@ -30,5 +30,7 @@
     IdFace,
     IdFaceMax,
     ControlIdUHF,
-
+    HikvisionDSK1T673,
+    HikvisionDSK1T671,
+    HikvisionDSK1T323
 }

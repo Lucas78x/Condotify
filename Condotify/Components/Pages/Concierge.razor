@@ -1,0 +1,701 @@
+@page "/portaria"
+@using System.Text.Json
+@using System.Globalization
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Portaria | Condotify</PageTitle>
+
+<PageHeader Title="Central de portaria" Subtitle="Visitantes, acessos e acionamentos em uma unica operacao." Eyebrow="OPERACAO AO VIVO" />
+
+<div class="concierge-license-bar">
+    <MudSelect T="Guid?" Value="@_licenseId" ValueChanged="@SelectLicenseAsync" Label="Condominio" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Apartment">
+        @foreach (var license in _licenses)
+        {
+            <MudSelectItem T="Guid?" Value="@(Guid.TryParse(license.Id, out var parsedId) ? parsedId : null)">@license.Nome - @license.Codigo</MudSelectItem>
+        }
+    </MudSelect>
+    @if (_dashboard is not null)
+    {
+        <span class="live-indicator"><i></i> Atualizacao automatica</span>
+    }
+    <MudTooltip Text="Atualizar agora"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Color="Color.Primary" Disabled="@(_loading || !_licenseId.HasValue)" OnClick="LoadDashboardAsync" /></MudTooltip>
+    <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Outlined.GppBad" Disabled="@(!_licenseId.HasValue)" OnClick="OpenWatchlistDialogAsync">Restricoes</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAddAlt1" Disabled="@(!_licenseId.HasValue)" OnClick="OpenVisitDialogAsync">Nova visita</MudButton>
+</div>
+
+@if (_loading && _dashboard is null)
+{
+    <div class="loading-state concierge-loading"><MudProgressCircular Indeterminate Color="Color.Primary" /><MudText Typo="Typo.body2">Preparando a operacao...</MudText></div>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+}
+else if (!_licenseId.HasValue)
+{
+    <MudPaper Class="content-panel concierge-welcome" Elevation="0"><MudIcon Icon="@Icons.Material.Outlined.AssistantDirection" /><MudText Typo="Typo.h6">Selecione um condominio</MudText><MudText Typo="Typo.body2">A portaria sera carregada com visitas, terminais e eventos daquele ambiente.</MudText></MudPaper>
+}
+else if (_dashboard is not null)
+{
+    <div class="concierge-kpis">
+        <div class="concierge-kpi"><span class="kpi-icon blue"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" /></span><div><strong>@_dashboard.ExpectedToday</strong><small>Esperados hoje</small></div></div>
+        <div class="concierge-kpi"><span class="kpi-icon green"><MudIcon Icon="@Icons.Material.Outlined.Login" /></span><div><strong>@_dashboard.InsideNow</strong><small>Dentro agora</small></div></div>
+        <div class="concierge-kpi"><span class="kpi-icon red"><MudIcon Icon="@Icons.Material.Outlined.GppBad" /></span><div><strong>@_dashboard.DeniedToday</strong><small>Negados hoje</small></div></div>
+        <div class="concierge-kpi"><span class="kpi-icon amber"><MudIcon Icon="@Icons.Material.Outlined.Router" /></span><div><strong>@_dashboard.OfflineDevices</strong><small>Terminais offline</small></div></div>
+        <div class="concierge-kpi"><span class="kpi-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Approval" /></span><div><strong>@_dashboard.PendingApprovals</strong><small>Aguardando aprovacao</small></div></div>
+        <div class="concierge-kpi"><span class="kpi-icon red"><MudIcon Icon="@Icons.Material.Outlined.TimerOff" /></span><div><strong>@_dashboard.Overstays</strong><small>Permanencia excedida</small></div></div>
+    </div>
+
+    <div class="concierge-workspace">
+        <MudPaper Class="content-panel concierge-visits-panel" Elevation="0">
+            <div class="panel-toolbar">
+                <div><MudText Typo="Typo.h6" Class="panel-title">Agenda de acessos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Visitas de hoje e dos proximos dias</MudText></div>
+                <div class="concierge-filters">
+                    <MudTextField T="string" @bind-Value="_visitSearch" Immediate Placeholder="Buscar visitante, morador ou unidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
+                    <MudSelect T="string" @bind-Value="_visitFilter" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem T="string" Value="@("all")">Todas</MudSelectItem><MudSelectItem T="string" Value="@("Scheduled")">Agendadas</MudSelectItem><MudSelectItem T="string" Value="@("CheckedIn")">No local</MudSelectItem><MudSelectItem T="string" Value="@("finished")">Finalizadas</MudSelectItem></MudSelect>
+                </div>
+            </div>
+            @if (!FilteredVisits.Any())
+            {
+                <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.EventBusy" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhuma visita neste filtro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">As proximas autorizacoes aparecerao aqui.</MudText></div>
+            }
+            else
+            {
+                <div class="concierge-visit-list">
+                    @foreach (var visit in FilteredVisits)
+                    {
+                        <article class="concierge-visit-row">
+                            <div class="visit-avatar">
+                                @if (!string.IsNullOrWhiteSpace(visit.PhotoUrl)) { <img src="@visit.PhotoUrl" alt="" /> }
+                                else { <span>@Initials(visit.VisitorName)</span> }
+                                <i class="@StatusDot(visit.Status)"></i>
+                            </div>
+                            <div class="visit-main"><div><strong>@visit.VisitorName</strong><span class="status-chip @StatusClass(visit.Status)">@StatusLabel(visit.Status)</span></div><small><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Size="Size.Small" /> @visit.HostName - @visit.BlockName / @visit.UnitNumber</small></div>
+                            <div class="visit-purpose"><small>Motivo</small><span>@(string.IsNullOrWhiteSpace(visit.Purpose) ? "Visita" : visit.Purpose)</span></div>
+                            <div class="visit-window"><small>Janela de acesso</small><span>@VisitWindow(visit)</span></div>
+                            <div class="visit-credential"><MudIcon Icon="@(visit.CredentialType == "Face" ? Icons.Material.Outlined.Face : Icons.Material.Outlined.QrCode2)" /><span>@CredentialLabel(visit)</span></div>
+                            <MudMenu Icon="@Icons.Material.Outlined.MoreVert" AriaLabel="Acoes da visita" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                <MudMenuItem Icon="@Icons.Material.Outlined.Visibility" OnClick="@(() => OpenVisitDetailsAsync(visit))">Ver autorizacao</MudMenuItem>
+                                @if (visit.Status == "PendingApproval")
+                                {
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.CheckCircle" OnClick="@(() => DecideVisitAsync(visit, true))">Aprovar visita</MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.Cancel" OnClick="@(() => DecideVisitAsync(visit, false))">Recusar visita</MudMenuItem>
+                                }
+                                @if (visit.Status == "Scheduled")
+                                {
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.Login" OnClick="@(() => ChangeVisitStatusAsync(visit, 1, "Entrada confirmada na portaria"))">Registrar entrada</MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.Block" OnClick="@(() => ChangeVisitStatusAsync(visit, 5, "Acesso negado pela portaria"))">Negar acesso</MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.EventBusy" OnClick="@(() => ChangeVisitStatusAsync(visit, 3, "Visita cancelada"))">Cancelar visita</MudMenuItem>
+                                }
+                                @if (visit.Status == "CheckedIn")
+                                {
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.Logout" OnClick="@(() => ChangeVisitStatusAsync(visit, 2, "Saida confirmada na portaria"))">Registrar saida</MudMenuItem>
+                                }
+                            </MudMenu>
+                        </article>
+                    }
+                </div>
+            }
+        </MudPaper>
+
+        <div class="concierge-side-column">
+            <MudPaper Class="content-panel concierge-devices-panel" Elevation="0">
+                <div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Acionamentos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Portas e terminais</MudText></div></div>
+                <div class="concierge-device-list">
+                    @foreach (var device in _dashboard.Devices)
+                    {
+                        <div class="concierge-device-row">
+                            <span class="device-health @(device.Online ? "online" : "offline")"><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" /></span>
+                            <div><strong>@device.Name</strong><small>@(device.Online ? "Online" : "Sem comunicacao") - @device.Model</small></div>
+                            <MudMenu Icon="@Icons.Material.Outlined.MeetingRoom" AriaLabel="Abrir porta" Disabled="@(!device.Online)">
+                                @foreach (var portal in DevicePortals(device))
+                                {
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.LockOpen" OnClick="@(() => OpenDoorAsync(device, portal.Number, portal.Name))">@portal.Name</MudMenuItem>
+                                }
+                            </MudMenu>
+                        </div>
+                    }
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="content-panel concierge-events-panel" Elevation="0">
+                <div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Eventos recentes</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Leitura dos controladores</MudText></div></div>
+                <div class="concierge-event-list">
+                    @foreach (var accessEvent in _dashboard.Events.Take(12))
+                    {
+                        <div class="concierge-event-row"><span class="event-result @(accessEvent.Authorized ? "allowed" : "denied")"><MudIcon Icon="@(accessEvent.Authorized ? Icons.Material.Outlined.Check : Icons.Material.Outlined.Close)" /></span><div><strong>@(string.IsNullOrWhiteSpace(accessEvent.PersonName) ? accessEvent.Event : accessEvent.PersonName)</strong><small>@accessEvent.DeviceName @(!string.IsNullOrWhiteSpace(accessEvent.Portal) ? $"- {accessEvent.Portal}" : string.Empty)</small></div><time>@accessEvent.OccurredAt.ToLocalTime().ToString("HH:mm")</time></div>
+                    }
+                </div>
+            </MudPaper>
+            @if (_dashboard.Watchlist.Count > 0)
+            {
+                <MudPaper Class="content-panel concierge-watchlist-panel" Elevation="0"><div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Restricoes ativas</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Documentos e veiculos monitorados</MudText></div><MudChip T="string" Size="Size.Small" Color="Color.Error">@_dashboard.Watchlist.Count</MudChip></div><div class="concierge-watchlist-list">@foreach (var entry in _dashboard.Watchlist.Take(5)) { <div><MudIcon Icon="@Icons.Material.Outlined.Report" Color="Color.Error" /><span><strong>@(string.IsNullOrWhiteSpace(entry.Name) ? entry.Document : entry.Name)</strong><small>@entry.Reason</small></span><MudTooltip Text="Remover restricao"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(() => RemoveWatchlistAsync(entry))" /></MudTooltip></div> }</div></MudPaper>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<LicenseViewModel> _licenses = [];
+    private List<AccessRouteViewModel> _routes = [];
+    private ConciergeDashboardViewModel? _dashboard;
+    private Guid? _licenseId;
+    private string _visitSearch = string.Empty;
+    private string _visitFilter = "all";
+    private string? _error;
+    private bool _loading = true;
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _refreshCancellation;
+
+    private IEnumerable<ConciergeVisitViewModel> FilteredVisits => (_dashboard?.Visits ?? [])
+        .Where(x => _visitFilter == "all" || (_visitFilter == "finished" ? x.Status is "CheckedOut" or "Canceled" or "Expired" or "Denied" : x.Status == _visitFilter))
+        .Where(x => string.IsNullOrWhiteSpace(_visitSearch) || $"{x.VisitorName} {x.HostName} {x.BlockName} {x.UnitNumber} {x.Document} {x.VehiclePlate}".Contains(_visitSearch, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(x => x.Status == "CheckedIn" ? 0 : x.Status == "Scheduled" ? 1 : 2).ThenBy(x => x.ValidFrom);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.GetLicensesAsync();
+        _loading = false;
+        if (!result.Success) { _error = result.Error; return; }
+        _licenses = result.Value ?? [];
+        if (_licenses.Count == 1 && Guid.TryParse(_licenses[0].Id, out var onlyLicenseId)) await SelectLicenseAsync(onlyLicenseId);
+    }
+
+    private async Task SelectLicenseAsync(Guid? licenseId)
+    {
+        _licenseId = licenseId;
+        _dashboard = null;
+        _error = null;
+        StopRefreshLoop();
+        if (!licenseId.HasValue) return;
+        _loading = true;
+        var routesResult = await Api.GetAccessRoutesAsync(licenseId.Value);
+        _routes = routesResult.Success ? routesResult.Value ?? [] : [];
+        await LoadDashboardAsync();
+        StartRefreshLoop();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        if (!_licenseId.HasValue) return;
+        var result = await Api.GetConciergeDashboardAsync(_licenseId.Value);
+        _loading = false;
+        if (!result.Success) { _error = result.Error; return; }
+        _dashboard = result.Value;
+        _error = null;
+    }
+
+    private async Task OpenVisitDialogAsync()
+    {
+        if (!_licenseId.HasValue) return;
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false };
+        var parameters = new DialogParameters<ConciergeVisitDialog> { { x => x.LicenseId, _licenseId.Value }, { x => x.Routes, _routes } };
+        var dialog = await DialogService.ShowAsync<ConciergeVisitDialog>("", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) { Snackbar.Add("Visita autorizada e enviada para conciliacao.", Severity.Success); await LoadDashboardAsync(); }
+    }
+
+    private async Task ChangeVisitStatusAsync(ConciergeVisitViewModel visit, int status, string reason)
+    {
+        if (!_licenseId.HasValue) return;
+        var action = status switch { 1 => "registrar a entrada", 2 => "registrar a saida", 3 => "cancelar esta visita", 5 => "negar o acesso", _ => "alterar o status" };
+        var confirmed = await DialogService.ShowMessageBoxAsync("Confirmar operacao", $"Deseja {action} de {visit.VisitorName}?", yesText: "Confirmar", cancelText: "Voltar");
+        if (confirmed != true) return;
+        var result = await Api.UpdateConciergeVisitStatusAsync(_licenseId.Value, visit.Id, status, reason);
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Nao foi possivel atualizar a visita.", Severity.Error); return; }
+        Snackbar.Add("Operacao registrada.", Severity.Success);
+        await LoadDashboardAsync();
+    }
+
+    private async Task DecideVisitAsync(ConciergeVisitViewModel visit, bool approved)
+    {
+        if (!_licenseId.HasValue) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync(approved ? "Aprovar visita" : "Recusar visita", $"Confirmar a decisao para {visit.VisitorName}?", yesText: approved ? "Aprovar" : "Recusar", cancelText: "Voltar");
+        if (confirmed != true) return;
+        var result = await Api.DecideConciergeVisitAsync(_licenseId.Value, visit.Id, approved, approved ? "Aprovada pela central de portaria" : "Recusada pela central de portaria");
+        Snackbar.Add(result.Success ? (approved ? "Visita aprovada e enviada aos terminais." : "Visita recusada.") : result.Error ?? "Nao foi possivel registrar a decisao.", result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) await LoadDashboardAsync();
+    }
+
+    private async Task OpenWatchlistDialogAsync()
+    {
+        if (!_licenseId.HasValue) return;
+        var parameters = new DialogParameters<WatchlistEntryDialog> { { x => x.LicenseId, _licenseId.Value } };
+        var dialog = await DialogService.ShowAsync<WatchlistEntryDialog>("", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) await LoadDashboardAsync();
+    }
+
+    private async Task RemoveWatchlistAsync(AccessWatchlistEntryViewModel entry)
+    {
+        if (!_licenseId.HasValue) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync("Remover restricao", $"Remover a restricao de {entry.Name}?", yesText: "Remover", cancelText: "Voltar");
+        if (confirmed != true) return;
+        var result = await Api.RemoveWatchlistEntryAsync(_licenseId.Value, entry.Id);
+        Snackbar.Add(result.Success ? "Restricao removida." : result.Error!, result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) await LoadDashboardAsync();
+    }
+
+    private async Task OpenVisitDetailsAsync(ConciergeVisitViewModel visit)
+    {
+        var parameters = new DialogParameters<ConciergeVisitDetailDialog> { { x => x.Visit, visit } };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        await DialogService.ShowAsync<ConciergeVisitDetailDialog>("", parameters, options);
+    }
+
+    private async Task OpenDoorAsync(ConciergeDeviceViewModel device, int channel, string portalName)
+    {
+        if (!_licenseId.HasValue) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync("Acionamento remoto", $"Abrir {portalName} em {device.Name}? O acionamento sera registrado na auditoria.", yesText: "Abrir porta", cancelText: "Cancelar");
+        if (confirmed != true) return;
+        var result = await Api.OpenDoorAsync(_licenseId.Value, device.Id, channel, "Acionamento pela central de portaria");
+        Snackbar.Add(result.Success ? $"{portalName} acionada." : result.Error ?? "Falha no acionamento.", result.Success ? Severity.Success : Severity.Error);
+        await LoadDashboardAsync();
+    }
+
+    private void StartRefreshLoop()
+    {
+        _refreshCancellation = new CancellationTokenSource();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        _ = RefreshLoopAsync(_refreshCancellation.Token);
+    }
+    private async Task RefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        try { while (_timer is not null && await _timer.WaitForNextTickAsync(cancellationToken)) await InvokeAsync(LoadDashboardAsync); }
+        catch (OperationCanceledException) { }
+    }
+    private void StopRefreshLoop() { _refreshCancellation?.Cancel(); _refreshCancellation?.Dispose(); _refreshCancellation = null; _timer?.Dispose(); _timer = null; }
+    public ValueTask DisposeAsync() { StopRefreshLoop(); return ValueTask.CompletedTask; }
+
+    private static string Initials(string name) => string.Join(string.Empty, name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+    private static string StatusLabel(string status) => status switch { "Scheduled" => "Agendada", "CheckedIn" => "No local", "CheckedOut" => "Finalizada", "Canceled" => "Cancelada", "Expired" => "Expirada", "Denied" => "Negada", "PendingApproval" => "Aguardando aprovacao", _ => status };
+    private static string StatusClass(string status) => status.ToLowerInvariant();
+    private static string StatusDot(string status) => status is "Scheduled" or "CheckedIn" or "PendingApproval" ? "active" : "inactive";
+    private static string VisitWindow(ConciergeVisitViewModel visit) => visit.ValidFrom.ToLocalTime().Date == visit.ValidTo.ToLocalTime().Date ? $"{visit.ValidFrom.ToLocalTime():dd/MM, HH:mm} - {visit.ValidTo.ToLocalTime():HH:mm}" : $"{visit.ValidFrom.ToLocalTime():dd/MM HH:mm} - {visit.ValidTo.ToLocalTime():dd/MM HH:mm}";
+    private static string CredentialLabel(ConciergeVisitViewModel visit) => visit.CredentialType == "Face" ? "Facial" : visit.MaxUses.HasValue ? $"QR - {visit.UseCount}/{visit.MaxUses}" : "QR Code";
+    private static List<DevicePortalCapabilityViewModel> DevicePortals(
+      ConciergeDeviceViewModel device)
+    {
+        var fallback = new List<DevicePortalCapabilityViewModel>
+    {
+        new()
+        {
+            Number = 1,
+            Name = "Porta 1",
+            Direction = string.Empty,
+            Discovered = false
+        }
+    };
+
+        if (string.IsNullOrWhiteSpace(device.DiscoveredPortalsJson))
+            return fallback;
+
+        try
+        {
+            using var document = JsonDocument.Parse(device.DiscoveredPortalsJson);
+
+            var root = document.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array)
+                return ParseDevicePortalsArray(root, fallback);
+
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                var possibleArrayNames = new[]
+                {
+                "items",
+                "portals",
+                "doors",
+                "channels",
+                "data",
+                "result"
+            };
+
+                foreach (var propertyName in possibleArrayNames)
+                {
+                    if (TryGetPropertyIgnoreCase(
+                            root,
+                            propertyName,
+                            out var arrayElement) &&
+                        arrayElement.ValueKind == JsonValueKind.Array)
+                    {
+                        return ParseDevicePortalsArray(arrayElement, fallback);
+                    }
+                }
+
+                var singlePortal = ParseDevicePortal(root, 1);
+
+                if (singlePortal is not null)
+                    return [singlePortal];
+            }
+        }
+        catch (JsonException)
+        {
+            // JSON inválido ou incompatível.
+        }
+        catch (InvalidOperationException)
+        {
+            // Algum campo veio com tipo inesperado.
+        }
+        catch (NotSupportedException)
+        {
+            // Estrutura não suportada.
+        }
+
+        return fallback;
+    }
+    private static List<DevicePortalCapabilityViewModel> ParseDevicePortalsArray(
+     JsonElement arrayElement,
+     List<DevicePortalCapabilityViewModel> fallback)
+    {
+        var portals = new List<DevicePortalCapabilityViewModel>();
+        var position = 1;
+
+        foreach (var item in arrayElement.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                position++;
+                continue;
+            }
+
+            var portal = ParseDevicePortal(item, position);
+
+            if (portal is not null)
+                portals.Add(portal);
+
+            position++;
+        }
+
+        return portals.Count > 0
+            ? portals
+                .GroupBy(x => x.Number)
+                .Select(x => x.First())
+                .OrderBy(x => x.Number)
+                .ToList()
+            : fallback;
+    }
+
+    private static DevicePortalCapabilityViewModel? ParseDevicePortal(
+        JsonElement item,
+        int fallbackNumber)
+    {
+        if (item.ValueKind != JsonValueKind.Object)
+            return null;
+
+        /*
+         * Suporta nomes utilizados por diferentes fabricantes:
+         *
+         * Number:
+         * number, doorNo, doorNumber, channel, channelNo, id, index
+         *
+         * Name:
+         * name, doorName, channelName, description
+         *
+         * Direction:
+         * direction, doorDirection, accessDirection
+         *
+         * Discovered:
+         * discovered, enabled, active, available
+         */
+
+        var number =
+            GetFlexibleInt32(item, "number") ??
+            GetFlexibleInt32(item, "doorNo") ??
+            GetFlexibleInt32(item, "doorNumber") ??
+            GetFlexibleInt32(item, "channel") ??
+            GetFlexibleInt32(item, "channelNo") ??
+            GetFlexibleInt32(item, "index") ??
+            GetFlexibleInt32(item, "id") ??
+            fallbackNumber;
+
+        if (number <= 0)
+            number = fallbackNumber;
+
+        var name =
+            GetFlexibleString(item, "name") ??
+            GetFlexibleString(item, "doorName") ??
+            GetFlexibleString(item, "channelName") ??
+            GetFlexibleString(item, "description");
+
+        if (string.IsNullOrWhiteSpace(name))
+            name = $"Porta {number}";
+
+        var direction =
+            GetFlexibleString(item, "direction") ??
+            GetFlexibleString(item, "doorDirection") ??
+            GetFlexibleString(item, "accessDirection") ??
+            string.Empty;
+
+        var discovered =
+            GetFlexibleBoolean(item, "discovered") ??
+            GetFlexibleBoolean(item, "enabled") ??
+            GetFlexibleBoolean(item, "active") ??
+            GetFlexibleBoolean(item, "available") ??
+            true;
+
+        return new DevicePortalCapabilityViewModel
+        {
+            Number = number,
+            Name = name.Trim(),
+            Direction = NormalizeDirection(direction),
+            Discovered = discovered
+        };
+    }
+
+    private static int? GetFlexibleInt32(JsonElement item, string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(item, propertyName, out var value))
+            return null;
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetInt32(out var result) =>
+                result,
+
+            JsonValueKind.Number when value.TryGetInt64(out var longResult) &&
+                                      longResult is >= int.MinValue and <= int.MaxValue =>
+                (int)longResult,
+
+            JsonValueKind.String when int.TryParse(
+                value.GetString(),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var stringResult) =>
+                stringResult,
+
+            JsonValueKind.True => 1,
+            JsonValueKind.False => 0,
+
+            _ => null
+        };
+    }
+
+    private static string? GetFlexibleString(
+        JsonElement item,
+        string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(item, propertyName, out var value))
+            return null;
+
+        return JsonElementToString(value);
+    }
+
+    private static string? JsonElementToString(JsonElement value)
+    {
+        return value.ValueKind switch
+        {
+            JsonValueKind.String =>
+                value.GetString(),
+
+            JsonValueKind.Number =>
+                value.GetRawText(),
+
+            JsonValueKind.True =>
+                "true",
+
+            JsonValueKind.False =>
+                "false",
+
+            JsonValueKind.Null =>
+                null,
+
+            JsonValueKind.Undefined =>
+                null,
+
+            /*
+             * Evita chamar GetString() em objetos ou arrays, que é justamente
+             * uma das causas do InvalidOperationException.
+             */
+            JsonValueKind.Object =>
+                TryReadObjectValue(value),
+
+            JsonValueKind.Array =>
+                TryReadArrayValue(value),
+
+            _ =>
+                null
+        };
+    }
+
+    private static string? TryReadObjectValue(JsonElement value)
+    {
+        /*
+         * Alguns dispositivos retornam algo como:
+         *
+         * "direction": {
+         *   "value": "in"
+         * }
+         *
+         * ou:
+         *
+         * "direction": {
+         *   "name": "Entrada"
+         * }
+         */
+
+        var possibleProperties = new[]
+        {
+        "value",
+        "name",
+        "description",
+        "type",
+        "code"
+    };
+
+        foreach (var propertyName in possibleProperties)
+        {
+            if (!TryGetPropertyIgnoreCase(value, propertyName, out var nestedValue))
+                continue;
+
+            var result = JsonElementToString(nestedValue);
+
+            if (!string.IsNullOrWhiteSpace(result))
+                return result;
+        }
+
+        return null;
+    }
+
+    private static string? TryReadArrayValue(JsonElement value)
+    {
+        foreach (var arrayItem in value.EnumerateArray())
+        {
+            var result = JsonElementToString(arrayItem);
+
+            if (!string.IsNullOrWhiteSpace(result))
+                return result;
+        }
+
+        return null;
+    }
+
+    private static bool? GetFlexibleBoolean(
+        JsonElement item,
+        string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(item, propertyName, out var value))
+            return null;
+
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+
+            case JsonValueKind.False:
+                return false;
+
+            case JsonValueKind.Number:
+                if (value.TryGetInt64(out var number))
+                    return number != 0;
+
+                return null;
+
+            case JsonValueKind.String:
+                {
+                    var text = value.GetString()?.Trim();
+
+                    if (string.IsNullOrWhiteSpace(text))
+                        return null;
+
+                    if (bool.TryParse(text, out var booleanResult))
+                        return booleanResult;
+
+                    if (long.TryParse(
+                            text,
+                            NumberStyles.Integer,
+                            CultureInfo.InvariantCulture,
+                            out var numericResult))
+                    {
+                        return numericResult != 0;
+                    }
+
+                    return text.ToLowerInvariant() switch
+                    {
+                        "yes" => true,
+                        "no" => false,
+                        "sim" => true,
+                        "não" => false,
+                        "nao" => false,
+                        "enabled" => true,
+                        "disabled" => false,
+                        "active" => true,
+                        "inactive" => false,
+                        "on" => true,
+                        "off" => false,
+                        _ => null
+                    };
+                }
+
+            default:
+                return null;
+        }
+    }
+
+    private static bool TryGetPropertyIgnoreCase(
+        JsonElement item,
+        string propertyName,
+        out JsonElement value)
+    {
+        value = default;
+
+        if (item.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (item.TryGetProperty(propertyName, out value))
+            return true;
+
+        foreach (var property in item.EnumerateObject())
+        {
+            if (string.Equals(
+                    property.Name,
+                    propertyName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string NormalizeDirection(string? direction)
+    {
+        if (string.IsNullOrWhiteSpace(direction))
+            return string.Empty;
+
+        var normalized = direction.Trim();
+
+        return normalized.ToLowerInvariant() switch
+        {
+            "in" => "Entrada",
+            "entry" => "Entrada",
+            "entrance" => "Entrada",
+            "entrada" => "Entrada",
+            "1" => "Entrada",
+
+            "out" => "Saída",
+            "exit" => "Saída",
+            "saida" => "Saída",
+            "saída" => "Saída",
+            "2" => "Saída",
+
+            "both" => "Bidirecional",
+            "bidirectional" => "Bidirecional",
+            "bothway" => "Bidirecional",
+            "3" => "Bidirecional",
+
+            /*
+             * Não descarta valores desconhecidos de outras marcas.
+             * Dessa forma, Intelbras, Control iD ou novos fabricantes
+             * continuam exibindo o valor original.
+             */
+            _ => normalized
+        };
+    }
+}

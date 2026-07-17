@@ -16,6 +16,11 @@ namespace CondotifyAPI.Tests
 {
     public class DatabaseModelTests
     {
+        public DatabaseModelTests()
+        {
+            Environment.SetEnvironmentVariable("CONDOTIFY_EQUIPMENT_SECRET", "condotify-tests-equipment-secret-2026");
+        }
+
         [Fact]
         public void UserAccess_ShouldHaveUniqueIndexesForNaturalKeys()
         {
@@ -158,6 +163,58 @@ namespace CondotifyAPI.Tests
             Assert.NotNull(routeOverride);
             Assert.True(HasUniqueIndex(accessEvent!, nameof(AccessEventRecordDTO.DeviceId), nameof(AccessEventRecordDTO.ExternalEventId)));
             Assert.True(HasUniqueIndex(routeOverride!, nameof(AccessRouteResidentOverrideDTO.AccessRouteId), nameof(AccessRouteResidentOverrideDTO.ResidentId)));
+        }
+
+        [Fact]
+        public void AdvancedOperations_ShouldBeIdempotentAndTrackEachDeviceTarget()
+        {
+            using var context = CreateContext();
+            var batch = context.Model.FindEntityType(typeof(AccessBatchOperationDTO));
+            var item = context.Model.FindEntityType(typeof(AccessOperationItemDTO));
+
+            Assert.NotNull(batch);
+            Assert.NotNull(item);
+            Assert.True(HasUniqueIndex(batch!, nameof(AccessBatchOperationDTO.LicenseId), nameof(AccessBatchOperationDTO.IdempotencyKey)));
+            Assert.True(HasUniqueIndex(item!, nameof(AccessOperationItemDTO.IdempotencyKey)));
+            Assert.True(HasIndex(item!, nameof(AccessOperationItemDTO.Status), nameof(AccessOperationItemDTO.NextAttemptAt)));
+        }
+
+        [Fact]
+        public void DeviceInventory_ShouldDeduplicateRemoteRecordsPerDevice()
+        {
+            using var context = CreateContext();
+            var inventory = context.Model.FindEntityType(typeof(AccessInventoryItemDTO));
+
+            Assert.NotNull(inventory);
+            Assert.True(HasUniqueIndex(inventory!, nameof(AccessInventoryItemDTO.DeviceId), nameof(AccessInventoryItemDTO.RemoteKey)));
+            Assert.True(HasIndex(inventory!, nameof(AccessInventoryItemDTO.LicenseId), nameof(AccessInventoryItemDTO.Status)));
+        }
+
+        [Fact]
+        public void Visits_ShouldKeepCredentialUniqueAndTenantLookupIndexed()
+        {
+            using var context = CreateContext();
+            var visit = context.Model.FindEntityType(typeof(AccessVisitDTO));
+
+            Assert.NotNull(visit);
+            Assert.True(HasUniqueIndex(visit!, nameof(AccessVisitDTO.CredentialId)));
+            Assert.True(HasIndex(visit!, nameof(AccessVisitDTO.LicenseId), nameof(AccessVisitDTO.Status), nameof(AccessVisitDTO.ValidFrom)));
+            Assert.Equal(DeleteBehavior.Restrict, visit!.GetForeignKeys().Single(x => x.PrincipalEntityType.ClrType == typeof(ResidentAccessCredentialDTO)).DeleteBehavior);
+        }
+
+        [Fact]
+        public void EquipmentPasswords_ShouldUseEncryptedProviderConversion()
+        {
+            using var context = CreateContext();
+            var device = context.Model.FindEntityType(typeof(AccessControlDeviceDTO));
+            var password = device!.FindProperty(nameof(AccessControlDeviceDTO.Password));
+            var converter = password!.GetValueConverter();
+
+            Assert.NotNull(converter);
+            var encrypted = Assert.IsType<string>(converter!.ConvertToProvider("admin-secret"));
+            Assert.StartsWith("enc:v1:", encrypted);
+            Assert.DoesNotContain("admin-secret", encrypted);
+            Assert.Equal("admin-secret", converter.ConvertFromProvider(encrypted));
         }
 
         [Fact]

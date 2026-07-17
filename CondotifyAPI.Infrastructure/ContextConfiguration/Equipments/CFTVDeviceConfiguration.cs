@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using CondotifyAPI.Infrastructure.Security;
 
 namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
 {
@@ -24,7 +25,8 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
                 .HasMaxLength(80);
 
             builder.Property(x => x.Password)
-                .HasMaxLength(150);
+                .HasConversion(new EquipmentSecretConverter())
+                .HasMaxLength(512);
 
             builder.Property(x => x.IpAddress)
                 .IsRequired()

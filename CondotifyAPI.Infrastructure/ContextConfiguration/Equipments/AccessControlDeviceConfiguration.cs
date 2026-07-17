@@ -1,6 +1,7 @@
 ﻿using CondotifyAPI.Domain.DTO.Equipments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using CondotifyAPI.Infrastructure.Security;
 
 namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
 {
@@ -27,7 +28,8 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
                 .HasMaxLength(100);
 
             builder.Property(d => d.Password)
-                .HasMaxLength(150);
+                .HasConversion(new EquipmentSecretConverter())
+                .HasMaxLength(512);
 
             builder.Property(d => d.MACAddress)
                 .HasMaxLength(17);

@@ -9,21 +9,23 @@
     <MudAppBar Elevation="0" Class="portal-appbar">
         <MudIconButton Icon="@Icons.Material.Outlined.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" Class="mobile-menu" />
         <div class="appbar-context">
-            <MudText Typo="Typo.subtitle1" Class="appbar-title">Central de operacoes</MudText>
-            <MudText Typo="Typo.caption" Class="appbar-date">@DateTime.Now.ToString("dddd, dd 'de' MMMM")</MudText>
+            <MudText Typo="Typo.subtitle1" Class="appbar-title">Central de operações</MudText>
+            <div class="appbar-environment"><span></span>Operação online</div>
         </div>
         <MudSpacer />
-        <MudIconButton Icon="@Icons.Material.Outlined.NotificationsNone" Color="Color.Inherit" Class="appbar-action" />
+        <MudButton Href="/pesquisa" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Search" Class="appbar-search">Pesquisar pessoas e credenciais</MudButton>
+        <MudMenu Icon="@Icons.Material.Outlined.NotificationsNone" AriaLabel="Central de alertas" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="appbar-action">
+            <MudMenuItem Href="/portaria" Icon="@Icons.Material.Outlined.Doorbell">Operação de portaria</MudMenuItem>
+            <MudMenuItem Href="/equipamentos" Icon="@Icons.Material.Outlined.MonitorHeart">Saúde dos equipamentos</MudMenuItem>
+            <MudMenuItem Href="/credenciais" Icon="@Icons.Material.Outlined.SyncProblem">Pendências de credenciais</MudMenuItem>
+        </MudMenu>
         <AuthorizeView>
             <Authorized Context="auth">
-                <div class="user-summary">
-                    <MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(auth.User)</MudAvatar>
-                    <div class="user-copy">
-                        <MudText Typo="Typo.body2" Class="user-name">@(auth.User.Identity?.Name ?? "Administrador")</MudText>
-                        <MudText Typo="Typo.caption">@AccessLabel(auth.User)</MudText>
-                    </div>
-                    <MudIconButton Icon="@Icons.Material.Outlined.Logout" Href="/Login/Logout" Color="Color.Inherit" Size="Size.Small" />
-                </div>
+                <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="user-menu">
+                    <ActivatorContent><div class="user-summary"><MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(auth.User)</MudAvatar><div class="user-copy"><MudText Typo="Typo.body2" Class="user-name">@(auth.User.Identity?.Name ?? "Administrador")</MudText><MudText Typo="Typo.caption">@AccessLabel(auth.User)</MudText></div><MudIcon Icon="@Icons.Material.Outlined.ExpandMore" Size="Size.Small" /></div></ActivatorContent>
+                    <ChildContent><MudMenuItem Href="/seguranca" Icon="@Icons.Material.Outlined.Security">Segurança da conta</MudMenuItem><MudMenuItem Href="/Login/Logout" Icon="@Icons.Material.Outlined.Logout">Sair</MudMenuItem></ChildContent>
+                </MudMenu>
+                <MudTooltip Text="Sair"><MudIconButton Href="/Login/Logout" Icon="@Icons.Material.Outlined.Logout" aria-label="Sair da plataforma" Class="logout-action" /></MudTooltip>
             </Authorized>
         </AuthorizeView>
     </MudAppBar>
@@ -33,7 +35,7 @@
             <div class="brand-mark">C</div>
             <div>
                 <MudText Typo="Typo.subtitle1" Class="brand-name">Condotify</MudText>
-                <MudText Typo="Typo.caption" Class="brand-subtitle">Gestao inteligente</MudText>
+                <MudText Typo="Typo.caption" Class="brand-subtitle">Controle de acesso</MudText>
             </div>
         </div>
         <NavMenu />
@@ -41,7 +43,7 @@
             <MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" Size="Size.Small" />
             <div>
                 <MudText Typo="Typo.caption" Class="drawer-footer-title">Ambiente protegido</MudText>
-                <MudText Typo="Typo.caption" Class="drawer-footer-copy">Dados isolados por empresa</MudText>
+                <MudText Typo="Typo.caption" Class="drawer-footer-copy">Sessão e dados monitorados</MudText>
             </div>
         </div>
     </MudDrawer>
@@ -80,13 +82,13 @@
         LayoutProperties = new LayoutProperties
         {
             DefaultBorderRadius = "6px",
-            DrawerWidthLeft = "264px",
+            DrawerWidthLeft = "248px",
             AppbarHeight = "72px"
         },
         Typography = new Typography
         {
             Default = new DefaultTypography { FontFamily = ["Inter", "Segoe UI", "sans-serif"] },
-            H1 = new H1Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "2rem", FontWeight = "700", LineHeight = "1.2" },
+            H1 = new H1Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.75rem", FontWeight = "700", LineHeight = "1.2" },
             H2 = new H2Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.45rem", FontWeight = "700", LineHeight = "1.3" },
             H5 = new H5Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.1rem", FontWeight = "600" },
             Subtitle1 = new Subtitle1Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontWeight = "600" }
@@ -108,7 +110,7 @@
         "Admin" => "Administrador geral",
         "Manager" => "Gestor",
         "Editor" => "Editor",
-        "Viewer" => "Usuario",
-        _ => "Usuario"
+        "Viewer" => "Usuário",
+        _ => "Usuário"
     };
 }

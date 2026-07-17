@@ -24,18 +24,57 @@ public sealed class AccessControlOperationsController : ControllerBase
     private readonly DatabaseContext _context;
     private readonly IAccessControlService _accessControl;
     private readonly IAccessRouteResolver _routeResolver;
+    private readonly IDeviceInventoryService _inventory;
     private readonly IMapper _mapper;
 
     public AccessControlOperationsController(
         DatabaseContext context,
         IAccessControlService accessControl,
         IAccessRouteResolver routeResolver,
+        IDeviceInventoryService inventory,
         IMapper mapper)
     {
         _context = context;
         _accessControl = accessControl;
         _routeResolver = routeResolver;
+        _inventory = inventory;
         _mapper = mapper;
+    }
+
+    [HttpGet("devices/{deviceId:guid}/inventory")]
+    [RequireLicensePermission(LicensePermissionEnum.ViewDevices)]
+    public async Task<IActionResult> GetInventory(Guid licenseId, Guid deviceId)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var items = await _inventory.GetAsync(licenseId, deviceId);
+        return Ok(items.Select(ToInventoryOut));
+    }
+
+    [HttpPost("devices/{deviceId:guid}/inventory/refresh")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageDevices)]
+    public async Task<IActionResult> RefreshInventory(Guid licenseId, Guid deviceId)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var result = await _inventory.RefreshAsync(licenseId, deviceId, CurrentUserName());
+        return result.Success ? Ok(new DeviceInventorySummaryOut
+        {
+            Success = true, Message = result.Message, Synced = result.Synced, Divergent = result.Divergent,
+            Missing = result.Missing, Orphan = result.Orphan
+        }) : StatusCode(StatusCodes.Status502BadGateway, new { Errors = result.Message });
+    }
+
+    [HttpPost("devices/{deviceId:guid}/inventory/repair")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageCredentials)]
+    public async Task<IActionResult> RepairInventory(Guid licenseId, Guid deviceId, [FromBody] RepairInventoryIn input)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var credentialIds = await _context.AccessInventoryItems.AsNoTracking()
+            .Where(x => x.LicenseId == licenseId && x.DeviceId == deviceId && input.InventoryItemIds.Contains(x.Id) && x.CredentialId.HasValue)
+            .Select(x => x.CredentialId!.Value).Distinct().ToListAsync();
+        if (credentialIds.Count == 0) return BadRequest(new { Errors = "Selecione divergencias vinculadas a credenciais do Condotify." });
+        var batch = QueueBatch(licenseId, credentialIds, CurrentUserName(), input.IdempotencyKey);
+        await _context.SaveChangesAsync();
+        return Accepted(ToBatchOut(batch));
     }
 
     [HttpPost("devices/{deviceId:guid}/inspect")]
@@ -58,6 +97,8 @@ public sealed class AccessControlOperationsController : ControllerBase
         device.LastResponseTimeMs = inspection.ResponseTimeMs;
         device.HealthMessage = inspection.Message;
         device.FirmwareVersion = inspection.FirmwareVersion ?? device.FirmwareVersion;
+        device.SerialNumber = inspection.SerialNumber ?? device.SerialNumber;
+        device.MACAddress = inspection.MacAddress?.ToUpperInvariant() ?? device.MACAddress;
         device.CapacityJson = ValidJsonOrDefault(inspection.CapacityJson, "{}");
         device.DiscoveredPortalsJson = JsonSerializer.Serialize(inspection.Portals);
         device.LastUpdatedAt = now;
@@ -131,12 +172,46 @@ public sealed class AccessControlOperationsController : ControllerBase
         return Ok(preview);
     }
 
+    [HttpPost("routes/simulate")]
+    [RequireLicensePermission(LicensePermissionEnum.ViewCredentials)]
+    public async Task<IActionResult> SimulateRoute(Guid licenseId, [FromBody] RouteSimulationIn input)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var resident = await _context.Residents.AsNoTracking()
+            .Include(x => x.Unit).ThenInclude(x => x.Block)
+            .Include(x => x.UnitLinks)
+            .FirstOrDefaultAsync(x => x.Id == input.ResidentId && x.Unit.Block.LicenseId == licenseId);
+        if (resident is null) return NotFound();
+        var resolution = await _routeResolver.ResolveAsync(licenseId, resident, input.CredentialType);
+        var output = new RouteSimulationOut
+        {
+            Audience = resolution.Audience.ToString(), Routes = resolution.RouteNames.ToList(),
+            Targets = resolution.Targets.Select(x => new RouteSimulationTargetOut
+            {
+                DeviceId = x.Device.Id, DeviceName = x.Device.Name, DeviceType = x.Device.Type.ToString(), Online = x.Device.IsActive,
+                Portals = x.Portals.Select(p => $"{p.RouteName} - porta {p.PortalNumber} ({p.Direction})").ToList()
+            }).ToList()
+        };
+        if (output.Routes.Count == 0) output.Warnings.Add("Nenhuma rota atende ao perfil desta pessoa.");
+        if (output.Targets.Count == 0 && output.Routes.Count > 0) output.Warnings.Add("As rotas elegiveis nao possuem terminais compativeis e online.");
+        if (input.CredentialType == AccessCredentialTypeEnum.Face && string.IsNullOrWhiteSpace(resident.ImgUrl)) output.Warnings.Add("A pessoa ainda nao possui foto facial preparada.");
+        AddAudit(licenseId, "Resident", resident.Id, "RouteSimulation", "Success", $"Simulacao de {input.CredentialType} para {resident.Name}.", new { output.Audience, output.Routes, TargetCount = output.Targets.Count });
+        await _context.SaveChangesAsync();
+        return Ok(output);
+    }
+
     [HttpPost("reconciliation/batches")]
     [RequireLicensePermission(LicensePermissionEnum.ManageCredentials)]
     public async Task<IActionResult> QueueReconciliation(Guid licenseId, [FromBody] CreateReconciliationBatchIn input)
     {
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
-        var batch = QueueBatch(licenseId, input.CredentialIds, CurrentUserName());
+        var existing = !string.IsNullOrWhiteSpace(input.IdempotencyKey)
+            ? await _context.AccessBatchOperations.Include(x => x.Items).ThenInclude(x => x.Device)
+                .Include(x => x.Items).ThenInclude(x => x.Credential).ThenInclude(x => x!.Resident)
+                .FirstOrDefaultAsync(x => x.LicenseId == licenseId && x.IdempotencyKey == input.IdempotencyKey)
+            : null;
+        if (existing is not null) return Accepted(ToBatchOut(existing));
+        var batch = QueueBatch(licenseId, input.CredentialIds, CurrentUserName(), input.IdempotencyKey, input.Priority);
         await _context.SaveChangesAsync();
         return Accepted(ToBatchOut(batch));
     }
@@ -147,6 +222,8 @@ public sealed class AccessControlOperationsController : ControllerBase
     {
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
         var batches = await _context.AccessBatchOperations.AsNoTracking()
+            .Include(x => x.Items).ThenInclude(x => x.Device)
+            .Include(x => x.Items).ThenInclude(x => x.Credential).ThenInclude(x => x!.Resident)
             .Where(x => x.LicenseId == licenseId)
             .OrderByDescending(x => x.CreatedAt)
             .Take(Math.Clamp(take, 1, 100))
@@ -167,6 +244,37 @@ public sealed class AccessControlOperationsController : ControllerBase
         batch.FinishedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return NoContent();
+    }
+
+    [HttpPost("reconciliation/batches/{batchId:guid}/retry")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageCredentials)]
+    public async Task<IActionResult> RetryBatch(Guid licenseId, Guid batchId)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var batch = await _context.AccessBatchOperations.Include(x => x.Items)
+            .FirstOrDefaultAsync(x => x.Id == batchId && x.LicenseId == licenseId);
+        if (batch is null) return NotFound();
+        if (batch.Status is not (AccessBatchStatusEnum.DeadLetter or AccessBatchStatusEnum.Failed or AccessBatchStatusEnum.CompletedWithErrors))
+            return Conflict(new { Errors = "Somente operacoes com falha ou pendencias podem ser reprocessadas." });
+        var now = DateTime.UtcNow;
+        batch.Status = AccessBatchStatusEnum.Queued;
+        batch.AttemptCount = 0;
+        batch.NextAttemptAt = now;
+        batch.FinishedAt = null;
+        batch.LeaseOwner = string.Empty;
+        batch.LeaseExpiresAt = null;
+        batch.Error = string.Empty;
+        foreach (var item in batch.Items.Where(x => x.Status != AccessOperationItemStatusEnum.Completed))
+        {
+            item.Status = AccessOperationItemStatusEnum.Queued;
+            item.AttemptCount = 0;
+            item.NextAttemptAt = now;
+            item.FinishedAt = null;
+            item.Error = string.Empty;
+        }
+        AddAudit(licenseId, "AccessBatch", batch.Id, "Retry", "Queued", "Operacao reenviada para processamento.", new { batch.Id });
+        await _context.SaveChangesAsync();
+        return Accepted(ToBatchOut(batch));
     }
 
     [HttpGet("credentials/backup")]
@@ -284,12 +392,13 @@ public sealed class AccessControlOperationsController : ControllerBase
         .Include(x => x.Devices)
         .Where(x => x.Resident.Unit.Block.LicenseId == licenseId);
 
-    private AccessBatchOperationDTO QueueBatch(Guid licenseId, IReadOnlyCollection<Guid> credentialIds, string actor)
+    private AccessBatchOperationDTO QueueBatch(Guid licenseId, IReadOnlyCollection<Guid> credentialIds, string actor, string? idempotencyKey = null, int priority = 50)
     {
         var batch = new AccessBatchOperationDTO
         {
             Id = Guid.NewGuid(), LicenseId = licenseId, Operation = "ReconcileCredentials",
-            Status = AccessBatchStatusEnum.Queued, RequestedBy = actor,
+            IdempotencyKey = string.IsNullOrWhiteSpace(idempotencyKey) ? Guid.NewGuid().ToString("N") : idempotencyKey.Trim(),
+            Status = AccessBatchStatusEnum.Queued, RequestedBy = actor, Priority = Math.Clamp(priority, 0, 100), MaxAttempts = 5,
             FilterJson = JsonSerializer.Serialize(new { credentialIds }), CreatedAt = DateTime.UtcNow
         };
         _context.AccessBatchOperations.Add(batch);
@@ -330,12 +439,31 @@ public sealed class AccessControlOperationsController : ControllerBase
     {
         Id = x.Id, Operation = x.Operation, Status = x.Status.ToString(), TotalItems = x.TotalItems,
         ProcessedItems = x.ProcessedItems, SuccessfulItems = x.SuccessfulItems, FailedItems = x.FailedItems,
-        RequestedBy = x.RequestedBy, Error = x.Error, CreatedAt = x.CreatedAt, StartedAt = x.StartedAt, FinishedAt = x.FinishedAt
+        Priority = x.Priority, AttemptCount = x.AttemptCount, MaxAttempts = x.MaxAttempts,
+        RequestedBy = x.RequestedBy, Error = x.Error, CreatedAt = x.CreatedAt, StartedAt = x.StartedAt, FinishedAt = x.FinishedAt,
+        NextAttemptAt = x.NextAttemptAt,
+        Items = x.Items.OrderBy(item => item.Device?.Name).Select(item => new AccessOperationItemOut
+        {
+            Id = item.Id, CredentialId = item.CredentialId, DeviceId = item.DeviceId,
+            CredentialName = item.Credential?.Resident?.Name ?? string.Empty, DeviceName = item.Device?.Name ?? "Sem rota",
+            Action = item.Action, Status = item.Status.ToString(), AttemptCount = item.AttemptCount,
+            Error = item.Error, NextAttemptAt = item.NextAttemptAt
+        }).ToList()
+    };
+    private static DeviceInventoryItemOut ToInventoryOut(AccessInventoryItemDTO x) => new()
+    {
+        Id = x.Id, CredentialId = x.CredentialId, RemoteKey = x.RemoteKey, ExternalUserId = x.ExternalUserId,
+        CredentialType = x.CredentialType, Identifier = x.Identifier,
+        PersonName = !string.IsNullOrWhiteSpace(x.PersonName) ? x.PersonName : x.Credential?.Resident?.Name ?? string.Empty,
+        RemoteActive = x.RemoteActive, Status = x.Status.ToString(), ObservedAt = x.ObservedAt
     };
     private static DeviceInspectionOut ToInspectionOut(Guid deviceId, DateTime checkedAt, DeviceInspectionResult x) => new()
     {
         DeviceId = deviceId, Online = x.Online, ResponseTimeMs = x.ResponseTimeMs, Message = x.Message,
-        FirmwareVersion = x.FirmwareVersion ?? string.Empty, CheckedAt = checkedAt,
+        FirmwareVersion = x.FirmwareVersion ?? string.Empty,
+        SerialNumber = x.SerialNumber ?? string.Empty,
+        MacAddress = x.MacAddress ?? string.Empty,
+        CheckedAt = checkedAt,
         Portals = x.Portals.Select(p => new DevicePortalCapabilityOut { Number = p.Number, Name = p.Name, Direction = p.Direction.ToString(), Discovered = p.Discovered }).ToList()
     };
 }

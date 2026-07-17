@@ -9,6 +9,7 @@ using CondotifyAPI.Domain.Enums.Resident;
 using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using CondotifyAPI.Services.Security;
 
 namespace CondotifyAPI.Services.AccessControl;
 
@@ -36,19 +37,22 @@ public sealed class CredentialReconciliationService : ICredentialReconciliationS
     private readonly IAccessRouteResolver _routeResolver;
     private readonly IMapper _mapper;
     private readonly ILogger<CredentialReconciliationService> _logger;
+    private readonly IPrivateMediaStore _media;
 
     public CredentialReconciliationService(
         DatabaseContext context,
         IAccessControlService accessControl,
         IAccessRouteResolver routeResolver,
         IMapper mapper,
-        ILogger<CredentialReconciliationService> logger)
+        ILogger<CredentialReconciliationService> logger,
+        IPrivateMediaStore media)
     {
         _context = context;
         _accessControl = accessControl;
         _routeResolver = routeResolver;
         _mapper = mapper;
         _logger = logger;
+        _media = media;
     }
 
     public async Task<CredentialReconciliationResult> ReconcileCredentialAsync(
@@ -106,7 +110,7 @@ public sealed class CredentialReconciliationService : ICredentialReconciliationS
         {
             var binding = credential.Devices.FirstOrDefault(x => x.DeviceId == target.Device.Id);
             var photo = credential.CredentialType == AccessCredentialTypeEnum.Face
-                ? imageBase64 ?? resident.ImgUrl
+                ? await _media.ResolveDataUriAsync(licenseId, imageBase64 ?? resident.ImgUrl, cancellationToken)
                 : null;
             if (credential.CredentialType == AccessCredentialTypeEnum.Face && string.IsNullOrWhiteSpace(photo))
             {

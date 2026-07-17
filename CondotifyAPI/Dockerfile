@@ -10,6 +10,8 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["CondotifyAPI/CondotifyAPI.csproj", "CondotifyAPI/"]
+COPY ["CondotifyAPI.Infrastructure/CondotifyAPI.Infrastructure.csproj", "CondotifyAPI.Infrastructure/"]
+COPY ["CondotifyAPI.Domain/CondotifyAPI.Domain.csproj", "CondotifyAPI.Domain/"]
 RUN dotnet restore "./CondotifyAPI/CondotifyAPI.csproj"
 COPY . .
 WORKDIR "/src/CondotifyAPI"

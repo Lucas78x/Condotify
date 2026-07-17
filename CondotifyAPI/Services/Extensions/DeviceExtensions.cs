@@ -59,6 +59,17 @@
             };
         }
 
+        public static bool IsInHikvision(this DeviceTypeEnum deviceType)
+        {
+            return deviceType switch
+            {
+                DeviceTypeEnum.HikvisionDSK1T673 or
+                DeviceTypeEnum.HikvisionDSK1T671 or
+                DeviceTypeEnum.HikvisionDSK1T323 => true,
+                _ => false
+            };
+        }
+
         public static bool SupportsFace(this DeviceTypeEnum deviceType)
         {
             return deviceType switch
@@ -79,7 +90,10 @@
                 DeviceTypeEnum.SS5542MFW or
                 DeviceTypeEnum.SS5430MFBioFT or
                 DeviceTypeEnum.IdFace or
-                DeviceTypeEnum.IdFaceMax => true,
+                DeviceTypeEnum.IdFaceMax or
+                DeviceTypeEnum.HikvisionDSK1T673 or
+                DeviceTypeEnum.HikvisionDSK1T671 or
+                DeviceTypeEnum.HikvisionDSK1T323 => true,
                 _ => false
             };
         }

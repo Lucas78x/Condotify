@@ -46,10 +46,13 @@ namespace CondotifyAPI.Services.AccessControl
         public Task<DeviceInspectionResult> InspectAsync(AccessControlDevice device) =>
             _driverFactory.GetDriver(device.Type).InspectAsync(device);
 
+        public Task<DeviceCredentialInventoryResult> ReadCredentialInventoryAsync(AccessControlDevice device) =>
+            _driverFactory.GetDriver(device.Type).ReadCredentialInventoryAsync(device);
+
         public Task<string> GetUsersAsync(AccessControlDevice device)
         {
             var driver = _driverFactory.GetDriver(device.Type);
-            return driver.GetEventsAsync(device);
+            return driver.GetUsersAsync(device);
         }
 
         public Task<bool> AddUserAsync(AccessControlDevice device, object user)

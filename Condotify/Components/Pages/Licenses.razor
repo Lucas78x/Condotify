@@ -2,15 +2,15 @@
 @attribute [Authorize]
 @inject CondotifyApiClient Api
 
-<PageTitle>Condominios | Condotify</PageTitle>
+<PageTitle>Condomínios | Condotify</PageTitle>
 
-<PageHeader Title="Condominios" Subtitle="Licencas, estrutura e operacao de cada empreendimento." Eyebrow="PORTFOLIO">
+<PageHeader Title="Condomínios" Subtitle="Licenças, estrutura e operação de cada empreendimento." Eyebrow="PORTFÓLIO">
     <Actions>
         <AuthorizeView Context="licenseAuth">
             <Authorized>
                 @if (CanCreateLicense(licenseAuth.User))
                 {
-                    <MudButton Href="/licencas/nova" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add">Nova licenca</MudButton>
+                    <MudButton Href="/licencas/nova" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add">Nova licença</MudButton>
                 }
             </Authorized>
         </AuthorizeView>
@@ -26,7 +26,7 @@
 
 <MudPaper Class="content-panel" Elevation="0">
     <div class="panel-toolbar">
-        <MudTextField T="string" @bind-Value="_search" Immediate Label="Buscar por nome, codigo ou cidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Style="min-width:min(430px,100%)" />
+        <MudTextField T="string" @bind-Value="_search" Immediate Label="Buscar por nome, código ou cidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Style="min-width:min(430px,100%)" />
         <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" aria-label="Atualizar lista" />
     </div>
 
@@ -40,17 +40,17 @@
     }
     else if (!Filtered.Any())
     {
-        <div class="panel-body"><MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhuma licenca corresponde aos filtros informados.</MudAlert></div>
+        <div class="panel-body"><MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhuma licença corresponde aos filtros informados.</MudAlert></div>
     }
     else
     {
         <div class="table-wrap">
             <MudTable Items="Filtered" Hover Dense Elevation="0" RowsPerPage="10">
                 <HeaderContent>
-                    <MudTh>Condominio</MudTh><MudTh>Cidade</MudTh><MudTh>Moradores</MudTh><MudTh>Acesso</MudTh>
+                    <MudTh>Condomínio</MudTh><MudTh>Cidade</MudTh><MudTh>Moradores</MudTh><MudTh>Acesso</MudTh>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd DataLabel="Condominio">
+                    <MudTd DataLabel="Condomínio">
                         <div class="license-name-cell">
                             <span class="license-monogram">@Monogram(context.Nome)</span>
                             <span class="license-meta"><span class="license-title">@context.Nome</span><span class="license-code">@context.Codigo</span></span>

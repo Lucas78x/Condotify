@@ -1,0 +1,63 @@
+@inject IJSRuntime Js
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog concierge-detail-dialog">
+    <TitleContent>
+        <div class="dialog-title-block"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /><div><MudText Typo="Typo.h6">Autorizacao de acesso</MudText><MudText Typo="Typo.caption">Dados apresentados na portaria e nos terminais.</MudText></div></div>
+    </TitleContent>
+    <DialogContent>
+        <header class="visit-detail-person">
+            @if (!string.IsNullOrWhiteSpace(Visit.PhotoUrl)) { <img src="@Visit.PhotoUrl" alt="Foto de @Visit.VisitorName" /> }
+            else { <span class="visit-detail-avatar">@Initials(Visit.VisitorName)</span> }
+            <div><MudText Typo="Typo.h6">@Visit.VisitorName</MudText><MudText Typo="Typo.body2">Visitante de @Visit.HostName</MudText><span class="status-chip @Visit.Status.ToLowerInvariant()">@StatusLabel(Visit.Status)</span></div>
+        </header>
+
+        <div class="visit-detail-content">
+            @if (Visit.CredentialType == "QrCode")
+            {
+                <section class="visit-qr-panel">
+                    <img src="@_qrDataUri" alt="QR Code da autorizacao" />
+                    <div><strong>QR Code de acesso</strong><small>Apresente este codigo no leitor dentro da janela autorizada.</small><code>@Visit.CredentialCode</code><MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ContentCopy" OnClick="CopyCodeAsync">Copiar codigo</MudButton></div>
+                </section>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.Face">A foto facial foi encaminhada aos terminais definidos pelas rotas temporarias.</MudAlert>
+            }
+
+            <div class="visit-detail-grid">
+                <div><small>Destino</small><strong>@Visit.BlockName / @Visit.UnitNumber</strong></div>
+                <div><small>Validade</small><strong>@Visit.ValidFrom.ToLocalTime().ToString("dd/MM HH:mm") a @Visit.ValidTo.ToLocalTime().ToString("dd/MM HH:mm")</strong></div>
+                <div><small>Documento</small><strong>@Fallback(Visit.Document)</strong></div>
+                <div><small>Telefone</small><strong>@Fallback(Visit.PhoneNumber)</strong></div>
+                <div><small>Motivo</small><strong>@Fallback(Visit.Purpose)</strong></div>
+                <div><small>Empresa</small><strong>@Fallback(Visit.Company)</strong></div>
+                <div><small>Veiculo</small><strong>@Fallback(Visit.VehiclePlate)</strong></div>
+                <div><small>Utilizacoes</small><strong>@UsesLabel(Visit)</strong></div>
+                <div><small>Aprovacao</small><strong>@ApprovalLabel(Visit)</strong></div>
+                <div><small>Recorrencia</small><strong>@RecurrenceLabel(Visit)</strong></div>
+            </div>
+        </div>
+    </DialogContent>
+    <DialogActions><MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public ConciergeVisitViewModel Visit { get; set; } = new();
+    private string _qrDataUri = string.Empty;
+
+    protected override void OnParametersSet() => _qrDataUri = QrCodeRenderer.ToPngDataUri(Visit.CredentialCode);
+    private async Task CopyCodeAsync()
+    {
+        await Js.InvokeVoidAsync("navigator.clipboard.writeText", Visit.CredentialCode);
+        Snackbar.Add("Codigo copiado.", Severity.Success);
+    }
+    private void Close() => Dialog.Close();
+    private static string Fallback(string value) => string.IsNullOrWhiteSpace(value) ? "Nao informado" : value;
+    private static string UsesLabel(ConciergeVisitViewModel visit) => visit.MaxUses.HasValue ? $"{visit.UseCount} de {visit.MaxUses}" : $"{visit.UseCount} sem limite";
+    private static string Initials(string name) => string.Join(string.Empty, name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+    private static string StatusLabel(string status) => status switch { "Scheduled" => "Agendada", "CheckedIn" => "No local", "CheckedOut" => "Finalizada", "Canceled" => "Cancelada", "Expired" => "Expirada", "Denied" => "Negada", "PendingApproval" => "Aguardando aprovacao", _ => status };
+    private static string ApprovalLabel(ConciergeVisitViewModel visit) => !visit.ApprovalRequired ? "Dispensada" : visit.ApprovedAt.HasValue ? $"{visit.ApprovedBy} em {visit.ApprovedAt.Value.ToLocalTime():dd/MM HH:mm}" : "Pendente";
+    private static string RecurrenceLabel(ConciergeVisitViewModel visit) => visit.RecurrenceCount > 1 ? $"Ocorrencia {visit.RecurrenceSequence} de {visit.RecurrenceCount}" : "Visita unica";
+}

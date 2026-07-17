@@ -4,7 +4,6 @@ using Condotify.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
-using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
@@ -64,6 +63,14 @@ namespace Condotify.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(LoginViewModel model)
         {
+            if (model.MfaRequired)
+            {
+                ModelState.Remove(nameof(model.Email));
+                ModelState.Remove(nameof(model.Password));
+                if (string.IsNullOrWhiteSpace(model.MfaChallengeToken) || string.IsNullOrWhiteSpace(model.MfaCode))
+                    ModelState.AddModelError(nameof(model.MfaCode), "Informe o código do autenticador ou um código de recuperação.");
+            }
+
             if (!ModelState.IsValid)
             {
                 var errors = ModelState.Values
@@ -78,11 +85,9 @@ namespace Condotify.Controllers
             try
             {
                 var client = _httpClientFactory.CreateClient();
-                var response = await client.PostAsJsonAsync(BuildApiUrl("api/auth/login"), new
-                {
-                    Email = model.Email,
-                    Password = model.Password
-                });
+                var response = model.MfaRequired
+                    ? await client.PostAsJsonAsync(BuildApiUrl("api/auth/mfa/verify"), new { ChallengeToken = model.MfaChallengeToken, Code = model.MfaCode })
+                    : await client.PostAsJsonAsync(BuildApiUrl("api/auth/login"), new { Email = model.Email, Password = model.Password });
 
                 var result = await response.Content.ReadFromJsonAsync<LoginOut>();
 
@@ -95,18 +100,32 @@ namespace Condotify.Controllers
                     await HttpContext.SignInAsync(
                         CookieAuthenticationDefaults.AuthenticationScheme,
                         principal,
-                        new AuthenticationProperties
+                    new AuthenticationProperties
                     {
-                        IsPersistent = true,
+                        IsPersistent = model.RememberMe,
                         AllowRefresh = true,
-                        ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
+                        ExpiresUtc = model.RememberMe
+                            ? DateTimeOffset.UtcNow.AddDays(30)
+                            : DateTimeOffset.UtcNow.AddHours(8)
                     });
 
                     Response.Cookies.Delete("AuthToken");
                     return Redirect("/");
                 }
 
-                ModelState.AddModelError("", result?.Result ?? "Erro ao realizar login");
+                if (response.IsSuccessStatusCode && result?.MfaRequired == true && !string.IsNullOrWhiteSpace(result.ChallengeToken))
+                {
+                    ModelState.Clear();
+                    return View(new LoginViewModel
+                    {
+                        MfaRequired = true,
+                        MfaChallengeToken = result.ChallengeToken,
+                        Email = model.Email,
+                        RememberMe = model.RememberMe
+                    });
+                }
+
+                ModelState.AddModelError("", FriendlyLoginError(result?.Result));
                 return View(model);
             }
             catch (Exception ex)
@@ -115,15 +134,6 @@ namespace Condotify.Controllers
                 ModelState.AddModelError("", "Erro ao processar login. Tente novamente mais tarde.");
                 return View(model);
             }
-        }
-
-        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-        public IActionResult Error()
-        {
-            return View(new ErrorViewModel
-            {
-                RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier
-            });
         }
 
         [HttpGet]
@@ -171,6 +181,13 @@ namespace Condotify.Controllers
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
             return new ClaimsPrincipal(identity);
         }
+
+        private static string FriendlyLoginError(string? result) => result switch
+        {
+            "InvalidCredentials" => "E-mail ou senha incorretos.",
+            "InvalidMfaCode" => "O código informado é inválido ou expirou.",
+            _ => "Não foi possível entrar. Tente novamente."
+        };
 
         private static void AddClaim(JsonElement payload, ICollection<Claim> claims, string jsonName, string claimType)
         {

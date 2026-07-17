@@ -17,6 +17,11 @@ namespace CondotifyAPI.Domain.DTO.Users
 
         public AccessTypeEnum AccessType { get; set; }
         public bool FirstAccess { get; set; }
+        public bool MfaEnabled { get; set; }
+        public string MfaSecret { get; set; } = string.Empty;
+        public string MfaRecoveryCodeHashesJson { get; set; } = "[]";
+        public string MfaChallengeHash { get; set; } = string.Empty;
+        public DateTime? MfaChallengeExpiresAt { get; set; }
         public List<UserAccessAuditDTO> Audit { get; set; }
         public DateTime LastAccess { get; set; }
         public DateTime CreatedAt { get; set; }

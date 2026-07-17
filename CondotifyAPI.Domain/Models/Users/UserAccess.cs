@@ -17,6 +17,8 @@ namespace CondotifyAPI.Domain.Models.Users
 
         public AccessTypeEnum AccessType { get; private set; }
         public bool FirstAccess { get; private set; }
+        public bool MfaEnabled { get; private set; }
+        public string MfaSecret { get; private set; } = string.Empty;
 
         public DateTime LastAccess { get; private set; }
         public DateTime CreatedAt { get; private set; }

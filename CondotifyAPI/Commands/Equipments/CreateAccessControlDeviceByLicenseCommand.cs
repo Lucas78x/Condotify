@@ -63,6 +63,7 @@ namespace CondotifyAPI.Commands.Equipments
 
             public async Task<AccessControlDevice?> Handle(CreateAccessControlDeviceByLicenseCommand request, CancellationToken cancellationToken)
             {
+                var now = DateTime.UtcNow;
                 var device = AccessControlDevice.Create(
                     request.Name,
                     request.IPAddress,
@@ -76,8 +77,8 @@ namespace CondotifyAPI.Commands.Equipments
                     request.Type,
                     request.IsActive,
                     request.Location,
-                    DateTime.Now,
-                    DateTime.Now
+                    now,
+                    now
                 );
 
                 return await _repository.AddAccessControlDeviceAsync(request.LicenseId, device);

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 
 namespace Condotify.Models
 {
@@ -44,34 +45,36 @@ namespace Condotify.Models
     {
         public List<AccessDeviceRowViewModel> Devices { get; set; } = new();
 
-        [Required]
+        [Required(ErrorMessage = "Informe o nome do equipamento.")]
         public string Name { get; set; } = string.Empty;
 
-        [Required]
+        [Required(ErrorMessage = "Informe o endereço IP do equipamento.")]
         public string IPAddress { get; set; } = string.Empty;
 
-        [Range(1, 65535)]
+        [Range(1, 65535, ErrorMessage = "Informe uma porta entre 1 e 65535.")]
         public int Port { get; set; } = 80;
 
-        [Required]
+        [Required(ErrorMessage = "Informe o usuário de acesso ao equipamento.")]
         public string Username { get; set; } = string.Empty;
 
-        [Required]
+        [Required(ErrorMessage = "Informe a senha de acesso ao equipamento.")]
         public string Password { get; set; } = string.Empty;
-
-        public string MACAddress { get; set; } = string.Empty;
 
         public string DeviceModel { get; set; } = string.Empty;
 
         public string DeviceBrand { get; set; } = "Intelbras";
-
-        public string SerialNumber { get; set; } = string.Empty;
-
-        public string FirmwareVersion { get; set; } = string.Empty;
         public int Type { get; set; }
         public bool IsActive { get; set; }
         public float LocationX { get; set; }
         public float LocationY { get; set; }
+    }
+
+    public class AccessDeviceCreationViewModel
+    {
+        public bool IsActive { get; set; }
+        public bool ConnectionTested { get; set; }
+        public bool ConnectionSucceeded { get; set; }
+        public string Message { get; set; } = string.Empty;
     }
 
     public class CftvDeviceFormViewModel : LicenseModuleViewModel
@@ -658,6 +661,8 @@ namespace Condotify.Models
         public int? ResponseTimeMs { get; set; }
         public string Message { get; set; } = string.Empty;
         public string FirmwareVersion { get; set; } = string.Empty;
+        public string SerialNumber { get; set; } = string.Empty;
+        public string MacAddress { get; set; } = string.Empty;
         public DateTime CheckedAt { get; set; }
         public List<DevicePortalCapabilityViewModel> Portals { get; set; } = [];
     }
@@ -667,6 +672,16 @@ namespace Condotify.Models
         public int Number { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Direction { get; set; } = string.Empty;
+        public bool Discovered { get; set; }
+    }
+    public sealed class DevicePortalCapabilityJson
+    {
+        public int Number { get; set; }
+
+        public string? Name { get; set; }
+
+        public JsonElement Direction { get; set; }
+
         public bool Discovered { get; set; }
     }
 
@@ -679,6 +694,23 @@ namespace Condotify.Models
         public List<string> Warnings { get; set; } = [];
     }
 
+    public class RouteSimulationViewModel
+    {
+        public string Audience { get; set; } = string.Empty;
+        public List<string> Routes { get; set; } = [];
+        public List<RouteSimulationTargetViewModel> Targets { get; set; } = [];
+        public List<string> Warnings { get; set; } = [];
+    }
+
+    public class RouteSimulationTargetViewModel
+    {
+        public Guid DeviceId { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public string DeviceType { get; set; } = string.Empty;
+        public bool Online { get; set; }
+        public List<string> Portals { get; set; } = [];
+    }
+
     public class AccessBatchOperationViewModel
     {
         public Guid Id { get; set; }
@@ -688,11 +720,55 @@ namespace Condotify.Models
         public int ProcessedItems { get; set; }
         public int SuccessfulItems { get; set; }
         public int FailedItems { get; set; }
+        public int Priority { get; set; }
+        public int AttemptCount { get; set; }
+        public int MaxAttempts { get; set; }
         public string RequestedBy { get; set; } = string.Empty;
         public string Error { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public DateTime? StartedAt { get; set; }
         public DateTime? FinishedAt { get; set; }
+        public DateTime? NextAttemptAt { get; set; }
+        public List<AccessOperationItemViewModel> Items { get; set; } = [];
+    }
+
+    public class AccessOperationItemViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid? CredentialId { get; set; }
+        public Guid? DeviceId { get; set; }
+        public string CredentialName { get; set; } = string.Empty;
+        public string DeviceName { get; set; } = string.Empty;
+        public string Action { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public int AttemptCount { get; set; }
+        public string Error { get; set; } = string.Empty;
+        public DateTime? NextAttemptAt { get; set; }
+    }
+
+    public class DeviceInventoryItemViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid? CredentialId { get; set; }
+        public string RemoteKey { get; set; } = string.Empty;
+        public string ExternalUserId { get; set; } = string.Empty;
+        public string CredentialType { get; set; } = string.Empty;
+        public string Identifier { get; set; } = string.Empty;
+        public string PersonName { get; set; } = string.Empty;
+        public bool RemoteActive { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public DateTime ObservedAt { get; set; }
+        public bool Selected { get; set; }
+    }
+
+    public class DeviceInventorySummaryViewModel
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public int Synced { get; set; }
+        public int Divergent { get; set; }
+        public int Missing { get; set; }
+        public int Orphan { get; set; }
     }
 
     public class AccessAuditViewModel
@@ -800,5 +876,114 @@ namespace Condotify.Models
         public string CPF { get; set; } = string.Empty;
         public string RG { get; set; } = string.Empty;
         public string BirthDate { get; set; } = string.Empty;
+    }
+
+    public class ConciergeDashboardViewModel
+    {
+        public List<ConciergeVisitViewModel> Visits { get; set; } = [];
+        public List<ConciergeEventViewModel> Events { get; set; } = [];
+        public List<ConciergeDeviceViewModel> Devices { get; set; } = [];
+        public int ExpectedToday { get; set; }
+        public int InsideNow { get; set; }
+        public int OfflineDevices { get; set; }
+        public int DeniedToday { get; set; }
+        public int PendingApprovals { get; set; }
+        public int Overstays { get; set; }
+        public List<AccessWatchlistEntryViewModel> Watchlist { get; set; } = [];
+    }
+
+    public class ConciergeVisitViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid HostResidentId { get; set; }
+        public string HostName { get; set; } = string.Empty;
+        public string BlockName { get; set; } = string.Empty;
+        public string UnitNumber { get; set; } = string.Empty;
+        public string VisitorName { get; set; } = string.Empty;
+        public string Document { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string Company { get; set; } = string.Empty;
+        public string Purpose { get; set; } = string.Empty;
+        public string VehiclePlate { get; set; } = string.Empty;
+        public string PhotoUrl { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string CredentialType { get; set; } = string.Empty;
+        public string CredentialCode { get; set; } = string.Empty;
+        public int UseCount { get; set; }
+        public int? MaxUses { get; set; }
+        public DateTime ValidFrom { get; set; }
+        public DateTime ValidTo { get; set; }
+        public DateTime? CheckedInAt { get; set; }
+        public DateTime? CheckedOutAt { get; set; }
+        public bool ApprovalRequired { get; set; }
+        public string ApprovedBy { get; set; } = string.Empty;
+        public DateTime? ApprovedAt { get; set; }
+        public string ApprovalNotes { get; set; } = string.Empty;
+        public DateTime? ExpectedCheckoutAt { get; set; }
+        public bool IsOverstayed { get; set; }
+        public int RecurrenceSequence { get; set; }
+        public int RecurrenceCount { get; set; }
+    }
+
+    public class ConciergeEventViewModel
+    {
+        public Guid Id { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public string PersonName { get; set; } = string.Empty;
+        public string Event { get; set; } = string.Empty;
+        public bool Authorized { get; set; }
+        public string Portal { get; set; } = string.Empty;
+        public DateTime OccurredAt { get; set; }
+    }
+
+    public class ConciergeDeviceViewModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Model { get; set; } = string.Empty;
+        public bool Online { get; set; }
+        public string HealthMessage { get; set; } = string.Empty;
+        public string DiscoveredPortalsJson { get; set; } = "[]";
+    }
+
+    public class ConciergeVisitFormViewModel
+    {
+        [Required] public Guid HostResidentId { get; set; }
+        [Required] public string VisitorName { get; set; } = string.Empty;
+        public string Document { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string Company { get; set; } = string.Empty;
+        public string Purpose { get; set; } = string.Empty;
+        public string VehiclePlate { get; set; } = string.Empty;
+        public string ImageBase64 { get; set; } = string.Empty;
+        public int CredentialType { get; set; } = 2;
+        public DateTime ValidFrom { get; set; } = DateTime.Now;
+        public DateTime ValidTo { get; set; } = DateTime.Now.AddHours(4);
+        public int? MaxUses { get; set; } = 1;
+        public List<Guid> RouteIds { get; set; } = [];
+        public bool RequireApproval { get; set; }
+        public int RepeatCount { get; set; } = 1;
+        public int RepeatEveryDays { get; set; } = 7;
+    }
+
+    public class AccessWatchlistEntryViewModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Document { get; set; } = string.Empty;
+        public string VehiclePlate { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+        public int Severity { get; set; } = 2;
+        public DateTime? ExpiresAt { get; set; }
+    }
+
+    public class AccessWatchlistFormViewModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Document { get; set; } = string.Empty;
+        public string VehiclePlate { get; set; } = string.Empty;
+        [Required] public string Reason { get; set; } = string.Empty;
+        public int Severity { get; set; } = 2;
+        public DateTime? ExpiresAt { get; set; }
     }
 }

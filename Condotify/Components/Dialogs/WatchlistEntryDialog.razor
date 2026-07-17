@@ -1,0 +1,19 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog">
+    <TitleContent><div class="dialog-title-block"><MudIcon Icon="@Icons.Material.Outlined.GppBad" /><div><MudText Typo="Typo.h6">Nova restricao</MudText><MudText Typo="Typo.caption">Bloqueie autorizacoes por documento ou placa.</MudText></div></div></TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+        <EditForm Model="_form" OnValidSubmit="SaveAsync"><DataAnnotationsValidator /><div class="form-grid form-grid-two"><MudTextField @bind-Value="_form.Name" Label="Nome" Variant="Variant.Outlined" /><MudSelect T="int" @bind-Value="_form.Severity" Label="Nivel" Variant="Variant.Outlined"><MudSelectItem Value="1">Atencao</MudSelectItem><MudSelectItem Value="2">Bloqueio</MudSelectItem><MudSelectItem Value="3">Critico</MudSelectItem></MudSelect><MudTextField @bind-Value="_form.Document" Label="Documento" Variant="Variant.Outlined" /><MudTextField @bind-Value="_form.VehiclePlate" Label="Placa" Variant="Variant.Outlined" /><MudTextField @bind-Value="_form.Reason" Label="Motivo" Required Variant="Variant.Outlined" Lines="3" Class="form-span-two" /><MudDatePicker @bind-Date="_form.ExpiresAt" Label="Expira em (opcional)" Variant="Variant.Outlined" /></div><div class="form-actions dialog-form-actions"><MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Block" Disabled="_saving">@(_saving ? "Salvando..." : "Adicionar restricao")</MudButton></div></EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    private readonly AccessWatchlistFormViewModel _form = new();
+    private bool _saving; private string? _error;
+    private async Task SaveAsync() { if (string.IsNullOrWhiteSpace(_form.Document) && string.IsNullOrWhiteSpace(_form.VehiclePlate)) { _error = "Informe um documento ou uma placa."; return; } _saving = true; var result = await Api.AddWatchlistEntryAsync(LicenseId, _form); _saving = false; if (!result.Success) { _error = result.Error; return; } Snackbar.Add("Restricao adicionada.", Severity.Success); Dialog.Close(DialogResult.Ok(result.Value)); }
+    private void Cancel() => Dialog.Cancel();
+}

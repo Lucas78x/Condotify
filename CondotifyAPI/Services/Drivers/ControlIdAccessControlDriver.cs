@@ -168,11 +168,25 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
         if (portals.Count == 0)
             portals.Add(new DevicePortalCapability(1, "Portal principal", AccessRouteDirectionEnum.Entry, false));
 
-        var firmware = system is { } systemValue && systemValue.TryGetProperty("firmware", out var firmwareValue)
-            ? firmwareValue.ToString()
+        var firmware = system is { } systemValue
+            ? GetString(systemValue, "version") ?? GetString(systemValue, "firmware")
             : null;
+        var serialNumber = system is { } serialSystem ? GetString(serialSystem, "serial") : null;
+        string? macAddress = null;
+        if (system is { } networkSystem &&
+            networkSystem.TryGetProperty("network", out var network) &&
+            network.ValueKind == JsonValueKind.Object)
+            macAddress = GetString(network, "mac");
         var capacity = system is { } value ? value.ToString() : "{}";
-        return new DeviceInspectionResult(true, (int)stopwatch.ElapsedMilliseconds, "Terminal online e inventario atualizado.", firmware, capacity, portals);
+        return new DeviceInspectionResult(
+            true,
+            (int)stopwatch.ElapsedMilliseconds,
+            "Terminal online e inventario atualizado.",
+            firmware,
+            capacity,
+            portals,
+            serialNumber,
+            macAddress);
     }
 
     public async Task<List<ControlIdTagsModel>> GetUhfTagsAsync(AccessControlDevice device)
@@ -237,6 +251,49 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
         return result?.ToString() ?? "[]";
     }
 
+    public async Task<DeviceCredentialInventoryResult> ReadCredentialInventoryAsync(AccessControlDevice device)
+    {
+        var address = Address(device.IPAddress, device.Port);
+        var session = await LoginAsync(address, device.Username, device.Password);
+        if (session is null) return DeviceCredentialInventoryResult.Unavailable("Nao foi possivel autenticar no terminal Control iD.");
+
+        var usersJson = await LoadObjectsAsync(address, session, ControlIdObjects.Users);
+        if (usersJson is not { ValueKind: JsonValueKind.Array })
+            return DeviceCredentialInventoryResult.Unavailable("O terminal nao retornou o inventario de usuarios.");
+        var users = usersJson.Value.EnumerateArray()
+            .Where(x => GetInt64(x, "id").HasValue)
+            .ToDictionary(x => GetInt64(x, "id")!.Value, x => GetString(x, "name") ?? string.Empty);
+        var items = new List<DeviceCredentialInventoryItem>();
+
+        foreach (var (objectName, type) in new[]
+        {
+            (ControlIdObjects.FaceTemplates, AccessCredentialTypeEnum.Face),
+            (ControlIdObjects.Cards, AccessCredentialTypeEnum.Card),
+            (ControlIdObjects.QrCodes, AccessCredentialTypeEnum.QrCode),
+            (ControlIdObjects.UhfTags, AccessCredentialTypeEnum.Tag),
+            (ControlIdObjects.Pins, AccessCredentialTypeEnum.Password)
+        })
+        {
+            var values = await LoadObjectsAsync(address, session, objectName);
+            if (values is not { ValueKind: JsonValueKind.Array }) continue;
+            foreach (var value in values.Value.EnumerateArray())
+            {
+                var id = GetInt64(value, "id")?.ToString() ?? Guid.NewGuid().ToString("N");
+                var userId = GetInt64(value, "user_id")?.ToString() ?? GetString(value, "user_id") ?? string.Empty;
+                var identifier = GetString(value, "value") ?? GetString(value, "card_value") ?? GetString(value, "code") ?? string.Empty;
+                _ = long.TryParse(userId, out var numericUserId);
+                items.Add(new DeviceCredentialInventoryItem(
+                    $"{objectName}:{id}", userId, id, type, identifier,
+                    users.GetValueOrDefault(numericUserId, string.Empty), true, value.GetRawText()));
+            }
+        }
+
+        var representedUsers = items.Select(x => x.ExternalUserId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var user in users.Where(x => !representedUsers.Contains(x.Key.ToString())))
+            items.Add(new DeviceCredentialInventoryItem($"users:{user.Key}", user.Key.ToString(), string.Empty, null, string.Empty, user.Value, true));
+        return new DeviceCredentialInventoryResult(true, $"{items.Count} item(ns) lido(s) da Control iD.", items);
+    }
+
     public async Task<string> GetEventsAsync(AccessControlDevice device)
     {
         var address = Address(device.IPAddress, device.Port);
@@ -265,75 +322,149 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
         return ids.Count > 0;
     }
 
-    private async Task<JsonElement?> LoadObjectsAsync(string ip, string session, string objectName, int? limit = null)
+    private async Task<JsonElement?> LoadObjectsAsync(
+        string ip,
+        string session,
+        string objectName,
+        int? limit = null)
     {
-        var http = _clientFactory.CreateClient();
-        http.Timeout = TimeSpan.FromSeconds(10);
+        /*
+         * Nem todos os objetos da Control iD possuem coluna "id".
+         * Tabelas relacionais, como access_rule_time_zones,
+         * portal_access_rules e user_access_rules, usam chave composta.
+         * Por isso, ordenar sempre por id faz alguns firmwares recusarem
+         * o load_objects e impede a confirmacao do vinculo.
+         */
+        var effectiveLimit = limit ?? 10_000;
 
-        var url = $"http://{ip}/load_objects.fcgi?session={session}";
+        object[] payloads =
+        [
+            new
+            {
+                @object = objectName,
+                limit = effectiveLimit,
+                offset = 0,
+                order = new[] { "id", "descending" }
+            },
+            new
+            {
+                @object = objectName,
+                limit = effectiveLimit,
+                offset = 0
+            },
+            new
+            {
+                @object = objectName
+            }
+        ];
 
-        var payload = new { @object = objectName, limit, order = new[] { "id", "descending" } };
+        foreach (var payload in payloads)
+        {
+            var result = await PostCommandDetailedAsync(
+                ip,
+                session,
+                "load_objects.fcgi",
+                payload,
+                allowEmpty: false);
 
-        var content = new StringContent(
-            JsonSerializer.Serialize(payload),
-            Encoding.UTF8,
-            "application/json"
-        );
+            if (!result.Success || result.Json is null)
+                continue;
 
-        var resp = await http.PostAsync(url, content);
-        if (!resp.IsSuccessStatusCode)
-            return null;
-
-        var body = await resp.Content.ReadAsStringAsync();
-        using var json = JsonDocument.Parse(body);
-
-        if (json.RootElement.TryGetProperty(objectName, out var directArray))
-            return directArray.Clone();
-
-        if (json.RootElement.TryGetProperty("objects", out var objectsNode) &&
-            objectsNode.TryGetProperty(objectName, out var nestedArray))
-            return nestedArray.Clone();
+            var array = ExtractObjectArray(result.Json.Value, objectName);
+            if (array.HasValue)
+                return array.Value;
+        }
 
         return null;
     }
-    private async Task<List<long>> CreateObjectsAsync(
-    string ip,
-    string session,
-    string objectName,
-    IEnumerable<object> values)
+
+    private static JsonElement? ExtractObjectArray(
+        JsonElement root,
+        string objectName)
     {
-        var http = _clientFactory.CreateClient();
-        http.Timeout = TimeSpan.FromSeconds(10);
+        if (root.ValueKind == JsonValueKind.Array)
+            return root.Clone();
 
-        var url = $"http://{ip}/create_objects.fcgi?session={session}";
-
-        var payload = new
+        if (TryGetPropertyIgnoreCase(root, objectName, out var directArray) &&
+            directArray.ValueKind == JsonValueKind.Array)
         {
-            @object = objectName,
-            values = values
-        };
+            return directArray.Clone();
+        }
 
-        var content = new StringContent(
-            JsonSerializer.Serialize(payload),
-            Encoding.UTF8,
-            "application/json"
-        );
+        if (TryGetPropertyIgnoreCase(root, "objects", out var objectsNode))
+        {
+            if (objectsNode.ValueKind == JsonValueKind.Object &&
+                TryGetPropertyIgnoreCase(objectsNode, objectName, out var nestedArray) &&
+                nestedArray.ValueKind == JsonValueKind.Array)
+            {
+                return nestedArray.Clone();
+            }
 
-        var resp = await http.PostAsync(url, content);
-        if (!resp.IsSuccessStatusCode)
-            return new List<long>();
+            // Alguns firmwares retornam "objects" diretamente como array.
+            if (objectsNode.ValueKind == JsonValueKind.Array)
+                return objectsNode.Clone();
+        }
 
-        var body = await resp.Content.ReadAsStringAsync();
-        using var json = JsonDocument.Parse(body);
-
-        if (!json.RootElement.TryGetProperty("ids", out var idsNode))
-            return new List<long>();
-
-        return idsNode.EnumerateArray().Select(e => e.GetInt64()).ToList();
+        return null;
     }
 
-    public Task<bool> DeleteUserAsync(AccessControlDevice device, string userId)
-        => throw new NotImplementedException();
+    private async Task<List<long>> CreateObjectsAsync(
+        string ip,
+        string session,
+        string objectName,
+        IEnumerable<object> values)
+    {
+        var materializedValues = values.ToArray();
+        if (materializedValues.Length == 0)
+            return [];
+
+        var result = await PostCommandDetailedAsync(
+            ip,
+            session,
+            "create_objects.fcgi",
+            new
+            {
+                @object = objectName,
+                values = materializedValues
+            },
+            allowEmpty: false);
+
+        if (!result.Success || result.Json is null)
+            return [];
+
+        if (!TryGetPropertyIgnoreCase(result.Json.Value, "ids", out var idsNode) ||
+            idsNode.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var ids = new List<long>();
+        foreach (var item in idsNode.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Number && item.TryGetInt64(out var number))
+                ids.Add(number);
+            else if (item.ValueKind == JsonValueKind.String && long.TryParse(item.GetString(), out number))
+                ids.Add(number);
+        }
+
+        return ids;
+    }
+
+    public async Task<bool> DeleteUserAsync(AccessControlDevice device, string userId)
+    {
+        if (!long.TryParse(userId, out var numericUserId)) return false;
+        var address = Address(device.IPAddress, device.Port);
+        var session = await LoginAsync(address, device.Username, device.Password);
+        if (string.IsNullOrWhiteSpace(session)) return false;
+
+        var http = _clientFactory.CreateClient();
+        http.Timeout = TimeSpan.FromSeconds(10);
+        var url = $"http://{address}/destroy_objects.fcgi?session={Uri.EscapeDataString(session)}";
+        var payload = new { @object = ControlIdObjects.Users, where = new { users = new { id = numericUserId } } };
+        using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        using var response = await http.PostAsync(url, content);
+        return response.IsSuccessStatusCode;
+    }
 
     public async Task<CredentialOperationResult> UpsertCredentialAsync(
         AccessControlDevice device,
@@ -367,9 +498,23 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
         if (!long.TryParse(userId, out var numericUserId))
             return CredentialOperationResult.Fail("O identificador externo do usuario Control iD e invalido.");
 
-        if (request.Portals is { Count: > 0 } && !await EnsureNativeAccessPoliciesAsync(address, session, numericUserId, request.Portals))
-            return new CredentialOperationResult(false, userId, request.ExternalCredentialId,
-                "O usuario foi salvo, mas o terminal nao confirmou as regras nativas de rota, portal e horario.");
+        if (request.Portals is { Count: > 0 })
+        {
+            var policyResult = await EnsureNativeAccessPoliciesAsync(
+                address,
+                session,
+                numericUserId,
+                request.Portals);
+
+            if (!policyResult.Success)
+            {
+                return new CredentialOperationResult(
+                    false,
+                    userId,
+                    request.ExternalCredentialId,
+                    $"O usuario foi salvo, mas o terminal nao confirmou as regras nativas de acesso. {policyResult.ErrorMessage}".Trim());
+            }
+        }
 
         if (request.Type == AccessCredentialTypeEnum.Face)
         {
@@ -516,74 +661,205 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
         }).OrderByDescending(x => x.OccurredAt).Take(take).ToList();
     }
 
-    private async Task<bool> ModifyObjectsAsync(string ip, string session, string objectName, object values, object where) =>
-        await PostCommandWithChangeCountAsync(ip, session, "modify_objects.fcgi", new { @object = objectName, values, where });
+    private async Task<bool> ModifyObjectsAsync(
+        string ip,
+        string session,
+        string objectName,
+        object values,
+        object where)
+    {
+        var result = await PostCommandDetailedAsync(
+            ip,
+            session,
+            "modify_objects.fcgi",
+            new
+            {
+                @object = objectName,
+                values,
+                where
+            },
+            allowEmpty: false);
 
-    private async Task<bool> EnsureNativeAccessPoliciesAsync(
+        if (!result.Success || result.Json is null)
+            return false;
+
+        // changes == 0 tambem e sucesso: o registro pode ja possuir os mesmos valores.
+        return !HasApiError(result.Json.Value);
+    }
+
+    private async Task<NativePolicyResult> EnsureNativeAccessPoliciesAsync(
         string address,
         string session,
         long userId,
         IReadOnlyList<AccessPortalAssignment> assignments)
     {
-        var desiredGroupIds = new HashSet<long>();
-        var desiredRules = assignments.GroupBy(x => x.RouteName, StringComparer.OrdinalIgnoreCase);
+        if (assignments.Count == 0)
+            return NativePolicyResult.Ok();
 
-        foreach (var route in desiredRules)
+        var portals = await LoadObjectsAsync(address, session, ControlIdObjects.Portals);
+        if (portals is not { ValueKind: JsonValueKind.Array })
+            return NativePolicyResult.Fail("O equipamento nao retornou a lista nativa de portais.");
+
+        var existingPortalIds = portals.Value
+            .EnumerateArray()
+            .Select(x => GetInt64(x, "id"))
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .ToHashSet();
+
+        var validAssignments = assignments
+            .Where(x => x.PortalNumber > 0)
+            .ToList();
+
+        if (validAssignments.Count == 0)
+            return NativePolicyResult.Fail("Nenhum portal valido foi informado para a rota.");
+
+        var missingPortals = validAssignments
+            .Select(x => (long)x.PortalNumber)
+            .Distinct()
+            .Where(x => !existingPortalIds.Contains(x))
+            .ToArray();
+
+        if (missingPortals.Length > 0)
         {
-            var first = route.First();
-            var nativeName = NativePolicyName(route.Key);
-            var groupId = await EnsureNamedObjectAsync(address, session, ControlIdObjects.Groups, nativeName,
-                () => new { name = nativeName });
-            var timeZoneId = await EnsureNamedObjectAsync(address, session, ControlIdObjects.TimeZones, nativeName,
-                () => new { name = nativeName });
-            var accessRuleId = await EnsureNamedObjectAsync(address, session, ControlIdObjects.AccessRules, nativeName,
-                () => new { name = nativeName, type = 1, priority = 0 });
-            if (groupId is null || timeZoneId is null || accessRuleId is null) return false;
-
-            desiredGroupIds.Add(groupId.Value);
-            if (!await EnsureTimeSpanAsync(address, session, timeZoneId.Value, first)) return false;
-            if (!await EnsureRelationAsync(address, session, ControlIdObjects.GroupAccessRules,
-                    new { group_id = groupId.Value, access_rule_id = accessRuleId.Value },
-                    item => GetInt64(item, "group_id") == groupId && GetInt64(item, "access_rule_id") == accessRuleId)) return false;
-            if (!await EnsureRelationAsync(address, session, ControlIdObjects.AccessRuleTimeZones,
-                    new { access_rule_id = accessRuleId.Value, time_zone_id = timeZoneId.Value },
-                    item => GetInt64(item, "access_rule_id") == accessRuleId && GetInt64(item, "time_zone_id") == timeZoneId)) return false;
-
-            foreach (var portal in route.Select(x => x.PortalNumber).Distinct())
-            {
-                if (!await EnsureRelationAsync(address, session, ControlIdObjects.PortalAccessRules,
-                        new { portal_id = portal, access_rule_id = accessRuleId.Value },
-                        item => GetInt64(item, "portal_id") == portal && GetInt64(item, "access_rule_id") == accessRuleId)) return false;
-            }
-
-            if (!await EnsureRelationAsync(address, session, ControlIdObjects.UserGroups,
-                    new { user_id = userId, group_id = groupId.Value },
-                    item => GetInt64(item, "user_id") == userId && GetInt64(item, "group_id") == groupId)) return false;
+            return NativePolicyResult.Fail(
+                $"Os portais {string.Join(", ", missingPortals)} nao existem no equipamento.");
         }
 
-        var groups = await LoadObjectsAsync(address, session, ControlIdObjects.Groups);
-        var userGroups = await LoadObjectsAsync(address, session, ControlIdObjects.UserGroups);
-        if (groups is { } groupsArray && userGroups is { } linksArray)
+        var desiredAccessRuleIds = new HashSet<long>();
+
+        var routes = validAssignments.GroupBy(
+            x => string.IsNullOrWhiteSpace(x.RouteName) ? "Rota principal" : x.RouteName.Trim(),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var route in routes)
         {
-            var managedGroupIds = groupsArray.EnumerateArray()
-                .Where(x => (GetString(x, "name") ?? string.Empty).StartsWith("Condotify - ", StringComparison.OrdinalIgnoreCase))
+            var routeAssignments = route.ToList();
+            var first = routeAssignments[0];
+            var nativeName = NativePolicyName(route.Key);
+
+            var timeZoneResult = await EnsureNamedObjectAsync(
+                address,
+                session,
+                ControlIdObjects.TimeZones,
+                nativeName,
+                () => new { name = nativeName });
+
+            if (!timeZoneResult.Success)
+                return NativePolicyResult.Fail($"Falha ao criar/localizar o horario '{nativeName}': {timeZoneResult.ErrorMessage}");
+
+            var accessRuleResult = await EnsureNamedObjectAsync(
+                address,
+                session,
+                ControlIdObjects.AccessRules,
+                nativeName,
+                () => new { name = nativeName, type = 1, priority = 0 });
+
+            if (!accessRuleResult.Success)
+                return NativePolicyResult.Fail($"Falha ao criar/localizar a regra '{nativeName}': {accessRuleResult.ErrorMessage}");
+
+            var timeZoneId = timeZoneResult.Id!.Value;
+            var accessRuleId = accessRuleResult.Id!.Value;
+            desiredAccessRuleIds.Add(accessRuleId);
+
+            var timeResult = await EnsureTimeSpanAsync(
+                address,
+                session,
+                timeZoneId,
+                first);
+
+            if (!timeResult.Success)
+                return NativePolicyResult.Fail($"Falha ao confirmar o horario da rota '{route.Key}': {timeResult.ErrorMessage}");
+
+            var timeZoneRelation = await EnsureRelationAsync(
+                address,
+                session,
+                ControlIdObjects.AccessRuleTimeZones,
+                new { access_rule_id = accessRuleId, time_zone_id = timeZoneId },
+                item => GetInt64(item, "access_rule_id") == accessRuleId &&
+                        GetInt64(item, "time_zone_id") == timeZoneId);
+
+            if (!timeZoneRelation.Success)
+                return NativePolicyResult.Fail($"Falha ao vincular a regra ao horario: {timeZoneRelation.ErrorMessage}");
+
+            foreach (var portalId in routeAssignments.Select(x => (long)x.PortalNumber).Distinct())
+            {
+                var portalRelation = await EnsureRelationAsync(
+                    address,
+                    session,
+                    ControlIdObjects.PortalAccessRules,
+                    new { portal_id = portalId, access_rule_id = accessRuleId },
+                    item => GetInt64(item, "portal_id") == portalId &&
+                            GetInt64(item, "access_rule_id") == accessRuleId);
+
+                if (!portalRelation.Success)
+                {
+                    return NativePolicyResult.Fail(
+                        $"Falha ao vincular o portal {portalId} a regra '{route.Key}': {portalRelation.ErrorMessage}");
+                }
+            }
+
+            // Vinculo direto usuario -> regra. E mais compativel do que criar grupos
+            // dinamicos e e oficialmente suportado pela API Control iD.
+            var userRelation = await EnsureRelationAsync(
+                address,
+                session,
+                ControlIdObjects.UserAccessRules,
+                new { user_id = userId, access_rule_id = accessRuleId },
+                item => GetInt64(item, "user_id") == userId &&
+                        GetInt64(item, "access_rule_id") == accessRuleId);
+
+            if (!userRelation.Success)
+                return NativePolicyResult.Fail($"Falha ao vincular o usuario a regra: {userRelation.ErrorMessage}");
+        }
+
+        // Remove apenas vinculos diretos antigos gerenciados pelo Condotify.
+        var rules = await LoadObjectsAsync(address, session, ControlIdObjects.AccessRules);
+        var userRules = await LoadObjectsAsync(address, session, ControlIdObjects.UserAccessRules);
+
+        if (rules is { ValueKind: JsonValueKind.Array } &&
+            userRules is { ValueKind: JsonValueKind.Array })
+        {
+            var managedRuleIds = rules.Value
+                .EnumerateArray()
+                .Where(x => (GetString(x, "name") ?? string.Empty)
+                    .StartsWith("Condotify - ", StringComparison.OrdinalIgnoreCase))
                 .Select(x => GetInt64(x, "id"))
                 .Where(x => x.HasValue)
                 .Select(x => x!.Value)
                 .ToHashSet();
-            foreach (var stale in linksArray.EnumerateArray().Where(x => GetInt64(x, "user_id") == userId)
-                         .Select(x => GetInt64(x, "group_id")).Where(x => x.HasValue)
-                         .Select(x => x!.Value).Where(x => managedGroupIds.Contains(x) && !desiredGroupIds.Contains(x)))
+
+            var staleRuleIds = userRules.Value
+                .EnumerateArray()
+                .Where(x => GetInt64(x, "user_id") == userId)
+                .Select(x => GetInt64(x, "access_rule_id"))
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .Where(x => managedRuleIds.Contains(x) && !desiredAccessRuleIds.Contains(x))
+                .Distinct()
+                .ToArray();
+
+            foreach (var staleRuleId in staleRuleIds)
             {
-                await DestroyObjectsAsync(address, session, ControlIdObjects.UserGroups,
-                    new { user_groups = new { user_id = userId, group_id = stale } });
+                await DestroyObjectsAsync(
+                    address,
+                    session,
+                    ControlIdObjects.UserAccessRules,
+                    new
+                    {
+                        user_access_rules = new
+                        {
+                            user_id = userId,
+                            access_rule_id = staleRuleId
+                        }
+                    });
             }
         }
 
-        return true;
+        return NativePolicyResult.Ok();
     }
 
-    private async Task<long?> EnsureNamedObjectAsync(
+    private async Task<NamedObjectResult> EnsureNamedObjectAsync(
         string address,
         string session,
         string objectName,
@@ -591,47 +867,217 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
         Func<object> createValue)
     {
         var objects = await LoadObjectsAsync(address, session, objectName);
-        var existing = objects?.EnumerateArray().FirstOrDefault(x =>
-            string.Equals(GetString(x, "name"), name, StringComparison.OrdinalIgnoreCase));
-        var existingId = existing.HasValue ? GetInt64(existing.Value, "id") : null;
-        if (existingId.HasValue) return existingId;
-        return (await CreateObjectsAsync(address, session, objectName, [createValue()])).FirstOrDefault() is var id && id > 0 ? id : null;
+        if (objects is { ValueKind: JsonValueKind.Array })
+        {
+            foreach (var item in objects.Value.EnumerateArray())
+            {
+                if (!string.Equals(GetString(item, "name"), name, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var id = GetInt64(item, "id");
+                if (id is > 0)
+                    return NamedObjectResult.Ok(id.Value);
+            }
+        }
+
+        var ids = await CreateObjectsAsync(address, session, objectName, [createValue()]);
+        if (ids.Count > 0 && ids[0] > 0)
+            return NamedObjectResult.Ok(ids[0]);
+
+        // Pode ter ocorrido uma corrida ou o equipamento pode ter retornado conflito.
+        // Recarregamos para confirmar se o objeto foi criado mesmo assim.
+        objects = await LoadObjectsAsync(address, session, objectName);
+        if (objects is { ValueKind: JsonValueKind.Array })
+        {
+            foreach (var item in objects.Value.EnumerateArray())
+            {
+                if (!string.Equals(GetString(item, "name"), name, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var existingId = GetInt64(item, "id");
+                if (existingId is > 0)
+                    return NamedObjectResult.Ok(existingId.Value);
+            }
+        }
+
+        return NamedObjectResult.Fail($"O equipamento recusou o objeto '{objectName}'.");
     }
 
-    private async Task<bool> EnsureTimeSpanAsync(
+    private async Task<NativePolicyResult> EnsureTimeSpanAsync(
         string address,
         string session,
         long timeZoneId,
         AccessPortalAssignment assignment)
     {
+        var start = NormalizeTimeSeconds(assignment.StartTime, isEnd: false);
+        var end = NormalizeTimeSeconds(assignment.EndTime, isEnd: true);
+
+        // 00:00 ate 00:00 e tratado como dia inteiro.
+        if (start == 0 && end == 0)
+            end = 86_399;
+
+        if (end <= start)
+        {
+            return NativePolicyResult.Fail(
+                $"Intervalo invalido: inicio {assignment.StartTime} e fim {assignment.EndTime}.");
+        }
+
+        var daysMask = assignment.DaysOfWeekMask == 0
+            ? 127
+            : assignment.DaysOfWeekMask;
+
         var values = new
         {
             time_zone_id = timeZoneId,
-            start = (int)assignment.StartTime.TotalSeconds,
-            end = Math.Min(86_399, (int)assignment.EndTime.TotalSeconds),
-            sun = DayFlag(assignment.DaysOfWeekMask, 1), mon = DayFlag(assignment.DaysOfWeekMask, 2),
-            tue = DayFlag(assignment.DaysOfWeekMask, 4), wed = DayFlag(assignment.DaysOfWeekMask, 8),
-            thu = DayFlag(assignment.DaysOfWeekMask, 16), fri = DayFlag(assignment.DaysOfWeekMask, 32),
-            sat = DayFlag(assignment.DaysOfWeekMask, 64), hol1 = 0, hol2 = 0, hol3 = 0
+            start,
+            end,
+            sun = DayFlag(daysMask, 1),
+            mon = DayFlag(daysMask, 2),
+            tue = DayFlag(daysMask, 4),
+            wed = DayFlag(daysMask, 8),
+            thu = DayFlag(daysMask, 16),
+            fri = DayFlag(daysMask, 32),
+            sat = DayFlag(daysMask, 64),
+            hol1 = 0,
+            hol2 = 0,
+            hol3 = 0
         };
+
         var spans = await LoadObjectsAsync(address, session, ControlIdObjects.TimeSpans);
-        var existing = spans?.EnumerateArray().FirstOrDefault(x => GetInt64(x, "time_zone_id") == timeZoneId);
-        var id = existing.HasValue ? GetInt64(existing.Value, "id") : null;
-        return id.HasValue
-            ? await ModifyObjectsAsync(address, session, ControlIdObjects.TimeSpans, values, new { time_spans = new { id } })
-            : (await CreateObjectsAsync(address, session, ControlIdObjects.TimeSpans, [values])).Count > 0;
+        if (spans is { ValueKind: JsonValueKind.Array })
+        {
+            foreach (var existing in spans.Value.EnumerateArray())
+            {
+                if (GetInt64(existing, "time_zone_id") != timeZoneId)
+                    continue;
+
+                var id = GetInt64(existing, "id");
+                if (id is not > 0)
+                    continue;
+
+                if (TimeSpanMatches(existing, timeZoneId, start, end, daysMask))
+                    return NativePolicyResult.Ok();
+
+                var modified = await ModifyObjectsAsync(
+                    address,
+                    session,
+                    ControlIdObjects.TimeSpans,
+                    values,
+                    new { time_spans = new { id = id.Value } });
+
+                if (!modified)
+                    return NativePolicyResult.Fail("O equipamento recusou a atualizacao do intervalo de horario.");
+
+                return NativePolicyResult.Ok();
+            }
+        }
+
+        var ids = await CreateObjectsAsync(
+            address,
+            session,
+            ControlIdObjects.TimeSpans,
+            [values]);
+
+        return ids.Count > 0
+            ? NativePolicyResult.Ok()
+            : NativePolicyResult.Fail("O equipamento recusou a criacao do intervalo de horario.");
     }
 
-    private async Task<bool> EnsureRelationAsync(
+    private async Task<NativePolicyResult> EnsureRelationAsync(
         string address,
         string session,
         string objectName,
         object value,
         Func<JsonElement, bool> matches)
     {
+        // Primeiro confirma se o vinculo ja existe.
         var objects = await LoadObjectsAsync(address, session, objectName);
-        if (objects is { } array && array.EnumerateArray().Any(matches)) return true;
-        return (await CreateObjectsAsync(address, session, objectName, [value])).Count > 0;
+        if (objects is { ValueKind: JsonValueKind.Array } &&
+            objects.Value.EnumerateArray().Any(matches))
+        {
+            return NativePolicyResult.Ok();
+        }
+
+        /*
+         * Tabelas relacionais da Control iD normalmente nao retornam "ids".
+         * Elas podem responder apenas { "changes": 1 } ou ate um objeto vazio.
+         * Portanto, nao podemos usar CreateObjectsAsync, que exige o array ids.
+         */
+        var createResult = await PostCommandDetailedAsync(
+            address,
+            session,
+            "create_objects.fcgi",
+            new
+            {
+                @object = objectName,
+                values = new[] { value }
+            },
+            allowEmpty: true);
+
+        if (createResult.Success &&
+            createResult.Json is { } createdJson &&
+            !HasApiError(createdJson))
+        {
+            // A resposta HTTP/API valida ja confirma a criacao. A releitura
+            // abaixo serve apenas como verificacao adicional quando suportada.
+            objects = await LoadObjectsAsync(address, session, objectName);
+
+            if (objects is not { ValueKind: JsonValueKind.Array } ||
+                objects.Value.EnumerateArray().Any(matches))
+            {
+                return NativePolicyResult.Ok();
+            }
+
+            /*
+             * Alguns firmwares aceitam o create_objects, mas nao permitem
+             * listar a tabela relacional. Nessa situacao, a confirmacao da
+             * propria API deve ser considerada sucesso.
+             */
+            return NativePolicyResult.Ok();
+        }
+
+        // Em caso de conflito/duplicidade, uma ultima releitura pode confirmar
+        // que o vinculo ja existia, mesmo que o create tenha sido recusado.
+        objects = await LoadObjectsAsync(address, session, objectName);
+        if (objects is { ValueKind: JsonValueKind.Array } &&
+            objects.Value.EnumerateArray().Any(matches))
+        {
+            return NativePolicyResult.Ok();
+        }
+
+        return NativePolicyResult.Fail(
+            createResult.ErrorMessage ??
+            $"O equipamento recusou o vinculo '{objectName}'.");
+    }
+
+    private static bool TimeSpanMatches(
+        JsonElement item,
+        long timeZoneId,
+        int start,
+        int end,
+        int daysMask)
+    {
+        return GetInt64(item, "time_zone_id") == timeZoneId &&
+               GetInt64(item, "start") == start &&
+               GetInt64(item, "end") == end &&
+               GetInt64(item, "sun") == DayFlag(daysMask, 1) &&
+               GetInt64(item, "mon") == DayFlag(daysMask, 2) &&
+               GetInt64(item, "tue") == DayFlag(daysMask, 4) &&
+               GetInt64(item, "wed") == DayFlag(daysMask, 8) &&
+               GetInt64(item, "thu") == DayFlag(daysMask, 16) &&
+               GetInt64(item, "fri") == DayFlag(daysMask, 32) &&
+               GetInt64(item, "sat") == DayFlag(daysMask, 64);
+    }
+
+    private static int NormalizeTimeSeconds(TimeSpan value, bool isEnd)
+    {
+        if (value < TimeSpan.Zero)
+            return 0;
+
+        if (value.TotalSeconds >= 86_400)
+            return isEnd ? 86_399 : 0;
+
+        return Math.Clamp((int)value.TotalSeconds, 0, 86_399);
     }
 
     private static string NativePolicyName(string routeName)
@@ -642,37 +1088,198 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
 
     private static int DayFlag(int mask, int bit) => (mask & bit) != 0 ? 1 : 0;
 
-    private async Task<bool> DestroyObjectsAsync(string ip, string session, string objectName, object where) =>
-        await PostCommandWithChangeCountAsync(ip, session, "destroy_objects.fcgi", new { @object = objectName, where });
-
-    private async Task<bool> PostCommandWithChangeCountAsync(string ip, string session, string endpoint, object payload)
+    private async Task<bool> DestroyObjectsAsync(
+        string ip,
+        string session,
+        string objectName,
+        object where)
     {
-        var response = await PostCommandForJsonAsync(ip, session, endpoint, payload);
-        return response is not null && (!response.Value.TryGetProperty("changes", out var changes) || changes.GetInt32() > 0);
+        var result = await PostCommandDetailedAsync(
+            ip,
+            session,
+            "destroy_objects.fcgi",
+            new { @object = objectName, where },
+            allowEmpty: false);
+
+        if (!result.Success || result.Json is null)
+            return false;
+
+        return !HasApiError(result.Json.Value);
     }
 
-    private async Task<bool> PostCommandAsync(string ip, string session, string endpoint, object payload)
+    private async Task<bool> PostCommandWithChangeCountAsync(
+        string ip,
+        string session,
+        string endpoint,
+        object payload)
     {
-        var result = await PostCommandForJsonAsync(ip, session, endpoint, payload, allowEmpty: true);
-        if (result is null) return false;
-        if (result.Value.TryGetProperty("success", out var success) && success.ValueKind is JsonValueKind.True or JsonValueKind.False)
-            return success.GetBoolean();
-        return !result.Value.TryGetProperty("error", out _);
+        var result = await PostCommandDetailedAsync(
+            ip,
+            session,
+            endpoint,
+            payload,
+            allowEmpty: false);
+
+        return result.Success &&
+               result.Json is not null &&
+               !HasApiError(result.Json.Value);
     }
 
-    private async Task<JsonElement?> PostCommandForJsonAsync(string ip, string session, string endpoint, object payload, bool allowEmpty = false)
+    private async Task<bool> PostCommandAsync(
+        string ip,
+        string session,
+        string endpoint,
+        object payload)
     {
-        var http = _clientFactory.CreateClient();
-        http.Timeout = TimeSpan.FromSeconds(20);
-        var url = $"http://{ip}/{endpoint}?session={Uri.EscapeDataString(session)}";
-        using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        using var response = await http.PostAsync(url, content);
-        if (!response.IsSuccessStatusCode) return null;
-        var body = await response.Content.ReadAsStringAsync();
+        var result = await PostCommandDetailedAsync(
+            ip,
+            session,
+            endpoint,
+            payload,
+            allowEmpty: true);
+
+        if (!result.Success || result.Json is null)
+            return false;
+
+        var root = result.Json.Value;
+        if (TryGetPropertyIgnoreCase(root, "success", out var success))
+        {
+            return success.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Number when success.TryGetInt64(out var number) => number != 0,
+                JsonValueKind.String when bool.TryParse(success.GetString(), out var flag) => flag,
+                _ => !HasApiError(root)
+            };
+        }
+
+        return !HasApiError(root);
+    }
+
+    private async Task<JsonElement?> PostCommandForJsonAsync(
+        string ip,
+        string session,
+        string endpoint,
+        object payload,
+        bool allowEmpty = false)
+    {
+        var result = await PostCommandDetailedAsync(
+            ip,
+            session,
+            endpoint,
+            payload,
+            allowEmpty);
+
+        return result.Success ? result.Json : null;
+    }
+
+    private async Task<ApiCommandResult> PostCommandDetailedAsync(
+        string ip,
+        string session,
+        string endpoint,
+        object payload,
+        bool allowEmpty)
+    {
+        try
+        {
+            var http = _clientFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(20);
+            http.DefaultRequestHeaders.ExpectContinue = false;
+
+            var url = $"http://{ip}/{endpoint}?session={Uri.EscapeDataString(session)}";
+            using var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                new UTF8Encoding(false),
+                "application/json");
+
+            using var response = await http.PostAsync(url, content);
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return ApiCommandResult.Fail(
+                    $"HTTP {(int)response.StatusCode} ({response.StatusCode}): {TrimErrorBody(body)}");
+            }
+
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                return allowEmpty
+                    ? ApiCommandResult.Ok(JsonSerializer.SerializeToElement(new { success = true }))
+                    : ApiCommandResult.Fail("O equipamento respondeu sem conteudo.");
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(body);
+                var root = document.RootElement.Clone();
+
+                if (HasApiError(root))
+                    return ApiCommandResult.Fail(ReadApiError(root), root);
+
+                return ApiCommandResult.Ok(root);
+            }
+            catch (JsonException exception)
+            {
+                return ApiCommandResult.Fail(
+                    $"Resposta JSON invalida: {exception.Message}. Corpo: {TrimErrorBody(body)}");
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            return ApiCommandResult.Fail("Tempo limite excedido ao comunicar com o equipamento.");
+        }
+        catch (HttpRequestException exception)
+        {
+            return ApiCommandResult.Fail($"Falha HTTP: {exception.Message}");
+        }
+        catch (Exception exception)
+        {
+            return ApiCommandResult.Fail($"Falha inesperada: {exception.Message}");
+        }
+    }
+
+    private static bool HasApiError(JsonElement root)
+    {
+        if (!TryGetPropertyIgnoreCase(root, "error", out var error))
+            return false;
+
+        return error.ValueKind switch
+        {
+            JsonValueKind.Null or JsonValueKind.Undefined => false,
+            JsonValueKind.False => false,
+            JsonValueKind.Number when error.TryGetInt64(out var number) => number != 0,
+            JsonValueKind.String => !string.IsNullOrWhiteSpace(error.GetString()),
+            _ => true
+        };
+    }
+
+    private static string ReadApiError(JsonElement root)
+    {
+        if (!TryGetPropertyIgnoreCase(root, "error", out var error))
+            return "Erro nao informado pelo equipamento.";
+
+        if (error.ValueKind == JsonValueKind.Object)
+        {
+            var message = GetString(error, "message") ??
+                          GetString(error, "description") ??
+                          GetString(error, "msg");
+            var code = GetString(error, "code");
+
+            return string.Join(" | ", new[] { message, code }
+                .Where(x => !string.IsNullOrWhiteSpace(x)));
+        }
+
+        return error.ToString();
+    }
+
+    private static string TrimErrorBody(string? body)
+    {
         if (string.IsNullOrWhiteSpace(body))
-            return allowEmpty ? JsonSerializer.SerializeToElement(new { success = true }) : null;
-        using var document = JsonDocument.Parse(body);
-        return document.RootElement.Clone();
+            return "sem detalhes";
+
+        var value = body.Trim();
+        return value.Length <= 500 ? value : value[..500];
     }
 
     private static string? CredentialObjectName(AccessCredentialTypeEnum type) => type switch
@@ -695,8 +1302,80 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
     private static string NormalizeBase64(string value) => value.Contains(',') ? value[(value.IndexOf(',') + 1)..] : value;
     private static string Address(string ip, int port) => port is <= 0 or 80 ? ip : $"{ip}:{port}";
     private static long ToUnix(DateTime value) => new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc)).ToUnixTimeSeconds();
-    private static long? GetInt64(JsonElement item, string name) => item.TryGetProperty(name, out var value) && value.TryGetInt64(out var result) ? result : null;
-    private static string? GetString(JsonElement item, string name) => item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+    private static bool TryGetPropertyIgnoreCase(
+        JsonElement item,
+        string name,
+        out JsonElement value)
+    {
+        value = default;
+
+        if (item.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (item.TryGetProperty(name, out value))
+            return true;
+
+        foreach (var property in item.EnumerateObject())
+        {
+            if (property.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static long? GetInt64(JsonElement item, string name)
+    {
+        if (!TryGetPropertyIgnoreCase(item, name, out var value))
+            return null;
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetInt64(out var number) => number,
+            JsonValueKind.String when long.TryParse(value.GetString(), out var number) => number,
+            JsonValueKind.True => 1,
+            JsonValueKind.False => 0,
+            _ => null
+        };
+    }
+
+    private static string? GetString(JsonElement item, string name)
+    {
+        if (!TryGetPropertyIgnoreCase(item, name, out var value))
+            return null;
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Null or JsonValueKind.Undefined => null,
+            _ => value.GetRawText()
+        };
+    }
+
+    private sealed record NativePolicyResult(bool Success, string? ErrorMessage)
+    {
+        public static NativePolicyResult Ok() => new(true, null);
+        public static NativePolicyResult Fail(string error) => new(false, error);
+    }
+
+    private sealed record NamedObjectResult(bool Success, long? Id, string? ErrorMessage)
+    {
+        public static NamedObjectResult Ok(long id) => new(true, id, null);
+        public static NamedObjectResult Fail(string error) => new(false, null, error);
+    }
+
+    private sealed record ApiCommandResult(bool Success, JsonElement? Json, string? ErrorMessage)
+    {
+        public static ApiCommandResult Ok(JsonElement json) => new(true, json, null);
+        public static ApiCommandResult Fail(string error, JsonElement? json = null) => new(false, json, error);
+    }
+
     private static string AccessEventName(long? code) => code switch
     {
         6 => "Acesso negado",

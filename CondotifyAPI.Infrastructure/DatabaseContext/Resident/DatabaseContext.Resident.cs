@@ -17,6 +17,8 @@ public partial class DatabaseContext
     public DbSet<ResidentUnitLinkDTO> ResidentUnitLinks { get; set; }
     public DbSet<VehicleDTO> Vehicles { get; set; }
     public DbSet<RegistrationInviteDTO> RegistrationInvites { get; set; }
+    public DbSet<AccessVisitDTO> AccessVisits { get; set; }
+    public DbSet<AccessWatchlistEntryDTO> AccessWatchlistEntries { get; set; }
 
     internal static void ResidentsEntityConfiguration(ModelBuilder builder)
     {
@@ -24,5 +26,7 @@ public partial class DatabaseContext
         builder.ApplyConfiguration(new ResidentUnitLinkConfiguration());
         builder.ApplyConfiguration(new VehicleConfiguration());
         builder.ApplyConfiguration(new RegistrationInviteConfiguration());
+        builder.ApplyConfiguration(new AccessVisitConfiguration());
+        builder.ApplyConfiguration(new AccessWatchlistEntryConfiguration());
     }
 }

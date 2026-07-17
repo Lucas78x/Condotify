@@ -254,32 +254,42 @@ public class LicenseStructureController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId);
         if (device == null) return NotFound();
 
-        var input = new CreateAccessControlDeviceByLicenseIn
+        DeviceInspectionResult inspection;
+        try
         {
-            LicenseId = licenseId.ToString(),
-            Name = device.Name,
-            IPAddress = device.IPAddress,
-            Port = device.Port,
-            Username = device.Username,
-            Password = device.Password,
-            MACAddress = device.MACAddress,
-            Model = device.Model,
-            SerialNumber = device.SerialNumber,
-            FirmwareVersion = device.FirmwareVersion,
-            Type = device.Type,
-            IsActive = device.IsActive,
-            Location = _mapper.Map<Location>(device.Location)
-        };
+            inspection = await _accessControlService.InspectAsync(_mapper.Map<AccessControlDevice>(device));
+        }
+        catch (Exception exception)
+        {
+            inspection = DeviceInspectionResult.Unavailable(exception.Message);
+        }
 
-        var connected = await _accessControlService.TestConnectionAsync(input);
+        var now = DateTime.UtcNow;
+        var connected = inspection.Online;
         device.IsActive = connected;
-        device.LastUpdatedAt = DateTime.UtcNow;
-        AddDeviceAudit(device.Id, ActionTypeEnum.Update, connected ? "Teste de conexao: sucesso" : "Teste de conexao: falha");
+        device.LastHealthCheckAt = now;
+        device.LastSeenAt = connected ? now : device.LastSeenAt;
+        device.LastResponseTimeMs = inspection.ResponseTimeMs;
+        device.HealthMessage = inspection.Message;
+        device.FirmwareVersion = inspection.FirmwareVersion ?? device.FirmwareVersion;
+        device.SerialNumber = inspection.SerialNumber ?? device.SerialNumber;
+        device.MACAddress = inspection.MacAddress?.ToUpperInvariant() ?? device.MACAddress;
+        device.CapacityJson = ValidJsonOrDefault(inspection.CapacityJson, "{}");
+        device.DiscoveredPortalsJson = System.Text.Json.JsonSerializer.Serialize(inspection.Portals);
+        device.LastUpdatedAt = now;
+        AddDeviceAudit(device.Id, ActionTypeEnum.Update, connected ? "Inspecao do equipamento: sucesso" : "Inspecao do equipamento: falha");
         await _context.SaveChangesAsync();
 
         return connected
-            ? Ok(new { Result = "Success", Message = "Conexao realizada e equipamento ativado." })
-            : StatusCode(StatusCodes.Status502BadGateway, new { Result = "ConnectionFailed", Errors = "O equipamento nao respondeu. Verifique IP, porta e credenciais." });
+            ? Ok(new
+            {
+                Result = "Success",
+                Message = "Equipamento identificado e inventario atualizado.",
+                device.SerialNumber,
+                device.MACAddress,
+                device.FirmwareVersion
+            })
+            : StatusCode(StatusCodes.Status502BadGateway, new { Result = "ConnectionFailed", Errors = inspection.Message });
     }
 
     [HttpPost("devices/{deviceId:guid}/open-door")]
@@ -565,4 +575,18 @@ public class LicenseStructureController : ControllerBase
 
     private static string RequiredLabel(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value.Trim()[..Math.Min(value.Trim().Length, 40)];
+
+    private static string ValidJsonOrDefault(string? value, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return fallback;
+        try
+        {
+            using var _ = System.Text.Json.JsonDocument.Parse(value);
+            return value;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return fallback;
+        }
+    }
 }

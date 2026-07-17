@@ -4,7 +4,7 @@
 @inject CondotifyApiClient Api
 @inject NavigationManager Navigation
 
-<PageTitle>@(_license?.Name ?? "Condominio") | Condotify</PageTitle>
+<PageTitle>@(_license?.Name ?? "Condomínio") | Condotify</PageTitle>
 
 @if (_loading)
 {
@@ -12,35 +12,35 @@
 }
 else if (_license is null)
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@(_error ?? "Licenca nao encontrada.")</MudAlert>
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@(_error ?? "Licença não encontrada.")</MudAlert>
 }
 else
 {
-    <PageHeader Title="@_license.Name" Subtitle="@($"{_license.Code} | {_license.City} | Valida ate {_license.ExpireDate:dd/MM/yyyy}")" Eyebrow="AMBIENTE DO CONDOMINIO">
+    <PageHeader Title="@_license.Name" Subtitle="@($"{_license.Code} | {_license.City} | Válida até {_license.ExpireDate:dd/MM/yyyy}")" Eyebrow="AMBIENTE DO CONDOMÍNIO">
         <Actions>
             <MudChip T="string" Color="@(_license.IsExpired ? Color.Error : Color.Success)" Variant="Variant.Outlined" Icon="@(_license.IsExpired ? Icons.Material.Outlined.EventBusy : Icons.Material.Outlined.Verified)">@_license.Status</MudChip>
-            <MudButton Href="/licencas" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.ArrowBack">Condominios</MudButton>
+            <MudButton Href="/licencas" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.ArrowBack">Condomínios</MudButton>
         </Actions>
     </PageHeader>
 
-    <nav class="workspace-nav" aria-label="Modulos do condominio">
-        @if (Has(LicensePermission.ViewDashboard)) { @NavButton("visao-geral", "Visao geral", Icons.Material.Outlined.Dashboard) }
+    <nav class="workspace-nav" aria-label="Módulos do condomínio">
+        @if (Has(LicensePermission.ViewDashboard)) { @NavButton("visao-geral", "Visão geral", Icons.Material.Outlined.Dashboard) }
         @if (Has(LicensePermission.ViewDevices))
         {
             @NavButton("equipamentos", "Equipamentos", Icons.Material.Outlined.Sensors)
             @NavButton("rotas", "Rotas", Icons.Material.Outlined.AltRoute)
-            @NavButton("cameras", "Cameras", Icons.Material.Outlined.Videocam)
+            @NavButton("cameras", "Câmeras", Icons.Material.Outlined.Videocam)
         }
         @if (Has(LicensePermission.ViewStructure)) { @NavButton("estrutura", "Estrutura", Icons.Material.Outlined.AccountTree) }
         @if (Has(LicensePermission.ViewCredentials)) { @NavButton("credenciais", "Credenciais", Icons.Material.Outlined.Badge) }
         @if (Has(LicensePermission.ViewEvents)) { @NavButton("acessos", "Acessos", Icons.Material.Outlined.FactCheck) }
         @if (Has(LicensePermission.ViewDeliveries)) { @NavButton("encomendas", "Encomendas", Icons.Material.Outlined.Inventory2) }
-        @if (Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings)) { @NavButton("administracao", "Administracao", Icons.Material.Outlined.AdminPanelSettings) }
+        @if (Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings)) { @NavButton("administracao", "Administração", Icons.Material.Outlined.AdminPanelSettings) }
     </nav>
 
     @if (!SectionAllowed(CurrentSection))
     {
-        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.Lock">Seu perfil nao possui permissao para acessar este modulo.</MudAlert>
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.Lock">Seu perfil não possui permissão para acessar este módulo.</MudAlert>
     }
     else
     {

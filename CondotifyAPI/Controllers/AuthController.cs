@@ -1,58 +1,196 @@
-﻿using CondotifyAPI.Commands.Login;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using AutoMapper;
 using CondotifyAPI.Data.Login;
-using CondotifyAPI.Domain.Enums.Login;
-using MediatR;
+using CondotifyAPI.Domain.DTO.Users;
+using CondotifyAPI.Domain.Models.Users;
+using CondotifyAPI.Infrastructure;
+using CondotifyAPI.Jwt;
+using CondotifyAPI.Services.Security;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 namespace DigitalWorldOnline.Management.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController : ControllerBase
+public sealed class AuthController : ControllerBase
 {
-    private readonly ISender _sender;
+    private readonly DatabaseContext _context;
+    private readonly IMapper _mapper;
+    private readonly IJwtTokenService _jwt;
+    private readonly IPasswordHasher<UserAccess> _passwordHasher;
+    private readonly ITotpService _totp;
 
-    public AuthController(ISender sender)
+    public AuthController(DatabaseContext context, IMapper mapper, IJwtTokenService jwt, IPasswordHasher<UserAccess> passwordHasher, ITotpService totp)
     {
-        _sender = sender;
+        _context = context;
+        _mapper = mapper;
+        _jwt = jwt;
+        _passwordHasher = passwordHasher;
+        _totp = totp;
     }
 
     [HttpGet("validate")]
-    [Authorize] 
-    public IActionResult ValidateToken()
-    {
-        return Ok(new
-        {
-            Result = "Valid",
-            User = User.Identity?.Name 
-        });
-    }
+    [Authorize]
+    public IActionResult ValidateToken() => Ok(new { Result = "Valid", User = User.Identity?.Name });
 
     [HttpPost("login")]
+    [EnableRateLimiting("login")]
     public async Task<IActionResult> Login([FromBody] LoginIn input)
     {
-        if (string.IsNullOrWhiteSpace(input.Email) || string.IsNullOrWhiteSpace(input.Password))
-            return BadRequest(new LoginOut { Result = "Email and Password are required." });
+        var email = input.Email.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(input.Password)) return InvalidCredentials();
+        var dto = await _context.Users.FirstOrDefaultAsync(x => x.Email.ToLower() == email);
+        if (dto is null) return InvalidCredentials();
+        var user = _mapper.Map<UserAccess>(dto);
+        if (!user.VerifyPassword(input.Password, _passwordHasher)) return InvalidCredentials();
 
-        var result = await _sender.Send(new LoginCommand(input.Email, input.Password));
-
-        return result.Result switch
+        if (dto.MfaEnabled)
         {
-            LoginResult.Success => Ok(new LoginOut
-            {
-                Result = "Success",
-                AccessToken = result.AccessToken,
-                ExpiresIn = result.ExpiresInSeconds
-            }),
+            var challenge = Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(32));
+            dto.MfaChallengeHash = Hash(challenge);
+            dto.MfaChallengeExpiresAt = DateTime.UtcNow.AddMinutes(5);
+            await _context.SaveChangesAsync();
+            return Ok(new LoginOut { Result = "MfaRequired", MfaRequired = true, ChallengeToken = challenge, ExpiresIn = 300 });
+        }
 
-            LoginResult.InvalidCredentials => Unauthorized(new LoginOut
-            {
-                Result = "InvalidCredentials"
-            }),
-
-            _ => StatusCode(500, new LoginOut { Result = "Error" })
-        };
+        dto.LastAccess = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return Success(user);
     }
 
+    [HttpPost("mfa/verify")]
+    [EnableRateLimiting("login")]
+    public async Task<IActionResult> VerifyMfa([FromBody] VerifyMfaIn input)
+    {
+        var challengeHash = Hash(input.ChallengeToken);
+        var dto = await _context.Users.FirstOrDefaultAsync(x => x.MfaEnabled && x.MfaChallengeHash == challengeHash && x.MfaChallengeExpiresAt > DateTime.UtcNow);
+        if (dto is null || !ConsumeValidCode(dto, input.Code)) return Unauthorized(new LoginOut { Result = "InvalidMfaCode" });
+        dto.MfaChallengeHash = string.Empty;
+        dto.MfaChallengeExpiresAt = null;
+        dto.LastAccess = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return Success(_mapper.Map<UserAccess>(dto));
+    }
+
+    [HttpGet("mfa/status")]
+    [Authorize]
+    public async Task<IActionResult> MfaStatus()
+    {
+        var user = await CurrentUserAsync();
+        return user is null ? NotFound() : Ok(new MfaSetupOut { Enabled = user.MfaEnabled });
+    }
+
+    [HttpPost("mfa/setup")]
+    [Authorize]
+    public async Task<IActionResult> SetupMfa()
+    {
+        var user = await CurrentUserAsync();
+        if (user is null) return NotFound();
+        if (user.MfaEnabled) return Conflict(new { Errors = "A autenticação em duas etapas já está ativa." });
+        user.MfaSecret = _totp.GenerateSecret();
+        await _context.SaveChangesAsync();
+        return Ok(new MfaSetupOut { Secret = user.MfaSecret, ProvisioningUri = _totp.BuildUri(user.MfaSecret, user.Email) });
+    }
+
+    [HttpPost("mfa/enable")]
+    [Authorize]
+    public async Task<IActionResult> EnableMfa([FromBody] MfaCodeIn input)
+    {
+        var user = await CurrentUserAsync();
+        if (user is null) return NotFound();
+        if (string.IsNullOrWhiteSpace(user.MfaSecret) || !_totp.Verify(user.MfaSecret, input.Code))
+            return BadRequest(new { Errors = "O código informado não é válido." });
+        var recoveryCodes = Enumerable.Range(0, 8).Select(_ => RecoveryCode()).ToList();
+        user.MfaRecoveryCodeHashesJson = JsonSerializer.Serialize(recoveryCodes.Select(x => Hash(NormalizeRecoveryCode(x))));
+        user.MfaEnabled = true;
+        await _context.SaveChangesAsync();
+        return Ok(new MfaSetupOut { Enabled = true, RecoveryCodes = recoveryCodes });
+    }
+
+    [HttpPost("mfa/disable")]
+    [Authorize]
+    public async Task<IActionResult> DisableMfa([FromBody] MfaCodeIn input)
+    {
+        var user = await CurrentUserAsync();
+        if (user is null) return NotFound();
+        if (!user.MfaEnabled || !ConsumeValidCode(user, input.Code)) return BadRequest(new { Errors = "Código de segurança inválido." });
+        user.MfaEnabled = false;
+        user.MfaSecret = string.Empty;
+        user.MfaRecoveryCodeHashesJson = "[]";
+        user.MfaChallengeHash = string.Empty;
+        user.MfaChallengeExpiresAt = null;
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("password/change")]
+    [Authorize]
+    [EnableRateLimiting("login")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordIn input)
+    {
+        var dto = await CurrentUserAsync();
+        if (dto is null) return NotFound();
+
+        var user = _mapper.Map<UserAccess>(dto);
+        if (!user.VerifyPassword(input.CurrentPassword, _passwordHasher))
+            return BadRequest(new { Errors = "A senha atual está incorreta." });
+
+        var passwordError = ValidateNewPassword(input.NewPassword);
+        if (passwordError is not null)
+            return BadRequest(new { Errors = passwordError });
+
+        if (user.VerifyPassword(input.NewPassword, _passwordHasher))
+            return BadRequest(new { Errors = "A nova senha deve ser diferente da senha atual." });
+
+        user.SetPassword(input.NewPassword, _passwordHasher);
+        dto.SetPasswordHash(user.PasswordHash);
+        dto.FirstAccess = false;
+        dto.MfaChallengeHash = string.Empty;
+        dto.MfaChallengeExpiresAt = null;
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private async Task<UserAccessDTO?> CurrentUserAsync() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+        ? await _context.Users.FirstOrDefaultAsync(x => x.Id == userId)
+        : null;
+
+    private bool ConsumeValidCode(UserAccessDTO user, string code)
+    {
+        if (_totp.Verify(user.MfaSecret, code)) return true;
+        var suppliedHash = Hash(NormalizeRecoveryCode(code));
+        var hashes = DeserializeHashes(user.MfaRecoveryCodeHashesJson);
+        var match = hashes.FirstOrDefault(x => FixedEquals(x, suppliedHash));
+        if (match is null) return false;
+        hashes.Remove(match);
+        user.MfaRecoveryCodeHashesJson = JsonSerializer.Serialize(hashes);
+        return true;
+    }
+
+    private IActionResult Success(UserAccess user) => Ok(new LoginOut
+    {
+        Result = "Success", AccessToken = _jwt.CreateAccessToken(user), ExpiresIn = 60 * 60 * 8
+    });
+    private static IActionResult InvalidCredentials() => new UnauthorizedObjectResult(new LoginOut { Result = "InvalidCredentials" });
+    private static string RecoveryCode() => $"{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}-{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}";
+    private static string? ValidateNewPassword(string password)
+    {
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 8 || password.Length > 100)
+            return "A nova senha deve ter entre 8 e 100 caracteres.";
+        if (!password.Any(char.IsUpper) || !password.Any(char.IsLower) || !password.Any(char.IsDigit) || !password.Any(x => !char.IsLetterOrDigit(x)))
+            return "Use letras maiúsculas e minúsculas, número e caractere especial.";
+        return null;
+    }
+    private static string NormalizeRecoveryCode(string value) => value.Trim().Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+    private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value ?? string.Empty)));
+    private static bool FixedEquals(string left, string right) => CryptographicOperations.FixedTimeEquals(Convert.FromHexString(left), Convert.FromHexString(right));
+    private static List<string> DeserializeHashes(string json) { try { return JsonSerializer.Deserialize<List<string>>(json) ?? []; } catch { return []; } }
 }

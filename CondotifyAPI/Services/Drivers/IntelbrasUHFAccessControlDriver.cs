@@ -66,21 +66,46 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
     public async Task<DeviceInspectionResult> InspectAsync(AccessControlDevice device)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var version = await GetFirmwareVersionAsync(Address(device.IPAddress, device.Port), device.Username, device.Password);
+        var address = Address(device.IPAddress, device.Port);
+        var versionTask = GetFirmwareVersionAsync(address, device.Username, device.Password);
+        var serialTask = DigestGetAsync($"http://{address}/cgi-bin/magicBox.cgi?action=getSerialNo", device.Username, device.Password);
+        var interfacesTask = DigestGetAsync($"http://{address}/cgi-bin/netApp.cgi?action=getInterfaces", device.Username, device.Password);
+        await Task.WhenAll(versionTask, serialTask, interfacesTask);
+        var version = versionTask.Result;
         stopwatch.Stop();
         if (string.IsNullOrWhiteSpace(version))
             return DeviceInspectionResult.Unavailable("O terminal UHF nao respondeu ao diagnostico.");
 
+        var firmware = ResponseValue(version, "version", "softwareVersion") ?? version.Trim();
         return new DeviceInspectionResult(
             true,
             (int)stopwatch.ElapsedMilliseconds,
             "Terminal online. Canais sugeridos pelo perfil UHF.",
-            version.Trim(),
+            firmware,
             "{}",
             [
                 new DevicePortalCapability(1, "Canal 1", AccessRouteDirectionEnum.Entry, false),
                 new DevicePortalCapability(2, "Canal 2", AccessRouteDirectionEnum.Entry, false)
-            ]);
+            ],
+            ResponseValue(serialTask.Result, "sn", "serial", "serialNo"),
+            ResponseValue(interfacesTask.Result, "PhysicalAddress", "MACAddress", "mac"));
+    }
+
+    private static string? ResponseValue(string? response, params string[] keys)
+    {
+        if (string.IsNullOrWhiteSpace(response)) return null;
+        foreach (var line in response.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separator = line.IndexOf('=');
+            if (separator <= 0) continue;
+            var key = line[..separator].Trim();
+            if (!keys.Any(candidate => key.Equals(candidate, StringComparison.OrdinalIgnoreCase) ||
+                                       key.EndsWith($".{candidate}", StringComparison.OrdinalIgnoreCase)))
+                continue;
+            var value = line[(separator + 1)..].Trim().Trim('"');
+            if (!string.IsNullOrWhiteSpace(value)) return value;
+        }
+        return null;
     }
 
     private async Task<string?> SendOpenDoorCommandAsync(
@@ -630,18 +655,34 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
     }
     #endregion
 
-    public Task<bool> AddUserAsync(AccessControlDevice device, object user)
-        => throw new NotImplementedException();
+    public Task<bool> AddUserAsync(AccessControlDevice device, object user) =>
+        Task.FromResult(false);
 
-    public Task<bool> DeleteUserAsync(AccessControlDevice device, string userId)
-        => throw new NotImplementedException();
+    public async Task<bool> DeleteUserAsync(AccessControlDevice device, string userId)
+    {
+        if (!int.TryParse(userId, out var numericUserId)) return false;
+        return !string.IsNullOrWhiteSpace(await RemoveUserAsync(
+            Address(device.IPAddress, device.Port), device.Username, device.Password, numericUserId));
+    }
 
-    public Task<string> GetEventsAsync(AccessControlDevice device)
-        => throw new NotImplementedException();
+    public async Task<string> GetEventsAsync(AccessControlDevice device) =>
+        JsonSerializer.Serialize(await GetAccessEventsAsync(device, 200));
 
     Task<string> IAccessControlDriver.GetUsersAsync(AccessControlDevice device)
     {
-        throw new NotImplementedException();
+        return GetUsersJsonAsync(device);
+    }
+
+    private async Task<string> GetUsersJsonAsync(AccessControlDevice device) =>
+        JsonSerializer.Serialize(await GetUsersAsync(device));
+
+    public async Task<DeviceCredentialInventoryResult> ReadCredentialInventoryAsync(AccessControlDevice device)
+    {
+        var users = await GetUsersAsync(device);
+        var items = users.Select(user => new DeviceCredentialInventoryItem(
+            $"users:{user.UserID}", user.UserID, string.Empty, null, string.Empty,
+            user.UserName, user.UserStatus == 0, JsonSerializer.Serialize(user))).ToList();
+        return new DeviceCredentialInventoryResult(true, $"{items.Count} usuario(s) lido(s) do terminal UHF.", items);
     }
 
     public async Task<CredentialOperationResult> UpsertCredentialAsync(AccessControlDevice device, CredentialProvisionRequest request)

@@ -53,34 +53,73 @@ public class IntelbrasAccessControlDriver : IAccessControlDriver
     public async Task<DeviceInspectionResult> InspectAsync(AccessControlDevice device)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var version = await DigestGetTextAsync(device, "/cgi-bin/magicBox.cgi?action=getSoftwareVersion");
+        var versionTask = DigestGetTextAsync(device, "/cgi-bin/magicBox.cgi?action=getSoftwareVersion");
+        var serialTask = DigestGetTextAsync(device, "/cgi-bin/magicBox.cgi?action=getSerialNo");
+        var interfacesTask = DigestGetTextAsync(device, "/cgi-bin/netApp.cgi?action=getInterfaces");
+        await Task.WhenAll(versionTask, serialTask, interfacesTask);
+        var version = versionTask.Result;
         stopwatch.Stop();
         if (string.IsNullOrWhiteSpace(version))
             return DeviceInspectionResult.Unavailable("O terminal Intelbras nao respondeu ao diagnostico.");
 
+        var firmware = ResponseValue(version, "version", "softwareVersion") ?? version.Trim();
+        var serialNumber = ResponseValue(serialTask.Result, "sn", "serial", "serialNo");
+        var macAddress = ResponseValue(interfacesTask.Result, "PhysicalAddress", "MACAddress", "mac");
         return new DeviceInspectionResult(
             true,
             (int)stopwatch.ElapsedMilliseconds,
             "Terminal online. Portas sugeridas pelo perfil da linha facial.",
-            version.Trim(),
+            firmware,
             "{}",
             [
                 new DevicePortalCapability(1, "Porta 1", AccessRouteDirectionEnum.Entry, false),
                 new DevicePortalCapability(2, "Porta 2", AccessRouteDirectionEnum.Entry, false)
-            ]);
+            ],
+            serialNumber,
+            macAddress);
     }
 
-    public Task<string> GetUsersAsync(AccessControlDevice device)
-        => throw new NotImplementedException();
+    public async Task<string> GetUsersAsync(AccessControlDevice device) =>
+        JsonSerializer.Serialize((await ReadCredentialInventoryAsync(device)).Items);
 
-    public Task<bool> AddUserAsync(AccessControlDevice device, object user)
-        => throw new NotImplementedException();
+    public async Task<DeviceCredentialInventoryResult> ReadCredentialInventoryAsync(AccessControlDevice device)
+    {
+        var start = await DigestGetTextAsync(device, "/cgi-bin/AccessUser.cgi?action=startFind");
+        if (string.IsNullOrWhiteSpace(start))
+            return DeviceCredentialInventoryResult.Unavailable("O terminal Intelbras nao iniciou a leitura de usuarios.");
+        try
+        {
+            var body = await DigestGetTextAsync(device, "/cgi-bin/AccessUser.cgi?action=doFind&Count=500");
+            await DigestGetTextAsync(device, "/cgi-bin/AccessUser.cgi?action=stopFind");
+            if (string.IsNullOrWhiteSpace(body)) return new(true, "Inventario remoto vazio.", []);
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            var values = root.TryGetProperty("Info", out var info) ? info
+                : root.TryGetProperty("UserList", out var list) ? list : default;
+            if (values.ValueKind != JsonValueKind.Array) return new(true, "Inventario remoto vazio.", []);
+            var items = values.EnumerateArray().Select(value =>
+            {
+                var userId = JsonText(value, "UserID");
+                var active = !value.TryGetProperty("IsValid", out var valid) || valid.ValueKind != JsonValueKind.False;
+                return new DeviceCredentialInventoryItem($"users:{userId}", userId, string.Empty, null, string.Empty,
+                    JsonText(value, "UserName"), active, value.GetRawText());
+            }).Where(x => !string.IsNullOrWhiteSpace(x.ExternalUserId)).ToList();
+            return new(true, $"{items.Count} usuario(s) lido(s) da Intelbras.", items);
+        }
+        catch (Exception exception)
+        {
+            return DeviceCredentialInventoryResult.Unavailable($"Resposta de inventario Intelbras invalida: {exception.Message}");
+        }
+    }
 
-    public Task<bool> DeleteUserAsync(AccessControlDevice device, string userId)
-        => throw new NotImplementedException();
+    public Task<bool> AddUserAsync(AccessControlDevice device, object user) =>
+        Task.FromResult(false);
 
-    public Task<string> GetEventsAsync(AccessControlDevice device)
-        => throw new NotImplementedException();
+    public Task<bool> DeleteUserAsync(AccessControlDevice device, string userId) =>
+        DigestGetAsync(device, $"/cgi-bin/AccessUser.cgi?action=removeMulti&UserIDList[0]={Uri.EscapeDataString(userId)}");
+
+    public async Task<string> GetEventsAsync(AccessControlDevice device) =>
+        JsonSerializer.Serialize(await GetAccessEventsAsync(device, 200));
 
     public async Task<CredentialOperationResult> UpsertCredentialAsync(
         AccessControlDevice device,
@@ -268,6 +307,23 @@ public class IntelbrasAccessControlDriver : IAccessControlDriver
     }
 
     private static string NormalizeBase64(string value) => value.Contains(',') ? value[(value.IndexOf(',') + 1)..] : value;
+    private static string JsonText(JsonElement value, string name) => value.TryGetProperty(name, out var property) ? property.ToString() : string.Empty;
+    private static string? ResponseValue(string? response, params string[] keys)
+    {
+        if (string.IsNullOrWhiteSpace(response)) return null;
+        foreach (var line in response.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separator = line.IndexOf('=');
+            if (separator <= 0) continue;
+            var key = line[..separator].Trim();
+            if (!keys.Any(candidate => key.Equals(candidate, StringComparison.OrdinalIgnoreCase) ||
+                                       key.EndsWith($".{candidate}", StringComparison.OrdinalIgnoreCase)))
+                continue;
+            var value = line[(separator + 1)..].Trim().Trim('"');
+            if (!string.IsNullOrWhiteSpace(value)) return value;
+        }
+        return null;
+    }
     private static string BaseAddress(AccessControlDevice device) =>
         $"http://{device.IPAddress}{(device.Port is <= 0 or 80 ? string.Empty : $":{device.Port}")}";
 }

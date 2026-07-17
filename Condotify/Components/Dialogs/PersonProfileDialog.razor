@@ -491,7 +491,24 @@
     private static int RelationshipValue(string value) => value switch { "OwnerResponsible" => 1, "TenantResponsible" => 2, "Dependent" => 4, "Resident" => 0, _ => 3 };
     private PersonCredentialViewModel? FaceCredential => _profile?.Credentials.FirstOrDefault(x => IsFace(x.Type));
     private bool HasProfilePhoto => !string.IsNullOrWhiteSpace(_form.ImageUrl);
-    private bool HasPreparedFacePhoto => _form.ImageUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase);
+    private bool HasPreparedFacePhoto
+    {
+        get
+        {
+            var imageUrl = _form.ImageUrl;
+
+            if (string.IsNullOrWhiteSpace(imageUrl))
+                return false;
+
+            return imageUrl.StartsWith(
+                       "data:image/",
+                       StringComparison.OrdinalIgnoreCase)
+                   ||
+                   imageUrl.StartsWith(
+                       "/private-media/",
+                       StringComparison.OrdinalIgnoreCase);
+        }
+    }
     private bool CanActivateFace => CanManageCredentials && !_activatingFace && !_savingPhoto && HasPreparedFacePhoto && _routeResolution?.Devices.Count > 0;
     private string FaceActionLabel => FaceCredential is null ? "Ativar facial" : FaceCredential.IsActive ? "Sincronizar facial" : "Reativar facial";
     private string FaceStatusLabel => FaceCredential is null ? HasPreparedFacePhoto ? "Foto pronta" : "Sem foto" : FaceCredential.IsActive ? "Facial ativa" : "Facial inativa";

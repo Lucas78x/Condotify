@@ -44,5 +44,26 @@ public enum AccessBatchStatusEnum
     Completed = 2,
     CompletedWithErrors = 3,
     Failed = 4,
-    Canceled = 5
+    Canceled = 5,
+    DeadLetter = 6
+}
+
+public enum AccessOperationItemStatusEnum
+{
+    Queued = 0,
+    Running = 1,
+    Completed = 2,
+    WaitingDevice = 3,
+    Failed = 4,
+    Canceled = 5,
+    DeadLetter = 6
+}
+
+public enum InventoryMatchStatusEnum
+{
+    Synced = 0,
+    Divergent = 1,
+    MissingRemote = 2,
+    OrphanRemote = 3,
+    Unknown = 4
 }

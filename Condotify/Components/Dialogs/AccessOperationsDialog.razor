@@ -1,12 +1,14 @@
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
 @inject Microsoft.JSInterop.IJSRuntime JS
+@inject IDialogService DialogService
 
 <MudDialog Class="entity-dialog access-operations-dialog">
     <DialogContent>
         <div class="operations-command-bar">
             <div><strong>Sincronizacao e recuperacao</strong><span>Revise o impacto antes de distribuir credenciais para os terminais.</span></div>
             <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Visibility" Disabled="_busy" OnClick="PreviewAsync">Previa</MudButton>
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.AltRoute" Disabled="_busy" OnClick="OpenSimulatorAsync">Simular rota</MudButton>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Sync" Disabled="_busy" OnClick="QueueAsync">Reconciliar base</MudButton>
             <MudMenu Icon="@Icons.Material.Outlined.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
                 <MudMenuItem Icon="@Icons.Material.Outlined.Download" OnClick="ExportBackupAsync">Exportar backup</MudMenuItem>
@@ -46,13 +48,32 @@
                         {
                             <div class="operation-batch-row">
                                 <span class="operation-status-icon @batch.Status.ToLowerInvariant()"><MudIcon Icon="@BatchIcon(batch.Status)" /></span>
-                                <div class="operation-batch-main"><strong>@BatchLabel(batch.Status)</strong><span>Solicitado por @batch.RequestedBy em @batch.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</span></div>
+                                <div class="operation-batch-main"><strong>@BatchLabel(batch.Status)</strong><span>Solicitado por @batch.RequestedBy em @batch.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</span><small>@AttemptLabel(batch)</small></div>
                                 <div class="operation-progress"><MudProgressLinear Value="@BatchProgress(batch)" Color="@BatchColor(batch.Status)" Rounded="false" /><small>@batch.ProcessedItems de @batch.TotalItems | @batch.FailedItems falha(s)</small></div>
                                 @if (batch.Status == "Queued")
                                 {
                                     <MudTooltip Text="Cancelar processamento"><MudIconButton Icon="@Icons.Material.Outlined.Close" Color="Color.Error" OnClick="@(() => CancelBatchAsync(batch))" /></MudTooltip>
                                 }
+                                else if (batch.Status is "DeadLetter" or "Failed" or "CompletedWithErrors")
+                                {
+                                    <MudTooltip Text="Reprocessar pendencias"><MudIconButton Icon="@Icons.Material.Outlined.Replay" Color="Color.Primary" OnClick="@(() => RetryBatchAsync(batch))" /></MudTooltip>
+                                }
                             </div>
+                            @if (batch.Items.Count > 0)
+                            {
+                                <details class="operation-items">
+                                    <summary>@batch.Items.Count destino(s) - ver detalhes</summary>
+                                    @foreach (var item in batch.Items)
+                                    {
+                                        <div class="operation-item-row">
+                                            <MudIcon Icon="@ItemIcon(item.Status)" Color="@ItemColor(item.Status)" Size="Size.Small" />
+                                            <div><strong>@(!string.IsNullOrWhiteSpace(item.CredentialName) ? item.CredentialName : "Credencial")</strong><span>@item.DeviceName</span></div>
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@ItemColor(item.Status)">@ItemLabel(item.Status)</MudChip>
+                                            <small>@(string.IsNullOrWhiteSpace(item.Error) ? $"{item.AttemptCount} tentativa(s)" : item.Error)</small>
+                                        </div>
+                                    }
+                                </details>
+                            }
                         }
                     </div>
                 }
@@ -123,11 +144,27 @@
         await LoadAsync();
     }
 
+    private async Task OpenSimulatorAsync()
+    {
+        var parameters = new DialogParameters<RouteSimulatorDialog> { { x => x.LicenseId, LicenseId } };
+        await DialogService.ShowAsync<RouteSimulatorDialog>("", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true });
+    }
+
     private async Task CancelBatchAsync(AccessBatchOperationViewModel batch)
     {
         var result = await Api.CancelReconciliationBatchAsync(LicenseId, batch.Id);
         if (!result.Success) { _error = result.Error; return; }
         Snackbar.Add("Processamento cancelado.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task RetryBatchAsync(AccessBatchOperationViewModel batch)
+    {
+        _busy = true; _error = null;
+        var result = await Api.RetryReconciliationBatchAsync(LicenseId, batch.Id);
+        _busy = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Snackbar.Add("Pendencias reenviadas para processamento.", Severity.Success);
         await LoadAsync();
     }
 
@@ -161,9 +198,13 @@
 
     private void Close() => Dialog.Close(DialogResult.Ok(true));
     private static double BatchProgress(AccessBatchOperationViewModel x) => x.TotalItems <= 0 ? 0 : x.ProcessedItems * 100d / x.TotalItems;
-    private static string BatchIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.CheckCircle, "CompletedWithErrors" => Icons.Material.Outlined.WarningAmber, "Failed" => Icons.Material.Outlined.Error, "Running" => Icons.Material.Outlined.Sync, "Canceled" => Icons.Material.Outlined.Cancel, _ => Icons.Material.Outlined.Schedule };
-    private static string BatchLabel(string status) => status switch { "Completed" => "Concluido", "CompletedWithErrors" => "Concluido com pendencias", "Failed" => "Falhou", "Running" => "Em processamento", "Canceled" => "Cancelado", _ => "Na fila" };
-    private static Color BatchColor(string status) => status switch { "Completed" => Color.Success, "CompletedWithErrors" => Color.Warning, "Failed" => Color.Error, "Running" => Color.Info, _ => Color.Default };
+    private static string BatchIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.CheckCircle, "CompletedWithErrors" => Icons.Material.Outlined.WarningAmber, "Failed" or "DeadLetter" => Icons.Material.Outlined.ReportProblem, "Running" => Icons.Material.Outlined.Sync, "Canceled" => Icons.Material.Outlined.Cancel, _ => Icons.Material.Outlined.Schedule };
+    private static string BatchLabel(string status) => status switch { "Completed" => "Concluido", "CompletedWithErrors" => "Concluido com pendencias", "Failed" => "Falhou", "DeadLetter" => "Requer intervencao", "Running" => "Em processamento", "Canceled" => "Cancelado", _ => "Na fila" };
+    private static Color BatchColor(string status) => status switch { "Completed" => Color.Success, "CompletedWithErrors" => Color.Warning, "Failed" or "DeadLetter" => Color.Error, "Running" => Color.Info, _ => Color.Default };
+    private static string AttemptLabel(AccessBatchOperationViewModel batch) => batch.NextAttemptAt.HasValue ? $"Nova tentativa {batch.NextAttemptAt.Value.ToLocalTime():dd/MM HH:mm}" : $"Tentativa {batch.AttemptCount} de {batch.MaxAttempts}";
     private static string AuditLabel(string status) => status switch { "Success" => "Sucesso", "Pending" or "Queued" => "Pendente", "NoRoute" => "Sem rota", _ => status };
     private static Color AuditColor(string status) => status switch { "Success" => Color.Success, "Pending" or "Queued" => Color.Warning, "NoRoute" => Color.Error, _ => Color.Default };
+    private static string ItemLabel(string status) => status switch { "Completed" => "Concluido", "Running" => "Executando", "WaitingDevice" => "Aguardando terminal", "Failed" => "Falhou", "DeadLetter" => "Intervencao", "Canceled" => "Cancelado", _ => "Na fila" };
+    private static string ItemIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.CheckCircle, "Running" => Icons.Material.Outlined.Sync, "WaitingDevice" => Icons.Material.Outlined.CloudOff, "Failed" or "DeadLetter" => Icons.Material.Outlined.Error, _ => Icons.Material.Outlined.Schedule };
+    private static Color ItemColor(string status) => status switch { "Completed" => Color.Success, "Running" => Color.Info, "WaitingDevice" => Color.Warning, "Failed" or "DeadLetter" => Color.Error, _ => Color.Default };
 }

@@ -14,6 +14,7 @@ namespace CondotifyAPI.Services.AccessControl
         Task<CredentialOperationResult> CancelFaceEnrollmentAsync(AccessControlDevice device);
         Task<IReadOnlyList<DeviceAccessEvent>> GetAccessEventsAsync(AccessControlDevice device, int take);
         Task<DeviceInspectionResult> InspectAsync(AccessControlDevice device);
+        Task<DeviceCredentialInventoryResult> ReadCredentialInventoryAsync(AccessControlDevice device);
 
         Task<string> GetUsersAsync(AccessControlDevice device);
         Task<bool> AddUserAsync(AccessControlDevice device, object user);

@@ -145,12 +145,27 @@ namespace CondotifyAPI.Tests
         [Theory]
         [InlineData(DeviceTypeEnum.SS5520, true)]
         [InlineData(DeviceTypeEnum.IdFaceMax, true)]
+        [InlineData(DeviceTypeEnum.HikvisionDSK1T673, true)]
+        [InlineData(DeviceTypeEnum.HikvisionDSK1T671, true)]
+        [InlineData(DeviceTypeEnum.HikvisionDSK1T323, true)]
         [InlineData(DeviceTypeEnum.SS3710UHF, false)]
         [InlineData(DeviceTypeEnum.ControlIdUHF, false)]
         [InlineData(DeviceTypeEnum.CT30002PB, false)]
         public void SupportsFace_ShouldMatchDeviceCapability(DeviceTypeEnum type, bool expected)
         {
             Assert.Equal(expected, type.SupportsFace());
+        }
+
+        [Fact]
+        public void HikvisionPayloadReader_ShouldUseXmlFallbackWithoutTryingJsonParser()
+        {
+            const string xml = "<DeviceInfo><model>DS-K1T671</model><serialNumber>ABC123</serialNumber></DeviceInfo>";
+
+            var jsonModel = HikvisionAccessControlDriver.ReadJsonString(xml, "DeviceInfo", "model");
+            var xmlModel = HikvisionAccessControlDriver.ReadXmlValue(xml, "model");
+
+            Assert.Empty(jsonModel);
+            Assert.Equal("DS-K1T671", xmlModel);
         }
     }
 }

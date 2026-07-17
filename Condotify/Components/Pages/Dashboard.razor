@@ -3,11 +3,11 @@
 @attribute [Authorize]
 @inject CondotifyApiClient Api
 
-<PageTitle>Visao geral | Condotify</PageTitle>
+<PageTitle>Visão geral | Condotify</PageTitle>
 
-<PageHeader Title="Visao geral" Subtitle="Acompanhe a operacao dos seus condominios em um unico lugar." Eyebrow="PAINEL OPERACIONAL">
+<PageHeader Title="Visão geral" Subtitle="Acompanhe a operação dos seus condomínios em um único lugar." Eyebrow="PAINEL OPERACIONAL">
     <Actions>
-        <MudButton Href="/licencas/nova" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddBusiness">Nova licenca</MudButton>
+        <MudButton Href="/licencas/nova" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddBusiness">Nova licença</MudButton>
     </Actions>
 </PageHeader>
 
@@ -22,24 +22,24 @@ else if (!string.IsNullOrWhiteSpace(_error))
 else
 {
     <div class="stats-grid">
-        <StatTile Label="Condominios" Value="@_licenses.Count.ToString()" Icon="@Icons.Material.Outlined.Domain" Hint="licencas cadastradas" Tone="blue" />
-        <StatTile Label="Moradores" Value="@_licenses.Sum(x => x.Moradores).ToString()" Icon="@Icons.Material.Outlined.Groups" Hint="vinculados as unidades" Tone="green" />
-        <StatTile Label="Cidades" Value="@_licenses.Select(x => x.Cidade).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count().ToString()" Icon="@Icons.Material.Outlined.LocationCity" Hint="operacoes ativas" Tone="amber" />
-        <StatTile Label="Atencao" Value="0" Icon="@Icons.Material.Outlined.ReportProblem" Hint="nenhuma pendencia critica" Tone="red" />
+        <StatTile Label="Condomínios" Value="@_licenses.Count.ToString()" Icon="@Icons.Material.Outlined.Domain" Hint="licenças cadastradas" Tone="blue" />
+        <StatTile Label="Moradores" Value="@_licenses.Sum(x => x.Moradores).ToString()" Icon="@Icons.Material.Outlined.Groups" Hint="vinculados às unidades" Tone="green" />
+        <StatTile Label="Cidades" Value="@_licenses.Select(x => x.Cidade).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count().ToString()" Icon="@Icons.Material.Outlined.LocationCity" Hint="operações ativas" Tone="amber" />
+        <StatTile Label="Atenção" Value="0" Icon="@Icons.Material.Outlined.ReportProblem" Hint="nenhuma pendência crítica" Tone="red" />
     </div>
 
     <MudPaper Class="content-panel" Elevation="0">
         <div class="panel-toolbar">
             <div>
-                <MudText Typo="Typo.h5" Class="panel-title">Condominios recentes</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Acesso rapido aos ambientes administrados</MudText>
+                <MudText Typo="Typo.h5" Class="panel-title">Condomínios recentes</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Acesso rápido aos ambientes administrados</MudText>
             </div>
             <MudButton Href="/licencas" Variant="Variant.Text" EndIcon="@Icons.Material.Outlined.ArrowForward">Ver todos</MudButton>
         </div>
         @if (_licenses.Count == 0)
         {
             <div class="panel-body">
-                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhuma licenca encontrada. Cadastre o primeiro condominio para iniciar a operacao.</MudAlert>
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhuma licença encontrada. Cadastre o primeiro condomínio para iniciar a operação.</MudAlert>
             </div>
         }
         else
@@ -47,16 +47,16 @@ else
             <div class="table-wrap">
                 <MudTable Items="_licenses.Take(6)" Hover Dense Elevation="0">
                     <HeaderContent>
-                        <MudTh>Condominio</MudTh><MudTh>Localizacao</MudTh><MudTh>Moradores</MudTh><MudTh></MudTh>
+                        <MudTh>Condomínio</MudTh><MudTh>Localização</MudTh><MudTh>Moradores</MudTh><MudTh></MudTh>
                     </HeaderContent>
                     <RowTemplate>
-                        <MudTd DataLabel="Condominio">
+                        <MudTd DataLabel="Condomínio">
                             <div class="license-name-cell">
                                 <span class="license-monogram">@Monogram(context.Nome)</span>
                                 <span class="license-meta"><span class="license-title">@context.Nome</span><span class="license-code">@context.Codigo</span></span>
                             </div>
                         </MudTd>
-                        <MudTd DataLabel="Localizacao">@context.Cidade @(!string.IsNullOrWhiteSpace(context.Estado) ? $"- {context.Estado}" : "")</MudTd>
+                        <MudTd DataLabel="Localização">@context.Cidade @(!string.IsNullOrWhiteSpace(context.Estado) ? $"- {context.Estado}" : "")</MudTd>
                         <MudTd DataLabel="Moradores">@context.Moradores</MudTd>
                         <MudTd><MudIconButton Href="@($"/licencas/{context.Id}")" Icon="@Icons.Material.Outlined.ArrowForward" Color="Color.Primary" /></MudTd>
                     </RowTemplate>

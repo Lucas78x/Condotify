@@ -1,6 +1,7 @@
 ﻿using CondotifyAPI.Domain.DTO.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using CondotifyAPI.Infrastructure.Security;
 
 namespace CondotifyAPI.Infrastructure.ContextConfiguration.User
 {
@@ -42,6 +43,13 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.User
             builder.Property(u => u.FirstAccess)
                 .IsRequired()
                 .HasDefaultValue(true);
+
+            builder.Property(u => u.MfaSecret)
+                .HasConversion(new EquipmentSecretConverter())
+                .HasMaxLength(512);
+            builder.Property(u => u.MfaEnabled).IsRequired().HasDefaultValue(false);
+            builder.Property(u => u.MfaRecoveryCodeHashesJson).HasColumnType("jsonb").HasDefaultValue("[]");
+            builder.Property(u => u.MfaChallengeHash).HasMaxLength(64);
 
             builder.Property(u => u.LastAccess)
                 .IsRequired()

@@ -1,3 +1,5 @@
+@using System.Text.Json
+@using System.Globalization
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -82,6 +84,7 @@
                     </div>
 
                     <div class="device-card-actions">
+                        <MudTooltip Text="Abrir detalhes do equipamento"><MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Color="Color.Primary" OnClick="@(() => OpenDetailsAsync(device))" /></MudTooltip>
                         @if (device.IsActive && CanOperate)
                         {
                             <MudMenu Label="Abrir porta" StartIcon="@Icons.Material.Outlined.SensorDoor" Variant="Variant.Filled" Color="Color.Success" Disabled="@(_operatingDeviceId == device.Id)">
@@ -173,7 +176,25 @@
         var dialog = await DialogService.ShowAsync<DeviceFormDialog>("Novo equipamento", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Large });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        Snackbar.Add("Equipamento cadastrado com sucesso.", Severity.Success);
+        var creation = result.Data as AccessDeviceCreationViewModel;
+        var severity = creation is { ConnectionTested: true, ConnectionSucceeded: false }
+            ? Severity.Warning
+            : Severity.Success;
+        Snackbar.Add(creation?.Message ?? "Equipamento cadastrado com sucesso.", severity);
+        await LoadAsync();
+    }
+
+    private async Task OpenDetailsAsync(AccessDeviceRowViewModel device)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(DeviceDetailDialog.LicenseId)] = LicenseId,
+            [nameof(DeviceDetailDialog.Device)] = device,
+            [nameof(DeviceDetailDialog.CanManage)] = CanManage
+        };
+        var dialog = await DialogService.ShowAsync<DeviceDetailDialog>(device.Name, parameters,
+            new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.ExtraLarge });
+        await dialog.Result;
         await LoadAsync();
     }
 
@@ -229,17 +250,448 @@
             ? Icons.Material.Outlined.Face
             : Icons.Material.Outlined.SensorDoor;
 
-    private static List<DevicePortalCapabilityViewModel> DevicePortals(AccessDeviceRowViewModel device)
+    private static List<DevicePortalCapabilityViewModel> DevicePortals(
+     AccessDeviceRowViewModel device)
     {
+        var fallback = new List<DevicePortalCapabilityViewModel>
+    {
+        new()
+        {
+            Number = 1,
+            Name = "Porta 1",
+            Direction = string.Empty,
+            Discovered = false
+        }
+    };
+
+        if (string.IsNullOrWhiteSpace(device.DiscoveredPortalsJson))
+            return fallback;
+
         try
         {
-            var portals = System.Text.Json.JsonSerializer.Deserialize<List<DevicePortalCapabilityViewModel>>(
-                device.DiscoveredPortalsJson,
-                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
-            if (portals is { Count: > 0 }) return portals;
+            using var document = JsonDocument.Parse(device.DiscoveredPortalsJson);
+
+            var root = document.RootElement;
+
+            // Algumas integrações podem salvar diretamente um array.
+            if (root.ValueKind == JsonValueKind.Array)
+                return ParseDevicePortalsArray(root, fallback);
+
+            /*
+             * Também suporta formatos envelopados, por exemplo:
+             *
+             * {
+             *   "items": [...]
+             * }
+             *
+             * {
+             *   "portals": [...]
+             * }
+             *
+             * {
+             *   "data": [...]
+             * }
+             */
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                var possibleArrayNames = new[]
+                {
+                "items",
+                "portals",
+                "doors",
+                "channels",
+                "data",
+                "result"
+            };
+
+                foreach (var propertyName in possibleArrayNames)
+                {
+                    if (TryGetPropertyIgnoreCase(root, propertyName, out var arrayElement) &&
+                        arrayElement.ValueKind == JsonValueKind.Array)
+                    {
+                        return ParseDevicePortalsArray(arrayElement, fallback);
+                    }
+                }
+
+                /*
+                 * Caso o JSON contenha apenas uma porta como objeto:
+                 *
+                 * {
+                 *   "number": 1,
+                 *   "name": "Porta 1"
+                 * }
+                 */
+                var singlePortal = ParseDevicePortal(root, 1);
+
+                if (singlePortal is not null)
+                    return [singlePortal];
+            }
         }
-        catch { }
-        return [new() { Number = 1, Name = "Porta 1" }];
+        catch (JsonException)
+        {
+            // JSON inválido: utiliza o fallback sem quebrar a tela.
+        }
+        catch (InvalidOperationException)
+        {
+            // Tipo inesperado dentro do JsonElement.
+        }
+        catch (NotSupportedException)
+        {
+            // Formato não suportado pelo System.Text.Json.
+        }
+
+        return fallback;
+    }
+
+    private static List<DevicePortalCapabilityViewModel> ParseDevicePortalsArray(
+        JsonElement arrayElement,
+        List<DevicePortalCapabilityViewModel> fallback)
+    {
+        var portals = new List<DevicePortalCapabilityViewModel>();
+        var position = 1;
+
+        foreach (var item in arrayElement.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                position++;
+                continue;
+            }
+
+            var portal = ParseDevicePortal(item, position);
+
+            if (portal is not null)
+                portals.Add(portal);
+
+            position++;
+        }
+
+        return portals.Count > 0
+            ? portals
+                .GroupBy(x => x.Number)
+                .Select(x => x.First())
+                .OrderBy(x => x.Number)
+                .ToList()
+            : fallback;
+    }
+
+    private static DevicePortalCapabilityViewModel? ParseDevicePortal(
+        JsonElement item,
+        int fallbackNumber)
+    {
+        if (item.ValueKind != JsonValueKind.Object)
+            return null;
+
+        /*
+         * Suporta nomes utilizados por diferentes fabricantes:
+         *
+         * Number:
+         * number, doorNo, doorNumber, channel, channelNo, id, index
+         *
+         * Name:
+         * name, doorName, channelName, description
+         *
+         * Direction:
+         * direction, doorDirection, accessDirection
+         *
+         * Discovered:
+         * discovered, enabled, active, available
+         */
+
+        var number =
+            GetFlexibleInt32(item, "number") ??
+            GetFlexibleInt32(item, "doorNo") ??
+            GetFlexibleInt32(item, "doorNumber") ??
+            GetFlexibleInt32(item, "channel") ??
+            GetFlexibleInt32(item, "channelNo") ??
+            GetFlexibleInt32(item, "index") ??
+            GetFlexibleInt32(item, "id") ??
+            fallbackNumber;
+
+        if (number <= 0)
+            number = fallbackNumber;
+
+        var name =
+            GetFlexibleString(item, "name") ??
+            GetFlexibleString(item, "doorName") ??
+            GetFlexibleString(item, "channelName") ??
+            GetFlexibleString(item, "description");
+
+        if (string.IsNullOrWhiteSpace(name))
+            name = $"Porta {number}";
+
+        var direction =
+            GetFlexibleString(item, "direction") ??
+            GetFlexibleString(item, "doorDirection") ??
+            GetFlexibleString(item, "accessDirection") ??
+            string.Empty;
+
+        var discovered =
+            GetFlexibleBoolean(item, "discovered") ??
+            GetFlexibleBoolean(item, "enabled") ??
+            GetFlexibleBoolean(item, "active") ??
+            GetFlexibleBoolean(item, "available") ??
+            true;
+
+        return new DevicePortalCapabilityViewModel
+        {
+            Number = number,
+            Name = name.Trim(),
+            Direction = NormalizeDirection(direction),
+            Discovered = discovered
+        };
+    }
+
+    private static int? GetFlexibleInt32(JsonElement item, string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(item, propertyName, out var value))
+            return null;
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetInt32(out var result) =>
+                result,
+
+            JsonValueKind.Number when value.TryGetInt64(out var longResult) &&
+                                      longResult is >= int.MinValue and <= int.MaxValue =>
+                (int)longResult,
+
+            JsonValueKind.String when int.TryParse(
+                value.GetString(),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var stringResult) =>
+                stringResult,
+
+            JsonValueKind.True => 1,
+            JsonValueKind.False => 0,
+
+            _ => null
+        };
+    }
+
+    private static string? GetFlexibleString(
+        JsonElement item,
+        string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(item, propertyName, out var value))
+            return null;
+
+        return JsonElementToString(value);
+    }
+
+    private static string? JsonElementToString(JsonElement value)
+    {
+        return value.ValueKind switch
+        {
+            JsonValueKind.String =>
+                value.GetString(),
+
+            JsonValueKind.Number =>
+                value.GetRawText(),
+
+            JsonValueKind.True =>
+                "true",
+
+            JsonValueKind.False =>
+                "false",
+
+            JsonValueKind.Null =>
+                null,
+
+            JsonValueKind.Undefined =>
+                null,
+
+            /*
+             * Evita chamar GetString() em objetos ou arrays, que é justamente
+             * uma das causas do InvalidOperationException.
+             */
+            JsonValueKind.Object =>
+                TryReadObjectValue(value),
+
+            JsonValueKind.Array =>
+                TryReadArrayValue(value),
+
+            _ =>
+                null
+        };
+    }
+
+    private static string? TryReadObjectValue(JsonElement value)
+    {
+        /*
+         * Alguns dispositivos retornam algo como:
+         *
+         * "direction": {
+         *   "value": "in"
+         * }
+         *
+         * ou:
+         *
+         * "direction": {
+         *   "name": "Entrada"
+         * }
+         */
+
+        var possibleProperties = new[]
+        {
+        "value",
+        "name",
+        "description",
+        "type",
+        "code"
+    };
+
+        foreach (var propertyName in possibleProperties)
+        {
+            if (!TryGetPropertyIgnoreCase(value, propertyName, out var nestedValue))
+                continue;
+
+            var result = JsonElementToString(nestedValue);
+
+            if (!string.IsNullOrWhiteSpace(result))
+                return result;
+        }
+
+        return null;
+    }
+
+    private static string? TryReadArrayValue(JsonElement value)
+    {
+        foreach (var arrayItem in value.EnumerateArray())
+        {
+            var result = JsonElementToString(arrayItem);
+
+            if (!string.IsNullOrWhiteSpace(result))
+                return result;
+        }
+
+        return null;
+    }
+
+    private static bool? GetFlexibleBoolean(
+        JsonElement item,
+        string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(item, propertyName, out var value))
+            return null;
+
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+
+            case JsonValueKind.False:
+                return false;
+
+            case JsonValueKind.Number:
+                if (value.TryGetInt64(out var number))
+                    return number != 0;
+
+                return null;
+
+            case JsonValueKind.String:
+                {
+                    var text = value.GetString()?.Trim();
+
+                    if (string.IsNullOrWhiteSpace(text))
+                        return null;
+
+                    if (bool.TryParse(text, out var booleanResult))
+                        return booleanResult;
+
+                    if (long.TryParse(
+                            text,
+                            NumberStyles.Integer,
+                            CultureInfo.InvariantCulture,
+                            out var numericResult))
+                    {
+                        return numericResult != 0;
+                    }
+
+                    return text.ToLowerInvariant() switch
+                    {
+                        "yes" => true,
+                        "no" => false,
+                        "sim" => true,
+                        "não" => false,
+                        "nao" => false,
+                        "enabled" => true,
+                        "disabled" => false,
+                        "active" => true,
+                        "inactive" => false,
+                        "on" => true,
+                        "off" => false,
+                        _ => null
+                    };
+                }
+
+            default:
+                return null;
+        }
+    }
+
+    private static bool TryGetPropertyIgnoreCase(
+        JsonElement item,
+        string propertyName,
+        out JsonElement value)
+    {
+        value = default;
+
+        if (item.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (item.TryGetProperty(propertyName, out value))
+            return true;
+
+        foreach (var property in item.EnumerateObject())
+        {
+            if (string.Equals(
+                    property.Name,
+                    propertyName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string NormalizeDirection(string? direction)
+    {
+        if (string.IsNullOrWhiteSpace(direction))
+            return string.Empty;
+
+        var normalized = direction.Trim();
+
+        return normalized.ToLowerInvariant() switch
+        {
+            "in" => "Entrada",
+            "entry" => "Entrada",
+            "entrance" => "Entrada",
+            "entrada" => "Entrada",
+            "1" => "Entrada",
+
+            "out" => "Saída",
+            "exit" => "Saída",
+            "saida" => "Saída",
+            "saída" => "Saída",
+            "2" => "Saída",
+
+            "both" => "Bidirecional",
+            "bidirectional" => "Bidirecional",
+            "bothway" => "Bidirecional",
+            "3" => "Bidirecional",
+
+            /*
+             * Não descarta valores desconhecidos de outras marcas.
+             * Dessa forma, Intelbras, Control iD ou novos fabricantes
+             * continuam exibindo o valor original.
+             */
+            _ => normalized
+        };
     }
 
     private static string ShortFirmware(string value) => value.Length <= 42 ? value : $"{value[..39]}...";

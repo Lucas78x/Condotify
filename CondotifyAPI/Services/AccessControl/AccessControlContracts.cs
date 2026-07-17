@@ -61,10 +61,30 @@ public sealed record DeviceInspectionResult(
     string Message,
     string? FirmwareVersion,
     string CapacityJson,
-    IReadOnlyList<DevicePortalCapability> Portals)
+    IReadOnlyList<DevicePortalCapability> Portals,
+    string? SerialNumber = null,
+    string? MacAddress = null)
 {
     public static DeviceInspectionResult Unavailable(string message) =>
         new(false, null, message, null, "{}", []);
+}
+
+public sealed record DeviceCredentialInventoryItem(
+    string RemoteKey,
+    string ExternalUserId,
+    string ExternalCredentialId,
+    AccessCredentialTypeEnum? Type,
+    string Identifier,
+    string PersonName,
+    bool Active,
+    string RawJson = "{}");
+
+public sealed record DeviceCredentialInventoryResult(
+    bool Success,
+    string Message,
+    IReadOnlyList<DeviceCredentialInventoryItem> Items)
+{
+    public static DeviceCredentialInventoryResult Unavailable(string message) => new(false, message, []);
 }
 
 public static class AccessControlDeviceRegistration

@@ -1,0 +1,192 @@
+@page "/seguranca"
+@attribute [Authorize]
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Segurança | Condotify</PageTitle>
+
+<PageHeader Title="Segurança da conta" Subtitle="Gerencie sua senha e as camadas de proteção do seu acesso." Eyebrow="CONTA">
+    <Actions>
+        <MudChip T="string" Variant="Variant.Outlined" Color="@(_status.Enabled ? Color.Success : Color.Warning)" Icon="@(_status.Enabled ? Icons.Material.Outlined.VerifiedUser : Icons.Material.Outlined.GppMaybe)">@(_status.Enabled ? "Proteção reforçada" : "Ação recomendada")</MudChip>
+    </Actions>
+</PageHeader>
+
+@if (_loading)
+{
+    <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+}
+else
+{
+    <MudPaper Class="content-panel security-password-panel" Elevation="0">
+        <div class="panel-toolbar">
+            <div>
+                <MudText Typo="Typo.h5" Class="panel-title">Alterar senha</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Confirme sua senha atual antes de definir uma nova.</MudText>
+            </div>
+            <MudIcon Icon="@Icons.Material.Outlined.Password" Color="Color.Primary" />
+        </div>
+        <div class="panel-body">
+            @if (!string.IsNullOrWhiteSpace(_passwordError))
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_passwordError</MudAlert>
+            }
+            <div class="password-change-grid">
+                <MudTextField T="string" @bind-Value="_password.CurrentPassword" Label="Senha atual" Variant="Variant.Outlined" InputType="@PasswordInputType" Adornment="Adornment.End" AdornmentIcon="@PasswordIcon" OnAdornmentClick="TogglePasswordVisibility" autocomplete="current-password" />
+                <MudTextField T="string" @bind-Value="_password.NewPassword" Label="Nova senha" Variant="Variant.Outlined" InputType="@PasswordInputType" Adornment="Adornment.End" AdornmentIcon="@PasswordIcon" OnAdornmentClick="TogglePasswordVisibility" autocomplete="new-password" HelperText="Mínimo de 8 caracteres" />
+                <MudTextField T="string" @bind-Value="_password.ConfirmPassword" Label="Confirmar nova senha" Variant="Variant.Outlined" InputType="@PasswordInputType" Adornment="Adornment.End" AdornmentIcon="@PasswordIcon" OnAdornmentClick="TogglePasswordVisibility" autocomplete="new-password" />
+            </div>
+            <div class="password-change-actions">
+                <span>Use letras maiúsculas e minúsculas, número e caractere especial. Após a alteração, você entrará novamente com a nova senha.</span>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="@_savingPassword" OnClick="ChangePasswordAsync">@(_savingPassword ? "Alterando..." : "Alterar senha")</MudButton>
+            </div>
+        </div>
+    </MudPaper>
+
+    <div class="security-layout">
+        <MudPaper Class="content-panel security-primary" Elevation="0">
+            <div class="panel-toolbar">
+                <div>
+                    <MudText Typo="Typo.h5" Class="panel-title">Autenticação em duas etapas</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Exige um código adicional ao entrar na plataforma.</MudText>
+                </div>
+                <MudIcon Icon="@Icons.Material.Outlined.PhonelinkLock" Color="Color.Primary" />
+            </div>
+            <div class="panel-body">
+                @if (_status.Enabled)
+                {
+                    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined">A autenticação em duas etapas está ativa nesta conta.</MudAlert>
+                    <MudText Typo="Typo.body2" Class="security-copy">Para desativar, confirme um código atual do autenticador ou utilize um código de recuperação.</MudText>
+                    <div class="security-action-row">
+                        <MudTextField @bind-Value="_code" Label="Código de segurança" Variant="Variant.Outlined" InputMode="InputMode.numeric" MaxLength="20" />
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Outlined.NoEncryption" Disabled="@_saving" OnClick="DisableAsync">Desativar</MudButton>
+                    </div>
+                }
+                else if (string.IsNullOrWhiteSpace(_status.Secret))
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Use Microsoft Authenticator, Google Authenticator, 1Password ou outro aplicativo compatível com TOTP.</MudAlert>
+                    <MudButton Class="mt-4" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.QrCode2" Disabled="@_saving" OnClick="BeginSetupAsync">Configurar autenticador</MudButton>
+                }
+                else
+                {
+                    <div class="mfa-setup">
+                        <div class="mfa-qr"><img src="@QrCodeRenderer.ToPngDataUri(_status.ProvisioningUri)" alt="QR Code para configurar o autenticador" /></div>
+                        <div class="mfa-instructions">
+                            <MudText Typo="Typo.subtitle1">Escaneie o QR Code</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Depois, informe o código de seis dígitos exibido no aplicativo.</MudText>
+                            <div class="secret-code"><span>Chave manual</span><code>@_status.Secret</code></div>
+                            <MudTextField @bind-Value="_code" Label="Código de verificação" Variant="Variant.Outlined" InputMode="InputMode.numeric" MaxLength="6" />
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.VerifiedUser" Disabled="@_saving" OnClick="EnableAsync">Ativar proteção</MudButton>
+                        </div>
+                    </div>
+                }
+            </div>
+        </MudPaper>
+
+        <MudPaper Class="content-panel security-aside" Elevation="0">
+            <div class="panel-toolbar"><MudText Typo="Typo.h5" Class="panel-title">Boas práticas</MudText></div>
+            <div class="panel-body security-checklist">
+                <div><MudIcon Icon="@Icons.Material.Outlined.Password" Color="Color.Success" /><span><strong>Senha exclusiva</strong><small>Não reutilize a senha em outros serviços.</small></span></div>
+                <div><MudIcon Icon="@Icons.Material.Outlined.Devices" Color="Color.Info" /><span><strong>Dispositivo confiável</strong><small>Proteja o aplicativo autenticador com biometria.</small></span></div>
+                <div><MudIcon Icon="@Icons.Material.Outlined.Inventory2" Color="Color.Warning" /><span><strong>Códigos de recuperação</strong><small>Guarde-os fora deste computador.</small></span></div>
+            </div>
+        </MudPaper>
+    </div>
+}
+
+@if (_status.RecoveryCodes.Count > 0)
+{
+    <MudPaper Class="content-panel recovery-panel" Elevation="0">
+        <div class="panel-toolbar">
+            <div>
+                <MudText Typo="Typo.h5" Class="panel-title">Códigos de recuperação</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Cada código funciona uma única vez. Eles não serão exibidos novamente.</MudText>
+            </div>
+        </div>
+        <div class="panel-body">
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Armazene estes códigos agora em um gerenciador de senhas.</MudAlert>
+            <div class="recovery-grid">@foreach (var recoveryCode in _status.RecoveryCodes) { <code>@recoveryCode</code> }</div>
+        </div>
+    </MudPaper>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _saving;
+    private bool _savingPassword;
+    private bool _showPasswords;
+    private string _code = string.Empty;
+    private string? _passwordError;
+    private MfaSecurityViewModel _status = new();
+    private ChangePasswordViewModel _password = new();
+
+    private InputType PasswordInputType => _showPasswords ? InputType.Text : InputType.Password;
+    private string PasswordIcon => _showPasswords ? Icons.Material.Outlined.VisibilityOff : Icons.Material.Outlined.Visibility;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.GetMfaStatusAsync();
+        _loading = false;
+        if (result.Success)
+            _status = result.Value ?? new();
+        else
+            Snackbar.Add(result.Error ?? "Não foi possível consultar a segurança da conta.", Severity.Error);
+    }
+
+    private void TogglePasswordVisibility() => _showPasswords = !_showPasswords;
+
+    private async Task ChangePasswordAsync()
+    {
+        _passwordError = ValidatePassword();
+        if (_passwordError is not null) return;
+
+        _savingPassword = true;
+        var result = await Api.ChangePasswordAsync(_password);
+        _savingPassword = false;
+        if (!result.Success)
+        {
+            _passwordError = result.Error ?? "Não foi possível alterar a senha.";
+            return;
+        }
+
+        Snackbar.Add("Senha alterada. Entre novamente com a nova senha.", Severity.Success);
+        await Task.Delay(600);
+        Navigation.NavigateTo("/Login/Logout", forceLoad: true);
+    }
+
+    private string? ValidatePassword()
+    {
+        if (string.IsNullOrWhiteSpace(_password.CurrentPassword)) return "Informe a senha atual.";
+        if (string.IsNullOrWhiteSpace(_password.NewPassword) || _password.NewPassword.Length < 8) return "A nova senha deve ter pelo menos 8 caracteres.";
+        if (_password.NewPassword != _password.ConfirmPassword) return "A confirmação não corresponde à nova senha.";
+        if (!_password.NewPassword.Any(char.IsUpper) || !_password.NewPassword.Any(char.IsLower) || !_password.NewPassword.Any(char.IsDigit) || !_password.NewPassword.Any(x => !char.IsLetterOrDigit(x)))
+            return "Use letras maiúsculas e minúsculas, número e caractere especial.";
+        return null;
+    }
+
+    private async Task BeginSetupAsync()
+    {
+        _saving = true;
+        var result = await Api.SetupMfaAsync();
+        _saving = false;
+        if (result.Success) _status = result.Value ?? new(); else Snackbar.Add(result.Error!, Severity.Error);
+    }
+
+    private async Task EnableAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_code)) { Snackbar.Add("Informe o código exibido no autenticador.", Severity.Warning); return; }
+        _saving = true;
+        var result = await Api.EnableMfaAsync(_code);
+        _saving = false;
+        if (result.Success) { _status = result.Value ?? new(); _code = string.Empty; Snackbar.Add("Autenticação em duas etapas ativada.", Severity.Success); } else Snackbar.Add(result.Error!, Severity.Error);
+    }
+
+    private async Task DisableAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_code)) { Snackbar.Add("Informe um código de segurança.", Severity.Warning); return; }
+        _saving = true;
+        var result = await Api.DisableMfaAsync(_code);
+        _saving = false;
+        if (result.Success) { _status = new(); _code = string.Empty; Snackbar.Add("Autenticação em duas etapas desativada.", Severity.Success); } else Snackbar.Add(result.Error!, Severity.Error);
+    }
+}

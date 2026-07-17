@@ -1,0 +1,546 @@
+@using System.Text.Json
+@using System.Globalization
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog device-detail-dialog">
+    <DialogContent>
+        <header class="device-detail-header">
+            <span class="device-detail-icon"><MudIcon Icon="@DeviceIcon(Device.Type)" /></span>
+            <div><MudText Typo="Typo.h5">@Device.Name</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@Device.Model · @Device.IPAddress:@Device.Port</MudText></div>
+            <MudChip T="string" Size="Size.Small" Color="@(Device.IsActive ? Color.Success : Color.Warning)" Variant="Variant.Outlined">@(Device.IsActive ? "Online" : "Offline")</MudChip>
+            @if (CanManage)
+            {
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.MonitorHeart" Disabled="_busy" OnClick="InspectAsync">Diagnosticar</MudButton>
+            }
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+
+        <MudTabs Elevation="0" Class="device-detail-tabs">
+            <MudTabPanel Text="Visao geral" Icon="@Icons.Material.Outlined.Dashboard">
+                <div class="device-overview-grid">
+                    <section><span>Conectividade</span><strong>@(Device.IsActive ? "Disponivel" : "Indisponivel")</strong><small>@(Device.LastHealthCheckAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Ainda nao verificado")</small></section>
+                    <section><span>Tempo de resposta</span><strong>@(Device.LastResponseTimeMs.HasValue ? $"{Device.LastResponseTimeMs} ms" : "-")</strong><small>Ultimo diagnostico</small></section>
+                    <section><span>Firmware</span><strong>@(string.IsNullOrWhiteSpace(Device.FirmwareVersion) ? "Nao informado" : Short(Device.FirmwareVersion, 36))</strong><small>@Device.Type</small></section>
+                    <section><span>Portas detectadas</span><strong>@Portals.Count</strong><small>@string.Join(", ", Portals.Select(x => x.Name))</small></section>
+                </div>
+                <div class="device-health-message"><MudIcon Icon="@Icons.Material.Outlined.Info" /><span>@(string.IsNullOrWhiteSpace(Device.HealthMessage) ? "Execute o diagnostico para consultar o estado atual." : Device.HealthMessage)</span></div>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Rotas e portas" Icon="@Icons.Material.Outlined.AltRoute">
+                @if (_routes.Count == 0)
+                {
+                    <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.Route" /><span>Nenhuma rota utiliza este equipamento.</span></div>
+                }
+                else
+                {
+                    <div class="device-route-list">
+                        @foreach (var route in _routes)
+                        {
+                            <div><span class="route-state @(route.IsActive ? "active" : "inactive")"></span><div><strong>@route.Name</strong><small>@RouteAudience(route.Audience) · @RouteSchedule(route)</small></div><div class="route-portals">@foreach (var target in route.Devices.Where(x => x.DeviceId == Device.Id)) { <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Porta @target.PortalNumber · @Direction(target.Direction)</MudChip> }</div></div>
+                        }
+                    </div>
+                }
+            </MudTabPanel>
+
+            <MudTabPanel Text="Inventario" Icon="@Icons.Material.Outlined.Inventory2">
+                <div class="inventory-toolbar">
+                    <div><strong>Estado confirmado no terminal</strong><span>Compare o equipamento com a base central antes de corrigir divergencias.</span></div>
+                    @if (CanManage)
+                    {
+                        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Download" Disabled="_busy" OnClick="RefreshInventoryAsync">Ler equipamento</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Build" Disabled="@(_busy || SelectedInventory.Count == 0)" OnClick="RepairInventoryAsync">Corrigir selecionados</MudButton>
+                    }
+                </div>
+                <div class="inventory-summary">
+                    <span class="ok"><strong>@_inventory.Count(x => x.Status == "Synced")</strong> Sincronizados</span>
+                    <span class="warning"><strong>@_inventory.Count(x => x.Status == "Divergent")</strong> Divergentes</span>
+                    <span class="missing"><strong>@_inventory.Count(x => x.Status == "MissingRemote")</strong> Ausentes</span>
+                    <span class="orphan"><strong>@_inventory.Count(x => x.Status == "OrphanRemote")</strong> Orfaos</span>
+                </div>
+                @if (_inventory.Count == 0)
+                {
+                    <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /><span>Leia o equipamento para gerar o primeiro inventario.</span></div>
+                }
+                else
+                {
+                    <MudTable Items="_inventory" Hover Dense Elevation="0">
+                        <HeaderContent><MudTh></MudTh><MudTh>Pessoa</MudTh><MudTh>Tipo</MudTh><MudTh>Identificador</MudTh><MudTh>Estado</MudTh><MudTh>Observado</MudTh></HeaderContent>
+                        <RowTemplate>
+                            <MudTd><MudCheckBox T="bool" @bind-Value="context.Selected" Disabled="@(context.Status is "Synced" or "OrphanRemote" || !context.CredentialId.HasValue)" /></MudTd>
+                            <MudTd DataLabel="Pessoa"><strong>@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : "Nao identificado")</strong><small class="audit-summary">@context.ExternalUserId</small></MudTd>
+                            <MudTd DataLabel="Tipo">@CredentialLabel(context.CredentialType)</MudTd>
+                            <MudTd DataLabel="Identificador">@(!string.IsNullOrWhiteSpace(context.Identifier) ? context.Identifier : "-")</MudTd>
+                            <MudTd DataLabel="Estado"><MudChip T="string" Size="Size.Small" Color="@InventoryColor(context.Status)" Variant="Variant.Outlined">@InventoryLabel(context.Status)</MudChip></MudTd>
+                            <MudTd DataLabel="Observado">@context.ObservedAt.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudTabPanel>
+
+            <MudTabPanel Text="Eventos" Icon="@Icons.Material.Outlined.ReceiptLong">
+                @if (_events.Count == 0)
+                {
+                    <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.EventNote" /><span>Nenhum evento armazenado para este terminal.</span></div>
+                }
+                else
+                {
+                    <MudTable Items="_events" Hover Dense Elevation="0">
+                        <HeaderContent><MudTh>Horario</MudTh><MudTh>Resultado</MudTh><MudTh>Pessoa</MudTh><MudTh>Porta</MudTh></HeaderContent>
+                        <RowTemplate><MudTd>@context.OccurredAt.ToLocalTime().ToString("dd/MM HH:mm:ss")</MudTd><MudTd><MudChip T="string" Size="Size.Small" Color="@(context.Authorized ? Color.Success : Color.Error)" Variant="Variant.Outlined">@context.Event</MudChip></MudTd><MudTd>@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : context.ExternalUserId)</MudTd><MudTd>@context.Portal</MudTd></RowTemplate>
+                    </MudTable>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    </DialogContent>
+    <DialogActions><MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public AccessDeviceRowViewModel Device { get; set; } = new();
+    [Parameter] public bool CanManage { get; set; }
+    private List<AccessRouteViewModel> _routes = [];
+    private List<DeviceInventoryItemViewModel> _inventory = [];
+    private List<AccessEventRowViewModel> _events = [];
+    private bool _busy;
+    private string? _error;
+    private List<DeviceInventoryItemViewModel> SelectedInventory => _inventory.Where(x => x.Selected).ToList();
+    private List<DevicePortalCapabilityViewModel> Portals => ParsePortals(Device.DiscoveredPortalsJson);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private async Task LoadAsync()
+    {
+        var routesTask = Api.GetAccessRoutesAsync(LicenseId);
+        var inventoryTask = Api.GetDeviceInventoryAsync(LicenseId, Device.Id);
+        var eventsTask = Api.GetAccessEventsAsync(LicenseId, Device.Id, 100);
+        await Task.WhenAll(routesTask, inventoryTask, eventsTask);
+        if (routesTask.Result.Success) _routes = (routesTask.Result.Value ?? []).Where(x => x.Devices.Any(d => d.DeviceId == Device.Id)).ToList();
+        if (inventoryTask.Result.Success) _inventory = inventoryTask.Result.Value ?? [];
+        if (eventsTask.Result.Success) _events = eventsTask.Result.Value ?? [];
+    }
+    private async Task InspectAsync()
+    {
+        _busy = true; var result = await Api.InspectDeviceAsync(LicenseId, Device.Id); _busy = false;
+        if (!result.Success || result.Value is null) { _error = result.Error; return; }
+        Device.IsActive = result.Value.Online; Device.HealthMessage = result.Value.Message; Device.LastResponseTimeMs = result.Value.ResponseTimeMs; Device.FirmwareVersion = result.Value.FirmwareVersion; Device.SerialNumber = result.Value.SerialNumber; Device.MACAddress = result.Value.MacAddress; Device.LastHealthCheckAt = result.Value.CheckedAt;
+        Device.DiscoveredPortalsJson = System.Text.Json.JsonSerializer.Serialize(result.Value.Portals, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Snackbar.Add(result.Value.Message, result.Value.Online ? Severity.Success : Severity.Warning);
+    }
+    private async Task RefreshInventoryAsync()
+    {
+        _busy = true; _error = null; var result = await Api.RefreshDeviceInventoryAsync(LicenseId, Device.Id); _busy = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Snackbar.Add(result.Value?.Message ?? "Inventario atualizado.", Severity.Success); await LoadAsync();
+    }
+    private async Task RepairInventoryAsync()
+    {
+        var result = await Api.RepairDeviceInventoryAsync(LicenseId, Device.Id, SelectedInventory.Select(x => x.Id).ToList());
+        if (!result.Success) { _error = result.Error; return; }
+        Snackbar.Add("Correcao adicionada a central de operacoes.", Severity.Success);
+        foreach (var item in SelectedInventory) item.Selected = false;
+    }
+    private void Close() => Dialog.Close(DialogResult.Ok(true));
+    private static List<DevicePortalCapabilityViewModel> ParsePortals(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return [];
+
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            var root = document.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array)
+                return ParsePortalArray(root);
+
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                var possibleArrayNames = new[]
+                {
+                "items",
+                "portals",
+                "doors",
+                "channels",
+                "data",
+                "result"
+            };
+
+                foreach (var propertyName in possibleArrayNames)
+                {
+                    if (TryGetPortalPropertyIgnoreCase(
+                            root,
+                            propertyName,
+                            out var array) &&
+                        array.ValueKind == JsonValueKind.Array)
+                    {
+                        return ParsePortalArray(array);
+                    }
+                }
+
+                var portal = ParsePortalItem(root, 1);
+
+                return portal is null
+                    ? []
+                    : [portal];
+            }
+        }
+        catch (JsonException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (NotSupportedException)
+        {
+        }
+
+        return [];
+    }
+
+    private static List<DevicePortalCapabilityViewModel> ParsePortalArray(
+        JsonElement array)
+    {
+        var portals = new List<DevicePortalCapabilityViewModel>();
+        var fallbackNumber = 1;
+
+        foreach (var item in array.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                fallbackNumber++;
+                continue;
+            }
+
+            var portal = ParsePortalItem(item, fallbackNumber);
+
+            if (portal is not null)
+                portals.Add(portal);
+
+            fallbackNumber++;
+        }
+
+        return portals
+            .GroupBy(x => x.Number)
+            .Select(x => x.First())
+            .OrderBy(x => x.Number)
+            .ToList();
+    }
+
+    private static DevicePortalCapabilityViewModel? ParsePortalItem(
+        JsonElement item,
+        int fallbackNumber)
+    {
+        if (item.ValueKind != JsonValueKind.Object)
+            return null;
+
+        var number =
+            ReadPortalInt(item, "number") ??
+            ReadPortalInt(item, "doorNo") ??
+            ReadPortalInt(item, "doorNumber") ??
+            ReadPortalInt(item, "portalNo") ??
+            ReadPortalInt(item, "portalNumber") ??
+            ReadPortalInt(item, "channel") ??
+            ReadPortalInt(item, "channelNo") ??
+            ReadPortalInt(item, "id") ??
+            ReadPortalInt(item, "index") ??
+            fallbackNumber;
+
+        if (number <= 0)
+            number = fallbackNumber;
+
+        var name =
+            ReadPortalString(item, "name") ??
+            ReadPortalString(item, "doorName") ??
+            ReadPortalString(item, "portalName") ??
+            ReadPortalString(item, "channelName") ??
+            ReadPortalString(item, "description");
+
+        if (string.IsNullOrWhiteSpace(name))
+            name = $"Porta {number}";
+
+        var direction =
+            ReadPortalString(item, "direction") ??
+            ReadPortalString(item, "doorDirection") ??
+            ReadPortalString(item, "portalDirection") ??
+            ReadPortalString(item, "accessDirection") ??
+            string.Empty;
+
+        var discovered =
+            ReadPortalBool(item, "discovered") ??
+            ReadPortalBool(item, "enabled") ??
+            ReadPortalBool(item, "active") ??
+            ReadPortalBool(item, "available") ??
+            true;
+
+        return new DevicePortalCapabilityViewModel
+        {
+            Number = number,
+            Name = name.Trim(),
+            Direction = NormalizePortalDirection(direction),
+            Discovered = discovered
+        };
+    }
+
+    private static int? ReadPortalInt(
+        JsonElement item,
+        string propertyName)
+    {
+        if (!TryGetPortalPropertyIgnoreCase(
+                item,
+                propertyName,
+                out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetInt32(out var number) =>
+                number,
+
+            JsonValueKind.Number when value.TryGetInt64(out var longNumber) &&
+                                      longNumber is >= int.MinValue and <= int.MaxValue =>
+                (int)longNumber,
+
+            JsonValueKind.String when int.TryParse(
+                value.GetString(),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var stringNumber) =>
+                stringNumber,
+
+            JsonValueKind.True => 1,
+            JsonValueKind.False => 0,
+
+            _ => null
+        };
+    }
+
+    private static string? ReadPortalString(
+        JsonElement item,
+        string propertyName)
+    {
+        if (!TryGetPortalPropertyIgnoreCase(
+                item,
+                propertyName,
+                out var value))
+        {
+            return null;
+        }
+
+        return PortalElementToString(value);
+    }
+
+    private static string? PortalElementToString(JsonElement value)
+    {
+        return value.ValueKind switch
+        {
+            JsonValueKind.String =>
+                value.GetString(),
+
+            JsonValueKind.Number =>
+                value.GetRawText(),
+
+            JsonValueKind.True =>
+                "true",
+
+            JsonValueKind.False =>
+                "false",
+
+            JsonValueKind.Object =>
+                ReadPortalNestedValue(value),
+
+            JsonValueKind.Array =>
+                ReadPortalArrayValue(value),
+
+            JsonValueKind.Null or JsonValueKind.Undefined =>
+                null,
+
+            _ =>
+                null
+        };
+    }
+
+    private static string? ReadPortalNestedValue(JsonElement value)
+    {
+        var possibleProperties = new[]
+        {
+        "value",
+        "name",
+        "description",
+        "type",
+        "code"
+    };
+
+        foreach (var propertyName in possibleProperties)
+        {
+            if (!TryGetPortalPropertyIgnoreCase(
+                    value,
+                    propertyName,
+                    out var child))
+            {
+                continue;
+            }
+
+            var result = PortalElementToString(child);
+
+            if (!string.IsNullOrWhiteSpace(result))
+                return result;
+        }
+
+        return null;
+    }
+
+    private static string? ReadPortalArrayValue(JsonElement value)
+    {
+        foreach (var item in value.EnumerateArray())
+        {
+            var result = PortalElementToString(item);
+
+            if (!string.IsNullOrWhiteSpace(result))
+                return result;
+        }
+
+        return null;
+    }
+
+    private static bool? ReadPortalBool(
+        JsonElement item,
+        string propertyName)
+    {
+        if (!TryGetPortalPropertyIgnoreCase(
+                item,
+                propertyName,
+                out var value))
+        {
+            return null;
+        }
+
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+
+            case JsonValueKind.False:
+                return false;
+
+            case JsonValueKind.Number:
+                return value.TryGetInt64(out var number)
+                    ? number != 0
+                    : null;
+
+            case JsonValueKind.String:
+                {
+                    var text = value.GetString()?.Trim();
+
+                    if (string.IsNullOrWhiteSpace(text))
+                        return null;
+
+                    if (bool.TryParse(text, out var boolean))
+                        return boolean;
+
+                    if (long.TryParse(
+                            text,
+                            NumberStyles.Integer,
+                            CultureInfo.InvariantCulture,
+                            out var numericValue))
+                    {
+                        return numericValue != 0;
+                    }
+
+                    return text.ToLowerInvariant() switch
+                    {
+                        "sim" => true,
+                        "não" => false,
+                        "nao" => false,
+                        "yes" => true,
+                        "no" => false,
+                        "enabled" => true,
+                        "disabled" => false,
+                        "active" => true,
+                        "inactive" => false,
+                        "available" => true,
+                        "unavailable" => false,
+                        "on" => true,
+                        "off" => false,
+                        _ => null
+                    };
+                }
+
+            default:
+                return null;
+        }
+    }
+
+    private static bool TryGetPortalPropertyIgnoreCase(
+        JsonElement item,
+        string propertyName,
+        out JsonElement value)
+    {
+        value = default;
+
+        if (item.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (item.TryGetProperty(propertyName, out value))
+            return true;
+
+        foreach (var property in item.EnumerateObject())
+        {
+            if (property.Name.Equals(
+                    propertyName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string NormalizePortalDirection(string? direction)
+    {
+        if (string.IsNullOrWhiteSpace(direction))
+            return string.Empty;
+
+        var value = direction.Trim();
+
+        return value.ToLowerInvariant() switch
+        {
+            "in" => "Entrada",
+            "entry" => "Entrada",
+            "entrance" => "Entrada",
+            "entrada" => "Entrada",
+            "1" => "Entrada",
+
+            "out" => "Saída",
+            "exit" => "Saída",
+            "saida" => "Saída",
+            "saída" => "Saída",
+            "2" => "Saída",
+
+            "both" => "Bidirecional",
+            "bidirectional" => "Bidirecional",
+            "bothway" => "Bidirecional",
+            "both_way" => "Bidirecional",
+            "3" => "Bidirecional",
+
+            _ => value
+        };
+    }
+    private static string DeviceIcon(string type) => type.Contains("UHF", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Contactless : type.Contains("Face", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Face : Icons.Material.Outlined.Sensors;
+    private static string InventoryLabel(string status) => status switch { "Synced" => "Sincronizado", "Divergent" => "Divergente", "MissingRemote" => "Ausente", "OrphanRemote" => "Orfao remoto", _ => "Desconhecido" };
+    private static Color InventoryColor(string status) => status switch { "Synced" => Color.Success, "Divergent" => Color.Warning, "MissingRemote" or "OrphanRemote" => Color.Error, _ => Color.Default };
+    private static string CredentialLabel(string type) => type switch { "Face" => "Facial", "QrCode" => "QR Code", "Card" => "Cartao", "VehicleTag" => "Tag veicular", "Password" => "PIN", "User" => "Usuario remoto", _ => "Tag" };
+    private static string Direction(string value) => value switch { "Entry" => "Entrada", "Exit" => "Saida", _ => "Bidirecional" };
+    private static string RouteAudience(long value) => value == 127 ? "Todos os perfis" : "Publico selecionado";
+    private static string RouteSchedule(AccessRouteViewModel route) => $"{route.StartTime:hh\\:mm} - {route.EndTime:hh\\:mm}";
+    private static string Short(string value, int max) => value.Length <= max ? value : value[..max] + "...";
+}

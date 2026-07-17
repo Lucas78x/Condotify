@@ -13,6 +13,7 @@ using CondotifyAPI.Domain.Models.Ticket;
 using CondotifyAPI.Domain.Models.Units;
 using CondotifyAPI.Domain.Models.Users;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace CondotifyAPI.Infrastructure.Repositories;
 
@@ -153,16 +154,21 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
 
     public async Task<AccessControlDevice?> AddAccessControlDeviceAsync(Guid licenseId, AccessControlDevice device)
     {
+        var serialNumber = string.IsNullOrWhiteSpace(device.SerialNumber) ? null : device.SerialNumber.Trim();
+        var macAddress = string.IsNullOrWhiteSpace(device.MACAddress) ? null : device.MACAddress.Trim().ToUpperInvariant();
+        var ipAddress = device.IPAddress.Trim();
+
         var existentDevice = await _context.Devices
             .AsNoTracking()
-            .FirstOrDefaultAsync(x =>
-                (x.SerialNumber == device.SerialNumber ||
-                 x.MACAddress == device.MACAddress) &&
-                x.LicenseId == licenseId);
+            .FirstOrDefaultAsync(BuildAccessControlDeviceConflictPredicate(
+                licenseId, serialNumber, macAddress, ipAddress, device.Port));
 
         if (existentDevice != null)
             return null;
 
+        device.SerialNumber = serialNumber;
+        device.MACAddress = macAddress;
+        device.IPAddress = ipAddress;
         var dto = _mapper.Map<AccessControlDeviceDTO>(device);
         dto.LicenseId = licenseId;
 
@@ -171,6 +177,17 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
 
         return device;
     }
+
+    internal static Expression<Func<AccessControlDeviceDTO, bool>> BuildAccessControlDeviceConflictPredicate(
+        Guid licenseId,
+        string? serialNumber,
+        string? macAddress,
+        string ipAddress,
+        int port) =>
+        existing => existing.LicenseId == licenseId &&
+                    ((serialNumber != null && existing.SerialNumber == serialNumber) ||
+                     (macAddress != null && existing.MACAddress == macAddress) ||
+                     (existing.IPAddress == ipAddress && existing.Port == port));
 
     public async Task<bool> RemoveAccessControlDeviceAsync(AccessControlDevice device)
     {

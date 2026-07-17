@@ -5,15 +5,15 @@
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
-<PageTitle>Nova licenca | Condotify</PageTitle>
+<PageTitle>Nova licença | Condotify</PageTitle>
 
-<PageHeader Title="Nova licenca" Subtitle="Cadastre o empreendimento e prepare a estrutura operacional." Eyebrow="NOVO CONDOMINIO">
+<PageHeader Title="Nova licença" Subtitle="Cadastre o empreendimento e prepare a estrutura operacional." Eyebrow="NOVO CONDOMÍNIO">
     <Actions><MudButton Href="/licencas" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.ArrowBack">Voltar</MudButton></Actions>
 </PageHeader>
 
 <MudPaper Class="content-panel" Elevation="0">
     <div class="panel-toolbar">
-        <div><MudText Typo="Typo.h5" Class="panel-title">Dados da licenca</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Campos essenciais para identificar o condominio</MudText></div>
+        <div><MudText Typo="Typo.h5" Class="panel-title">Dados da licença</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Campos essenciais para identificar o condomínio</MudText></div>
     </div>
     <div class="panel-body">
         @if (!string.IsNullOrWhiteSpace(_error))
@@ -23,25 +23,25 @@
         <EditForm Model="_model" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
             <div class="form-grid">
-                <MudTextField T="string" @bind-Value="_model.Name" Label="Nome do condominio" Required Variant="Variant.Outlined" For="@(() => _model.Name)" />
+                <MudTextField T="string" @bind-Value="_model.Name" Label="Nome do condomínio" Required Variant="Variant.Outlined" For="@(() => _model.Name)" />
                 <MudTextField T="string" @bind-Value="_model.CNPJ" Label="CNPJ" Required Variant="Variant.Outlined" For="@(() => _model.CNPJ)" />
                 <MudTextField T="string" @bind-Value="_model.City" Label="Cidade" Required Variant="Variant.Outlined" For="@(() => _model.City)" />
-                <MudTextField T="string" @bind-Value="_model.Country" Label="Pais" Required Variant="Variant.Outlined" For="@(() => _model.Country)" />
-                <MudTextField T="string" @bind-Value="_model.Code" Label="Codigo interno (opcional)" Variant="Variant.Outlined" HelperText="Gerado automaticamente quando vazio" />
+                <MudTextField T="string" @bind-Value="_model.Country" Label="País" Required Variant="Variant.Outlined" For="@(() => _model.Country)" />
+                <MudTextField T="string" @bind-Value="_model.Code" Label="Código interno (opcional)" Variant="Variant.Outlined" HelperText="Gerado automaticamente quando vazio" />
                 <MudDatePicker @bind-Date="_expireDate" Label="Validade" Required Variant="Variant.Outlined" DateFormat="dd/MM/yyyy" />
-                <MudSelect T="int" @bind-Value="_model.Organization" Label="Organizacao" Variant="Variant.Outlined">
+                <MudSelect T="int" @bind-Value="_model.Organization" Label="Organização" Variant="Variant.Outlined">
                     <MudSelectItem Value="1">Residencial</MudSelectItem><MudSelectItem Value="2">Comercial</MudSelectItem><MudSelectItem Value="3">Mista</MudSelectItem>
                 </MudSelect>
                 <MudSelect T="int" @bind-Value="_model.Building" Label="Tipo de empreendimento" Variant="Variant.Outlined">
                     <MudSelectItem Value="1">Horizontal</MudSelectItem><MudSelectItem Value="2">Vertical</MudSelectItem><MudSelectItem Value="3">Misto</MudSelectItem>
                 </MudSelect>
                 <MudSelect T="int" @bind-Value="_model.Type" Label="Plano" Variant="Variant.Outlined">
-                    <MudSelectItem Value="1">Demonstracao</MudSelectItem><MudSelectItem Value="2">Producao</MudSelectItem>
+                    <MudSelectItem Value="1">Demonstração</MudSelectItem><MudSelectItem Value="2">Produção</MudSelectItem>
                 </MudSelect>
             </div>
             <div class="form-actions">
                 <MudButton Href="/licencas" Variant="Variant.Text">Cancelar</MudButton>
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Check" Disabled="_saving">@(_saving ? "Salvando..." : "Criar licenca")</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Check" Disabled="_saving">@(_saving ? "Salvando..." : "Criar licença")</MudButton>
             </div>
         </EditForm>
     </div>
@@ -58,7 +58,7 @@
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
         if (user.FindFirst("access_type")?.Value is not ("Admin" or "Developer"))
         {
-            Snackbar.Add("Seu perfil nao possui permissao para criar licencas.", Severity.Warning);
+            Snackbar.Add("Seu perfil não possui permissão para criar licenças.", Severity.Warning);
             Navigation.NavigateTo("/licencas");
         }
     }
@@ -76,7 +76,7 @@
             return;
         }
 
-        Snackbar.Add("Licenca criada com sucesso.", Severity.Success);
+        Snackbar.Add("Licença criada com sucesso.", Severity.Success);
         Navigation.NavigateTo($"/licencas/{result.Value}");
     }
 }

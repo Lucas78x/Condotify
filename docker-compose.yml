@@ -20,6 +20,49 @@ services:
       retries: 5
       start_period: 10s
 
+  api:
+    build:
+      context: .
+      dockerfile: CondotifyAPI/Dockerfile
+    container_name: condotify-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      CONDOTIFY_DB_CONNECTION: Host=postgres;Port=5432;Database=Condotify;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      JWTCondotify_Secret: ${JWT_SECRET:-condotify-local-jwt-secret-change-before-production-2026}
+      JWTCondotify_Issuer: Condotify
+      JWTCondotify_Audience: Condotify
+      CONDOTIFY_EQUIPMENT_SECRET: ${EQUIPMENT_SECRET:-condotify-local-equipment-secret-change-before-production-2026}
+      CONDOTIFY_MEDIA_SECRET: ${MEDIA_SECRET:-condotify-local-media-secret-change-before-production-2026}
+      CONDOTIFY_PRIVATE_MEDIA_PATH: /app/data/private-media
+    ports:
+      - "7118:8080"
+    volumes:
+      - condotify-private-media:/app/data/private-media
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  portal:
+    build:
+      context: .
+      dockerfile: Condotify/Dockerfile
+    container_name: condotify-portal
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      CondotifyApi__BaseUrl: http://api:8080
+      CondotifyApi__ApiKey: ${CONDOTIFY_API_KEY:-1}
+      DataProtection__KeysPath: /app/data-protection
+    ports:
+      - "5035:8080"
+    volumes:
+      - condotify-data-protection:/app/data-protection
+    depends_on:
+      - api
+
   pgadmin:
     image: dpage/pgadmin4:8
     container_name: condotify-pgadmin
@@ -41,3 +84,5 @@ services:
 volumes:
   condotify-postgres-data:
   condotify-pgadmin-data:
+  condotify-private-media:
+  condotify-data-protection:

@@ -10,7 +10,8 @@ public static class DeviceCatalog
         "SS7520FaceT", "SS7530Face", "SS3530MFFace", "SS3540MFFaceEx", "SS1540MFW", "SS1530MFW",
         "SS3540MFFaceBioEx", "SS3540MFFaceBio", "SS3532MFW", "SS3532MF", "SS3542MFW", "SS3531MF",
         "SS5531MFW", "SS5541MFW", "SS5532MFW", "SS5542MFW", "SS5430MFBioFT", "SS3541MF",
-        "CT30002PB", "CT30004PB", "SS3710UHF", "IdFace", "IdFaceMax", "ControlIdUHF"
+        "CT30002PB", "CT30004PB", "SS3710UHF", "IdFace", "IdFaceMax", "ControlIdUHF",
+        "HikvisionDSK1T673", "HikvisionDSK1T671", "HikvisionDSK1T323"
     ];
 
     public static IReadOnlyList<AccessDeviceOption> AccessDevices { get; } =
@@ -44,7 +45,10 @@ public static class DeviceCatalog
         new(26, "Intelbras", "SS 3710 UHF", "Leitor veicular UHF"),
         new(27, "Control iD", "iDFace", "Reconhecimento facial"),
         new(28, "Control iD", "iDFace Max", "Reconhecimento facial"),
-        new(29, "Control iD", "iDUHF", "Leitor veicular UHF")
+        new(29, "Control iD", "iDUHF", "Leitor veicular UHF"),
+        new(30, "Hikvision", "DS-K1T673", "Reconhecimento facial"),
+        new(31, "Hikvision", "DS-K1T671", "Reconhecimento facial"),
+        new(32, "Hikvision", "DS-K1T323", "Reconhecimento facial")
     ];
 
     public static AccessDeviceOption? Find(int type) => AccessDevices.FirstOrDefault(x => x.Type == type);

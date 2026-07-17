@@ -96,13 +96,63 @@ public sealed class AccessBatchOperationConfiguration : IEntityTypeConfiguration
         builder.ToTable("AccessBatchOperations");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Operation).IsRequired().HasMaxLength(80);
+        builder.Property(x => x.IdempotencyKey).IsRequired().HasMaxLength(180);
         builder.Property(x => x.Status).IsRequired();
         builder.Property(x => x.RequestedBy).HasMaxLength(150);
         builder.Property(x => x.FilterJson).HasColumnType("jsonb").HasDefaultValue("{}");
+        builder.Property(x => x.Priority).IsRequired().HasDefaultValue(50);
+        builder.Property(x => x.AttemptCount).IsRequired().HasDefaultValue(0);
+        builder.Property(x => x.MaxAttempts).IsRequired().HasDefaultValue(5);
         builder.Property(x => x.Error).HasMaxLength(1000);
+        builder.Property(x => x.LeaseOwner).HasMaxLength(180);
         builder.Property(x => x.CreatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.HasOne(x => x.License).WithMany().HasForeignKey(x => x.LicenseId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasIndex(x => new { x.Status, x.CreatedAt });
+        builder.HasIndex(x => new { x.Status, x.NextAttemptAt, x.Priority, x.CreatedAt });
+        builder.HasIndex(x => new { x.LicenseId, x.IdempotencyKey }).IsUnique();
+    }
+}
+
+public sealed class AccessOperationItemConfiguration : IEntityTypeConfiguration<AccessOperationItemDTO>
+{
+    public void Configure(EntityTypeBuilder<AccessOperationItemDTO> builder)
+    {
+        builder.ToTable("AccessOperationItems");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Action).IsRequired().HasMaxLength(80);
+        builder.Property(x => x.Status).IsRequired();
+        builder.Property(x => x.IdempotencyKey).IsRequired().HasMaxLength(180);
+        builder.Property(x => x.Error).HasMaxLength(1000);
+        builder.Property(x => x.CreatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
+        builder.HasOne(x => x.Batch).WithMany(x => x.Items).HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.Credential).WithMany().HasForeignKey(x => x.CredentialId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne(x => x.Device).WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasIndex(x => x.IdempotencyKey).IsUnique();
+        builder.HasIndex(x => new { x.Status, x.NextAttemptAt });
+        builder.HasIndex(x => new { x.BatchId, x.DeviceId });
+    }
+}
+
+public sealed class AccessInventoryItemConfiguration : IEntityTypeConfiguration<AccessInventoryItemDTO>
+{
+    public void Configure(EntityTypeBuilder<AccessInventoryItemDTO> builder)
+    {
+        builder.ToTable("AccessInventoryItems");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.RemoteKey).IsRequired().HasMaxLength(220);
+        builder.Property(x => x.ExternalUserId).HasMaxLength(150);
+        builder.Property(x => x.ExternalCredentialId).HasMaxLength(150);
+        builder.Property(x => x.CredentialType).HasMaxLength(50);
+        builder.Property(x => x.Identifier).HasMaxLength(200);
+        builder.Property(x => x.PersonName).HasMaxLength(200);
+        builder.Property(x => x.Status).IsRequired();
+        builder.Property(x => x.DetailsJson).HasColumnType("jsonb").HasDefaultValue("{}");
+        builder.Property(x => x.ObservedAt).IsRequired();
+        builder.HasOne(x => x.License).WithMany().HasForeignKey(x => x.LicenseId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.Device).WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.Credential).WithMany().HasForeignKey(x => x.CredentialId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasIndex(x => new { x.DeviceId, x.RemoteKey }).IsUnique();
+        builder.HasIndex(x => new { x.LicenseId, x.Status });
+        builder.HasIndex(x => x.CredentialId);
     }
 }
 

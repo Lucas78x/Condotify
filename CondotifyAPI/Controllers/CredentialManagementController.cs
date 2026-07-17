@@ -17,6 +17,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Security.Cryptography;
 using CondotifyAPI.Services.Authorization;
+using CondotifyAPI.Services.Security;
 
 namespace CondotifyAPI.Controllers;
 
@@ -31,19 +32,22 @@ public sealed class CredentialManagementController : ControllerBase
     private readonly IAccessRouteResolver _routeResolver;
     private readonly IMapper _mapper;
     private readonly ILogger<CredentialManagementController> _logger;
+    private readonly IPrivateMediaStore _media;
 
     public CredentialManagementController(
         DatabaseContext context,
         IAccessControlService accessControl,
         IAccessRouteResolver routeResolver,
         IMapper mapper,
-        ILogger<CredentialManagementController> logger)
+        ILogger<CredentialManagementController> logger,
+        IPrivateMediaStore media)
     {
         _context = context;
         _accessControl = accessControl;
         _routeResolver = routeResolver;
         _mapper = mapper;
         _logger = logger;
+        _media = media;
     }
 
     [HttpPost("residents/{residentId:guid}/facial/activate-by-routes")]
@@ -105,8 +109,11 @@ public sealed class CredentialManagementController : ControllerBase
             return Conflict(new { Result = "NoEligibleRoute", Errors = routeMessage });
         }
 
+        var resolvedImage = await _media.ResolveDataUriAsync(licenseId, input.ImageBase64, HttpContext.RequestAborted);
+        if (string.IsNullOrWhiteSpace(resolvedImage))
+            return BadRequest(new { Result = "PhotoRequired", Errors = "A foto nao esta mais disponivel. Envie uma nova imagem." });
         var imageLimit = resolution.Targets.Any(x => x.Device.Type.IsInIntelbras()) ? 100_000 : 1_000_000;
-        var imageValidation = FaceImageValidator.Validate(input.ImageBase64, imageLimit);
+        var imageValidation = FaceImageValidator.Validate(resolvedImage, imageLimit);
         if (!imageValidation.Success)
             return BadRequest(new { Result = "InvalidImage", Errors = imageValidation.Error });
 
@@ -182,7 +189,7 @@ public sealed class CredentialManagementController : ControllerBase
             var binding = credential.Devices.FirstOrDefault(x => x.DeviceId == target.Device.Id);
             var operation = await ExecuteSafelyAsync(() => _accessControl.UpsertCredentialAsync(
                 _mapper.Map<AccessControlDevice>(target.Device),
-                BuildRequest(credential, resident, binding, input.ImageBase64, target.Portals)));
+                BuildRequest(credential, resident, binding, resolvedImage, target.Portals)));
 
             if (binding is null)
             {

@@ -1,3 +1,5 @@
+@using System.Text.Json
+@using System.Globalization
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
 
@@ -205,14 +207,368 @@
     private void ToggleDay(int bit) => _form.DaysOfWeekMask = HasDay(bit) ? _form.DaysOfWeekMask & ~bit : _form.DaysOfWeekMask | bit;
     private void Cancel() => Dialog.Cancel();
 
-    private static List<DevicePortalCapabilityViewModel> ReadPortals(string json)
+    private static List<DevicePortalCapabilityViewModel> ReadPortals(string? json)
     {
+        if (string.IsNullOrWhiteSpace(json))
+            return [];
+
         try
         {
-            return System.Text.Json.JsonSerializer.Deserialize<List<DevicePortalCapabilityViewModel>>(
-                json,
-                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? [];
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array)
+                return ParsePortalsArray(root);
+
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                var possibleArrayNames = new[]
+                {
+                "items",
+                "portals",
+                "doors",
+                "channels",
+                "data",
+                "result"
+            };
+
+                foreach (var propertyName in possibleArrayNames)
+                {
+                    if (TryGetPropertyIgnoreCase(root, propertyName, out var array) &&
+                        array.ValueKind == JsonValueKind.Array)
+                    {
+                        return ParsePortalsArray(array);
+                    }
+                }
+
+                var singlePortal = ParsePortal(root, 1);
+
+                return singlePortal is null
+                    ? []
+                    : [singlePortal];
+            }
         }
-        catch { return []; }
+        catch (JsonException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (NotSupportedException)
+        {
+        }
+
+        return [];
+    }
+
+    private static List<DevicePortalCapabilityViewModel> ParsePortalsArray(
+        JsonElement array)
+    {
+        var portals = new List<DevicePortalCapabilityViewModel>();
+        var fallbackNumber = 1;
+
+        foreach (var item in array.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                fallbackNumber++;
+                continue;
+            }
+
+            var portal = ParsePortal(item, fallbackNumber);
+
+            if (portal is not null)
+                portals.Add(portal);
+
+            fallbackNumber++;
+        }
+
+        return portals
+            .GroupBy(x => x.Number)
+            .Select(x => x.First())
+            .OrderBy(x => x.Number)
+            .ToList();
+    }
+
+    private static DevicePortalCapabilityViewModel? ParsePortal(
+        JsonElement item,
+        int fallbackNumber)
+    {
+        if (item.ValueKind != JsonValueKind.Object)
+            return null;
+
+        var number =
+            ReadFlexibleInt(item, "number") ??
+            ReadFlexibleInt(item, "doorNo") ??
+            ReadFlexibleInt(item, "doorNumber") ??
+            ReadFlexibleInt(item, "channel") ??
+            ReadFlexibleInt(item, "channelNo") ??
+            ReadFlexibleInt(item, "index") ??
+            ReadFlexibleInt(item, "id") ??
+            fallbackNumber;
+
+        if (number <= 0)
+            number = fallbackNumber;
+
+        var name =
+            ReadFlexibleString(item, "name") ??
+            ReadFlexibleString(item, "doorName") ??
+            ReadFlexibleString(item, "channelName") ??
+            ReadFlexibleString(item, "description");
+
+        if (string.IsNullOrWhiteSpace(name))
+            name = $"Porta {number}";
+
+        var direction =
+            ReadFlexibleString(item, "direction") ??
+            ReadFlexibleString(item, "doorDirection") ??
+            ReadFlexibleString(item, "accessDirection") ??
+            string.Empty;
+
+        var discovered =
+            ReadFlexibleBool(item, "discovered") ??
+            ReadFlexibleBool(item, "enabled") ??
+            ReadFlexibleBool(item, "active") ??
+            ReadFlexibleBool(item, "available") ??
+            true;
+
+        return new DevicePortalCapabilityViewModel
+        {
+            Number = number,
+            Name = name.Trim(),
+            Direction = NormalizePortalDirection(direction),
+            Discovered = discovered
+        };
+    }
+
+    private static int? ReadFlexibleInt(
+        JsonElement item,
+        string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(item, propertyName, out var value))
+            return null;
+
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.Number:
+                if (value.TryGetInt32(out var intValue))
+                    return intValue;
+
+                if (value.TryGetInt64(out var longValue) &&
+                    longValue is >= int.MinValue and <= int.MaxValue)
+                {
+                    return (int)longValue;
+                }
+
+                return null;
+
+            case JsonValueKind.String:
+                return int.TryParse(
+                    value.GetString(),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var stringValue)
+                        ? stringValue
+                        : null;
+
+            case JsonValueKind.True:
+                return 1;
+
+            case JsonValueKind.False:
+                return 0;
+
+            default:
+                return null;
+        }
+    }
+
+    private static string? ReadFlexibleString(
+        JsonElement item,
+        string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(item, propertyName, out var value))
+            return null;
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Object => ReadNestedPortalValue(value),
+            JsonValueKind.Array => ReadFirstPortalArrayValue(value),
+            _ => null
+        };
+    }
+
+    private static string? ReadNestedPortalValue(JsonElement value)
+    {
+        var possibleNames = new[]
+        {
+        "value",
+        "name",
+        "description",
+        "type",
+        "code"
+    };
+
+        foreach (var propertyName in possibleNames)
+        {
+            if (!TryGetPropertyIgnoreCase(value, propertyName, out var child))
+                continue;
+
+            var result = child.ValueKind switch
+            {
+                JsonValueKind.String => child.GetString(),
+                JsonValueKind.Number => child.GetRawText(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                _ => null
+            };
+
+            if (!string.IsNullOrWhiteSpace(result))
+                return result;
+        }
+
+        return null;
+    }
+
+    private static string? ReadFirstPortalArrayValue(JsonElement value)
+    {
+        foreach (var item in value.EnumerateArray())
+        {
+            var result = item.ValueKind switch
+            {
+                JsonValueKind.String => item.GetString(),
+                JsonValueKind.Number => item.GetRawText(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                JsonValueKind.Object => ReadNestedPortalValue(item),
+                _ => null
+            };
+
+            if (!string.IsNullOrWhiteSpace(result))
+                return result;
+        }
+
+        return null;
+    }
+
+    private static bool? ReadFlexibleBool(
+        JsonElement item,
+        string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(item, propertyName, out var value))
+            return null;
+
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+
+            case JsonValueKind.False:
+                return false;
+
+            case JsonValueKind.Number:
+                return value.TryGetInt64(out var number)
+                    ? number != 0
+                    : null;
+
+            case JsonValueKind.String:
+                {
+                    var text = value.GetString()?.Trim();
+
+                    if (string.IsNullOrWhiteSpace(text))
+                        return null;
+
+                    if (bool.TryParse(text, out var boolValue))
+                        return boolValue;
+
+                    if (long.TryParse(
+                            text,
+                            NumberStyles.Integer,
+                            CultureInfo.InvariantCulture,
+                            out var numericValue))
+                    {
+                        return numericValue != 0;
+                    }
+
+                    return text.ToLowerInvariant() switch
+                    {
+                        "sim" => true,
+                        "não" => false,
+                        "nao" => false,
+                        "yes" => true,
+                        "no" => false,
+                        "enabled" => true,
+                        "disabled" => false,
+                        "active" => true,
+                        "inactive" => false,
+                        "on" => true,
+                        "off" => false,
+                        _ => null
+                    };
+                }
+
+            default:
+                return null;
+        }
+    }
+
+    private static bool TryGetPropertyIgnoreCase(
+        JsonElement element,
+        string propertyName,
+        out JsonElement value)
+    {
+        value = default;
+
+        if (element.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (element.TryGetProperty(propertyName, out value))
+            return true;
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.Name.Equals(
+                    propertyName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string NormalizePortalDirection(string? direction)
+    {
+        if (string.IsNullOrWhiteSpace(direction))
+            return string.Empty;
+
+        var value = direction.Trim();
+
+        return value.ToLowerInvariant() switch
+        {
+            "in" => "Entrada",
+            "entry" => "Entrada",
+            "entrance" => "Entrada",
+            "entrada" => "Entrada",
+            "1" => "Entrada",
+
+            "out" => "Saída",
+            "exit" => "Saída",
+            "saida" => "Saída",
+            "saída" => "Saída",
+            "2" => "Saída",
+
+            "both" => "Bidirecional",
+            "bidirectional" => "Bidirecional",
+            "bothway" => "Bidirecional",
+            "3" => "Bidirecional",
+
+            _ => value
+        };
     }
 }
