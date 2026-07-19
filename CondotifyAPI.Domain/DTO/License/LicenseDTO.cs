@@ -6,6 +6,7 @@ using CondotifyAPI.Domain.DTO.Location;
 using CondotifyAPI.Domain.DTO.Ticket;
 using CondotifyAPI.Domain.DTO.Invitation;
 using CondotifyAPI.Domain.DTO.AccessControl;
+using CondotifyAPI.Domain.DTO.Amenities;
 
 namespace CondotifyAPI.Domain.DTO.License
 {
@@ -47,6 +48,7 @@ namespace CondotifyAPI.Domain.DTO.License
         public List<LicenseUserAccessDTO> UserAccesses { get; set; } = new();
         public LicenseCredentialPolicyDTO? CredentialPolicy { get; set; }
         public List<AccessRouteDTO> AccessRoutes { get; set; } = new();
+        public List<AmenityDTO> Amenities { get; set; } = new();
         public LocationDTO Location { get; set; }
 
         //Times
