@@ -1,4 +1,5 @@
 @inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
 
 <MudDialog Class="entity-dialog">
     <TitleContent>
@@ -17,7 +18,7 @@
             <div class="form-grid form-grid-two">
                 <MudTextField T="string" @bind-Value="_form.Name" Label="Nome do local" Required Variant="Variant.Outlined" />
                 <MudNumericField T="int?" @bind-Value="_form.Capacity" Label="Capacidade (pessoas)" Min="1" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.Description" Label="Descricao" Variant="Variant.Outlined" Class="form-grid-span-2" />
+                <MudTextField T="string" @bind-Value="_form.Description" Label="Descricao" Variant="Variant.Outlined" Class="full" />
                 <MudNumericField T="decimal?" @bind-Value="_form.FeeAmount" Label="Taxa (R$, informativo)" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.FeeDescription" Label="Observacao sobre a taxa" Variant="Variant.Outlined" />
             </div>
@@ -110,12 +111,40 @@
 
     private async Task SaveAsync()
     {
+        if (_saving) return;
+        _error = Validate();
+        if (_error is not null)
+        {
+            Snackbar.Add(_error, Severity.Error);
+            return;
+        }
+
         _saving = true;
-        _error = null;
         var result = await Api.SaveAmenityAsync(LicenseId, Amenity?.Id, _form);
         _saving = false;
-        if (!result.Success) { _error = result.Error; return; }
+        if (!result.Success)
+        {
+            _error = result.Error ?? "Nao foi possivel salvar o local.";
+            Snackbar.Add(_error, Severity.Error);
+            return;
+        }
+
         Dialog.Close(DialogResult.Ok(result.Value));
+    }
+
+    private string? Validate()
+    {
+        foreach (var slot in _form.ScheduleSlots)
+        {
+            if (slot.StartTime >= slot.EndTime) return "Existe um horario invalido na grade semanal.";
+        }
+
+        foreach (var blackout in _form.Blackouts)
+        {
+            if (blackout.EndDate.Date < blackout.StartDate.Date) return "Existe um bloqueio de data invalido.";
+        }
+
+        return null;
     }
 
     private void Cancel() => Dialog.Cancel();
