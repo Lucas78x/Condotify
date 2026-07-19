@@ -1,0 +1,133 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog">
+    <TitleContent>
+        <div class="dialog-title-block">
+            <MudIcon Icon="@Icons.Material.Outlined.Deck" />
+            <div><MudText Typo="Typo.h6">@(Amenity is null ? "Novo local" : "Editar local")</MudText><MudText Typo="Typo.caption">Defina as regras de agendamento deste local.</MudText></div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <div class="form-grid form-grid-two">
+                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome do local" Required Variant="Variant.Outlined" />
+                <MudNumericField T="int?" @bind-Value="_form.Capacity" Label="Capacidade (pessoas)" Min="1" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.Description" Label="Descricao" Variant="Variant.Outlined" Class="form-grid-span-2" />
+                <MudNumericField T="decimal?" @bind-Value="_form.FeeAmount" Label="Taxa (R$, informativo)" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.FeeDescription" Label="Observacao sobre a taxa" Variant="Variant.Outlined" />
+            </div>
+
+            <div class="visit-policy-options">
+                <MudSwitch T="bool" @bind-Value="_form.Active" Color="Color.Primary" Label="Local ativo" />
+                <MudSwitch T="bool" @bind-Value="_form.RequiresApproval" Color="Color.Primary" Label="Exige aprovacao manual" />
+                <MudSwitch T="bool" @bind-Value="_form.RequiresTermsAcceptance" Color="Color.Primary" Label="Exige aceite de termo de uso" />
+            </div>
+            @if (_form.RequiresTermsAcceptance)
+            {
+                <MudTextField T="string" @bind-Value="_form.TermsText" Label="Texto do termo de uso" Lines="4" Variant="Variant.Outlined" />
+            }
+
+            <div class="form-grid form-grid-three">
+                <MudNumericField T="int?" @bind-Value="_form.MonthlyLimitPerUnit" Label="Limite mensal por unidade" Min="0" Variant="Variant.Outlined" HelperText="0 ou vazio = sem limite" />
+                <MudNumericField T="int" @bind-Value="_form.MinAdvanceNoticeHours" Label="Antecedencia minima (horas)" Min="0" Variant="Variant.Outlined" />
+                <MudNumericField T="int" @bind-Value="_form.MaxAdvanceDays" Label="Janela maxima (dias)" Min="1" Variant="Variant.Outlined" />
+                <MudNumericField T="int" @bind-Value="_form.CancellationCutoffHours" Label="Prazo de cancelamento (horas)" Min="0" Variant="Variant.Outlined" />
+            </div>
+
+            <div class="form-section-heading"><span>2</span><div><strong>Grade semanal de horarios</strong><small>Defina os horarios disponiveis por dia da semana.</small></div></div>
+            @foreach (var slot in _form.ScheduleSlots)
+            {
+                <div class="form-grid form-grid-three">
+                    <MudSelect T="DayOfWeek" Value="slot.DayOfWeek" ValueChanged="@(v => slot.DayOfWeek = v)" Label="Dia da semana" Variant="Variant.Outlined">
+                        @foreach (var day in Enum.GetValues<DayOfWeek>())
+                        {
+                            <MudSelectItem Value="day">@DayLabel(day)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudTimePicker Time="slot.StartTime" TimeChanged="@(v => slot.StartTime = v ?? slot.StartTime)" Label="Inicio" Variant="Variant.Outlined" />
+                    <MudTimePicker Time="slot.EndTime" TimeChanged="@(v => slot.EndTime = v ?? slot.EndTime)" Label="Fim" Variant="Variant.Outlined" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" OnClick="@(() => _form.ScheduleSlots.Remove(slot))" />
+                </div>
+            }
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Add" OnClick="AddSlot">Adicionar horario</MudButton>
+
+            <div class="form-section-heading"><span>3</span><div><strong>Bloqueios de data</strong><small>Datas indisponiveis para manutencao, feriados ou obras.</small></div></div>
+            @foreach (var blackout in _form.Blackouts)
+            {
+                <div class="form-grid form-grid-three">
+                    <MudDatePicker Date="blackout.StartDate" DateChanged="@(v => blackout.StartDate = v ?? blackout.StartDate)" Label="Data inicial" Variant="Variant.Outlined" />
+                    <MudDatePicker Date="blackout.EndDate" DateChanged="@(v => blackout.EndDate = v ?? blackout.EndDate)" Label="Data final" Variant="Variant.Outlined" />
+                    <MudTextField T="string" @bind-Value="blackout.Reason" Label="Motivo" Variant="Variant.Outlined" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" OnClick="@(() => _form.Blackouts.Remove(blackout))" />
+                </div>
+            }
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Add" OnClick="AddBlackout">Adicionar bloqueio</MudButton>
+
+            <div class="form-actions dialog-form-actions">
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving">@(_saving ? "Salvando..." : "Salvar local")</MudButton>
+            </div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public AmenityViewModel? Amenity { get; set; }
+
+    private readonly AmenityFormViewModel _form = new();
+    private bool _saving;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (Amenity is null) return;
+        _form.Name = Amenity.Name;
+        _form.Description = Amenity.Description;
+        _form.Capacity = Amenity.Capacity;
+        _form.Active = Amenity.Active;
+        _form.FeeAmount = Amenity.FeeAmount;
+        _form.FeeDescription = Amenity.FeeDescription;
+        _form.RequiresApproval = Amenity.RequiresApproval;
+        _form.RequiresTermsAcceptance = Amenity.RequiresTermsAcceptance;
+        _form.TermsText = Amenity.TermsText;
+        _form.MonthlyLimitPerUnit = Amenity.MonthlyLimitPerUnit;
+        _form.MinAdvanceNoticeHours = Amenity.MinAdvanceNoticeHours;
+        _form.MaxAdvanceDays = Amenity.MaxAdvanceDays;
+        _form.CancellationCutoffHours = Amenity.CancellationCutoffHours;
+        _form.ScheduleSlots = Amenity.ScheduleSlots.Select(x => new AmenityScheduleSlotFormViewModel { Id = x.Id, DayOfWeek = x.DayOfWeek, StartTime = x.StartTime, EndTime = x.EndTime, Active = x.Active }).ToList();
+        _form.Blackouts = Amenity.Blackouts.Select(x => new AmenityBlackoutFormViewModel { Id = x.Id, StartDate = x.StartDate, EndDate = x.EndDate, Reason = x.Reason }).ToList();
+    }
+
+    private void AddSlot() => _form.ScheduleSlots.Add(new AmenityScheduleSlotFormViewModel());
+    private void AddBlackout() => _form.Blackouts.Add(new AmenityBlackoutFormViewModel());
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        var result = await Api.SaveAmenityAsync(LicenseId, Amenity?.Id, _form);
+        _saving = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private static string DayLabel(DayOfWeek day) => day switch
+    {
+        DayOfWeek.Sunday => "Domingo",
+        DayOfWeek.Monday => "Segunda",
+        DayOfWeek.Tuesday => "Terca",
+        DayOfWeek.Wednesday => "Quarta",
+        DayOfWeek.Thursday => "Quinta",
+        DayOfWeek.Friday => "Sexta",
+        _ => "Sabado"
+    };
+}
