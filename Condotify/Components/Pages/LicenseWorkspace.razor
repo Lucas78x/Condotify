@@ -35,6 +35,7 @@ else
         @if (Has(LicensePermission.ViewCredentials)) { @NavButton("credenciais", "Credenciais", Icons.Material.Outlined.Badge) }
         @if (Has(LicensePermission.ViewEvents)) { @NavButton("acessos", "Acessos", Icons.Material.Outlined.FactCheck) }
         @if (Has(LicensePermission.ViewDeliveries)) { @NavButton("encomendas", "Encomendas", Icons.Material.Outlined.Inventory2) }
+        @if (Has(LicensePermission.ViewBookings)) { @NavButton("agendamento", "Agendamento", Icons.Material.Outlined.Deck) }
         @if (Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings)) { @NavButton("administracao", "Administração", Icons.Material.Outlined.AdminPanelSettings) }
     </nav>
 
@@ -60,6 +61,9 @@ else
                 break;
             case "encomendas":
                 <DeliveriesModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDeliveries)" />
+                break;
+            case "agendamento":
+                <AgendamentoModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageBookings)" />
                 break;
             case "credenciais":
                 <CredentialsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageCredentials)" />
@@ -94,6 +98,7 @@ else
         : Has(LicensePermission.ViewCredentials) ? "credenciais"
         : Has(LicensePermission.ViewEvents) ? "acessos"
         : Has(LicensePermission.ViewDeliveries) ? "encomendas"
+        : Has(LicensePermission.ViewBookings) ? "agendamento"
         : Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) ? "administracao"
         : "sem-acesso";
 
@@ -132,6 +137,7 @@ else
         "credenciais" => Has(LicensePermission.ViewCredentials),
         "acessos" => Has(LicensePermission.ViewEvents),
         "encomendas" => Has(LicensePermission.ViewDeliveries),
+        "agendamento" => Has(LicensePermission.ViewBookings),
         "administracao" => Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings),
         _ => false
     };

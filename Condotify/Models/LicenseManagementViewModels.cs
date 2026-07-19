@@ -438,7 +438,9 @@ namespace Condotify.Models
         ManageUsers = 1L << 14,
         ViewSettings = 1L << 15,
         ManageSettings = 1L << 16,
-        All = (1L << 17) - 1
+        ViewBookings = 1L << 17,
+        ManageBookings = 1L << 18,
+        All = (1L << 19) - 1
     }
 
     public class LicenseAdministrationViewModel

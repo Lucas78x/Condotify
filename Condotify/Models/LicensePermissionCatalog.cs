@@ -19,6 +19,8 @@ public static class LicensePermissionCatalog
         new(LicensePermission.ManageDevices, "Infraestrutura", "Configurar equipamentos", "Rede, modelos e conexoes"),
         new(LicensePermission.ViewDeliveries, "Portaria", "Ver encomendas", "Consulta da operacao de encomendas"),
         new(LicensePermission.ManageDeliveries, "Portaria", "Gerenciar encomendas", "Receber e entregar encomendas"),
+        new(LicensePermission.ViewBookings, "Areas comuns", "Ver agendamentos", "Consulta de locais e reservas de areas comuns"),
+        new(LicensePermission.ManageBookings, "Areas comuns", "Gerenciar agendamentos", "Cadastrar locais e aprovar, recusar ou cancelar reservas"),
         new(LicensePermission.ViewUsers, "Administracao", "Ver usuarios", "Equipe vinculada ao condominio"),
         new(LicensePermission.ManageUsers, "Administracao", "Gerenciar usuarios", "Criar acessos e alterar permissoes"),
         new(LicensePermission.ViewSettings, "Administracao", "Ver configuracoes", "Politicas e parametros da licenca"),
@@ -32,13 +34,14 @@ public static class LicensePermissionCatalog
         2 => (long)(LicensePermission.ViewDashboard | LicensePermission.ViewStructure | LicensePermission.ViewPeople |
             LicensePermission.ManagePeople | LicensePermission.ViewCredentials | LicensePermission.ManageCredentials |
             LicensePermission.ViewDevices | LicensePermission.OperateDevices | LicensePermission.ViewEvents |
-            LicensePermission.ViewDeliveries | LicensePermission.ManageDeliveries),
+            LicensePermission.ViewDeliveries | LicensePermission.ManageDeliveries |
+            LicensePermission.ViewBookings | LicensePermission.ManageBookings),
         3 => (long)(LicensePermission.ViewDashboard | LicensePermission.ViewStructure | LicensePermission.ViewPeople |
             LicensePermission.ViewCredentials | LicensePermission.ViewDevices | LicensePermission.OperateDevices |
-            LicensePermission.ViewEvents | LicensePermission.ViewDeliveries),
+            LicensePermission.ViewEvents | LicensePermission.ViewDeliveries | LicensePermission.ViewBookings),
         _ => (long)(LicensePermission.ViewDashboard | LicensePermission.ViewStructure | LicensePermission.ViewPeople |
             LicensePermission.ViewCredentials | LicensePermission.ViewDevices | LicensePermission.ViewEvents |
-            LicensePermission.ViewDeliveries)
+            LicensePermission.ViewDeliveries | LicensePermission.ViewBookings)
     };
 
     public static long Normalize(long permissions)
@@ -49,6 +52,7 @@ public static class LicensePermissionCatalog
         if (value.HasFlag(LicensePermission.ManageCredentials)) value |= LicensePermission.ViewCredentials | LicensePermission.ViewStructure | LicensePermission.ViewDevices;
         if (value.HasFlag(LicensePermission.ManageDevices) || value.HasFlag(LicensePermission.OperateDevices)) value |= LicensePermission.ViewDevices;
         if (value.HasFlag(LicensePermission.ManageDeliveries)) value |= LicensePermission.ViewDeliveries;
+        if (value.HasFlag(LicensePermission.ManageBookings)) value |= LicensePermission.ViewBookings;
         if (value.HasFlag(LicensePermission.ManageUsers)) value |= LicensePermission.ViewUsers;
         if (value.HasFlag(LicensePermission.ManageSettings)) value |= LicensePermission.ViewSettings;
         return (long)value;
@@ -65,6 +69,7 @@ public static class LicensePermissionCatalog
             LicensePermission.ViewCredentials => ~LicensePermission.ManageCredentials,
             LicensePermission.ViewDevices => ~(LicensePermission.ManageDevices | LicensePermission.OperateDevices | LicensePermission.ManageCredentials),
             LicensePermission.ViewDeliveries => ~LicensePermission.ManageDeliveries,
+            LicensePermission.ViewBookings => ~LicensePermission.ManageBookings,
             LicensePermission.ViewUsers => ~LicensePermission.ManageUsers,
             LicensePermission.ViewSettings => ~LicensePermission.ManageSettings,
             _ => LicensePermission.All
