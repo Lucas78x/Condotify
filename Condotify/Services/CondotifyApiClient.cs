@@ -393,6 +393,67 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<bool>> DeleteAccessRouteAsync(Guid licenseId, Guid routeId, CancellationToken cancellationToken = default) =>
         DeleteAsync($"api/access/licenses/{licenseId}/routes/{routeId}", cancellationToken);
 
+    public Task<ApiResult<List<AmenityViewModel>>> GetAmenitiesAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AmenityViewModel>>($"api/access/licenses/{licenseId}/amenities", cancellationToken);
+
+    public Task<ApiResult<List<AmenityUnitSearchViewModel>>> SearchAmenityUnitsAsync(Guid licenseId, string query, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AmenityUnitSearchViewModel>>($"api/access/licenses/{licenseId}/amenities/unit-search?query={Uri.EscapeDataString(query)}", cancellationToken);
+
+    public Task<ApiResult<AmenityViewModel>> SaveAmenityAsync(Guid licenseId, Guid? amenityId, AmenityFormViewModel model, CancellationToken cancellationToken = default)
+    {
+        var payload = new
+        {
+            Name = model.Name.Trim(),
+            Description = model.Description.Trim(),
+            model.Capacity,
+            model.Active,
+            model.FeeAmount,
+            FeeDescription = model.FeeDescription.Trim(),
+            model.RequiresApproval,
+            model.RequiresTermsAcceptance,
+            TermsText = model.TermsText.Trim(),
+            model.MonthlyLimitPerUnit,
+            model.MinAdvanceNoticeHours,
+            model.MaxAdvanceDays,
+            model.CancellationCutoffHours,
+            ScheduleSlots = model.ScheduleSlots.Select(x => new { x.Id, x.DayOfWeek, x.StartTime, x.EndTime, x.Active }),
+            Blackouts = model.Blackouts.Select(x => new { x.Id, x.StartDate, x.EndDate, Reason = x.Reason.Trim() })
+        };
+        return SendForAsync<AmenityViewModel>(amenityId.HasValue ? HttpMethod.Put : HttpMethod.Post,
+            amenityId.HasValue ? $"api/access/licenses/{licenseId}/amenities/{amenityId}" : $"api/access/licenses/{licenseId}/amenities",
+            payload,
+            cancellationToken);
+    }
+
+    public Task<ApiResult<bool>> DeleteAmenityAsync(Guid licenseId, Guid amenityId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/amenities/{amenityId}", cancellationToken);
+
+    public Task<ApiResult<List<AmenitySlotAvailabilityViewModel>>> GetAmenityAvailabilityAsync(Guid licenseId, Guid amenityId, DateTime date, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AmenitySlotAvailabilityViewModel>>($"api/access/licenses/{licenseId}/amenities/{amenityId}/bookings/availability?date={date:yyyy-MM-dd}", cancellationToken);
+
+    public Task<ApiResult<List<AmenityBookingViewModel>>> GetAmenityBookingsAsync(Guid licenseId, Guid amenityId, DateTime from, DateTime to, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AmenityBookingViewModel>>($"api/access/licenses/{licenseId}/amenities/{amenityId}/bookings?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}", cancellationToken);
+
+    public Task<ApiResult<AmenityBookingViewModel>> CreateAmenityBookingAsync(Guid licenseId, Guid amenityId, AmenityBookingFormViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<AmenityBookingViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/amenities/{amenityId}/bookings", new
+        {
+            model.UnitId,
+            model.ResidentId,
+            model.Date,
+            model.SlotId,
+            model.TermsAccepted,
+            Notes = model.Notes.Trim()
+        }, cancellationToken);
+
+    public Task<ApiResult<AmenityBookingViewModel>> ApproveAmenityBookingAsync(Guid licenseId, Guid amenityId, Guid bookingId, CancellationToken cancellationToken = default) =>
+        SendForAsync<AmenityBookingViewModel>(HttpMethod.Put, $"api/access/licenses/{licenseId}/amenities/{amenityId}/bookings/{bookingId}/approve", new { }, cancellationToken);
+
+    public Task<ApiResult<AmenityBookingViewModel>> RejectAmenityBookingAsync(Guid licenseId, Guid amenityId, Guid bookingId, string reason, CancellationToken cancellationToken = default) =>
+        SendForAsync<AmenityBookingViewModel>(HttpMethod.Put, $"api/access/licenses/{licenseId}/amenities/{amenityId}/bookings/{bookingId}/reject", new { Reason = reason }, cancellationToken);
+
+    public Task<ApiResult<bool>> CancelAmenityBookingAsync(Guid licenseId, Guid amenityId, Guid bookingId, string reason, CancellationToken cancellationToken = default) =>
+        SendForBoolAsync(HttpMethod.Delete, $"api/access/licenses/{licenseId}/amenities/{amenityId}/bookings/{bookingId}", new { Reason = reason }, cancellationToken);
+
     public Task<ApiResult<CredentialOperationViewModel>> ActivateFacialByRoutesAsync(Guid licenseId, Guid residentId, string imageBase64, CancellationToken cancellationToken = default) =>
         SendForAsync<CredentialOperationViewModel>(HttpMethod.Post,
             $"api/access/licenses/{licenseId}/residents/{residentId}/facial/activate-by-routes",
