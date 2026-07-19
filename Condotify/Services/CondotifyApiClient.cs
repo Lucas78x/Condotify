@@ -4,12 +4,24 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Condotify.Services;
 
 public sealed class CondotifyApiClient
 {
     public const string AccessTokenClaim = "condotify_access_token";
+
+    // Mirrors the API's global JsonStringEnumConverter (CondotifyAPI/Program.cs) so enum
+    // properties serialized as strings (e.g. "Saturday") deserialize correctly on this side.
+    private static readonly JsonSerializerOptions GetJsonOptions = CreateJsonOptions();
+
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new JsonStringEnumConverter());
+        return options;
+    }
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly AuthenticationStateProvider _authenticationStateProvider;
@@ -555,7 +567,7 @@ public sealed class CondotifyApiClient
             if (!response.IsSuccessStatusCode)
                 return ApiResult<T>.Fail(await ReadErrorAsync(response, "Nao foi possivel carregar os dados."), response.StatusCode);
 
-            var value = await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
+            var value = await response.Content.ReadFromJsonAsync<T>(GetJsonOptions, cancellationToken: cancellationToken);
             return value is null
                 ? ApiResult<T>.Fail("A API retornou uma resposta vazia.", response.StatusCode)
                 : ApiResult<T>.Ok(value, response.StatusCode);
@@ -611,7 +623,7 @@ public sealed class CondotifyApiClient
 
         using (response.Document)
         {
-            var value = response.Document.RootElement.Deserialize<T>(new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            var value = response.Document.RootElement.Deserialize<T>(GetJsonOptions);
             return value is null
                 ? ApiResult<T>.Fail("Nao foi possivel interpretar a resposta da API.", response.StatusCode)
                 : ApiResult<T>.Ok(value, response.StatusCode);
