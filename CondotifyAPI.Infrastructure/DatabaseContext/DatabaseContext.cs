@@ -34,6 +34,7 @@ public partial class DatabaseContext : DbContext
         LicenseAdministrationEntityConfiguration(modelBuilder);
         DevicesEntityConfiguration(modelBuilder);
         AccessRoutesEntityConfiguration(modelBuilder);
+        AmenitiesEntityConfiguration(modelBuilder);
         DeliveriesEntityConfiguration(modelBuilder); 
         TicketsEntityConfiguration(modelBuilder);
         BlocksEntityConfiguration(modelBuilder);
