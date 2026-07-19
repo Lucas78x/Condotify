@@ -1,0 +1,213 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog">
+    <TitleContent>
+        <div class="dialog-title-block">
+            <MudIcon Icon="@Icons.Material.Outlined.EventAvailable" />
+            <div><MudText Typo="Typo.h6">Agendar @Amenity.Name</MudText><MudText Typo="Typo.caption">Selecione a unidade, a data e o horario.</MudText></div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+        <div class="form-section-heading"><span>1</span><div><strong>Unidade</strong><small>Busque pelo numero da unidade ou nome do morador.</small></div></div>
+        <MudAutocomplete T="AmenityUnitSearchViewModel" Value="_unit" SearchFunc="SearchUnitsAsync"
+                         ToStringFunc="@(x => x is null ? string.Empty : $"{x.BlockName} / {x.UnitNumber}")"
+                         Label="Unidade" Placeholder="Digite pelo menos 2 caracteres" Variant="Variant.Outlined"
+                         Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Clearable="true"
+                         ValueChanged="OnUnitSelectedAsync" />
+
+        @if (_unit is not null && _unit.Residents.Count > 0)
+        {
+            <MudSelect T="Guid?" @bind-Value="_form.ResidentId" Label="Morador (opcional)" Variant="Variant.Outlined">
+                <MudSelectItem T="Guid?" Value="null">Nao vincular a um morador</MudSelectItem>
+                @foreach (var resident in _unit.Residents)
+                {
+                    <MudSelectItem T="Guid?" Value="resident.ResidentId">@resident.Name</MudSelectItem>
+                }
+            </MudSelect>
+        }
+
+        <div class="form-section-heading"><span>2</span><div><strong>Data e horario</strong><small>Somente horarios livres podem ser selecionados.</small></div></div>
+        <MudDatePicker Date="_form.Date" DateChanged="OnDateChangedAsync" Label="Data" Variant="Variant.Outlined"
+                       MinDate="EarliestAllowedDate" MaxDate="LatestAllowedDate" IsDateDisabledFunc="@(d => IsDateBlackedOut(d))" />
+
+        @if (IsDateBlackedOut(_form.Date))
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Esta data nao esta disponivel para este local (bloqueio de agenda).</MudAlert>
+        }
+        else if (_loadingAvailability)
+        {
+            <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" Size="Size.Small" /></div>
+        }
+        else if (_availability.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhum horario configurado para este dia da semana.</MudAlert>
+        }
+        else
+        {
+            <div class="credential-segment" role="radiogroup" aria-label="Horarios disponiveis">
+                @foreach (var slot in _availability)
+                {
+                    <button type="button" role="radio" aria-checked="@(_form.SlotId == slot.SlotId)" disabled="@(!slot.Available)"
+                            class="@SlotClass(slot)" @onclick="@(() => SelectSlot(slot))">
+                        <span>
+                            <strong>@slot.StartTime.ToString(@"hh\:mm") - @slot.EndTime.ToString(@"hh\:mm")</strong>
+                            <small>@(slot.Available ? "Disponivel" : $"Ocupado - {slot.OccupiedByUnitNumber}")</small>
+                        </span>
+                    </button>
+                }
+            </div>
+        }
+
+        @if (Amenity.RequiresTermsAcceptance)
+        {
+            <div class="form-section-heading"><span>3</span><div><strong>Termo de uso</strong></div></div>
+            <MudPaper Class="pa-4" Elevation="0" Style="white-space: pre-wrap; background: var(--mud-palette-background-grey);">@Amenity.TermsText</MudPaper>
+            <MudCheckBox T="bool" @bind-Value="_form.TermsAccepted" Color="Color.Primary" Label="Li e aceito o termo de uso" />
+        }
+
+        @if (Amenity.FeeAmount is > 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Taxa informativa: R$ @Amenity.FeeAmount.Value.ToString("N2") @Amenity.FeeDescription</MudAlert>
+        }
+
+        <MudTextField T="string" @bind-Value="_form.Notes" Label="Observacoes" Lines="2" Variant="Variant.Outlined" />
+
+        <div class="form-actions dialog-form-actions">
+            <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_saving || !CanSave)" OnClick="SaveAsync">@(_saving ? "Agendando..." : "Confirmar agendamento")</MudButton>
+        </div>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public AmenityViewModel Amenity { get; set; } = null!;
+
+    private readonly AmenityBookingFormViewModel _form = new();
+    private AmenityUnitSearchViewModel? _unit;
+    private List<AmenitySlotAvailabilityViewModel> _availability = [];
+    private bool _loadingAvailability;
+    private bool _saving;
+    private string? _error;
+
+    // These mirror AmenityBookingValidator.ValidateWindow on the API side (same day/hour math against
+    // UTC "now") so the picker never lets the user land on a day the server would reject outright.
+    // Blazor Server components execute on the host, so DateTime.UtcNow here is the same clock the API uses.
+    private DateTime LatestAllowedDate => DateTime.UtcNow.Date.AddDays(Amenity.MaxAdvanceDays);
+
+    private bool CanSave => _unit is not null
+        && _form.SlotId != Guid.Empty
+        && (!Amenity.RequiresTermsAcceptance || _form.TermsAccepted)
+        && _form.Date.Date >= EarliestAllowedDate && _form.Date.Date <= LatestAllowedDate
+        && !IsDateBlackedOut(_form.Date);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _form.Date = EarliestAllowedDate;
+        await LoadAvailabilityAsync();
+    }
+
+    private async Task<IEnumerable<AmenityUnitSearchViewModel>> SearchUnitsAsync(string value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Trim().Length < 2) return [];
+        var result = await Api.SearchAmenityUnitsAsync(LicenseId, value, cancellationToken);
+        return result.Success ? result.Value ?? [] : [];
+    }
+
+    private Task OnUnitSelectedAsync(AmenityUnitSearchViewModel? unit)
+    {
+        _unit = unit;
+        _form.UnitId = unit?.UnitId ?? Guid.Empty;
+        _form.ResidentId = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task OnDateChangedAsync(DateTime? date)
+    {
+        _form.Date = date ?? EarliestAllowedDate;
+        await LoadAvailabilityAsync();
+    }
+
+    private async Task LoadAvailabilityAsync()
+    {
+        _form.SlotId = Guid.Empty;
+
+        if (IsDateBlackedOut(_form.Date))
+        {
+            _availability = [];
+            return;
+        }
+
+        _loadingAvailability = true;
+        var result = await Api.GetAmenityAvailabilityAsync(LicenseId, Amenity.Id, _form.Date);
+        _loadingAvailability = false;
+        _availability = result.Success ? result.Value ?? [] : [];
+        if (!result.Success) _error = result.Error;
+    }
+
+    private void SelectSlot(AmenitySlotAvailabilityViewModel slot)
+    {
+        if (!slot.Available) return;
+        _form.SlotId = slot.SlotId;
+    }
+
+    private string SlotClass(AmenitySlotAvailabilityViewModel slot) => _form.SlotId == slot.SlotId
+        ? "credential-segment-option selected"
+        : "credential-segment-option";
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+        _error = Validate();
+        if (_error is not null)
+        {
+            Snackbar.Add(_error, Severity.Error);
+            return;
+        }
+
+        _saving = true;
+        var result = await Api.CreateAmenityBookingAsync(LicenseId, Amenity.Id, _form);
+        _saving = false;
+        if (!result.Success)
+        {
+            _error = result.Error ?? "Nao foi possivel concluir o agendamento.";
+            Snackbar.Add(_error, Severity.Error);
+            return;
+        }
+
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+
+    private string? Validate()
+    {
+        if (_unit is null) return "Selecione a unidade que fara a reserva.";
+        if (_form.SlotId == Guid.Empty) return "Selecione um horario disponivel.";
+        if (Amenity.RequiresTermsAcceptance && !_form.TermsAccepted) return "E necessario aceitar o termo de uso para agendar este local.";
+        if (_form.Date.Date < EarliestAllowedDate || _form.Date.Date > LatestAllowedDate)
+            return $"Selecione uma data entre {EarliestAllowedDate:dd/MM/yyyy} e {LatestAllowedDate:dd/MM/yyyy}.";
+        if (IsDateBlackedOut(_form.Date)) return "Esta data nao esta disponivel para este local.";
+        return null;
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private DateTime EarliestAllowedDate
+    {
+        get
+        {
+            var earliestInstant = DateTime.UtcNow.AddHours(Amenity.MinAdvanceNoticeHours);
+            var date = DateTime.UtcNow.Date;
+            while (date.AddDays(1) <= earliestInstant) date = date.AddDays(1);
+            return date;
+        }
+    }
+
+    private bool IsDateBlackedOut(DateTime date) =>
+        Amenity.Blackouts.Any(b => date.Date >= b.StartDate.Date && date.Date <= b.EndDate.Date);
+}
