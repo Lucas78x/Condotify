@@ -281,8 +281,8 @@ public sealed class AmenitiesController : ControllerBase
     {
         Id = Guid.NewGuid(),
         AmenityId = amenityId,
-        StartDate = input.StartDate.Date,
-        EndDate = input.EndDate.Date,
+        StartDate = AsUtcDate(input.StartDate),
+        EndDate = AsUtcDate(input.EndDate),
         Reason = input.Reason?.Trim() ?? string.Empty
     };
 
@@ -339,8 +339,8 @@ public sealed class AmenitiesController : ControllerBase
             {
                 var existing = amenity.Blackouts.FirstOrDefault(x => x.Id == input.Id.Value);
                 if (existing is null) continue;
-                existing.StartDate = input.StartDate.Date;
-                existing.EndDate = input.EndDate.Date;
+                existing.StartDate = AsUtcDate(input.StartDate);
+                existing.EndDate = AsUtcDate(input.EndDate);
                 existing.Reason = input.Reason?.Trim() ?? string.Empty;
             }
             else
@@ -355,6 +355,16 @@ public sealed class AmenitiesController : ControllerBase
 
     private static bool IsForeignKeyViolation(DbUpdateException ex) =>
         ex.InnerException is Npgsql.PostgresException { SqlState: "23503" };
+
+    /// <summary>
+    /// Client-supplied blackout dates (from the amenity form's date pickers, JSON
+    /// body without an explicit UTC offset) deserialize with Kind=Unspecified. The
+    /// StartDate/EndDate columns map to Postgres 'timestamp with time zone', and
+    /// Npgsql rejects Kind=Unspecified values for that type. These are date-only
+    /// values with no meaningful timezone, so SpecifyKind (not ToUniversalTime) is
+    /// correct: it reinterprets the same wall-clock date as UTC without shifting it.
+    /// </summary>
+    private static DateTime AsUtcDate(DateTime value) => DateTime.SpecifyKind(value.Date, DateTimeKind.Utc);
 
     private static AmenityOut ToOut(AmenityDTO amenity) => new()
     {

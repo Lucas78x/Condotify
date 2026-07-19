@@ -30,8 +30,8 @@ public sealed class AmenityBookingsController : ControllerBase
         if (!await HasLicenseAccessAsync(licenseId))
             return NotFound();
 
-        var rangeStart = (from ?? DateTime.UtcNow.Date).Date;
-        var rangeEnd = (to ?? rangeStart.AddDays(30)).Date;
+        var rangeStart = AsUtcDate(from ?? DateTime.UtcNow);
+        var rangeEnd = AsUtcDate(to ?? rangeStart.AddDays(30));
 
         var bookings = await BookingQuery(licenseId, amenityId)
             .AsNoTracking()
@@ -57,7 +57,7 @@ public sealed class AmenityBookingsController : ControllerBase
         if (amenity is null)
             return NotFound();
 
-        var day = date.Date;
+        var day = AsUtcDate(date);
 
         if (AmenityBookingValidator.IsDateBlacked(amenity.Blackouts, day))
             return Ok(Array.Empty<AmenitySlotAvailabilityOut>());
@@ -111,20 +111,22 @@ public sealed class AmenityBookingsController : ControllerBase
         if (!unitExists)
             return BadRequest(new { Result = "InvalidUnit", Errors = "A unidade informada nao pertence a esta licenca." });
 
+        var bookingDate = AsUtcDate(input.Date);
+
         var slot = amenity.ScheduleSlots.FirstOrDefault(x => x.Id == input.SlotId && x.Active);
-        if (slot is null || slot.DayOfWeek != input.Date.DayOfWeek)
+        if (slot is null || slot.DayOfWeek != bookingDate.DayOfWeek)
             return BadRequest(new { Result = "InvalidSlot", Errors = "O horario selecionado nao existe para este local nesta data." });
 
         var now = DateTime.UtcNow;
 
-        var windowError = AmenityBookingValidator.ValidateWindow(amenity, input.Date, now);
+        var windowError = AmenityBookingValidator.ValidateWindow(amenity, bookingDate, now);
         if (windowError is not null)
             return BadRequest(new { Result = "OutsideBookingWindow", Errors = windowError });
 
-        if (AmenityBookingValidator.IsDateBlacked(amenity.Blackouts, input.Date))
+        if (AmenityBookingValidator.IsDateBlacked(amenity.Blackouts, bookingDate))
             return BadRequest(new { Result = "DateBlacked", Errors = "Esta data nao esta disponivel para este local." });
 
-        var monthStart = new DateTime(input.Date.Year, input.Date.Month, 1);
+        var monthStart = new DateTime(bookingDate.Year, bookingDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var monthEnd = monthStart.AddMonths(1);
         var existingThisMonth = await _context.AmenityBookings
             .AsNoTracking()
@@ -140,7 +142,7 @@ public sealed class AmenityBookingsController : ControllerBase
 
         var slotTaken = await _context.AmenityBookings
             .AsNoTracking()
-            .AnyAsync(x => x.AmenityId == amenityId && x.SlotId == input.SlotId && x.Date == input.Date.Date &&
+            .AnyAsync(x => x.AmenityId == amenityId && x.SlotId == input.SlotId && x.Date == bookingDate &&
                 (x.Status == AmenityBookingStatusEnum.Pending || x.Status == AmenityBookingStatusEnum.Confirmed));
 
         if (slotTaken)
@@ -155,7 +157,7 @@ public sealed class AmenityBookingsController : ControllerBase
             LicenseId = licenseId,
             UnitId = input.UnitId,
             ResidentId = input.ResidentId,
-            Date = input.Date.Date,
+            Date = bookingDate,
             SlotId = input.SlotId,
             Status = amenity.RequiresApproval ? AmenityBookingStatusEnum.Pending : AmenityBookingStatusEnum.Confirmed,
             TermsAcceptedAt = amenity.RequiresTermsAcceptance ? now : null,
@@ -273,6 +275,16 @@ public sealed class AmenityBookingsController : ControllerBase
 
     private static bool IsUniqueViolation(DbUpdateException ex) =>
         ex.InnerException is Npgsql.PostgresException { SqlState: "23505" };
+
+    /// <summary>
+    /// Client-supplied dates (from [FromQuery] binding or a JSON request body without
+    /// an explicit UTC offset) deserialize with Kind=Unspecified. The Date column maps
+    /// to Postgres 'timestamp with time zone', and Npgsql rejects Kind=Unspecified
+    /// values for that type. These are date-only values with no meaningful timezone,
+    /// so SpecifyKind (not ToUniversalTime) is correct: it reinterprets the same
+    /// wall-clock date as UTC without shifting it.
+    /// </summary>
+    private static DateTime AsUtcDate(DateTime value) => DateTime.SpecifyKind(value.Date, DateTimeKind.Utc);
 
     private static AmenityBookingOut ToOut(AmenityBookingDTO booking) => new()
     {
