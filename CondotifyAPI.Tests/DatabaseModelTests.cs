@@ -9,6 +9,7 @@ using CondotifyAPI.Domain.DTO.Users;
 using CondotifyAPI.Domain.DTO.Vehicle;
 using CondotifyAPI.Domain.DTO.Invitation;
 using CondotifyAPI.Domain.DTO.AccessControl;
+using CondotifyAPI.Domain.DTO.Amenities;
 using CondotifyAPI.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -150,6 +151,44 @@ namespace CondotifyAPI.Tests
             Assert.True(HasUniqueIndex(route!, nameof(AccessRouteDTO.LicenseId), nameof(AccessRouteDTO.Name)));
             Assert.True(HasUniqueIndex(target!, nameof(AccessRouteDeviceDTO.AccessRouteId), nameof(AccessRouteDeviceDTO.DeviceId), nameof(AccessRouteDeviceDTO.PortalNumber)));
             Assert.All(target!.GetForeignKeys(), foreignKey => Assert.Equal(DeleteBehavior.Cascade, foreignKey.DeleteBehavior));
+        }
+
+        [Fact]
+        public void Amenities_ShouldBeScopedByLicenseAndUniquelyNamed()
+        {
+            using var context = CreateContext();
+            var entity = context.Model.FindEntityType(typeof(AmenityDTO));
+
+            Assert.NotNull(entity);
+            Assert.True(HasUniqueIndex(entity!, nameof(AmenityDTO.LicenseId), nameof(AmenityDTO.Name)));
+        }
+
+        [Fact]
+        public void AmenityBookings_ShouldPreventDoubleBookingTheSameSlot()
+        {
+            using var context = CreateContext();
+            var booking = context.Model.FindEntityType(typeof(AmenityBookingDTO));
+
+            Assert.NotNull(booking);
+            var index = booking!.GetIndexes().Single(x =>
+                x.IsUnique &&
+                x.Properties.Select(p => p.Name).SequenceEqual(new[] { nameof(AmenityBookingDTO.AmenityId), nameof(AmenityBookingDTO.SlotId), nameof(AmenityBookingDTO.Date) }));
+
+            Assert.Equal("\"Status\" IN (0, 1)", index.GetFilter());
+        }
+
+        [Fact]
+        public void AmenityBookings_ShouldRestrictSlotDeletionButCascadeAmenityDeletion()
+        {
+            using var context = CreateContext();
+            var booking = context.Model.FindEntityType(typeof(AmenityBookingDTO));
+
+            Assert.NotNull(booking);
+            var slotForeignKey = booking!.GetForeignKeys().Single(x => x.PrincipalEntityType.ClrType == typeof(AmenityScheduleSlotDTO));
+            var amenityForeignKey = booking.GetForeignKeys().Single(x => x.PrincipalEntityType.ClrType == typeof(AmenityDTO));
+
+            Assert.Equal(DeleteBehavior.Restrict, slotForeignKey.DeleteBehavior);
+            Assert.Equal(DeleteBehavior.Cascade, amenityForeignKey.DeleteBehavior);
         }
 
         [Fact]
