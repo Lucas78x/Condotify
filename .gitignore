@@ -362,3 +362,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# superpowers scratch (progress ledger, task briefs/reports)
+.superpowers/
