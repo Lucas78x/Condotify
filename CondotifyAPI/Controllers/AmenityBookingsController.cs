@@ -267,6 +267,7 @@ public sealed class AmenityBookingsController : ControllerBase
             .Include(x => x.Unit).ThenInclude(x => x.Block)
             .Include(x => x.Resident)
             .Include(x => x.Slot)
+            .Include(x => x.Amenity)
             .Where(x => x.LicenseId == licenseId && x.AmenityId == amenityId);
     }
 
