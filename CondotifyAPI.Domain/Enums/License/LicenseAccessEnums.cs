@@ -19,7 +19,9 @@ public enum LicensePermissionEnum : long
     ManageUsers = 1L << 14,
     ViewSettings = 1L << 15,
     ManageSettings = 1L << 16,
-    All = (1L << 17) - 1
+    ViewBookings = 1L << 17,
+    ManageBookings = 1L << 18,
+    All = (1L << 19) - 1
 }
 
 public enum LicenseAccessRoleEnum
@@ -42,16 +44,17 @@ public static class LicenseAccessDefaults
             LicensePermissionEnum.ManagePeople | LicensePermissionEnum.ViewCredentials |
             LicensePermissionEnum.ManageCredentials | LicensePermissionEnum.ViewDevices |
             LicensePermissionEnum.OperateDevices | LicensePermissionEnum.ViewEvents |
-            LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ManageDeliveries,
+            LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ManageDeliveries |
+            LicensePermissionEnum.ViewBookings | LicensePermissionEnum.ManageBookings,
         LicenseAccessRoleEnum.Operator => LicensePermissionEnum.ViewDashboard |
             LicensePermissionEnum.ViewStructure | LicensePermissionEnum.ViewPeople |
             LicensePermissionEnum.ViewCredentials | LicensePermissionEnum.ViewDevices |
             LicensePermissionEnum.OperateDevices | LicensePermissionEnum.ViewEvents |
-            LicensePermissionEnum.ViewDeliveries,
+            LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ViewBookings,
         _ => LicensePermissionEnum.ViewDashboard | LicensePermissionEnum.ViewStructure |
             LicensePermissionEnum.ViewPeople | LicensePermissionEnum.ViewCredentials |
             LicensePermissionEnum.ViewDevices | LicensePermissionEnum.ViewEvents |
-            LicensePermissionEnum.ViewDeliveries
+            LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ViewBookings
     };
 
     public static LicensePermissionEnum Normalize(LicensePermissionEnum permissions)
@@ -64,6 +67,7 @@ public static class LicenseAccessDefaults
         if (permissions.HasFlag(LicensePermissionEnum.ManageDeliveries)) permissions |= LicensePermissionEnum.ViewDeliveries;
         if (permissions.HasFlag(LicensePermissionEnum.ManageUsers)) permissions |= LicensePermissionEnum.ViewUsers;
         if (permissions.HasFlag(LicensePermissionEnum.ManageSettings)) permissions |= LicensePermissionEnum.ViewSettings;
+        if (permissions.HasFlag(LicensePermissionEnum.ManageBookings)) permissions |= LicensePermissionEnum.ViewBookings;
         return permissions;
     }
 }

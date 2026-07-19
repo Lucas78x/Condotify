@@ -48,4 +48,19 @@ public class LicenseAccessPolicyTests
         Assert.True(permissions.HasFlag(LicensePermissionEnum.ViewCredentials));
         Assert.True(permissions.HasFlag(LicensePermissionEnum.ViewDevices));
     }
+
+    [Fact]
+    public void ManageBookings_ShouldImplyViewBookings()
+    {
+        var normalized = LicenseAccessDefaults.Normalize(LicensePermissionEnum.ManageBookings);
+        Assert.True(normalized.HasFlag(LicensePermissionEnum.ViewBookings));
+    }
+
+    [Fact]
+    public void Concierge_ShouldBeAbleToManageBookings()
+    {
+        var permissions = LicenseAccessDefaults.ForRole(LicenseAccessRoleEnum.Concierge);
+        Assert.True(permissions.HasFlag(LicensePermissionEnum.ViewBookings));
+        Assert.True(permissions.HasFlag(LicensePermissionEnum.ManageBookings));
+    }
 }
