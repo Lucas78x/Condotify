@@ -151,12 +151,20 @@ public sealed class AmenitiesController : ControllerBase
         {
             await _context.SaveChangesAsync();
         }
-        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        catch (DbUpdateException ex) when (IsForeignKeyViolation(ex))
         {
             return Conflict(new
             {
                 Result = "SlotHasBookings",
                 Errors = "Um dos horarios removidos possui agendamentos e nao pode ser excluido. Ele foi mantido como inativo."
+            });
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            return Conflict(new
+            {
+                Result = "DuplicateAmenity",
+                Errors = "Ja existe um local com este nome."
             });
         }
 
@@ -176,6 +184,19 @@ public sealed class AmenitiesController : ControllerBase
 
         if (amenity is null)
             return NotFound();
+
+        var hasBookings = await _context.AmenityBookings
+            .AsNoTracking()
+            .AnyAsync(x => x.AmenityId == amenityId);
+
+        if (hasBookings)
+        {
+            return Conflict(new
+            {
+                Result = "AmenityHasBookings",
+                Errors = "Este local possui agendamentos e nao pode ser excluido."
+            });
+        }
 
         _context.Amenities.Remove(amenity);
         await _context.SaveChangesAsync();
@@ -331,6 +352,9 @@ public sealed class AmenitiesController : ControllerBase
 
     private static bool IsUniqueViolation(DbUpdateException ex) =>
         ex.InnerException is Npgsql.PostgresException { SqlState: "23505" };
+
+    private static bool IsForeignKeyViolation(DbUpdateException ex) =>
+        ex.InnerException is Npgsql.PostgresException { SqlState: "23503" };
 
     private static AmenityOut ToOut(AmenityDTO amenity) => new()
     {
