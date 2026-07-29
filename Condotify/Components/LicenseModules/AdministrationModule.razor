@@ -33,6 +33,12 @@ else
                         </EditForm>
                     </MudTabPanel>
                 }
+                @if (CanViewBackups)
+                {
+                    <MudTabPanel Text="Backups" Icon="@Icons.Material.Outlined.Backup">
+                        <ConfigurationBackupsPanel LicenseId="LicenseId" CanManage="CanManageBackups" />
+                    </MudTabPanel>
+                }
             </MudTabs>
         </MudPaper>
     </section>
@@ -49,6 +55,8 @@ else
     private bool CanManageUsers => _data?.CurrentAccess.Has(LicensePermission.ManageUsers) == true;
     private bool CanViewSettings => _data?.CurrentAccess.Has(LicensePermission.ViewSettings) == true;
     private bool CanManageSettings => _data?.CurrentAccess.Has(LicensePermission.ManageSettings) == true;
+    private bool CanViewBackups => _data?.CurrentAccess.Has(LicensePermission.ViewBackups) == true;
+    private bool CanManageBackups => _data?.CurrentAccess.Has(LicensePermission.ManageBackups) == true;
     protected override async Task OnInitializedAsync() { if (InitialData is not null) { _data = InitialData; _loading = false; } else await LoadAsync(); }
     private async Task LoadAsync() { _loading = true; var result = await Api.GetLicenseAdministrationAsync(LicenseId); _loading = false; if (result.Success) _data = result.Value; else _error = result.Error; }
     private async Task OpenUserAsync(LicenseUserAccessViewModel? user) { var parameters = new DialogParameters { [nameof(LicenseUserDialog.LicenseId)] = LicenseId, [nameof(LicenseUserDialog.Existing)] = user }; var dialog = await DialogService.ShowAsync<LicenseUserDialog>(user is null ? "Novo usuario" : "Editar acesso", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium }); var result = await dialog.Result; if (result?.Canceled != false) return; await LoadAsync(); Snackbar.Add("Acesso atualizado.", Severity.Success); }

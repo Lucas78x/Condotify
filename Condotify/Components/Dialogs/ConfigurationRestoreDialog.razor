@@ -1,0 +1,154 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog entity-dialog-wide configuration-restore-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.SettingsBackupRestore" />
+            <div>
+                <strong>Restaurar @Backup.Name</strong>
+                <span>Versão @Backup.Version, criada em @Backup.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") por @Backup.CreatedBy.</span>
+            </div>
+        </div>
+
+        <div class="restore-option-grid">
+            <MudSelect T="string" @bind-Value="_options.Mode" Label="Estratégia" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("Merge")">Mesclar configurações</MudSelectItem>
+                <MudSelectItem Value="@("Reconcile")">Reconciliar com a versão</MudSelectItem>
+            </MudSelect>
+            <div class="restore-scope">
+                <MudSwitch T="bool" @bind-Value="_options.IncludeDevices" Label="Equipamentos" Color="Color.Primary" />
+                <MudSwitch T="bool" @bind-Value="_options.IncludeRoutes" Label="Rotas" Color="Color.Primary" />
+                <MudSwitch T="bool" @bind-Value="_options.IncludeCredentials" Label="Credenciais" Color="Color.Primary" />
+            </div>
+        </div>
+
+        <MudAlert Severity="@(_options.Mode == "Reconcile" ? Severity.Warning : Severity.Info)" Variant="Variant.Outlined" Class="mb-4">
+            @(_options.Mode == "Reconcile"
+                ? "A reconciliação desativa equipamentos, rotas e credenciais atuais ausentes no snapshot. Nenhum cadastro é excluído."
+                : "A mesclagem cria ou atualiza os itens presentes no snapshot e preserva as demais configurações atuais.")
+        </MudAlert>
+
+        <div class="restore-preview-action">
+            <span>A simulação consulta o estado atual e não altera o banco.</span>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.FactCheck" Disabled="_busy" OnClick="PreviewAsync">
+                @(_preview is null ? "Simular impacto" : "Atualizar simulação")
+            </MudButton>
+        </div>
+
+        @if (_busy)
+        {
+            <div class="loading-state compact"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+        }
+        else if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+        }
+        else if (_preview is not null)
+        {
+            <div class="restore-impact-strip">
+                <div><strong>@_preview.CreateCount</strong><span>criações</span></div>
+                <div><strong>@_preview.UpdateCount</strong><span>atualizações</span></div>
+                <div class="@(_preview.DeactivateCount > 0 ? "warning" : null)"><strong>@_preview.DeactivateCount</strong><span>desativações</span></div>
+                <div class="@(_preview.ConflictCount > 0 ? "danger" : null)"><strong>@_preview.ConflictCount</strong><span>conflitos</span></div>
+            </div>
+
+            <div class="restore-section-list">
+                @foreach (var impact in _preview.Sections)
+                {
+                    <div class="restore-section-row">
+                        <strong>@impact.Section</strong>
+                        <span><b>@impact.CreateCount</b> criar</span>
+                        <span><b>@impact.UpdateCount</b> atualizar</span>
+                        <span><b>@impact.DeactivateCount</b> desativar</span>
+                        <span class="@(impact.ConflictCount > 0 ? "danger" : null)"><b>@impact.ConflictCount</b> conflitos</span>
+                    </div>
+                }
+            </div>
+
+            @if (_preview.Conflicts.Count > 0)
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-4">
+                    <strong>A restauração está bloqueada.</strong>
+                    <ul class="restore-conflict-list">
+                        @foreach (var conflict in _preview.Conflicts) { <li>@conflict</li> }
+                    </ul>
+                </MudAlert>
+            }
+            else if (_previewSignature != CurrentSignature)
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4">As opções mudaram. Atualize a simulação antes de confirmar.</MudAlert>
+            }
+            else if (_preview.CanRestore)
+            {
+                <div class="restore-confirmation">
+                    <div>
+                        <strong>Confirmação operacional</strong>
+                        <span>Digite RESTAURAR para liberar a execução transacional.</span>
+                    </div>
+                    <MudTextField T="string" @bind-Value="_options.Confirmation" Placeholder="RESTAURAR" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </div>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_busy" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Restore" Disabled="@(!CanExecute)" OnClick="RestoreAsync">
+            Restaurar versão
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public ConfigurationBackupViewModel Backup { get; set; } = null!;
+
+    private readonly ConfigurationRestoreOptionsViewModel _options = new();
+    private ConfigurationRestorePreviewViewModel? _preview;
+    private string? _previewSignature;
+    private bool _busy;
+    private string? _error;
+    private bool CanExecute => !_busy && _preview?.CanRestore == true &&
+        _previewSignature == CurrentSignature &&
+        string.Equals(_options.Confirmation.Trim(), "RESTAURAR", StringComparison.OrdinalIgnoreCase);
+    private string CurrentSignature => $"{_options.Mode}:{_options.IncludeDevices}:{_options.IncludeRoutes}:{_options.IncludeCredentials}";
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task PreviewAsync()
+    {
+        _busy = true;
+        _error = null;
+        _preview = null;
+        _previewSignature = null;
+        _options.Confirmation = string.Empty;
+        var result = await Api.PreviewConfigurationRestoreAsync(LicenseId, Backup.Id, _options);
+        _busy = false;
+        if (!result.Success)
+        {
+            _error = result.Error ?? "Não foi possível simular a restauração.";
+            return;
+        }
+        _preview = result.Value;
+        _previewSignature = CurrentSignature;
+    }
+
+    private async Task RestoreAsync()
+    {
+        if (!CanExecute) return;
+        _busy = true;
+        _error = null;
+        var result = await Api.RestoreConfigurationBackupAsync(LicenseId, Backup.Id, _options);
+        _busy = false;
+        if (!result.Success)
+        {
+            _error = result.Error ?? "Não foi possível restaurar o snapshot.";
+            _preview = null;
+            _previewSignature = null;
+            return;
+        }
+        Snackbar.Add(result.Value?.Message ?? "Configuração restaurada.", Severity.Success);
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+}

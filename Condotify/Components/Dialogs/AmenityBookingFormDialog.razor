@@ -5,7 +5,10 @@
     <TitleContent>
         <div class="dialog-title-block">
             <MudIcon Icon="@Icons.Material.Outlined.EventAvailable" />
-            <div><MudText Typo="Typo.h6">Agendar @Amenity.Name</MudText><MudText Typo="Typo.caption">Selecione a unidade, a data e o horario.</MudText></div>
+            <div>
+                <MudText Typo="Typo.h6">@DialogTitle</MudText>
+                <MudText Typo="Typo.caption">@DialogSubtitle</MudText>
+            </div>
         </div>
     </TitleContent>
     <DialogContent>
@@ -79,7 +82,7 @@
 
         <div class="form-actions dialog-form-actions">
             <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_saving || !CanSave)" OnClick="SaveAsync">@(_saving ? "Agendando..." : "Confirmar agendamento")</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_saving || !CanSave)" OnClick="SaveAsync">@SaveLabel</MudButton>
         </div>
     </DialogContent>
 </MudDialog>
@@ -88,6 +91,8 @@
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
     [Parameter, EditorRequired] public AmenityViewModel Amenity { get; set; } = null!;
+    [Parameter] public AmenityBookingViewModel? Booking { get; set; }
+    [Parameter] public bool DuplicateMode { get; set; }
 
     private readonly AmenityBookingFormViewModel _form = new();
     private AmenityUnitSearchViewModel? _unit;
@@ -95,6 +100,22 @@
     private bool _loadingAvailability;
     private bool _saving;
     private string? _error;
+    private bool IsEditing => Booking is not null && !DuplicateMode;
+    private string DialogTitle => IsEditing
+        ? $"Editar reserva de {Amenity.Name}"
+        : DuplicateMode
+            ? $"Duplicar reserva de {Amenity.Name}"
+            : $"Agendar {Amenity.Name}";
+    private string DialogSubtitle => IsEditing
+        ? "Ajuste unidade, data, horario ou observacoes."
+        : DuplicateMode
+            ? "Revise os dados antes de criar a nova reserva."
+            : "Selecione a unidade, a data e o horario.";
+    private string SaveLabel => _saving
+        ? "Salvando..."
+        : IsEditing
+            ? "Salvar alteracoes"
+            : "Confirmar agendamento";
 
     // These mirror AmenityBookingValidator.ValidateWindow on the API side (same day/hour math against
     // UTC "now") so the picker never lets the user land on a day the server would reject outright.
@@ -109,8 +130,36 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _form.Date = EarliestAllowedDate;
-        await LoadAvailabilityAsync();
+        if (Booking is null)
+        {
+            _form.Date = EarliestAllowedDate;
+            await LoadAvailabilityAsync();
+            return;
+        }
+
+        var unitQuery = Booking.UnitNumber.Length >= 2 ? Booking.UnitNumber : Booking.BlockName;
+        var units = await SearchUnitsAsync(unitQuery, CancellationToken.None);
+        _unit = units.FirstOrDefault(x => x.UnitId == Booking.UnitId);
+        _unit ??= new AmenityUnitSearchViewModel
+        {
+            UnitId = Booking.UnitId,
+            UnitNumber = Booking.UnitNumber,
+            BlockName = Booking.BlockName,
+            Residents = Booking.ResidentId.HasValue
+                ? [new AmenityUnitSearchResidentViewModel { ResidentId = Booking.ResidentId.Value, Name = Booking.ResidentName ?? "Morador" }]
+                : []
+        };
+        _form.UnitId = Booking.UnitId;
+        _form.ResidentId = Booking.ResidentId;
+        _form.Notes = Booking.Notes;
+        _form.TermsAccepted = Booking.TermsAcceptedAt.HasValue;
+
+        var preferredDate = DuplicateMode ? Booking.Date.Date.AddDays(7) : Booking.Date.Date;
+        if (preferredDate < EarliestAllowedDate || preferredDate > LatestAllowedDate)
+            preferredDate = EarliestAllowedDate;
+        _form.Date = preferredDate;
+
+        await LoadAvailabilityAsync(Booking.SlotId);
     }
 
     private async Task<IEnumerable<AmenityUnitSearchViewModel>> SearchUnitsAsync(string value, CancellationToken cancellationToken)
@@ -134,7 +183,7 @@
         await LoadAvailabilityAsync();
     }
 
-    private async Task LoadAvailabilityAsync()
+    private async Task LoadAvailabilityAsync(Guid? preferredSlotId = null)
     {
         _form.SlotId = Guid.Empty;
 
@@ -145,10 +194,20 @@
         }
 
         _loadingAvailability = true;
-        var result = await Api.GetAmenityAvailabilityAsync(LicenseId, Amenity.Id, _form.Date);
+        var result = await Api.GetAmenityAvailabilityAsync(
+            LicenseId,
+            Amenity.Id,
+            _form.Date,
+            IsEditing ? Booking?.Id : null);
         _loadingAvailability = false;
         _availability = result.Success ? result.Value ?? [] : [];
         if (!result.Success) _error = result.Error;
+
+        if (preferredSlotId.HasValue &&
+            _availability.Any(x => x.SlotId == preferredSlotId.Value && x.Available))
+        {
+            _form.SlotId = preferredSlotId.Value;
+        }
     }
 
     private void SelectSlot(AmenitySlotAvailabilityViewModel slot)
@@ -172,7 +231,9 @@
         }
 
         _saving = true;
-        var result = await Api.CreateAmenityBookingAsync(LicenseId, Amenity.Id, _form);
+        var result = IsEditing
+            ? await Api.UpdateAmenityBookingAsync(LicenseId, Amenity.Id, Booking!.Id, _form)
+            : await Api.CreateAmenityBookingAsync(LicenseId, Amenity.Id, _form);
         _saving = false;
         if (!result.Success)
         {

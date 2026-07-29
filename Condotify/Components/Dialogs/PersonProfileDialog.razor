@@ -44,6 +44,9 @@
                         {
                             <MudTooltip Text="Remover foto"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Size="Size.Small" Color="Color.Error" Disabled="_savingPhoto" OnClick="RemoveProfilePhotoAsync" /></MudTooltip>
                         }
+                        <MudMenu Icon="@Icons.Material.Outlined.MoreVert" Dense>
+                            <MudMenuItem Icon="@Icons.Material.Outlined.DeleteForever" Class="danger-menu-item" OnClick="DeletePersonAsync">Excluir pessoa</MudMenuItem>
+                        </MudMenu>
                     }
                 </div>
             </header>
@@ -183,7 +186,7 @@
                 </MudTabPanel>
 
                 <MudTabPanel Text="Veiculos" Icon="@Icons.Material.Outlined.DirectionsCar">
-                    <div class="profile-panel-toolbar"><div><strong>Veiculos da unidade</strong><span>Tags criadas aqui passam a integrar a base de credenciais.</span></div>@if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenVehicleDialogAsync">Novo veiculo</MudButton> }</div>
+                    <div class="profile-panel-toolbar"><div><strong>Veiculos da unidade</strong><span>Tags criadas aqui passam a integrar a base de credenciais.</span></div>@if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenVehicleDialogAsync())">Novo veiculo</MudButton> }</div>
                     @if (_profile.Vehicles.Count == 0)
                     {
                         <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /><span>Nenhum veiculo cadastrado.</span></div>
@@ -197,9 +200,16 @@
                                     <div class="profile-row-icon"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></div>
                                     <div class="profile-row-main"><strong>@vehicle.Plate</strong><span>@VehicleDescription(vehicle)</span></div>
                                     <div class="profile-row-meta">@(!string.IsNullOrWhiteSpace(vehicle.TagIdentifier) ? $"Tag {vehicle.TagIdentifier}" : "Sem tag")</div>
-                                    @if (CanManagePeople) { <MudTooltip Text="@(vehicle.IsActive ? "Desativar veiculo e tag" : "Ativar veiculo e tag")">
-                                        <MudIconButton Icon="@(vehicle.IsActive ? Icons.Material.Outlined.ToggleOn : Icons.Material.Outlined.ToggleOff)" Color="@(vehicle.IsActive ? Color.Success : Color.Default)" OnClick="@(() => SetVehicleStatusAsync(vehicle))" />
-                                    </MudTooltip> }
+                                    @if (CanManagePeople)
+                                    {
+                                        <MudTooltip Text="@(vehicle.IsActive ? "Desativar veiculo e tag" : "Ativar veiculo e tag")">
+                                            <MudIconButton Icon="@(vehicle.IsActive ? Icons.Material.Outlined.ToggleOn : Icons.Material.Outlined.ToggleOff)" Color="@(vehicle.IsActive ? Color.Success : Color.Default)" OnClick="@(() => SetVehicleStatusAsync(vehicle))" />
+                                        </MudTooltip>
+                                        <MudMenu Icon="@Icons.Material.Outlined.MoreVert" Dense>
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenVehicleDialogAsync(vehicle))">Editar veiculo</MudMenuItem>
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.DeleteOutline" Class="danger-menu-item" OnClick="@(() => DeleteVehicleAsync(vehicle))">Excluir veiculo</MudMenuItem>
+                                        </MudMenu>
+                                    }
                                 </div>
                             }
                         </div>
@@ -452,14 +462,20 @@
         Snackbar.Add(result.Value?.Message ?? "Credencial excluida.", Severity.Success);
     }
 
-    private async Task OpenVehicleDialogAsync()
+    private async Task OpenVehicleDialogAsync(VehicleViewModel? vehicle = null)
     {
         if (_profile is null) return;
-        var parameters = new DialogParameters { [nameof(VehicleFormDialog.LicenseId)] = LicenseId, [nameof(VehicleFormDialog.ResidentId)] = ResidentId, [nameof(VehicleFormDialog.UnitId)] = _profile.UnitId };
-        var dialog = await DialogService.ShowAsync<VehicleFormDialog>("Novo veiculo", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Small });
+        var parameters = new DialogParameters
+        {
+            [nameof(VehicleFormDialog.LicenseId)] = LicenseId,
+            [nameof(VehicleFormDialog.ResidentId)] = ResidentId,
+            [nameof(VehicleFormDialog.UnitId)] = _profile.UnitId,
+            [nameof(VehicleFormDialog.Existing)] = vehicle
+        };
+        var dialog = await DialogService.ShowAsync<VehicleFormDialog>(vehicle is null ? "Novo veiculo" : "Editar veiculo", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Small });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        await LoadAsync(); Snackbar.Add("Veiculo cadastrado. A tag esta pronta para sincronizacao.", Severity.Success);
+        await LoadAsync(); Snackbar.Add(vehicle is null ? "Veiculo cadastrado. A tag esta pronta para sincronizacao." : "Veiculo atualizado.", Severity.Success);
     }
 
     private async Task SetVehicleStatusAsync(VehicleViewModel vehicle)
@@ -467,6 +483,35 @@
         var result = await Api.SetVehicleStatusAsync(LicenseId, ResidentId, vehicle.Id, !vehicle.IsActive);
         if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao alterar o veiculo.", Severity.Error); return; }
         await LoadAsync(); Snackbar.Add("Veiculo e credencial atualizados.", Severity.Success);
+    }
+
+    private async Task DeleteVehicleAsync(VehicleViewModel vehicle)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Mover veiculo para a lixeira",
+            $"Mover o veiculo {vehicle.Plate} para a lixeira? Uma TAG ainda sincronizada em equipamentos impedira a operacao.",
+            yesText: "Mover para a lixeira",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+        var result = await Api.DeleteVehicleAsync(LicenseId, ResidentId, vehicle.Id);
+        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Nao foi possivel excluir o veiculo.", Severity.Error); return; }
+        await LoadAsync();
+        Snackbar.Add("Veiculo movido para a lixeira.", Severity.Success);
+    }
+
+    private async Task DeletePersonAsync()
+    {
+        if (_profile is null) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Mover pessoa para a lixeira",
+            $"Mover o cadastro de {_profile.Name} para a lixeira? Credenciais e veiculos vinculados devem ser removidos antes. O cadastro podera ser restaurado por 30 dias.",
+            yesText: "Mover para a lixeira",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+        var result = await Api.DeleteResidentAsync(LicenseId, ResidentId);
+        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Nao foi possivel excluir a pessoa.", Severity.Error); return; }
+        Snackbar.Add("Pessoa movida para a lixeira.", Severity.Success);
+        Dialog.Close(DialogResult.Ok(true));
     }
 
     private async Task CreateInviteAsync()

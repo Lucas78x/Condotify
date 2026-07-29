@@ -2,6 +2,7 @@
 @using System.Globalization
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudDialog Class="entity-dialog device-detail-dialog">
     <DialogContent>
@@ -12,6 +13,10 @@
             @if (CanManage)
             {
                 <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.MonitorHeart" Disabled="_busy" OnClick="InspectAsync">Diagnosticar</MudButton>
+                <MudMenu Icon="@Icons.Material.Outlined.MoreVert" Dense Disabled="_busy">
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Edit" OnClick="EditAsync">Editar equipamento</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Outlined.DeleteOutline" Class="danger-menu-item" OnClick="DeleteAsync">Excluir equipamento</MudMenuItem>
+                </MudMenu>
             }
         </header>
 
@@ -131,6 +136,42 @@
         Device.IsActive = result.Value.Online; Device.HealthMessage = result.Value.Message; Device.LastResponseTimeMs = result.Value.ResponseTimeMs; Device.FirmwareVersion = result.Value.FirmwareVersion; Device.SerialNumber = result.Value.SerialNumber; Device.MACAddress = result.Value.MacAddress; Device.LastHealthCheckAt = result.Value.CheckedAt;
         Device.DiscoveredPortalsJson = System.Text.Json.JsonSerializer.Serialize(result.Value.Portals, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
         Snackbar.Add(result.Value.Message, result.Value.Online ? Severity.Success : Severity.Warning);
+    }
+    private async Task EditAsync()
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(DeviceFormDialog.LicenseId)] = LicenseId,
+            [nameof(DeviceFormDialog.Existing)] = Device
+        };
+        var dialog = await DialogService.ShowAsync<DeviceFormDialog>(
+            "Editar equipamento",
+            parameters,
+            new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Large });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        Snackbar.Add("Equipamento atualizado.", Severity.Success);
+        Dialog.Close(DialogResult.Ok(true));
+    }
+    private async Task DeleteAsync()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Mover equipamento para a lixeira",
+            $"Mover {Device.Name} para a lixeira? Rotas, credenciais ou eventos vinculados impedirao a operacao. O equipamento restaurado permanecera inativo ate um novo diagnostico.",
+            yesText: "Mover para a lixeira",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+        _busy = true;
+        var result = await Api.DeleteDeviceAsync(LicenseId, Device.Id);
+        _busy = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            Snackbar.Add(result.Error ?? "Nao foi possivel excluir o equipamento.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Equipamento movido para a lixeira.", Severity.Success);
+        Dialog.Close(DialogResult.Ok(true));
     }
     private async Task RefreshInventoryAsync()
     {

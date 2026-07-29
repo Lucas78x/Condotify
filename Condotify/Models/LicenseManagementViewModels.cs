@@ -57,7 +57,6 @@ namespace Condotify.Models
         [Required(ErrorMessage = "Informe o usuário de acesso ao equipamento.")]
         public string Username { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Informe a senha de acesso ao equipamento.")]
         public string Password { get; set; } = string.Empty;
 
         public string DeviceModel { get; set; } = string.Empty;
@@ -246,6 +245,7 @@ namespace Condotify.Models
         public string Name { get; set; } = string.Empty;
         public string IPAddress { get; set; } = string.Empty;
         public int Port { get; set; }
+        public string Username { get; set; } = string.Empty;
         public string Model { get; set; } = string.Empty;
         public string SerialNumber { get; set; } = string.Empty;
         public string MACAddress { get; set; } = string.Empty;
@@ -440,7 +440,9 @@ namespace Condotify.Models
         ManageSettings = 1L << 16,
         ViewBookings = 1L << 17,
         ManageBookings = 1L << 18,
-        All = (1L << 19) - 1
+        ViewBackups = 1L << 19,
+        ManageBackups = 1L << 20,
+        All = (1L << 21) - 1
     }
 
     public class LicenseAdministrationViewModel
@@ -781,6 +783,7 @@ namespace Condotify.Models
         public string Action { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public string Summary { get; set; } = string.Empty;
+        public string DetailsJson { get; set; } = "{}";
         public string UserName { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
     }
@@ -841,6 +844,61 @@ namespace Condotify.Models
         public string Color { get; set; } = string.Empty;
         public string Type { get; set; } = "Carro";
         public string TagIdentifier { get; set; } = string.Empty;
+    }
+
+    public class StructureImportPreviewViewModel
+    {
+        public bool CanExecute { get; set; }
+        public int TotalRows { get; set; }
+        public int ValidRows { get; set; }
+        public int InvalidRows { get; set; }
+        public int NewBlocks { get; set; }
+        public int NewUnits { get; set; }
+        public int NewPeople { get; set; }
+        public int NewVehicles { get; set; }
+        public List<string> Errors { get; set; } = [];
+        public List<StructureImportRowViewModel> Rows { get; set; } = [];
+    }
+
+    public class StructureImportRowViewModel
+    {
+        public int RowNumber { get; set; }
+        public string Block { get; set; } = string.Empty;
+        public string Unit { get; set; } = string.Empty;
+        public string PersonName { get; set; } = string.Empty;
+        public string VehiclePlate { get; set; } = string.Empty;
+        public bool IsValid { get; set; }
+        public List<string> Messages { get; set; } = [];
+    }
+
+    public class StructureImportExecutionViewModel
+    {
+        public Guid ImportId { get; set; }
+        public int CreatedBlocks { get; set; }
+        public int CreatedUnits { get; set; }
+        public int CreatedPeople { get; set; }
+        public int CreatedVehicles { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class RecycleBinItemViewModel
+    {
+        public Guid Id { get; set; }
+        public string EntityType { get; set; } = string.Empty;
+        public Guid EntityId { get; set; }
+        public string DisplayName { get; set; } = string.Empty;
+        public string DeletedBy { get; set; } = string.Empty;
+        public DateTime DeletedAt { get; set; }
+        public DateTime ExpiresAt { get; set; }
+        public int DaysRemaining { get; set; }
+    }
+
+    public class RecycleBinRestoreViewModel
+    {
+        public Guid ItemId { get; set; }
+        public Guid EntityId { get; set; }
+        public string EntityType { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
     }
 
     public class RegistrationInviteViewModel
@@ -987,5 +1045,74 @@ namespace Condotify.Models
         [Required] public string Reason { get; set; } = string.Empty;
         public int Severity { get; set; } = 2;
         public DateTime? ExpiresAt { get; set; }
+    }
+
+    public class ConfigurationBackupViewModel
+    {
+        public Guid Id { get; set; }
+        public int Version { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int DeviceCount { get; set; }
+        public int RouteCount { get; set; }
+        public int CredentialCount { get; set; }
+        public int BindingCount { get; set; }
+        public int OverrideCount { get; set; }
+        public string CreatedBy { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public DateTime? LastRestoredAt { get; set; }
+        public string LastRestoredBy { get; set; } = string.Empty;
+    }
+
+    public class ConfigurationBackupCreateViewModel
+    {
+        [MaxLength(120)] public string Name { get; set; } = string.Empty;
+        [MaxLength(500)] public string Description { get; set; } = string.Empty;
+    }
+
+    public class ConfigurationRestoreOptionsViewModel
+    {
+        public string Mode { get; set; } = "Merge";
+        public bool IncludeDevices { get; set; } = true;
+        public bool IncludeRoutes { get; set; } = true;
+        public bool IncludeCredentials { get; set; } = true;
+        public string Confirmation { get; set; } = string.Empty;
+    }
+
+    public class ConfigurationRestorePreviewViewModel
+    {
+        public Guid BackupId { get; set; }
+        public int Version { get; set; }
+        public string Mode { get; set; } = string.Empty;
+        public bool CanRestore { get; set; }
+        public int CreateCount { get; set; }
+        public int UpdateCount { get; set; }
+        public int DeactivateCount { get; set; }
+        public int ConflictCount { get; set; }
+        public List<ConfigurationRestoreSectionViewModel> Sections { get; set; } = [];
+        public List<string> Conflicts { get; set; } = [];
+    }
+
+    public class ConfigurationRestoreSectionViewModel
+    {
+        public string Section { get; set; } = string.Empty;
+        public int CreateCount { get; set; }
+        public int UpdateCount { get; set; }
+        public int DeactivateCount { get; set; }
+        public int ConflictCount { get; set; }
+    }
+
+    public class ConfigurationRestoreExecutionViewModel
+    {
+        public Guid BackupId { get; set; }
+        public int Version { get; set; }
+        public string Mode { get; set; } = string.Empty;
+        public int CreatedCount { get; set; }
+        public int UpdatedCount { get; set; }
+        public int DeactivatedCount { get; set; }
+        public int CredentialsQueued { get; set; }
+        public Guid? ReconciliationBatchId { get; set; }
+        public DateTime RestoredAt { get; set; }
+        public string Message { get; set; } = string.Empty;
     }
 }

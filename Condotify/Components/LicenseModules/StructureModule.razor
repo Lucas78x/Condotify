@@ -41,6 +41,14 @@ else
                 @if (CanManageStructure)
                 {
                     <div class="structure-actions">
+                        @if (CanManagePeople)
+                        {
+                            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.UploadFile" OnClick="OpenImportAsync">Importar</MudButton>
+                        }
+                        @if (CanManageStructure || CanManagePeople || CanManageDevices)
+                        {
+                            <MudTooltip Text="Abrir lixeira"><MudIconButton Icon="@Icons.Material.Outlined.RestoreFromTrash" Variant="Variant.Outlined" OnClick="OpenRecycleBinAsync" /></MudTooltip>
+                        }
                         <MudTooltip Text="Configurar nomenclatura"><MudIconButton Icon="@Icons.Material.Outlined.Tune" Variant="Variant.Outlined" OnClick="OpenSettingsAsync" /></MudTooltip>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddBusiness" OnClick="@(() => OpenCreateAsync("blocos"))">Novo @_structure.GroupLabelSingular.ToLowerInvariant()</MudButton>
                     </div>
@@ -79,7 +87,14 @@ else
                     <MudText Typo="Typo.h5">@SelectedBlock.Name</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">Selecione uma @_structure.UnitLabelSingular.ToLowerInvariant() para acessar pessoas, veiculos e credenciais.</MudText>
                 </div>
-                @if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddHomeWork" OnClick="@(() => OpenCreateAsync("unidades"))">Nova @_structure.UnitLabelSingular.ToLowerInvariant()</MudButton> }
+                @if (CanManageStructure)
+                {
+                    <div class="structure-actions">
+                        <MudTooltip Text="Editar agrupamento"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" OnClick="OpenEditBlockAsync" /></MudTooltip>
+                        <MudTooltip Text="Excluir agrupamento"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Variant="Variant.Outlined" OnClick="DeleteBlockAsync" /></MudTooltip>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddHomeWork" OnClick="@(() => OpenCreateAsync("unidades"))">Nova @_structure.UnitLabelSingular.ToLowerInvariant()</MudButton>
+                    </div>
+                }
             </div>
 
             <div class="level-context-bar">
@@ -118,7 +133,14 @@ else
                     <span class="unit-detail-icon"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span>
                     <div><MudText Typo="Typo.h5">@_structure.UnitLabelSingular @_unit.Number</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_unit.BlockName@(string.IsNullOrWhiteSpace(_unit.Floor) ? string.Empty : $" | {_unit.Floor}")</MudText></div>
                 </div>
-                @if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" OnClick="@(() => OpenCreateAsync("moradores"))">Nova pessoa</MudButton> }
+                <div class="structure-actions">
+                    @if (CanManageStructure)
+                    {
+                        <MudTooltip Text="Editar unidade"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" OnClick="OpenEditUnitAsync" /></MudTooltip>
+                        <MudTooltip Text="Excluir unidade"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Variant="Variant.Outlined" OnClick="DeleteUnitAsync" /></MudTooltip>
+                    }
+                    @if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" OnClick="@(() => OpenCreateAsync("moradores"))">Nova pessoa</MudButton> }
+                </div>
             </div>
 
             <div class="unit-detail-kpis">
@@ -187,6 +209,7 @@ else
     [Parameter] public bool CanManageStructure { get; set; }
     [Parameter] public bool CanManagePeople { get; set; }
     [Parameter] public bool CanManageCredentials { get; set; }
+    [Parameter] public bool CanManageDevices { get; set; }
     private LicenseStructureViewModel _structure = new();
     private UnitDetailViewModel? _unit;
     private Guid? _selectedBlockId;
@@ -254,6 +277,79 @@ else
         await LoadAsync(_selectedBlockId, _selectedUnitId);
     }
 
+    private async Task OpenEditBlockAsync()
+    {
+        if (SelectedBlock is null) return;
+        var parameters = StructureDialogParameters("blocos");
+        parameters[nameof(StructureFormDialog.ExistingBlock)] = SelectedBlock;
+        var dialog = await DialogService.ShowAsync<StructureFormDialog>(
+            $"Editar {_structure.GroupLabelSingular.ToLowerInvariant()}",
+            parameters,
+            new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Small });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        Snackbar.Add("Agrupamento atualizado.", Severity.Success);
+        await LoadAsync(_selectedBlockId);
+    }
+
+    private async Task DeleteBlockAsync()
+    {
+        if (SelectedBlock is null) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            $"Mover para a lixeira",
+            $"Mover {SelectedBlock.Name} para a lixeira? O item podera ser restaurado por 30 dias e nao pode possuir unidades vinculadas.",
+            yesText: "Mover para a lixeira",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+        var result = await Api.DeleteBlockAsync(LicenseId, SelectedBlock.Id);
+        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Nao foi possivel excluir.", Severity.Error); return; }
+        Snackbar.Add("Agrupamento movido para a lixeira.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task OpenEditUnitAsync()
+    {
+        var current = SelectedBlock?.Units.FirstOrDefault(x => x.Id == _selectedUnitId);
+        if (current is null) return;
+        var parameters = StructureDialogParameters("unidades");
+        parameters[nameof(StructureFormDialog.ExistingUnit)] = current;
+        var dialog = await DialogService.ShowAsync<StructureFormDialog>(
+            $"Editar {_structure.UnitLabelSingular.ToLowerInvariant()}",
+            parameters,
+            new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Small });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        Snackbar.Add("Unidade atualizada.", Severity.Success);
+        await LoadAsync(current.BlockId, current.Id);
+    }
+
+    private async Task DeleteUnitAsync()
+    {
+        if (_unit is null) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Mover para a lixeira",
+            $"Mover {_structure.UnitLabelSingular.ToLowerInvariant()} {_unit.Number} para a lixeira? Pessoas e veiculos impedem a operacao para preservar os vinculos.",
+            yesText: "Mover para a lixeira",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+        var blockId = _unit.BlockId;
+        var result = await Api.DeleteUnitAsync(LicenseId, _unit.Id);
+        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Nao foi possivel excluir.", Severity.Error); return; }
+        Snackbar.Add("Unidade movida para a lixeira.", Severity.Success);
+        await LoadAsync(blockId);
+    }
+
+    private DialogParameters StructureDialogParameters(string section) => new()
+    {
+        [nameof(StructureFormDialog.LicenseId)] = LicenseId,
+        [nameof(StructureFormDialog.ActiveSection)] = section,
+        [nameof(StructureFormDialog.Blocks)] = Blocks,
+        [nameof(StructureFormDialog.InitialBlockId)] = _selectedBlockId,
+        [nameof(StructureFormDialog.InitialUnitId)] = _selectedUnitId,
+        [nameof(StructureFormDialog.GroupLabelSingular)] = _structure.GroupLabelSingular,
+        [nameof(StructureFormDialog.UnitLabelSingular)] = _structure.UnitLabelSingular
+    };
+
     private async Task OpenSettingsAsync()
     {
         var model = new StructureSettingsViewModel { GroupLabelSingular = _structure.GroupLabelSingular, GroupLabelPlural = _structure.GroupLabelPlural, UnitLabelSingular = _structure.UnitLabelSingular, UnitLabelPlural = _structure.UnitLabelPlural };
@@ -262,6 +358,32 @@ else
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
         Snackbar.Add("Nomenclatura atualizada.", Severity.Success); await LoadAsync();
+    }
+
+    private async Task OpenImportAsync()
+    {
+        var parameters = new DialogParameters { [nameof(StructureImportDialog.LicenseId)] = LicenseId };
+        var dialog = await DialogService.ShowAsync<StructureImportDialog>(
+            "Importacao em massa",
+            parameters,
+            new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.ExtraLarge });
+        var result = await dialog.Result;
+        if (result?.Canceled != false || result.Data is not StructureImportExecutionViewModel execution) return;
+        Snackbar.Add(
+            $"{execution.CreatedPeople} pessoa(s) e {execution.CreatedVehicles} veiculo(s) importados.",
+            Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task OpenRecycleBinAsync()
+    {
+        var parameters = new DialogParameters { [nameof(RecycleBinDialog.LicenseId)] = LicenseId };
+        var dialog = await DialogService.ShowAsync<RecycleBinDialog>(
+            "Lixeira",
+            parameters,
+            new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Large });
+        await dialog.Result;
+        await LoadAsync(_selectedBlockId, _selectedUnitId);
     }
 
     private async Task OpenProfileAsync(Guid residentId, int initialTabIndex = 0)
@@ -302,5 +424,6 @@ else
             ? "Adicione uma foto para ativar a facial"
             : person.HasActiveFaceCredential ? "Gerenciar facial ativa" : "Ativar reconhecimento facial";
     private static bool HasPreparedFacePhoto(PersonSummaryViewModel person) =>
-        person.ImageUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase);
+        person.ImageUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) ||
+        person.ImageUrl.StartsWith("/private-media/", StringComparison.OrdinalIgnoreCase);
 }

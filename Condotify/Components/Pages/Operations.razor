@@ -1,0 +1,217 @@
+@page "/operacoes"
+@attribute [Authorize]
+@inject CondotifyApiClient Api
+@using System.Globalization
+
+<PageTitle>Operações | Condotify</PageTitle>
+
+<PageHeader Title="Central de operações" Subtitle="Monitore acessos, sincronizações, equipamentos e reservas que exigem atenção." Eyebrow="SAÚDE DA PLATAFORMA">
+    <Actions>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Refresh" Disabled="_loading" OnClick="LoadAsync">Atualizar</MudButton>
+    </Actions>
+</PageHeader>
+
+@if (_loading)
+{
+    <div class="operations-loading">
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="84px" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="340px" />
+    </div>
+}
+else if (_dashboard is null)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@(_error ?? "Não foi possível carregar os dados operacionais.")</MudAlert>
+}
+else
+{
+    <div class="stats-grid operations-stats">
+        <StatTile Label="Equipamentos" Value="@($"{_dashboard.OnlineDeviceCount}/{_dashboard.DeviceCount}")" Icon="@Icons.Material.Outlined.Sensors" Hint="terminais online" Tone="blue" />
+        <StatTile Label="Sincronização" Value="@($"{_dashboard.SynchronizationRate:N1}%")" Icon="@Icons.Material.Outlined.Sync" Hint="@($"{_dashboard.PendingCredentialCount} pendência(s)")" Tone="green" />
+        <StatTile Label="Acessos" Value="@_dashboard.AccessEventCount.ToString()" Icon="@Icons.Material.Outlined.FactCheck" Hint="@AccessRateHint" Tone="amber" />
+        <StatTile Label="Requer atenção" Value="@AttentionCount.ToString()" Icon="@Icons.Material.Outlined.NotificationImportant" Hint="alertas operacionais" Tone="red" />
+    </div>
+
+    <div class="operations-grid">
+        <MudPaper Class="content-panel operations-trend-panel" Elevation="0">
+            <div class="panel-toolbar">
+                <div>
+                    <MudText Typo="Typo.h5" Class="panel-title">Fluxo de acessos</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Autorizações e recusas nos últimos 14 dias</MudText>
+                </div>
+                <div class="trend-legend">
+                    <span><i class="authorized"></i>Autorizados</span>
+                    <span><i class="denied"></i>Negados</span>
+                </div>
+            </div>
+            <div class="access-trend-chart" role="img" aria-label="Gráfico de acessos dos últimos 14 dias">
+                @foreach (var point in _dashboard.AccessTrend)
+                {
+                    <div class="trend-column">
+                        <div class="trend-bars">
+                            <span class="authorized" style="@BarHeight(point.Authorized)" title="@($"{point.Authorized} autorizado(s)")"></span>
+                            <span class="denied" style="@BarHeight(point.Denied)" title="@($"{point.Denied} negado(s)")"></span>
+                        </div>
+                        <small>@point.Date.ToString("dd/MM")</small>
+                    </div>
+                }
+            </div>
+        </MudPaper>
+
+        <MudPaper Class="content-panel operations-health-panel" Elevation="0">
+            <div class="panel-toolbar">
+                <div>
+                    <MudText Typo="Typo.h5" Class="panel-title">Resumo operacional</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Situação atual da plataforma</MudText>
+                </div>
+            </div>
+            <div class="health-metric-list">
+                @HealthMetric("Credenciais", _dashboard.CredentialCount - _dashboard.PendingCredentialCount, _dashboard.CredentialCount, Icons.Material.Outlined.Badge, "green")
+                @HealthMetric("Equipamentos", _dashboard.OnlineDeviceCount, _dashboard.DeviceCount, Icons.Material.Outlined.Sensors, "blue")
+                @HealthMetric("Reservas de hoje", _dashboard.TodayBookingCount, Math.Max(_dashboard.TodayBookingCount, 1), Icons.Material.Outlined.EventAvailable, "violet")
+            </div>
+            <div class="operations-queue-strip">
+                <span><strong>@_dashboard.PendingBatchCount</strong><small>Na fila</small></span>
+                <span><strong>@_dashboard.FailedBatchCount</strong><small>Com falha</small></span>
+                <span><strong>@_dashboard.PendingBookingCount</strong><small>Reservas pendentes</small></span>
+            </div>
+        </MudPaper>
+    </div>
+
+    <div class="operations-grid operations-lower-grid">
+        <MudPaper Class="content-panel" Elevation="0">
+            <div class="panel-toolbar">
+                <div>
+                    <MudText Typo="Typo.h5" Class="panel-title">Central de alertas</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Itens priorizados para intervenção</MudText>
+                </div>
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@(AttentionCount > 0 ? Color.Warning : Color.Success)">
+                    @(AttentionCount > 0 ? $"{AttentionCount} alerta(s)" : "Tudo em ordem")
+                </MudChip>
+            </div>
+            @if (_dashboard.Alerts.Count == 0)
+            {
+                <div class="operations-empty">
+                    <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Color="Color.Success" />
+                    <strong>Nenhuma pendência operacional</strong>
+                    <span>Equipamentos, credenciais e filas estão saudáveis.</span>
+                </div>
+            }
+            else
+            {
+                <div class="operations-alert-list">
+                    @foreach (var alert in _dashboard.Alerts)
+                    {
+                        <a class="operations-alert-row @alert.Severity.ToLowerInvariant()" href="@alert.TargetUrl">
+                            <span class="alert-icon"><MudIcon Icon="@AlertIcon(alert.Type)" /></span>
+                            <span class="alert-copy">
+                                <strong>@alert.Title</strong>
+                                <small>@alert.Message</small>
+                                @if (!string.IsNullOrWhiteSpace(alert.LicenseName))
+                                {
+                                    <em>@alert.LicenseName</em>
+                                }
+                            </span>
+                            <span class="alert-time">@RelativeTime(alert.OccurredAt)</span>
+                            <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+                        </a>
+                    }
+                </div>
+            }
+        </MudPaper>
+
+        <MudPaper Class="content-panel" Elevation="0">
+            <div class="panel-toolbar">
+                <div>
+                    <MudText Typo="Typo.h5" Class="panel-title">Atividade recente</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Auditoria sem exposição de dados sensíveis</MudText>
+                </div>
+            </div>
+            @if (_dashboard.RecentActivities.Count == 0)
+            {
+                <div class="operations-empty compact">
+                    <MudIcon Icon="@Icons.Material.Outlined.History" />
+                    <strong>Nenhuma atividade registrada</strong>
+                </div>
+            }
+            else
+            {
+                <div class="operations-activity-list">
+                    @foreach (var activity in _dashboard.RecentActivities)
+                    {
+                        <a href="@($"/licencas/{activity.LicenseId}")" class="operations-activity-row">
+                            <span class="activity-status @ActivityTone(activity.Status)"></span>
+                            <span>
+                                <strong>@activity.Action</strong>
+                                <small>@activity.Summary</small>
+                                <em>@activity.LicenseName · @(string.IsNullOrWhiteSpace(activity.UserName) ? "Sistema" : activity.UserName)</em>
+                            </span>
+                            <time>@activity.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</time>
+                        </a>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private OperationalDashboardViewModel? _dashboard;
+    private int AttentionCount => _dashboard?.Alerts.Count(x => x.Severity is "Error" or "Warning") ?? 0;
+    private string AccessRateHint => _dashboard?.AccessEventCount > 0
+        ? $"{_dashboard.AuthorizationRate:N1}% autorizados"
+        : "Sem eventos no período";
+    private int TrendMaximum => Math.Max(1, _dashboard?.AccessTrend.Max(x => Math.Max(x.Authorized, x.Denied)) ?? 1);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        var result = await Api.GetOperationalDashboardAsync();
+        _loading = false;
+        if (result.Success)
+            _dashboard = result.Value;
+        else
+            _error = result.Error;
+    }
+
+    private string BarHeight(int value) => $"height: {Math.Max(value > 0 ? 4 : 0, value * 100d / TrendMaximum):0.#}%";
+
+    private static string AlertIcon(string type) => type switch
+    {
+        "DeviceOffline" => Icons.Material.Outlined.PortableWifiOff,
+        "BatchFailure" => Icons.Material.Outlined.SyncProblem,
+        "CredentialExpired" => Icons.Material.Outlined.Badge,
+        "BookingApproval" => Icons.Material.Outlined.EventAvailable,
+        _ => Icons.Material.Outlined.NotificationImportant
+    };
+
+    private static string ActivityTone(string status) => status.ToLowerInvariant() switch
+    {
+        "success" or "completed" or "recorded" => "success",
+        "failed" or "deadletter" or "error" => "error",
+        "pending" or "queued" or "running" => "warning",
+        _ => "neutral"
+    };
+
+    private static string RelativeTime(DateTime value)
+    {
+        var elapsed = DateTime.UtcNow - (value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime());
+        if (elapsed.TotalMinutes < 1) return "agora";
+        if (elapsed.TotalHours < 1) return $"há {(int)elapsed.TotalMinutes} min";
+        if (elapsed.TotalDays < 1) return $"há {(int)elapsed.TotalHours} h";
+        return value.ToLocalTime().ToString("dd/MM");
+    }
+
+    private RenderFragment HealthMetric(string label, int value, int total, string icon, string tone) => @<div class="health-metric">
+        <span class="overview-icon @tone"><MudIcon Icon="@icon" /></span>
+        <span class="health-metric-copy"><strong>@label</strong><small>@value de @total em condição esperada</small></span>
+        <span class="health-metric-value">@Percentage(value, total).ToString("N0", CultureInfo.GetCultureInfo("pt-BR"))%</span>
+        <MudProgressLinear Value="@Percentage(value, total)" Color="@(tone == "green" ? Color.Success : Color.Primary)" Rounded="false" />
+    </div>;
+
+    private static double Percentage(int value, int total) => total <= 0 ? 100 : Math.Clamp(value * 100d / total, 0, 100);
+}

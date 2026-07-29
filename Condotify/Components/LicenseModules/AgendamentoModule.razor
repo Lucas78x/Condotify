@@ -1,122 +1,264 @@
 @inject CondotifyApiClient Api
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@using System.Globalization
 
-<section class="module-intro">
+<section class="module-intro booking-module-intro">
     <div>
-        <MudText Typo="Typo.h2">Agendamento de areas comuns</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Secondary">Cadastre os locais agendaveis e registre reservas em nome das unidades.</MudText>
+        <MudText Typo="Typo.h2">Reservas de áreas comuns</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Organize espaços, disponibilidade e solicitações em uma única agenda.</MudText>
     </div>
-    @if (CanManage && _tab == 0)
-    {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenAmenityAsync(null))">Novo local</MudButton>
-    }
+    <div class="module-actions">
+        <MudTooltip Text="Atualizar agenda">
+            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAllAsync" />
+        </MudTooltip>
+        @if (CanManage && _amenities.Any(x => x.Active))
+        {
+            <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" EndIcon="@Icons.Material.Outlined.ExpandMore">
+                        Nova reserva
+                    </MudButton>
+                </ActivatorContent>
+                <ChildContent>
+                    @foreach (var amenity in _amenities.Where(x => x.Active))
+                    {
+                        <MudMenuItem Icon="@Icons.Material.Outlined.MeetingRoom" OnClick="@(() => OpenBookingAsync(amenity))">@amenity.Name</MudMenuItem>
+                    }
+                </ChildContent>
+            </MudMenu>
+        }
+    </div>
 </section>
-
-<MudTabs @bind-ActivePanelIndex="_tab" Color="Color.Primary" Class="mb-4">
-    <MudTabPanel Text="Locais" />
-    <MudTabPanel Text="Agendamentos" />
-</MudTabs>
 
 @if (!string.IsNullOrWhiteSpace(_error))
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" CloseIconClicked="@(() => _error = null)">
+        @_error
+    </MudAlert>
 }
 
 @if (_loading)
 {
-    <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
-}
-else if (_tab == 0)
-{
-    @if (_amenities.Count == 0)
-    {
-        <div class="empty-state compact-empty">
-            <MudIcon Icon="@Icons.Material.Outlined.Deck" Size="Size.Large" Color="Color.Primary" />
-            <MudText Typo="Typo.h5">Nenhum local cadastrado</MudText>
-            <MudText Typo="Typo.body2" Color="Color.Secondary">Cadastre a churrasqueira, a piscina ou o salao de festas para comecar a receber agendamentos.</MudText>
-            @if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenAmenityAsync(null))">Cadastrar primeiro local</MudButton> }
-        </div>
-    }
-    else
-    {
-        <MudPaper Class="content-panel" Elevation="0">
-            <div class="access-route-list">
-                @foreach (var amenity in _amenities)
-                {
-                    <article class="access-route-row">
-                        <span class="access-route-icon"><MudIcon Icon="@Icons.Material.Outlined.Deck" /></span>
-                        <div class="access-route-main"><strong>@amenity.Name</strong><span>@amenity.Description</span></div>
-                        <div class="access-route-audience"><small>Capacidade</small><strong>@(amenity.Capacity?.ToString() ?? "-")</strong></div>
-                        <div class="access-route-schedule"><small>Taxa</small><strong>@(amenity.FeeAmount is > 0 ? $"R$ {amenity.FeeAmount:N2}" : "Sem taxa")</strong></div>
-                        <MudChip T="string" Size="Size.Small" Color="@(amenity.RequiresApproval ? Color.Warning : Color.Success)" Variant="Variant.Outlined">@(amenity.RequiresApproval ? "Aprovacao manual" : "Aprovacao automatica")</MudChip>
-                        <MudChip T="string" Size="Size.Small" Color="@(amenity.Active ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(amenity.Active ? "Ativo" : "Inativo")</MudChip>
-                        @if (CanManage)
-                        {
-                            <MudMenu Icon="@Icons.Material.Outlined.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
-                                <MudMenuItem Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenAmenityAsync(amenity))">Editar local</MudMenuItem>
-                                <MudDivider />
-                                <MudMenuItem Icon="@Icons.Material.Outlined.DeleteOutline" Class="danger-menu-item" OnClick="@(() => DeleteAmenityAsync(amenity))">Excluir local</MudMenuItem>
-                            </MudMenu>
-                        }
-                    </article>
-                }
-            </div>
-        </MudPaper>
-    }
+    <div class="booking-loading-shell">
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="82px" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="360px" />
+    </div>
 }
 else
 {
-    <div class="form-grid form-grid-two mb-4">
-        <MudSelect T="Guid" Value="_selectedAmenityId" ValueChanged="OnAmenitySelectedAsync" Label="Local" Variant="Variant.Outlined">
-            @foreach (var amenity in _amenities)
-            {
-                <MudSelectItem Value="amenity.Id">@amenity.Name</MudSelectItem>
-            }
-        </MudSelect>
-        @if (CanManage && _selectedAmenity is not null)
-        {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.EventAvailable" OnClick="OpenBookingAsync">Agendar</MudButton>
-        }
+    <div class="booking-summary-grid">
+        <div class="booking-summary-item">
+            <span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Today" /></span>
+            <span><strong>@TodayCount</strong><small>Reservas hoje</small></span>
+        </div>
+        <div class="booking-summary-item">
+            <span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.DateRange" /></span>
+            <span><strong>@NextWeekCount</strong><small>Próximos 7 dias</small></span>
+        </div>
+        <div class="booking-summary-item">
+            <span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.PendingActions" /></span>
+            <span><strong>@PendingCount</strong><small>Aguardando aprovação</small></span>
+        </div>
+        <div class="booking-summary-item">
+            <span class="overview-icon violet"><MudIcon Icon="@Icons.Material.Outlined.Deck" /></span>
+            <span><strong>@_amenities.Count(x => x.Active)</strong><small>Locais disponíveis</small></span>
+        </div>
     </div>
 
-    @if (_selectedAmenity is null)
+    <div class="booking-section-tabs" role="tablist" aria-label="Reservas e locais">
+        <button type="button" class="@TabClass(0)" @onclick="@(() => _tab = 0)">
+            <MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /> Agenda
+        </button>
+        <button type="button" class="@TabClass(1)" @onclick="@(() => _tab = 1)">
+            <MudIcon Icon="@Icons.Material.Outlined.MeetingRoom" /> Locais
+            <span>@_amenities.Count</span>
+        </button>
+    </div>
+
+    @if (_tab == 0)
     {
-        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Cadastre um local na aba "Locais" para comecar a agendar.</MudAlert>
-    }
-    else if (_loadingBookings)
-    {
-        <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
-    }
-    else if (_bookings.Count == 0)
-    {
-        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhum agendamento nos proximos 30 dias para este local.</MudAlert>
+        <MudPaper Class="booking-workbench" Elevation="0">
+            <div class="booking-filter-bar">
+                <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar local, unidade, morador ou observação"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
+                <MudSelect T="Guid" @bind-Value="_amenityFilter" Label="Local" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem Value="Guid.Empty">Todos os locais</MudSelectItem>
+                    @foreach (var amenity in _amenities)
+                    {
+                        <MudSelectItem Value="amenity.Id">@amenity.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="string" @bind-Value="_statusFilter" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem Value="@("All")">Todos</MudSelectItem>
+                    <MudSelectItem Value="@("Pending")">Pendentes</MudSelectItem>
+                    <MudSelectItem Value="@("Confirmed")">Confirmados</MudSelectItem>
+                    <MudSelectItem Value="@("Cancelled")">Cancelados</MudSelectItem>
+                    <MudSelectItem Value="@("Rejected")">Recusados</MudSelectItem>
+                    <MudSelectItem Value="@("Completed")">Concluídos</MudSelectItem>
+                </MudSelect>
+                <div class="booking-view-switch" aria-label="Modo de visualização">
+                    <MudTooltip Text="Calendário">
+                        <MudIconButton Icon="@Icons.Material.Outlined.CalendarMonth"
+                                       Class="@ViewButtonClass("calendar")" OnClick="@(() => _viewMode = "calendar")" />
+                    </MudTooltip>
+                    <MudTooltip Text="Lista">
+                        <MudIconButton Icon="@Icons.Material.Outlined.ViewAgenda"
+                                       Class="@ViewButtonClass("list")" OnClick="@(() => _viewMode = "list")" />
+                    </MudTooltip>
+                </div>
+            </div>
+
+            @if (_amenities.Count == 0)
+            {
+                <div class="booking-empty">
+                    <span><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span>
+                    <MudText Typo="Typo.h5">A agenda ainda não possui locais</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Cadastre uma área comum e defina seus horários para começar.</MudText>
+                    @if (CanManage)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add"
+                                   OnClick="@(() => OpenAmenityAsync(null))">Cadastrar local</MudButton>
+                    }
+                </div>
+            }
+            else if (_viewMode == "calendar")
+            {
+                <div class="booking-calendar-header">
+                    <div>
+                        <MudText Typo="Typo.h5">@MonthLabel</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@FilteredBookings.Count() reserva(s) no período carregado</MudText>
+                    </div>
+                    <div>
+                        <MudTooltip Text="Mês anterior">
+                            <MudIconButton Icon="@Icons.Material.Outlined.ChevronLeft" OnClick="@(() => ChangeMonthAsync(-1))" />
+                        </MudTooltip>
+                        <MudButton Variant="Variant.Text" OnClick="GoToTodayAsync">Hoje</MudButton>
+                        <MudTooltip Text="Próximo mês">
+                            <MudIconButton Icon="@Icons.Material.Outlined.ChevronRight" OnClick="@(() => ChangeMonthAsync(1))" />
+                        </MudTooltip>
+                    </div>
+                </div>
+
+                <div class="booking-calendar">
+                    @foreach (var dayName in WeekDays)
+                    {
+                        <div class="booking-weekday">@dayName</div>
+                    }
+                    @foreach (var day in CalendarDays)
+                    {
+                        var dayBookings = FilteredBookings.Where(x => x.Date.Date == day.Date).ToList();
+                        <button type="button" class="@CalendarDayClass(day)" @onclick="@(() => SelectDay(day))">
+                            <span class="booking-day-number">@day.Day</span>
+                            <span class="booking-day-items">
+                                @foreach (var booking in dayBookings.Take(3))
+                                {
+                                    <span class="booking-day-event @StatusCss(booking.Status)">
+                                        <strong>@booking.SlotStartTime.ToString(@"hh\:mm")</strong> @booking.AmenityName
+                                    </span>
+                                }
+                                @if (dayBookings.Count > 3)
+                                {
+                                    <small>+@(dayBookings.Count - 3) reserva(s)</small>
+                                }
+                            </span>
+                        </button>
+                    }
+                </div>
+
+                @if (_selectedDate.HasValue)
+                {
+                    <div class="booking-day-detail">
+                        <div class="panel-toolbar">
+                            <div>
+                                <MudText Typo="Typo.h5">@SelectedDayLabel</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Agenda detalhada do dia selecionado</MudText>
+                            </div>
+                            <MudTooltip Text="Fechar detalhes">
+                                <MudIconButton Icon="@Icons.Material.Outlined.Close" OnClick="@(() => _selectedDate = null)" />
+                            </MudTooltip>
+                        </div>
+                        @RenderBookingList(SelectedDayBookings)
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="booking-list-header">
+                    <div>
+                        <MudText Typo="Typo.h5">Próximas reservas</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@FilteredBookings.Count() resultado(s)</MudText>
+                    </div>
+                    <div class="booking-period-fields">
+                        <MudDatePicker Date="_rangeStart" DateChanged="OnRangeStartChanged" Label="De" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <MudDatePicker Date="_rangeEnd" DateChanged="OnRangeEndChanged" Label="Até" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </div>
+                </div>
+                @RenderBookingList(FilteredBookings.OrderBy(x => x.Date).ThenBy(x => x.SlotStartTime).ToList())
+            }
+        </MudPaper>
     }
     else
     {
-        <MudPaper Class="content-panel" Elevation="0">
-            <div class="access-route-list">
-                @foreach (var booking in _bookings)
+        <div class="booking-locations-head">
+            <div>
+                <MudText Typo="Typo.h4">Locais e regras</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Configure disponibilidade, limites, taxas e aprovações.</MudText>
+            </div>
+            @if (CanManage)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add"
+                           OnClick="@(() => OpenAmenityAsync(null))">Novo local</MudButton>
+            }
+        </div>
+
+        @if (_amenities.Count == 0)
+        {
+            <div class="booking-empty">
+                <span><MudIcon Icon="@Icons.Material.Outlined.MeetingRoom" /></span>
+                <MudText Typo="Typo.h5">Nenhum local cadastrado</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Crie o primeiro espaço agendável do condomínio.</MudText>
+            </div>
+        }
+        else
+        {
+            <div class="amenity-card-grid">
+                @foreach (var amenity in _amenities)
                 {
-                    <article class="access-route-row">
-                        <span class="access-route-icon"><MudIcon Icon="@Icons.Material.Outlined.Event" /></span>
-                        <div class="access-route-main"><strong>@booking.BlockName / @booking.UnitNumber</strong><span>@(booking.ResidentName ?? "Sem morador vinculado")</span></div>
-                        <div class="access-route-schedule"><small>Data</small><strong>@booking.Date.ToString("dd/MM/yyyy")</strong></div>
-                        <div class="access-route-targets"><small>Horario</small><strong>@booking.SlotStartTime.ToString(@"hh\:mm") - @booking.SlotEndTime.ToString(@"hh\:mm")</strong></div>
-                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(booking.Status)" Variant="Variant.Outlined">@StatusLabel(booking.Status)</MudChip>
-                        @if (CanManage && booking.Status == "Pending")
-                        {
-                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Success" OnClick="@(() => ApproveAsync(booking))">Aprovar</MudButton>
-                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => RejectAsync(booking))">Recusar</MudButton>
-                        }
-                        @if (booking.Status is "Pending" or "Confirmed")
-                        {
-                            <MudIconButton Icon="@Icons.Material.Outlined.EventBusy" Color="Color.Error" OnClick="@(() => CancelAsync(booking))" />
-                        }
+                    <article class="amenity-card">
+                        <div class="amenity-card-head">
+                            <span class="amenity-card-icon"><MudIcon Icon="@Icons.Material.Outlined.Deck" /></span>
+                            <div>
+                                <strong>@amenity.Name</strong>
+                                <small>@(string.IsNullOrWhiteSpace(amenity.Description) ? "Sem descrição" : amenity.Description)</small>
+                            </div>
+                            @if (CanManage)
+                            {
+                                <MudMenu Icon="@Icons.Material.Outlined.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.EventAvailable" OnClick="@(() => OpenBookingAsync(amenity))">Nova reserva</MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenAmenityAsync(amenity))">Editar</MudMenuItem>
+                                    <MudDivider />
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.DeleteOutline" Class="danger-menu-item"
+                                                 OnClick="@(() => DeleteAmenityAsync(amenity))">Excluir</MudMenuItem>
+                                </MudMenu>
+                            }
+                        </div>
+                        <div class="amenity-card-facts">
+                            <span><MudIcon Icon="@Icons.Material.Outlined.Groups" /><strong>@(amenity.Capacity?.ToString() ?? "Livre")</strong><small>Capacidade</small></span>
+                            <span><MudIcon Icon="@Icons.Material.Outlined.Schedule" /><strong>@amenity.ScheduleSlots.Count(x => x.Active)</strong><small>Horários</small></span>
+                            <span><MudIcon Icon="@Icons.Material.Outlined.Payments" /><strong>@(amenity.FeeAmount is > 0 ? $"R$ {amenity.FeeAmount:N2}" : "Sem taxa")</strong><small>Valor</small></span>
+                        </div>
+                        <div class="amenity-card-footer">
+                            <MudChip T="string" Size="Size.Small" Color="@(amenity.Active ? Color.Success : Color.Default)" Variant="Variant.Outlined">
+                                @(amenity.Active ? "Disponível" : "Inativo")
+                            </MudChip>
+                            <span>@(amenity.RequiresApproval ? "Aprovação manual" : "Confirmação automática")</span>
+                        </div>
                     </article>
                 }
             </div>
-        </MudPaper>
+        }
     }
 }
 
@@ -124,146 +266,353 @@ else
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
     [Parameter] public bool CanManage { get; set; }
 
+    private static readonly string[] WeekDays = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"];
     private int _tab;
     private bool _loading = true;
-    private bool _loadingBookings;
     private Guid _loadedLicenseId;
     private string? _error;
+    private string _viewMode = "calendar";
+    private string _search = string.Empty;
+    private string _statusFilter = "All";
+    private Guid _amenityFilter;
+    private DateTime _calendarMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime? _selectedDate;
+    private DateTime? _rangeStart = DateTime.Today.AddMonths(-1);
+    private DateTime? _rangeEnd = DateTime.Today.AddMonths(2);
     private List<AmenityViewModel> _amenities = [];
-    private Guid _selectedAmenityId;
-    private AmenityViewModel? _selectedAmenity;
     private List<AmenityBookingViewModel> _bookings = [];
+
+    private IEnumerable<AmenityBookingViewModel> FilteredBookings => _bookings.Where(booking =>
+        (_amenityFilter == Guid.Empty || booking.AmenityId == _amenityFilter) &&
+        (_statusFilter == "All" || booking.Status == _statusFilter) &&
+        (string.IsNullOrWhiteSpace(_search) ||
+         BookingSearchText(booking).Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)));
+
+    private IReadOnlyList<AmenityBookingViewModel> SelectedDayBookings => _selectedDate.HasValue
+        ? FilteredBookings.Where(x => x.Date.Date == _selectedDate.Value.Date).OrderBy(x => x.SlotStartTime).ToList()
+        : [];
+    private int TodayCount => ActiveBookings.Count(x => x.Date.Date == DateTime.Today);
+    private int NextWeekCount => ActiveBookings.Count(x => x.Date.Date >= DateTime.Today && x.Date.Date <= DateTime.Today.AddDays(7));
+    private int PendingCount => _bookings.Count(x => x.Status == "Pending");
+    private IEnumerable<AmenityBookingViewModel> ActiveBookings => _bookings.Where(x => x.Status is "Pending" or "Confirmed");
+    private string MonthLabel => CultureInfo.GetCultureInfo("pt-BR").TextInfo.ToTitleCase(_calendarMonth.ToString("MMMM 'de' yyyy", CultureInfo.GetCultureInfo("pt-BR")));
+    private string SelectedDayLabel => _selectedDate?.ToString("dddd, dd 'de' MMMM", CultureInfo.GetCultureInfo("pt-BR")) ?? string.Empty;
+
+    private IReadOnlyList<DateTime> CalendarDays
+    {
+        get
+        {
+            var first = _calendarMonth;
+            var offset = ((int)first.DayOfWeek + 6) % 7;
+            var start = first.AddDays(-offset);
+            var last = first.AddMonths(1).AddDays(-1);
+            var endOffset = (7 - (((int)last.DayOfWeek + 6) % 7) - 1) % 7;
+            var end = last.AddDays(endOffset);
+            return Enumerable.Range(0, (end - start).Days + 1).Select(day => start.AddDays(day)).ToList();
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {
         if (_loadedLicenseId == LicenseId) return;
         _loadedLicenseId = LicenseId;
-        await LoadAmenitiesAsync();
+        await LoadAllAsync();
     }
 
-    private async Task LoadAmenitiesAsync()
+    private async Task LoadAllAsync()
     {
         _loading = true;
         _error = null;
-        var result = await Api.GetAmenitiesAsync(LicenseId);
+
+        var amenitiesTask = Api.GetAmenitiesAsync(LicenseId);
+        var bookingsTask = Api.GetLicenseAmenityBookingsAsync(
+            LicenseId,
+            _rangeStart ?? DateTime.Today.AddMonths(-1),
+            _rangeEnd ?? DateTime.Today.AddMonths(2));
+        await Task.WhenAll(amenitiesTask, bookingsTask);
+
+        var amenitiesResult = await amenitiesTask;
+        var bookingsResult = await bookingsTask;
         _loading = false;
-        if (result.Success && result.Value is not null) _amenities = result.Value;
-        else { _error = result.Error ?? "Nao foi possivel carregar os locais."; return; }
 
-        if (_selectedAmenityId == Guid.Empty && _amenities.Count > 0)
-        {
-            await OnAmenitySelectedAsync(_amenities[0].Id);
-        }
-        else if (_selectedAmenityId != Guid.Empty)
-        {
-            var stillExists = _amenities.FirstOrDefault(x => x.Id == _selectedAmenityId);
-            if (stillExists is not null)
-            {
-                _selectedAmenity = stillExists;
-            }
-            else
-            {
-                _selectedAmenityId = Guid.Empty;
-                _selectedAmenity = null;
-                _bookings = [];
-                if (_amenities.Count > 0) await OnAmenitySelectedAsync(_amenities[0].Id);
-            }
-        }
-    }
+        if (amenitiesResult.Success)
+            _amenities = amenitiesResult.Value ?? [];
+        else
+            _error = amenitiesResult.Error ?? "Não foi possível carregar os locais.";
 
-    private async Task OnAmenitySelectedAsync(Guid amenityId)
-    {
-        _selectedAmenityId = amenityId;
-        _selectedAmenity = _amenities.FirstOrDefault(x => x.Id == amenityId);
-        await LoadBookingsAsync();
+        if (bookingsResult.Success)
+            _bookings = bookingsResult.Value ?? [];
+        else
+            _error = bookingsResult.Error ?? "Não foi possível carregar a agenda.";
     }
 
     private async Task LoadBookingsAsync()
     {
-        if (_selectedAmenity is null) return;
-        _loadingBookings = true;
-        var result = await Api.GetAmenityBookingsAsync(LicenseId, _selectedAmenity.Id, DateTime.Today, DateTime.Today.AddDays(30));
-        _loadingBookings = false;
-        if (result.Success && result.Value is not null) _bookings = result.Value;
-        else _error = result.Error ?? "Nao foi possivel carregar os agendamentos.";
+        var result = await Api.GetLicenseAmenityBookingsAsync(
+            LicenseId,
+            _rangeStart ?? DateTime.Today.AddMonths(-1),
+            _rangeEnd ?? DateTime.Today.AddMonths(2));
+        if (result.Success)
+            _bookings = result.Value ?? [];
+        else
+            _error = result.Error ?? "Não foi possível atualizar a agenda.";
     }
 
     private async Task OpenAmenityAsync(AmenityViewModel? amenity)
     {
-        var parameters = new DialogParameters { [nameof(AmenityFormDialog.LicenseId)] = LicenseId, [nameof(AmenityFormDialog.Amenity)] = amenity };
-        var dialog = await DialogService.ShowAsync<AmenityFormDialog>(amenity is null ? "Novo local" : "Editar local", parameters,
+        var parameters = new DialogParameters
+        {
+            [nameof(AmenityFormDialog.LicenseId)] = LicenseId,
+            [nameof(AmenityFormDialog.Amenity)] = amenity
+        };
+        var dialog = await DialogService.ShowAsync<AmenityFormDialog>(
+            amenity is null ? "Novo local" : "Editar local",
+            parameters,
             new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
+
         Snackbar.Add(amenity is null ? "Local cadastrado." : "Local atualizado.", Severity.Success);
-        await LoadAmenitiesAsync();
+        await LoadAllAsync();
     }
 
     private async Task DeleteAmenityAsync(AmenityViewModel amenity)
     {
-        var confirmed = await DialogService.ShowMessageBoxAsync("Excluir local", $"Excluir o local {amenity.Name}?", yesText: "Excluir", cancelText: "Cancelar");
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Excluir local",
+            $"Excluir {amenity.Name}? Esta ação só é permitida quando não há histórico de reservas.",
+            yesText: "Excluir",
+            cancelText: "Cancelar");
         if (confirmed != true) return;
+
         var result = await Api.DeleteAmenityAsync(LicenseId, amenity.Id);
-        if (!result.Success) { Snackbar.Add(result.Error ?? "Nao foi possivel excluir o local.", Severity.Error); return; }
-        Snackbar.Add("Local excluido.", Severity.Success);
-        await LoadAmenitiesAsync();
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível excluir o local.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("Local excluído.", Severity.Success);
+        await LoadAllAsync();
     }
 
-    private async Task OpenBookingAsync()
+    private async Task OpenBookingAsync(
+        AmenityViewModel amenity,
+        AmenityBookingViewModel? booking = null,
+        bool duplicate = false)
     {
-        if (_selectedAmenity is null) return;
-        var parameters = new DialogParameters { [nameof(AmenityBookingFormDialog.LicenseId)] = LicenseId, [nameof(AmenityBookingFormDialog.Amenity)] = _selectedAmenity };
-        var dialog = await DialogService.ShowAsync<AmenityBookingFormDialog>("Agendar", parameters,
+        var parameters = new DialogParameters
+        {
+            [nameof(AmenityBookingFormDialog.LicenseId)] = LicenseId,
+            [nameof(AmenityBookingFormDialog.Amenity)] = amenity,
+            [nameof(AmenityBookingFormDialog.Booking)] = booking,
+            [nameof(AmenityBookingFormDialog.DuplicateMode)] = duplicate
+        };
+        var title = booking is null ? "Nova reserva" : duplicate ? "Duplicar reserva" : "Editar reserva";
+        var dialog = await DialogService.ShowAsync<AmenityBookingFormDialog>(
+            title,
+            parameters,
             new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        Snackbar.Add("Agendamento registrado.", Severity.Success);
+
+        Snackbar.Add(booking is not null && !duplicate ? "Reserva atualizada." : "Reserva registrada.", Severity.Success);
         await LoadBookingsAsync();
+    }
+
+    private Task EditAsync(AmenityBookingViewModel booking)
+    {
+        var amenity = _amenities.First(x => x.Id == booking.AmenityId);
+        return OpenBookingAsync(amenity, booking);
+    }
+
+    private Task DuplicateAsync(AmenityBookingViewModel booking)
+    {
+        var amenity = _amenities.First(x => x.Id == booking.AmenityId);
+        return OpenBookingAsync(amenity, booking, duplicate: true);
     }
 
     private async Task ApproveAsync(AmenityBookingViewModel booking)
     {
         var result = await Api.ApproveAmenityBookingAsync(LicenseId, booking.AmenityId, booking.Id);
-        if (!result.Success) { Snackbar.Add(result.Error ?? "Nao foi possivel aprovar.", Severity.Error); return; }
-        Snackbar.Add("Agendamento aprovado.", Severity.Success);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível aprovar a reserva.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Reserva aprovada.", Severity.Success);
         await LoadBookingsAsync();
     }
 
     private async Task RejectAsync(AmenityBookingViewModel booking)
     {
-        var confirmed = await DialogService.ShowMessageBoxAsync("Recusar agendamento", $"Recusar o agendamento de {booking.UnitNumber}?", yesText: "Recusar", cancelText: "Cancelar");
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Recusar reserva",
+            $"Recusar a solicitação de {booking.BlockName} / {booking.UnitNumber}?",
+            yesText: "Recusar",
+            cancelText: "Voltar");
         if (confirmed != true) return;
-        var result = await Api.RejectAmenityBookingAsync(LicenseId, booking.AmenityId, booking.Id, "Recusado pela administracao");
-        if (!result.Success) { Snackbar.Add(result.Error ?? "Nao foi possivel recusar.", Severity.Error); return; }
-        Snackbar.Add("Agendamento recusado.", Severity.Success);
+
+        var result = await Api.RejectAmenityBookingAsync(LicenseId, booking.AmenityId, booking.Id, "Recusado pela administração");
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível recusar a reserva.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Reserva recusada.", Severity.Success);
         await LoadBookingsAsync();
     }
 
     private async Task CancelAsync(AmenityBookingViewModel booking)
     {
-        var confirmed = await DialogService.ShowMessageBoxAsync("Cancelar agendamento", $"Cancelar o agendamento de {booking.UnitNumber}?", yesText: "Cancelar agendamento", cancelText: "Voltar");
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Cancelar reserva",
+            $"Cancelar {booking.AmenityName} em {booking.Date:dd/MM/yyyy}, às {booking.SlotStartTime:hh\\:mm}?",
+            yesText: "Cancelar reserva",
+            cancelText: "Voltar");
         if (confirmed != true) return;
-        var result = await Api.CancelAmenityBookingAsync(LicenseId, booking.AmenityId, booking.Id, "Cancelado pela administracao");
-        if (!result.Success) { Snackbar.Add(result.Error ?? "Nao foi possivel cancelar.", Severity.Error); return; }
-        Snackbar.Add("Agendamento cancelado.", Severity.Success);
+
+        var result = await Api.CancelAmenityBookingAsync(LicenseId, booking.AmenityId, booking.Id, "Cancelado pela administração");
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível cancelar a reserva.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Reserva cancelada.", Severity.Success);
         await LoadBookingsAsync();
     }
+
+    private async Task ChangeMonthAsync(int amount)
+    {
+        _calendarMonth = _calendarMonth.AddMonths(amount);
+        _selectedDate = null;
+        await EnsureCalendarRangeAsync();
+    }
+
+    private async Task GoToTodayAsync()
+    {
+        _calendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        _selectedDate = DateTime.Today;
+        await EnsureCalendarRangeAsync();
+    }
+
+    private async Task EnsureCalendarRangeAsync()
+    {
+        var monthStart = _calendarMonth.AddMonths(-1);
+        var monthEnd = _calendarMonth.AddMonths(2).AddDays(-1);
+        if ((_rangeStart ?? DateTime.MaxValue) <= monthStart && (_rangeEnd ?? DateTime.MinValue) >= monthEnd)
+            return;
+
+        _rangeStart = monthStart;
+        _rangeEnd = monthEnd;
+        await LoadBookingsAsync();
+    }
+
+    private async Task OnRangeStartChanged(DateTime? value)
+    {
+        _rangeStart = value;
+        if (_rangeStart.HasValue && _rangeEnd.HasValue && _rangeStart > _rangeEnd)
+            _rangeEnd = _rangeStart.Value.AddMonths(1);
+        await LoadBookingsAsync();
+    }
+
+    private async Task OnRangeEndChanged(DateTime? value)
+    {
+        _rangeEnd = value;
+        if (_rangeStart.HasValue && _rangeEnd.HasValue && _rangeEnd < _rangeStart)
+            _rangeStart = _rangeEnd.Value.AddMonths(-1);
+        await LoadBookingsAsync();
+    }
+
+    private void SelectDay(DateTime day) => _selectedDate = day;
+    private string TabClass(int tab) => _tab == tab ? "active" : string.Empty;
+    private string ViewButtonClass(string mode) => _viewMode == mode ? "active" : string.Empty;
+    private string CalendarDayClass(DateTime day) => string.Join(" ", new[]
+    {
+        "booking-calendar-day",
+        day.Month != _calendarMonth.Month ? "outside" : string.Empty,
+        day.Date == DateTime.Today ? "today" : string.Empty,
+        _selectedDate?.Date == day.Date ? "selected" : string.Empty
+    }.Where(x => x.Length > 0));
+
+    private static string BookingSearchText(AmenityBookingViewModel booking) =>
+        $"{booking.AmenityName} {booking.BlockName} {booking.UnitNumber} {booking.ResidentName} {booking.Notes}";
 
     private static Color StatusColor(string status) => status switch
     {
         "Confirmed" => Color.Success,
         "Pending" => Color.Warning,
         "Rejected" or "Cancelled" => Color.Error,
+        "Completed" => Color.Info,
         _ => Color.Default
     };
 
     private static string StatusLabel(string status) => status switch
     {
-        "Confirmed" => "Confirmado",
+        "Confirmed" => "Confirmada",
         "Pending" => "Pendente",
-        "Rejected" => "Recusado",
-        "Cancelled" => "Cancelado",
-        "Completed" => "Concluido",
+        "Rejected" => "Recusada",
+        "Cancelled" => "Cancelada",
+        "Completed" => "Concluída",
         _ => status
     };
+
+    private static string StatusCss(string status) => status.ToLowerInvariant();
+    private static bool CanEdit(AmenityBookingViewModel booking) => booking.Status is "Pending" or "Confirmed";
+
+    private RenderFragment RenderBookingList(IReadOnlyList<AmenityBookingViewModel> bookings) => @<div class="booking-list">
+            @if (bookings.Count == 0)
+            {
+                <div class="booking-list-empty">
+                    <MudIcon Icon="@Icons.Material.Outlined.EventBusy" />
+                    <strong>Nenhuma reserva encontrada</strong>
+                    <span>Ajuste os filtros ou escolha outro período.</span>
+                </div>
+            }
+            else
+            {
+                @foreach (var booking in bookings)
+                {
+                    <article class="booking-row">
+                        <div class="booking-date-tile">
+                            <strong>@booking.Date.Day.ToString("00")</strong>
+                            <span>@booking.Date.ToString("MMM", CultureInfo.GetCultureInfo("pt-BR")).ToUpperInvariant()</span>
+                        </div>
+                        <div class="booking-row-main">
+                            <strong>@booking.AmenityName</strong>
+                            <span>@booking.BlockName / @booking.UnitNumber · @(booking.ResidentName ?? "Sem morador vinculado")</span>
+                        </div>
+                        <div class="booking-row-time">
+                            <MudIcon Icon="@Icons.Material.Outlined.Schedule" />
+                            <span><strong>@booking.SlotStartTime.ToString(@"hh\:mm")</strong><small>até @booking.SlotEndTime.ToString(@"hh\:mm")</small></span>
+                        </div>
+                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(booking.Status)" Variant="Variant.Outlined">
+                            @StatusLabel(booking.Status)
+                        </MudChip>
+                        <MudMenu Icon="@Icons.Material.Outlined.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                            @if (CanManage && booking.Status == "Pending")
+                            {
+                                <MudMenuItem Icon="@Icons.Material.Outlined.CheckCircleOutline" OnClick="@(() => ApproveAsync(booking))">Aprovar</MudMenuItem>
+                                <MudMenuItem Icon="@Icons.Material.Outlined.HighlightOff" OnClick="@(() => RejectAsync(booking))">Recusar</MudMenuItem>
+                                <MudDivider />
+                            }
+                            @if (CanManage && CanEdit(booking))
+                            {
+                                <MudMenuItem Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => EditAsync(booking))">Editar</MudMenuItem>
+                            }
+                            @if (CanManage)
+                            {
+                                <MudMenuItem Icon="@Icons.Material.Outlined.ContentCopy" OnClick="@(() => DuplicateAsync(booking))">Duplicar</MudMenuItem>
+                            }
+                            @if (CanEdit(booking))
+                            {
+                                <MudDivider />
+                                <MudMenuItem Icon="@Icons.Material.Outlined.EventBusy" Class="danger-menu-item"
+                                             OnClick="@(() => CancelAsync(booking))">Cancelar reserva</MudMenuItem>
+                            }
+                        </MudMenu>
+                    </article>
+                }
+            }
+    </div>;
 }

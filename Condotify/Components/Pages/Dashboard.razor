@@ -7,13 +7,17 @@
 
 <PageHeader Title="Visão geral" Subtitle="Acompanhe a operação dos seus condomínios em um único lugar." Eyebrow="PAINEL OPERACIONAL">
     <Actions>
+        <MudButton Href="/operacoes" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.MonitorHeart">Central de operações</MudButton>
         <MudButton Href="/licencas/nova" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddBusiness">Nova licença</MudButton>
     </Actions>
 </PageHeader>
 
 @if (_loading)
 {
-    <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+    <div class="dashboard-skeleton">
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="86px" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="330px" />
+    </div>
 }
 else if (!string.IsNullOrWhiteSpace(_error))
 {
@@ -21,65 +25,149 @@ else if (!string.IsNullOrWhiteSpace(_error))
 }
 else
 {
+    @if (!string.IsNullOrWhiteSpace(_operationsError))
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense Class="dashboard-telemetry-alert">
+            Os dados de monitoramento estão temporariamente indisponíveis. Os condomínios continuam acessíveis normalmente.
+        </MudAlert>
+    }
+
     <div class="stats-grid">
-        <StatTile Label="Condomínios" Value="@_licenses.Count.ToString()" Icon="@Icons.Material.Outlined.Domain" Hint="licenças cadastradas" Tone="blue" />
-        <StatTile Label="Moradores" Value="@_licenses.Sum(x => x.Moradores).ToString()" Icon="@Icons.Material.Outlined.Groups" Hint="vinculados às unidades" Tone="green" />
-        <StatTile Label="Cidades" Value="@_licenses.Select(x => x.Cidade).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count().ToString()" Icon="@Icons.Material.Outlined.LocationCity" Hint="operações ativas" Tone="amber" />
-        <StatTile Label="Atenção" Value="0" Icon="@Icons.Material.Outlined.ReportProblem" Hint="nenhuma pendência crítica" Tone="red" />
+        <StatTile Label="Condomínios" Value="@_licenses.Count.ToString()" Icon="@Icons.Material.Outlined.Domain" Hint="ambientes administrados" Tone="blue" />
+        <StatTile Label="Moradores" Value="@(_operations?.ResidentCount.ToString() ?? _licenses.Sum(x => x.Moradores).ToString())" Icon="@Icons.Material.Outlined.Groups" Hint="pessoas vinculadas" Tone="green" />
+        <StatTile Label="Equipamentos" Value="@($"{_operations?.OnlineDeviceCount ?? 0}/{_operations?.DeviceCount ?? 0}")" Icon="@Icons.Material.Outlined.Sensors" Hint="terminais online" Tone="amber" />
+        <StatTile Label="Atenção" Value="@AttentionCount.ToString()" Icon="@Icons.Material.Outlined.NotificationImportant" Hint="pendências prioritárias" Tone="red" />
     </div>
 
-    <MudPaper Class="content-panel" Elevation="0">
-        <div class="panel-toolbar">
-            <div>
-                <MudText Typo="Typo.h5" Class="panel-title">Condomínios recentes</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Acesso rápido aos ambientes administrados</MudText>
-            </div>
-            <MudButton Href="/licencas" Variant="Variant.Text" EndIcon="@Icons.Material.Outlined.ArrowForward">Ver todos</MudButton>
+    <div class="dashboard-pulse-strip">
+        <div>
+            <span class="pulse-icon green"><MudIcon Icon="@Icons.Material.Outlined.Sync" /></span>
+            <span><strong>@(_operations?.SynchronizationRate.ToString("N1") ?? "100,0")%</strong><small>Credenciais sincronizadas</small></span>
         </div>
-        @if (_licenses.Count == 0)
-        {
-            <div class="panel-body">
-                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhuma licença encontrada. Cadastre o primeiro condomínio para iniciar a operação.</MudAlert>
+        <div>
+            <span class="pulse-icon blue"><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span>
+            <span><strong>@(_operations?.AccessEventCount ?? 0)</strong><small>Acessos nos últimos 14 dias</small></span>
+        </div>
+        <div>
+            <span class="pulse-icon violet"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" /></span>
+            <span><strong>@(_operations?.TodayBookingCount ?? 0)</strong><small>Reservas para hoje</small></span>
+        </div>
+        <div>
+            <span class="pulse-icon amber"><MudIcon Icon="@Icons.Material.Outlined.PendingActions" /></span>
+            <span><strong>@((_operations?.PendingBatchCount ?? 0) + (_operations?.PendingBookingCount ?? 0))</strong><small>Itens aguardando processamento</small></span>
+        </div>
+    </div>
+
+    <div class="dashboard-main-grid">
+        <MudPaper Class="content-panel" Elevation="0">
+            <div class="panel-toolbar">
+                <div>
+                    <MudText Typo="Typo.h5" Class="panel-title">Condomínios recentes</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Acesso rápido aos ambientes administrados</MudText>
+                </div>
+                <MudButton Href="/licencas" Variant="Variant.Text" EndIcon="@Icons.Material.Outlined.ArrowForward">Ver todos</MudButton>
             </div>
-        }
-        else
-        {
-            <div class="table-wrap">
-                <MudTable Items="_licenses.Take(6)" Hover Dense Elevation="0">
-                    <HeaderContent>
-                        <MudTh>Condomínio</MudTh><MudTh>Localização</MudTh><MudTh>Moradores</MudTh><MudTh></MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd DataLabel="Condomínio">
-                            <div class="license-name-cell">
-                                <span class="license-monogram">@Monogram(context.Nome)</span>
-                                <span class="license-meta"><span class="license-title">@context.Nome</span><span class="license-code">@context.Codigo</span></span>
-                            </div>
-                        </MudTd>
-                        <MudTd DataLabel="Localização">@context.Cidade @(!string.IsNullOrWhiteSpace(context.Estado) ? $"- {context.Estado}" : "")</MudTd>
-                        <MudTd DataLabel="Moradores">@context.Moradores</MudTd>
-                        <MudTd><MudIconButton Href="@($"/licencas/{context.Id}")" Icon="@Icons.Material.Outlined.ArrowForward" Color="Color.Primary" /></MudTd>
-                    </RowTemplate>
-                </MudTable>
+            @if (_licenses.Count == 0)
+            {
+                <div class="panel-body">
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhuma licença encontrada. Cadastre o primeiro condomínio para iniciar a operação.</MudAlert>
+                </div>
+            }
+            else
+            {
+                <div class="dashboard-license-list">
+                    @foreach (var license in _licenses.Take(6))
+                    {
+                        <a href="@($"/licencas/{license.Id}")" class="dashboard-license-row">
+                            <span class="license-monogram">@Monogram(license.Nome)</span>
+                            <span class="license-meta">
+                                <span class="license-title">@license.Nome</span>
+                                <span class="license-code">@license.Codigo · @Location(license)</span>
+                            </span>
+                            <span class="dashboard-license-residents"><strong>@license.Moradores</strong><small>moradores</small></span>
+                            <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+                        </a>
+                    }
+                </div>
+            }
+        </MudPaper>
+
+        <MudPaper Class="content-panel dashboard-attention-panel" Elevation="0">
+            <div class="panel-toolbar">
+                <div>
+                    <MudText Typo="Typo.h5" Class="panel-title">Precisa de atenção</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Prioridades identificadas automaticamente</MudText>
+                </div>
+                <MudButton Href="/operacoes" Variant="Variant.Text">Abrir central</MudButton>
             </div>
-        }
-    </MudPaper>
+            @if (_operations?.Alerts.Count > 0)
+            {
+                <div class="dashboard-alert-list">
+                    @foreach (var alert in _operations.Alerts.Take(5))
+                    {
+                        <a href="@alert.TargetUrl" class="dashboard-alert-row @alert.Severity.ToLowerInvariant()">
+                            <span><MudIcon Icon="@AlertIcon(alert.Type)" /></span>
+                            <span><strong>@alert.Title</strong><small>@alert.Message</small></span>
+                            <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="dashboard-all-clear">
+                    <span><MudIcon Icon="@Icons.Material.Outlined.Verified" /></span>
+                    <strong>Operação saudável</strong>
+                    <small>Nenhuma pendência prioritária foi identificada.</small>
+                </div>
+            }
+        </MudPaper>
+    </div>
 }
 
 @code {
     private bool _loading = true;
     private string? _error;
+    private string? _operationsError;
     private List<LicenseViewModel> _licenses = [];
+    private OperationalDashboardViewModel? _operations;
+    private int AttentionCount => _operations?.Alerts.Count(x => x.Severity is "Error" or "Warning") ?? 0;
 
     protected override async Task OnInitializedAsync()
     {
-        var result = await Api.GetLicensesAsync();
+        var licensesTask = Api.GetLicensesAsync();
+        var operationsTask = Api.GetOperationalDashboardAsync();
+        await Task.WhenAll(licensesTask, operationsTask);
+
+        var licenses = await licensesTask;
+        var operations = await operationsTask;
         _loading = false;
-        if (result.Success)
-            _licenses = result.Value ?? [];
+
+        if (licenses.Success)
+            _licenses = licenses.Value ?? [];
         else
-            _error = result.Error;
+            _error = licenses.Error;
+
+        if (operations.Success)
+            _operations = operations.Value;
+        else
+            _operationsError = operations.Error;
     }
 
-    private static string Monogram(string name) => string.IsNullOrWhiteSpace(name) ? "C" : name.Trim()[0].ToString().ToUpperInvariant();
+    private static string Monogram(string name) =>
+        string.IsNullOrWhiteSpace(name) ? "C" : name.Trim()[0].ToString().ToUpperInvariant();
+
+    private static string Location(LicenseViewModel license) =>
+        string.IsNullOrWhiteSpace(license.Cidade)
+            ? "Localização não informada"
+            : $"{license.Cidade}{(string.IsNullOrWhiteSpace(license.Estado) ? string.Empty : $" - {license.Estado}")}";
+
+    private static string AlertIcon(string type) => type switch
+    {
+        "DeviceOffline" => Icons.Material.Outlined.PortableWifiOff,
+        "BatchFailure" => Icons.Material.Outlined.SyncProblem,
+        "CredentialExpired" => Icons.Material.Outlined.Badge,
+        "BookingApproval" => Icons.Material.Outlined.EventAvailable,
+        _ => Icons.Material.Outlined.NotificationImportant
+    };
 }

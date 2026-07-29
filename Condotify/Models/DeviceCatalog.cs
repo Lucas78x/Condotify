@@ -53,4 +53,12 @@ public static class DeviceCatalog
 
     public static AccessDeviceOption? Find(int type) => AccessDevices.FirstOrDefault(x => x.Type == type);
     public static string ApiModel(int type) => type >= 0 && type < ApiModels.Length ? ApiModels[type] : string.Empty;
+    public static AccessDeviceOption? FindByApiModel(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model)) return null;
+        for (var index = 0; index < ApiModels.Length; index++)
+            if (string.Equals(ApiModels[index], model, StringComparison.OrdinalIgnoreCase))
+                return Find(index);
+        return null;
+    }
 }

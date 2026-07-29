@@ -1,0 +1,52 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.Backup" />
+            <div>
+                <strong>Novo snapshot de configuração</strong>
+                <span>Credenciais, rotas, terminais e políticas serão armazenados em uma versão criptografada.</span>
+            </div>
+        </div>
+        <MudTextField T="string" @bind-Value="_model.Name" Label="Nome da versão" Placeholder="Ex.: Antes da atualização dos terminais" Variant="Variant.Outlined" MaxLength="120" Counter="120" />
+        <MudTextField T="string" @bind-Value="_model.Description" Label="Observação" Placeholder="Descreva o motivo deste backup" Variant="Variant.Outlined" Lines="3" MaxLength="500" Counter="500" />
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Backup" Disabled="_saving" OnClick="SaveAsync">
+            @(_saving ? "Criando..." : "Criar snapshot")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+
+    private readonly ConfigurationBackupCreateViewModel _model = new();
+    private bool _saving;
+    private string? _error;
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        var result = await Api.CreateConfigurationBackupAsync(LicenseId, _model);
+        _saving = false;
+        if (!result.Success)
+        {
+            _error = result.Error ?? "Não foi possível criar o snapshot.";
+            return;
+        }
+        Snackbar.Add($"Snapshot v{result.Value?.Version} criado.", Severity.Success);
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+}

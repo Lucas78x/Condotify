@@ -1,0 +1,189 @@
+@using System.Text
+@inject CondotifyApiClient Api
+@inject Microsoft.JSInterop.IJSRuntime JS
+
+<MudDialog Class="entity-dialog entity-dialog-wide structure-import-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.UploadFile" />
+            <div>
+                <strong>Importar estrutura e pessoas</strong>
+                <span>Valide todos os registros antes de criar agrupamentos, unidades, pessoas, veiculos e TAGs.</span>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+
+        <section class="import-source">
+            <div class="import-source-copy">
+                <MudIcon Icon="@Icons.Material.Outlined.TableView" />
+                <div>
+                    <strong>@(string.IsNullOrWhiteSpace(_fileName) ? "Selecione um arquivo CSV" : _fileName)</strong>
+                    <span>Limite de 2 MB e 1.000 registros. Separadores `;` e `,` sao aceitos.</span>
+                </div>
+            </div>
+            <div class="import-source-actions">
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Download" OnClick="DownloadTemplateAsync">Baixar modelo</MudButton>
+                <label class="file-button @(_loading ? "disabled" : null)">
+                    <MudIcon Icon="@Icons.Material.Outlined.UploadFile" />
+                    <span>@(_preview is null ? "Selecionar CSV" : "Trocar arquivo")</span>
+                    <InputFile OnChange="ReadFileAsync" accept=".csv,text/csv,text/plain" disabled="@_loading" />
+                </label>
+            </div>
+        </section>
+
+        @if (_loading)
+        {
+            <div class="loading-state import-loading">
+                <MudProgressCircular Indeterminate Color="Color.Primary" />
+                <MudText Typo="Typo.body2">Validando arquivo...</MudText>
+            </div>
+        }
+        else if (_preview is not null)
+        {
+            <div class="import-summary-grid">
+                <div><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span><span><strong>@_preview.NewBlocks</strong><small>Agrupamentos novos</small></span></div>
+                <div><span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><span><strong>@_preview.NewUnits</strong><small>Unidades novas</small></span></div>
+                <div><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><span><strong>@_preview.NewPeople</strong><small>Pessoas novas</small></span></div>
+                <div><span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></span><span><strong>@_preview.NewVehicles</strong><small>Veiculos novos</small></span></div>
+            </div>
+
+            @if (_preview.Errors.Count > 0)
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
+                    @foreach (var error in _preview.Errors) { <div>@error</div> }
+                </MudAlert>
+            }
+            else
+            {
+                <div class="import-validation-head">
+                    <div>
+                        <strong>Pre-validacao</strong>
+                        <span>@_preview.ValidRows validos de @_preview.TotalRows registros</span>
+                    </div>
+                    <MudChip T="string" Color="@(_preview.CanExecute ? Color.Success : Color.Error)" Variant="Variant.Outlined" Icon="@(_preview.CanExecute ? Icons.Material.Outlined.CheckCircle : Icons.Material.Outlined.ErrorOutline)">
+                        @(_preview.CanExecute ? "Pronto para importar" : $"{_preview.InvalidRows} com erro")
+                    </MudChip>
+                </div>
+
+                <MudTable Items="_preview.Rows" Hover Dense Elevation="0" Class="import-preview-table">
+                    <HeaderContent>
+                        <MudTh>Linha</MudTh>
+                        <MudTh>Agrupamento / unidade</MudTh>
+                        <MudTh>Pessoa</MudTh>
+                        <MudTh>Veiculo</MudTh>
+                        <MudTh>Validacao</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Linha">@context.RowNumber</MudTd>
+                        <MudTd DataLabel="Estrutura"><strong>@context.Block</strong><small class="audit-summary">@context.Unit</small></MudTd>
+                        <MudTd DataLabel="Pessoa">@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : "-")</MudTd>
+                        <MudTd DataLabel="Veiculo">@(!string.IsNullOrWhiteSpace(context.VehiclePlate) ? context.VehiclePlate : "-")</MudTd>
+                        <MudTd DataLabel="Validacao">
+                            @if (context.IsValid)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Valido</MudChip>
+                            }
+                            else
+                            {
+                                <MudTooltip Text="@string.Join(" ", context.Messages)">
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined">@context.Messages.Count erro(s)</MudChip>
+                                </MudTooltip>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                    <PagerContent><MudTablePager PageSizeOptions="@(new[] { 10, 25, 50 })" /></PagerContent>
+                </MudTable>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_executing" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PlaylistAddCheck" Disabled="@(_preview?.CanExecute != true || _executing)" OnClick="ExecuteAsync">
+            @(_executing ? "Importando..." : "Confirmar importacao")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+
+    private const long MaxFileSize = 2_000_000;
+    private string _fileName = string.Empty;
+    private string _content = string.Empty;
+    private string _idempotencyKey = Guid.NewGuid().ToString("N");
+    private StructureImportPreviewViewModel? _preview;
+    private bool _loading;
+    private bool _executing;
+    private string? _error;
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task ReadFileAsync(InputFileChangeEventArgs args)
+    {
+        _loading = true;
+        _error = null;
+        _preview = null;
+        try
+        {
+            var file = args.File;
+            _fileName = file.Name;
+            if (file.Size > MaxFileSize)
+            {
+                _error = "O arquivo excede o limite de 2 MB.";
+                return;
+            }
+
+            await using var stream = file.OpenReadStream(MaxFileSize);
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            _content = await reader.ReadToEndAsync();
+            _idempotencyKey = Guid.NewGuid().ToString("N");
+            var result = await Api.PreviewStructureImportAsync(LicenseId, _fileName, _content, _idempotencyKey);
+            if (!result.Success || result.Value is null)
+            {
+                _error = result.Error ?? "Nao foi possivel validar o arquivo.";
+                return;
+            }
+            _preview = result.Value;
+        }
+        catch (IOException)
+        {
+            _error = "Nao foi possivel ler o arquivo selecionado.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ExecuteAsync()
+    {
+        if (_preview?.CanExecute != true) return;
+        _executing = true;
+        _error = null;
+        try
+        {
+            var result = await Api.ExecuteStructureImportAsync(LicenseId, _fileName, _content, _idempotencyKey);
+            if (!result.Success || result.Value is null)
+            {
+                _error = result.Error ?? "Nao foi possivel concluir a importacao.";
+                return;
+            }
+            Dialog.Close(DialogResult.Ok(result.Value));
+        }
+        finally
+        {
+            _executing = false;
+        }
+    }
+
+    private Task DownloadTemplateAsync() => JS.InvokeVoidAsync(
+        "portalInterop.downloadText",
+        "modelo-importacao-condotify.csv",
+        "\uFEFFAgrupamento;Unidade;Andar;Nome;Categoria;Vinculo;CPF;RG;Email;Telefone;Placa;MarcaVeiculo;ModeloVeiculo;CorVeiculo;TipoVeiculo;Tag\nBloco A;101;1;Maria Silva;Responsavel;Proprietario;12345678901;;maria@exemplo.com;71999999999;ABC1D23;Honda;Civic;Prata;Carro;TAG-001\nBloco A;102;1;Joao Souza;Morador;Dependente;98765432100;;;71988888888;;;;;;",
+        "text/csv;charset=utf-8").AsTask();
+}

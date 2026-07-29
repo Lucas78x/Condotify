@@ -79,17 +79,28 @@
                 }
             </MudTabPanel>
             <MudTabPanel Text="Auditoria" Icon="@Icons.Material.Outlined.History">
+                <div class="unit-toolbar mb-4">
+                    <MudTextField T="string" @bind-Value="_auditSearch" Immediate Placeholder="Buscar alteracao ou responsavel" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <MudSelect T="string" @bind-Value="_auditEntity" Label="Entidade" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="@("all")">Todas</MudSelectItem>
+                        @foreach (var entity in _audits.Select(x => x.EntityType).Distinct().OrderBy(x => x))
+                        {
+                            <MudSelectItem Value="@entity">@EntityLabel(entity)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </div>
                 @if (_audits.Count == 0)
                 {
                     <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.History" /><span>Nenhuma alteracao registrada.</span></div>
                 }
                 else
                 {
-                    <MudTable Items="_audits" Hover Dense Elevation="0">
-                        <HeaderContent><MudTh>Quando</MudTh><MudTh>Operacao</MudTh><MudTh>Resultado</MudTh><MudTh>Responsavel</MudTh></HeaderContent>
+                    <MudTable Items="FilteredAudits" Hover Dense Elevation="0">
+                        <HeaderContent><MudTh>Quando</MudTh><MudTh>Entidade</MudTh><MudTh>Operacao</MudTh><MudTh>Resultado</MudTh><MudTh>Responsavel</MudTh></HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="Quando">@context.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
-                            <MudTd DataLabel="Operacao"><strong>@context.Action</strong><small class="audit-summary">@context.Summary</small></MudTd>
+                            <MudTd DataLabel="Entidade">@EntityLabel(context.EntityType)</MudTd>
+                            <MudTd DataLabel="Operacao"><strong>@AuditActionLabel(context.Action)</strong><small class="audit-summary">@context.Summary</small>@if (AuditDetails(context) is { Length: > 0 } details) { <small class="audit-summary">@details</small> }</MudTd>
                             <MudTd DataLabel="Resultado"><MudChip T="string" Size="Size.Small" Color="@AuditColor(context.Status)" Variant="Variant.Outlined">@AuditLabel(context.Status)</MudChip></MudTd>
                             <MudTd DataLabel="Responsavel">@context.UserName</MudTd>
                         </RowTemplate>
@@ -107,9 +118,15 @@
 
     private List<AccessBatchOperationViewModel> _batches = [];
     private List<AccessAuditViewModel> _audits = [];
+    private string _auditSearch = string.Empty;
+    private string _auditEntity = "all";
     private ReconciliationPreviewViewModel? _preview;
     private bool _busy;
     private string? _error;
+    private IEnumerable<AccessAuditViewModel> FilteredAudits => _audits
+        .Where(x => _auditEntity == "all" || x.EntityType == _auditEntity)
+        .Where(x => string.IsNullOrWhiteSpace(_auditSearch) ||
+            $"{x.Action} {x.Summary} {x.UserName} {x.EntityType}".Contains(_auditSearch.Trim(), StringComparison.OrdinalIgnoreCase));
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -204,6 +221,63 @@
     private static string AttemptLabel(AccessBatchOperationViewModel batch) => batch.NextAttemptAt.HasValue ? $"Nova tentativa {batch.NextAttemptAt.Value.ToLocalTime():dd/MM HH:mm}" : $"Tentativa {batch.AttemptCount} de {batch.MaxAttempts}";
     private static string AuditLabel(string status) => status switch { "Success" => "Sucesso", "Pending" or "Queued" => "Pendente", "NoRoute" => "Sem rota", _ => status };
     private static Color AuditColor(string status) => status switch { "Success" => Color.Success, "Pending" or "Queued" => Color.Warning, "NoRoute" => Color.Error, _ => Color.Default };
+    private static string AuditActionLabel(string action) => action switch
+    {
+        "Created" => "Criado",
+        "Updated" or "ProfileUpdated" => "Atualizado",
+        "Activated" => "Ativado",
+        "Deactivated" => "Desativado",
+        "Trashed" => "Movido para a lixeira",
+        "Restored" => "Restaurado",
+        "Purged" => "Excluido definitivamente",
+        "Completed" => "Concluido",
+        _ => action
+    };
+    private static string EntityLabel(string entity) => entity switch
+    {
+        "Block" => "Agrupamento",
+        "Unit" => "Unidade",
+        "Resident" => "Pessoa",
+        "Vehicle" => "Veiculo",
+        "Device" => "Equipamento",
+        "Credential" => "Credencial",
+        "AccessRoute" => "Rota",
+        "ConfigurationBackup" => "Backup de configuracao",
+        _ => entity
+    };
+    private static string AuditDetails(AccessAuditViewModel audit)
+    {
+        if (string.IsNullOrWhiteSpace(audit.DetailsJson) || audit.DetailsJson == "{}") return string.Empty;
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(audit.DetailsJson);
+            if (document.RootElement.TryGetProperty("changedFields", out var fields) && fields.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                var names = fields.EnumerateArray().Select(x => FieldLabel(x.GetString() ?? string.Empty)).Where(x => x.Length > 0);
+                return $"Campos alterados: {string.Join(", ", names)}";
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+        }
+        return string.Empty;
+    }
+    private static string FieldLabel(string field) => field switch
+    {
+        "Name" => "nome",
+        "Email" => "e-mail",
+        "PhoneNumber" => "celular",
+        "CommercialPhone" => "telefone comercial",
+        "CPF" => "CPF",
+        "RG" => "RG",
+        "BirthDate" => "data de nascimento",
+        "Description" => "observacoes",
+        "NotifyAccess" => "notificacoes",
+        "IsActive" => "estado",
+        "HasPhoto" => "foto",
+        "Relationship" => "vinculo",
+        _ => field
+    };
     private static string ItemLabel(string status) => status switch { "Completed" => "Concluido", "Running" => "Executando", "WaitingDevice" => "Aguardando terminal", "Failed" => "Falhou", "DeadLetter" => "Intervencao", "Canceled" => "Cancelado", _ => "Na fila" };
     private static string ItemIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.CheckCircle, "Running" => Icons.Material.Outlined.Sync, "WaitingDevice" => Icons.Material.Outlined.CloudOff, "Failed" or "DeadLetter" => Icons.Material.Outlined.Error, _ => Icons.Material.Outlined.Schedule };
     private static Color ItemColor(string status) => status switch { "Completed" => Color.Success, "Running" => Color.Info, "WaitingDevice" => Color.Warning, "Failed" or "DeadLetter" => Color.Error, _ => Color.Default };

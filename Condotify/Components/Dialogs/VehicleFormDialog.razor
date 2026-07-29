@@ -4,7 +4,7 @@
     <DialogContent>
         <div class="dialog-description">
             <MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" />
-            <div><strong>Novo veiculo</strong><span>A tag veicular, quando informada, tambem sera criada como credencial de acesso.</span></div>
+            <div><strong>@(Existing is null ? "Novo veiculo" : "Editar veiculo")</strong><span>A tag veicular, quando informada, tambem sera criada como credencial de acesso.</span></div>
         </div>
         @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
         <EditForm Model="_model" OnValidSubmit="SaveAsync">
@@ -21,7 +21,7 @@
             </div>
             <div class="form-actions dialog-form-actions">
                 <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" Disabled="_saving">@(_saving ? "Salvando..." : "Cadastrar veiculo")</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : Existing is null ? "Cadastrar veiculo" : "Salvar alteracoes")</MudButton>
             </div>
         </EditForm>
     </DialogContent>
@@ -32,15 +32,28 @@
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
     [Parameter, EditorRequired] public Guid ResidentId { get; set; }
     [Parameter, EditorRequired] public Guid UnitId { get; set; }
+    [Parameter] public VehicleViewModel? Existing { get; set; }
     private readonly VehicleFormViewModel _model = new();
     private bool _saving;
     private string? _error;
-    protected override void OnInitialized() => _model.UnitId = UnitId;
+    protected override void OnInitialized()
+    {
+        _model.UnitId = UnitId;
+        if (Existing is null) return;
+        _model.Plate = Existing.Plate;
+        _model.Brand = Existing.Brand;
+        _model.Model = Existing.Model;
+        _model.Color = Existing.Color;
+        _model.Type = Existing.Type;
+        _model.TagIdentifier = Existing.TagIdentifier;
+    }
     private void Cancel() => Dialog.Cancel();
     private async Task SaveAsync()
     {
         _saving = true; _error = null;
-        var result = await Api.CreateVehicleAsync(LicenseId, ResidentId, _model);
+        var result = Existing is null
+            ? await Api.CreateVehicleAsync(LicenseId, ResidentId, _model)
+            : await Api.UpdateVehicleAsync(LicenseId, ResidentId, Existing.Id, _model, Existing.IsActive);
         _saving = false;
         if (!result.Success) { _error = result.Error; return; }
         Dialog.Close(DialogResult.Ok(result.Value));

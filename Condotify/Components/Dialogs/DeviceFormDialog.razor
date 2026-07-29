@@ -4,7 +4,7 @@
     <DialogContent>
         <div class="dialog-description">
             <MudIcon Icon="@Icons.Material.Outlined.Sensors" />
-            <div><strong>Novo terminal de acesso</strong><span>Selecione o fabricante e informe como o Condotify deve se conectar.</span></div>
+            <div><strong>@(IsEditing ? "Editar terminal de acesso" : "Novo terminal de acesso")</strong><span>@(IsEditing ? "Atualize a conexao sem perder rotas, credenciais ou historico." : "Selecione o fabricante e informe como o Condotify deve se conectar.")</span></div>
         </div>
         @if (!string.IsNullOrWhiteSpace(_error))
         {
@@ -15,13 +15,13 @@
             <MudText Typo="Typo.overline" Class="form-section-label">IDENTIFICACAO</MudText>
             <div class="form-grid form-grid-three">
                 <MudTextField T="string" @bind-Value="_form.Name" Label="Nome do equipamento" Placeholder="Ex.: Facial portaria" Required Variant="Variant.Outlined" For="@(() => _form.Name)" />
-                <MudSelect T="string" Value="@_brand" ValueChanged="@BrandChanged" Label="Marca" Required Variant="Variant.Outlined">
+                <MudSelect T="string" Value="@_brand" ValueChanged="@BrandChanged" Label="Marca" Required Variant="Variant.Outlined" Disabled="IsEditing">
                     @foreach (var brand in DeviceCatalog.AccessDevices.Select(x => x.Brand).Distinct())
                     {
                         <MudSelectItem Value="@brand">@brand</MudSelectItem>
                     }
                 </MudSelect>
-                <MudSelect T="int" @bind-Value="_form.Type" Label="Modelo" Required Variant="Variant.Outlined">
+                <MudSelect T="int" @bind-Value="_form.Type" Label="Modelo" Required Variant="Variant.Outlined" Disabled="IsEditing">
                     @foreach (var device in AvailableModels)
                     {
                         <MudSelectItem Value="@device.Type">@device.Model</MudSelectItem>
@@ -36,12 +36,12 @@
                 <MudNumericField T="int" @bind-Value="_form.Port" Label="Porta HTTP" Min="1" Max="65535" Variant="Variant.Outlined" />
                 <MudSwitch T="bool" @bind-Value="_form.IsActive" Color="Color.Success" Label="Ativar após identificar o terminal" />
                 <MudTextField T="string" @bind-Value="_form.Username" Label="Usuario" Required Variant="Variant.Outlined" For="@(() => _form.Username)" />
-                <MudTextField T="string" @bind-Value="_form.Password" Label="Senha" Required InputType="InputType.Password" Variant="Variant.Outlined" For="@(() => _form.Password)" />
+                <MudTextField T="string" @bind-Value="_form.Password" Label="@(IsEditing ? "Nova senha" : "Senha")" Required="@(!IsEditing)" InputType="InputType.Password" Variant="Variant.Outlined" For="@(() => _form.Password)" HelperText="@(IsEditing ? "Deixe em branco para manter a senha atual." : null)" />
             </div>
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense Class="mt-4">Número de série, endereço MAC e firmware serão consultados no equipamento. As portas também serão descobertas quando o modelo oferecer essa informação.</MudAlert>
             <div class="form-actions dialog-form-actions">
                 <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : "Salvar equipamento")</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : IsEditing ? "Salvar alteracoes" : "Salvar equipamento")</MudButton>
             </div>
         </EditForm>
     </DialogContent>
@@ -50,13 +50,34 @@
 @code {
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public AccessDeviceRowViewModel? Existing { get; set; }
     private readonly AccessDeviceFormViewModel _form = new();
     private string _brand = "Intelbras";
     private bool _saving;
     private string? _error;
+    private bool IsEditing => Existing is not null;
     private IEnumerable<AccessDeviceOption> AvailableModels => DeviceCatalog.AccessDevices.Where(x => x.Brand == _brand);
 
-    protected override void OnInitialized() => _form.Type = AvailableModels.First().Type;
+    protected override void OnInitialized()
+    {
+        if (Existing is null)
+        {
+            _form.Type = AvailableModels.First().Type;
+            return;
+        }
+
+        var option = DeviceCatalog.FindByApiModel(Existing.Model);
+        if (option is not null)
+        {
+            _brand = option.Brand;
+            _form.Type = option.Type;
+        }
+        _form.Name = Existing.Name;
+        _form.IPAddress = Existing.IPAddress;
+        _form.Port = Existing.Port;
+        _form.Username = Existing.Username;
+        _form.IsActive = Existing.IsActive;
+    }
     private void Cancel() => Dialog.Cancel();
     private void BrandChanged(string brand) { _brand = brand; _form.Type = AvailableModels.First().Type; }
 
@@ -70,12 +91,29 @@
 
     private async Task SaveAsync()
     {
+        if (!IsEditing && string.IsNullOrWhiteSpace(_form.Password))
+        {
+            _error = "Informe a senha de acesso ao equipamento.";
+            return;
+        }
         var selected = DeviceCatalog.Find(_form.Type);
         if (selected is null || selected.Brand != _brand) { _error = "Selecione um modelo da marca informada."; return; }
         _saving = true;
         _error = null;
         try
         {
+            if (Existing is not null)
+            {
+                var update = await Api.UpdateDeviceAsync(LicenseId, Existing.Id, _form);
+                if (!update.Success)
+                {
+                    _error = update.Error ?? "Nao foi possivel atualizar o equipamento.";
+                    return;
+                }
+                Dialog.Close(DialogResult.Ok(true));
+                return;
+            }
+
             var result = await Api.CreateDeviceAsync(LicenseId, _form);
             if (!result.Success || result.Value is null)
             {

@@ -24,7 +24,9 @@ public static class LicensePermissionCatalog
         new(LicensePermission.ViewUsers, "Administracao", "Ver usuarios", "Equipe vinculada ao condominio"),
         new(LicensePermission.ManageUsers, "Administracao", "Gerenciar usuarios", "Criar acessos e alterar permissoes"),
         new(LicensePermission.ViewSettings, "Administracao", "Ver configuracoes", "Politicas e parametros da licenca"),
-        new(LicensePermission.ManageSettings, "Administracao", "Editar configuracoes", "Alterar politicas de credenciais")
+        new(LicensePermission.ManageSettings, "Administracao", "Editar configuracoes", "Alterar politicas de credenciais"),
+        new(LicensePermission.ViewBackups, "Seguranca", "Ver backups", "Historico de configuracoes e simulacoes"),
+        new(LicensePermission.ManageBackups, "Seguranca", "Gerenciar backups", "Criar, restaurar e excluir snapshots")
     ];
 
     public static long Defaults(int role) => role switch
@@ -55,6 +57,7 @@ public static class LicensePermissionCatalog
         if (value.HasFlag(LicensePermission.ManageBookings)) value |= LicensePermission.ViewBookings;
         if (value.HasFlag(LicensePermission.ManageUsers)) value |= LicensePermission.ViewUsers;
         if (value.HasFlag(LicensePermission.ManageSettings)) value |= LicensePermission.ViewSettings;
+        if (value.HasFlag(LicensePermission.ManageBackups)) value |= LicensePermission.ViewBackups;
         return (long)value;
     }
 
@@ -72,6 +75,7 @@ public static class LicensePermissionCatalog
             LicensePermission.ViewBookings => ~LicensePermission.ManageBookings,
             LicensePermission.ViewUsers => ~LicensePermission.ManageUsers,
             LicensePermission.ViewSettings => ~LicensePermission.ManageSettings,
+            LicensePermission.ViewBackups => ~LicensePermission.ManageBackups,
             _ => LicensePermission.All
         };
         return (long)value;

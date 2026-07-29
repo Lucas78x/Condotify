@@ -12,7 +12,7 @@
         {
             <MudForm @ref="_form" @bind-IsValid="_isValid">
                 <MudTextField T="string" @bind-Value="_block.Name" Label="Nome do bloco" Placeholder="Ex.: Bloco A" Required RequiredError="Informe o nome do bloco." Immediate Variant="Variant.Outlined" FullWidth />
-                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.DomainAdd" Disabled="_saving" OnClick="SaveBlockAsync">@(_saving ? "Salvando..." : "Cadastrar bloco")</MudButton></div>
+                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveBlockAsync">@(_saving ? "Salvando..." : IsEditing ? "Salvar alteracoes" : "Cadastrar bloco")</MudButton></div>
             </MudForm>
         }
         else if (ActiveSection == "unidades")
@@ -25,7 +25,7 @@
                     <MudTextField T="string" @bind-Value="_unit.Number" Label="Numero da unidade" Placeholder="Ex.: 101" Required RequiredError="Informe o numero da unidade." Immediate Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_unit.Floor" Label="Andar (opcional)" Variant="Variant.Outlined" />
                 </div>
-                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddHomeWork" Disabled="_saving" OnClick="SaveUnitAsync">@(_saving ? "Salvando..." : "Cadastrar unidade")</MudButton></div>
+                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveUnitAsync">@(_saving ? "Salvando..." : IsEditing ? "Salvar alteracoes" : "Cadastrar unidade")</MudButton></div>
             </MudForm>
         }
         else
@@ -65,6 +65,8 @@
     [Parameter] public List<BlockRowViewModel> Blocks { get; set; } = [];
     [Parameter] public Guid? InitialBlockId { get; set; }
     [Parameter] public Guid? InitialUnitId { get; set; }
+    [Parameter] public BlockRowViewModel? ExistingBlock { get; set; }
+    [Parameter] public UnitRowViewModel? ExistingUnit { get; set; }
     [Parameter] public string GroupLabelSingular { get; set; } = "Bloco";
     [Parameter] public string UnitLabelSingular { get; set; } = "Unidade";
     private readonly BlockFormViewModel _block = new();
@@ -75,23 +77,31 @@
     private bool _saving;
     private string? _error;
     private List<UnitRowViewModel> Units => Blocks.SelectMany(x => x.Units).ToList();
+    private bool IsEditing => ExistingBlock is not null || ExistingUnit is not null;
     private string DialogIcon => ActiveSection switch { "unidades" => Icons.Material.Outlined.Apartment, "moradores" => Icons.Material.Outlined.PersonAdd, _ => Icons.Material.Outlined.DomainAdd };
-    private string DescriptionTitle => ActiveSection switch { "unidades" => "Nova unidade", "moradores" => "Novo morador", _ => "Novo bloco" };
+    private string DescriptionTitle => ActiveSection switch { "unidades" => IsEditing ? "Editar unidade" : "Nova unidade", "moradores" => "Novo morador", _ => IsEditing ? "Editar bloco" : "Novo bloco" };
     private string Description => ActiveSection switch { "unidades" => "Vincule a unidade ao bloco correspondente.", "moradores" => "Associe o morador a uma unidade e defina seu tipo de acesso.", _ => "Organize a estrutura fisica do condominio." };
 
     protected override void OnInitialized()
     {
-        if (Blocks.Count > 0) _unit.BlockId = InitialBlockId is { } blockId && Blocks.Any(x => x.Id == blockId) ? blockId : Blocks[0].Id;
+        if (ExistingBlock is not null) _block.Name = ExistingBlock.Name;
+        if (ExistingUnit is not null)
+        {
+            _unit.BlockId = ExistingUnit.BlockId;
+            _unit.Number = ExistingUnit.Number;
+            _unit.Floor = ExistingUnit.Floor;
+        }
+        else if (Blocks.Count > 0) _unit.BlockId = InitialBlockId is { } blockId && Blocks.Any(x => x.Id == blockId) ? blockId : Blocks[0].Id;
         if (Units.Count > 0) _resident.UnitId = InitialUnitId is { } unitId && Units.Any(x => x.Id == unitId) ? unitId : Units[0].Id;
     }
 
     private void Cancel() => Dialog.Cancel();
     private Task SaveBlockAsync() => SaveStructureAsync(
-        () => Api.CreateBlockAsync(LicenseId, _block),
+        () => ExistingBlock is null ? Api.CreateBlockAsync(LicenseId, _block) : Api.UpdateBlockAsync(LicenseId, ExistingBlock.Id, _block),
         string.IsNullOrWhiteSpace(_block.Name) ? "Informe o nome do bloco." : null);
 
     private Task SaveUnitAsync() => SaveStructureAsync(
-        () => Api.CreateUnitAsync(LicenseId, _unit),
+        () => ExistingUnit is null ? Api.CreateUnitAsync(LicenseId, _unit) : Api.UpdateUnitAsync(LicenseId, ExistingUnit.Id, _unit),
         _unit.BlockId == Guid.Empty
             ? "Selecione o bloco da unidade."
             : string.IsNullOrWhiteSpace(_unit.Number) ? "Informe o numero da unidade." : null);
