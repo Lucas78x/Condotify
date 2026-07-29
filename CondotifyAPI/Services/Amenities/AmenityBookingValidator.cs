@@ -4,12 +4,12 @@ namespace CondotifyAPI.Services.Amenities;
 
 public static class AmenityBookingValidator
 {
-    public static string? ValidateWindow(AmenityDTO amenity, DateTime date, DateTime nowUtc)
+    public static string? ValidateWindow(AmenityDTO amenity, DateTime date, TimeSpan slotStartTime, DateTime nowUtc)
     {
         var earliestAllowed = nowUtc.AddHours(amenity.MinAdvanceNoticeHours);
-        var endOfRequestedDay = date.Date.AddDays(1);
+        var requestedStart = date.Date.Add(slotStartTime);
 
-        if (endOfRequestedDay <= earliestAllowed)
+        if (requestedStart < earliestAllowed)
             return $"Este local exige ao menos {amenity.MinAdvanceNoticeHours} hora(s) de antecedencia.";
 
         var latestAllowed = nowUtc.Date.AddDays(amenity.MaxAdvanceDays);
@@ -17,6 +17,21 @@ public static class AmenityBookingValidator
             return $"Este local so pode ser agendado ate {amenity.MaxAdvanceDays} dia(s) no futuro.";
 
         return null;
+    }
+
+    public static bool HasOverlappingSlots(IEnumerable<AmenityScheduleSlotDTO> slots)
+    {
+        foreach (var day in slots.Where(x => x.Active).GroupBy(x => x.DayOfWeek))
+        {
+            var ordered = day.OrderBy(x => x.StartTime).ToList();
+            for (var index = 1; index < ordered.Count; index++)
+            {
+                if (ordered[index].StartTime < ordered[index - 1].EndTime)
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     public static bool IsDateBlacked(IEnumerable<AmenityBlackoutDTO> blackouts, DateTime date)

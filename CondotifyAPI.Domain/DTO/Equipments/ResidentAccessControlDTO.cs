@@ -7,8 +7,8 @@ namespace CondotifyAPI.Domain.DTO.Equipments
         public Guid Id { get; set; }
 
         public long UserId { get; set; }
-        public string CardNumber { get; set; }
-        public string TagNumber { get; set; }
+        public string CardNumber { get; set; } = string.Empty;
+        public string TagNumber { get; set; } = string.Empty;
         public DeviceTypeEnum Type { get; set; }
         public bool IsActive { get; set; }
         public DateTime ValidFrom { get; set; }
@@ -18,7 +18,7 @@ namespace CondotifyAPI.Domain.DTO.Equipments
         public DateTime? UpdatedAt { get; set; }
 
         public Guid ResidentId { get; set; }
-        public ResidentAccessDTO Resident { get; set; }
+        public ResidentAccessDTO Resident { get; set; } = null!;
     }
 
 

@@ -41,6 +41,8 @@ public partial class DatabaseContext : DbContext
         UnitsEntityConfiguration(modelBuilder);
         ResidentsEntityConfiguration(modelBuilder);
         AuditsEntityConfiguration(modelBuilder);
+        RecycleBinEntityConfiguration(modelBuilder);
+        BackupsEntityConfiguration(modelBuilder);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {

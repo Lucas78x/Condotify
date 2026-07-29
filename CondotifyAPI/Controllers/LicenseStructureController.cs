@@ -2,6 +2,7 @@ using AutoMapper;
 using CondotifyAPI.Data.Structure;
 using CondotifyAPI.Data.Deliveries;
 using CondotifyAPI.Data.Equipments;
+using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.DTO.Audit;
 using CondotifyAPI.Domain.DTO.Block;
 using CondotifyAPI.Domain.DTO.Delivers;
@@ -15,7 +16,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.Json;
 using CondotifyAPI.Services.Authorization;
+using CondotifyAPI.Services.RecycleBin;
 
 namespace CondotifyAPI.Controllers;
 
@@ -27,15 +30,18 @@ public class LicenseStructureController : ControllerBase
     private readonly DatabaseContext _context;
     private readonly IAccessControlService _accessControlService;
     private readonly IMapper _mapper;
+    private readonly IRecycleBinService _recycleBin;
 
     public LicenseStructureController(
         DatabaseContext context,
         IAccessControlService accessControlService,
-        IMapper mapper)
+        IMapper mapper,
+        IRecycleBinService recycleBin)
     {
         _context = context;
         _accessControlService = accessControlService;
         _mapper = mapper;
+        _recycleBin = recycleBin;
     }
 
     [HttpGet("structure")]
@@ -71,10 +77,12 @@ public class LicenseStructureController : ControllerBase
     {
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
         var license = await _context.Licenses.FirstAsync(x => x.Id == licenseId);
+        var before = new { license.GroupLabelSingular, license.GroupLabelPlural, license.UnitLabelSingular, license.UnitLabelPlural };
         license.GroupLabelSingular = RequiredLabel(input.GroupLabelSingular, "Bloco");
         license.GroupLabelPlural = RequiredLabel(input.GroupLabelPlural, "Blocos");
         license.UnitLabelSingular = RequiredLabel(input.UnitLabelSingular, "Unidade");
         license.UnitLabelPlural = RequiredLabel(input.UnitLabelPlural, "Unidades");
+        AddManagementAudit(licenseId, "StructureSettings", licenseId, "Updated", "Nomenclatura da estrutura atualizada.", new { Before = before, After = new { license.GroupLabelSingular, license.GroupLabelPlural, license.UnitLabelSingular, license.UnitLabelPlural } });
         await _context.SaveChangesAsync();
         return Ok(new { license.GroupLabelSingular, license.GroupLabelPlural, license.UnitLabelSingular, license.UnitLabelPlural });
     }
@@ -104,9 +112,49 @@ public class LicenseStructureController : ControllerBase
         };
 
         _context.Blocks.Add(block);
+        AddManagementAudit(licenseId, "Block", block.Id, "Created", $"Agrupamento {block.Name} criado.", new { block.Name });
         await _context.SaveChangesAsync();
 
         return Created("", ToBlockOut(block));
+    }
+
+    [HttpPatch("blocks/{blockId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageStructure)]
+    public async Task<IActionResult> UpdateBlock(Guid licenseId, Guid blockId, [FromBody] UpdateBlockIn input)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var name = input.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            return BadRequest(new { Result = "InvalidRequest", Errors = "Nome do bloco e obrigatorio." });
+
+        var block = await _context.Blocks.FirstOrDefaultAsync(x => x.Id == blockId && x.LicenseId == licenseId);
+        if (block == null) return NotFound();
+        if (await _context.Blocks.AnyAsync(x => x.Id != blockId && x.LicenseId == licenseId && EF.Functions.ILike(x.Name, name)))
+            return Conflict(new { Result = "Duplicate", Errors = "Ja existe um bloco com este nome." });
+
+        var previousName = block.Name;
+        block.Name = name;
+        block.LastUpdatedAt = DateTime.UtcNow;
+        AddManagementAudit(licenseId, "Block", block.Id, "Updated", $"Agrupamento {previousName} atualizado.", new { Before = new { Name = previousName }, After = new { block.Name } });
+        await _context.SaveChangesAsync();
+        return Ok(ToBlockOut(block));
+    }
+
+    [HttpDelete("blocks/{blockId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageStructure)]
+    public async Task<IActionResult> DeleteBlock(Guid licenseId, Guid blockId)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var block = await _context.Blocks.FirstOrDefaultAsync(x => x.Id == blockId && x.LicenseId == licenseId);
+        if (block == null) return NotFound();
+        if (await _context.Units.AnyAsync(x => x.BlockId == blockId))
+            return Conflict(new { Result = "BlockNotEmpty", Errors = "Remova ou transfira as unidades antes de excluir este bloco." });
+
+        _recycleBin.CaptureBlock(licenseId, block, CurrentActor());
+        AddManagementAudit(licenseId, "Block", block.Id, "Trashed", $"Agrupamento {block.Name} movido para a lixeira.", new { block.Name });
+        _context.Blocks.Remove(block);
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpPost("units")]
@@ -136,6 +184,7 @@ public class LicenseStructureController : ControllerBase
         };
 
         _context.Units.Add(unit);
+        AddManagementAudit(licenseId, "Unit", unit.Id, "Created", $"Unidade {unit.Number} criada em {block.Name}.", new { unit.Number, unit.Floor, Block = block.Name });
         await _context.SaveChangesAsync();
 
         return Created("", new UnitOut
@@ -147,6 +196,62 @@ public class LicenseStructureController : ControllerBase
             Floor = unit.Floor,
             TotalResidents = 0
         });
+    }
+
+    [HttpPatch("units/{unitId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageStructure)]
+    public async Task<IActionResult> UpdateUnit(Guid licenseId, Guid unitId, [FromBody] UpdateUnitIn input)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var number = input.Number?.Trim();
+        if (input.BlockId == Guid.Empty || string.IsNullOrWhiteSpace(number))
+            return BadRequest(new { Result = "InvalidRequest", Errors = "Bloco e numero da unidade sao obrigatorios." });
+
+        var unit = await _context.Units.Include(x => x.Block)
+            .FirstOrDefaultAsync(x => x.Id == unitId && x.Block.LicenseId == licenseId);
+        if (unit == null) return NotFound();
+        var targetBlock = await _context.Blocks.FirstOrDefaultAsync(x => x.Id == input.BlockId && x.LicenseId == licenseId);
+        if (targetBlock == null) return NotFound();
+        if (await _context.Units.AnyAsync(x => x.Id != unitId && x.BlockId == input.BlockId && EF.Functions.ILike(x.Number, number)))
+            return Conflict(new { Result = "Duplicate", Errors = "Ja existe uma unidade com este numero neste bloco." });
+
+        var before = new { unit.BlockId, Block = unit.Block.Name, unit.Number, unit.Floor };
+        unit.BlockId = input.BlockId;
+        unit.Number = number;
+        unit.Floor = input.Floor?.Trim() ?? string.Empty;
+        AddManagementAudit(licenseId, "Unit", unit.Id, "Updated", $"Unidade {unit.Number} atualizada.", new { Before = before, After = new { unit.BlockId, Block = targetBlock.Name, unit.Number, unit.Floor } });
+        await _context.SaveChangesAsync();
+        return Ok(new UnitOut
+        {
+            Id = unit.Id, BlockId = unit.BlockId, BlockName = targetBlock.Name,
+            Number = unit.Number, Floor = unit.Floor,
+            TotalResidents = await _context.Residents.CountAsync(x => x.UnitId == unit.Id)
+        });
+    }
+
+    [HttpDelete("units/{unitId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageStructure)]
+    public async Task<IActionResult> DeleteUnit(Guid licenseId, Guid unitId)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var unit = await _context.Units.Include(x => x.Block)
+            .FirstOrDefaultAsync(x => x.Id == unitId && x.Block.LicenseId == licenseId);
+        if (unit == null) return NotFound();
+
+        var people = await _context.Residents.CountAsync(x => x.UnitId == unitId);
+        var vehicles = await _context.Vehicles.CountAsync(x => x.UnitId == unitId);
+        if (people > 0 || vehicles > 0)
+            return Conflict(new
+            {
+                Result = "UnitNotEmpty",
+                Errors = $"A unidade possui {people} pessoa(s) e {vehicles} veiculo(s). Remova ou transfira esses cadastros antes de excluir."
+            });
+
+        _recycleBin.CaptureUnit(licenseId, unit, CurrentActor());
+        AddManagementAudit(licenseId, "Unit", unit.Id, "Trashed", $"Unidade {unit.Number} movida para a lixeira.", new { unit.Number, unit.Floor, Block = unit.Block.Name });
+        _context.Units.Remove(unit);
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpPost("residents")]
@@ -206,6 +311,7 @@ public class LicenseStructureController : ControllerBase
             Relationship = input.Relationship, Description = resident.Description,
             IsPrimary = true, IsActive = true, StartsAt = now, CreatedAt = now, UpdatedAt = now
         });
+        AddManagementAudit(licenseId, "Resident", resident.Id, "Created", $"Pessoa {resident.Name} cadastrada na unidade {unit.Number}.", new { Unit = unit.Number, Block = unit.Block.Name, input.Relationship, input.AccessType, HasPhoto = false });
         await _context.SaveChangesAsync();
 
         return Created("", ToResidentOut(resident, unit.Number));
@@ -227,12 +333,13 @@ public class LicenseStructureController : ControllerBase
                 Name = x.Name,
                 IPAddress = x.IPAddress,
                 Port = x.Port,
+                Username = x.Username,
                 Model = x.Model,
-                SerialNumber = x.SerialNumber,
-                MACAddress = x.MACAddress,
+                SerialNumber = x.SerialNumber ?? string.Empty,
+                MACAddress = x.MACAddress ?? string.Empty,
                 Type = x.Type.ToString(),
                 IsActive = x.IsActive,
-                FirmwareVersion = x.FirmwareVersion,
+                FirmwareVersion = x.FirmwareVersion ?? string.Empty,
                 LastHealthCheckAt = x.LastHealthCheckAt,
                 LastSeenAt = x.LastSeenAt,
                 LastResponseTimeMs = x.LastResponseTimeMs,
@@ -242,6 +349,60 @@ public class LicenseStructureController : ControllerBase
             .ToListAsync();
 
         return Ok(devices);
+    }
+
+    [HttpPatch("devices/{deviceId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageDevices)]
+    public async Task<IActionResult> UpdateAccessDevice(Guid licenseId, Guid deviceId, [FromBody] UpdateAccessDeviceIn input)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var name = input.Name?.Trim();
+        var ipAddress = input.IPAddress?.Trim();
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(ipAddress) || input.Port is < 1 or > 65535)
+            return BadRequest(new { Result = "InvalidRequest", Errors = "Nome, endereco IP e uma porta valida sao obrigatorios." });
+
+        var device = await _context.Devices.FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId);
+        if (device == null) return NotFound();
+        if (await _context.Devices.AnyAsync(x => x.Id != deviceId && x.LicenseId == licenseId && x.IPAddress == ipAddress && x.Port == input.Port))
+            return Conflict(new { Result = "DuplicateDevice", Errors = "Ja existe um equipamento com o mesmo IP e porta nesta licenca." });
+
+        var before = new { device.Name, device.IPAddress, device.Port, device.Username, device.IsActive };
+        device.Name = name;
+        device.IPAddress = ipAddress;
+        device.Port = input.Port;
+        device.Username = input.Username?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(input.Password)) device.Password = input.Password;
+        device.IsActive = input.IsActive;
+        device.LastUpdatedAt = DateTime.UtcNow;
+        AddDeviceAudit(device.Id, ActionTypeEnum.Update, "Configuracao do equipamento atualizada");
+        AddManagementAudit(licenseId, "Device", device.Id, "Updated", $"Equipamento {device.Name} atualizado.", new { Before = before, After = new { device.Name, device.IPAddress, device.Port, device.Username, device.IsActive }, PasswordChanged = !string.IsNullOrWhiteSpace(input.Password) });
+        await _context.SaveChangesAsync();
+        return Ok(new { device.Id, device.Name, device.IPAddress, device.Port, device.IsActive });
+    }
+
+    [HttpDelete("devices/{deviceId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageDevices)]
+    public async Task<IActionResult> DeleteAccessDevice(Guid licenseId, Guid deviceId)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var device = await _context.Devices.FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId);
+        if (device == null) return NotFound();
+
+        var routeCount = await _context.AccessRouteDevices.CountAsync(x => x.DeviceId == deviceId);
+        var bindingCount = await _context.ResidentAccessDevices.CountAsync(x => x.DeviceId == deviceId);
+        var eventCount = await _context.AccessEventRecords.CountAsync(x => x.DeviceId == deviceId);
+        if (routeCount > 0 || bindingCount > 0 || eventCount > 0)
+            return Conflict(new
+            {
+                Result = "DeviceInUse",
+                Errors = $"O equipamento possui {routeCount} rota(s), {bindingCount} credencial(is) e {eventCount} evento(s). Desative-o para preservar o historico ou remova os vinculos antes da exclusao."
+            });
+
+        _recycleBin.CaptureDevice(licenseId, device, CurrentActor());
+        AddManagementAudit(licenseId, "Device", device.Id, "Trashed", $"Equipamento {device.Name} movido para a lixeira.", new { device.Name, device.IPAddress, device.Port, device.Model, device.SerialNumber, device.MACAddress });
+        _context.Devices.Remove(device);
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpPost("devices/{deviceId:guid}/test-connection")]
@@ -507,6 +668,32 @@ public class LicenseStructureController : ControllerBase
             UserName = userName
         });
     }
+
+    private void AddManagementAudit(
+        Guid licenseId,
+        string entityType,
+        Guid entityId,
+        string action,
+        string summary,
+        object details)
+    {
+        _context.AccessOperationAudits.Add(new AccessOperationAuditDTO
+        {
+            Id = Guid.NewGuid(),
+            LicenseId = licenseId,
+            EntityType = entityType,
+            EntityId = entityId,
+            Action = action,
+            Status = "Success",
+            Summary = summary,
+            DetailsJson = JsonSerializer.Serialize(details),
+            UserName = User.FindFirstValue("name") ?? User.Identity?.Name ?? string.Empty,
+            CreatedAt = DateTime.UtcNow
+        });
+    }
+
+    private string CurrentActor() =>
+        User.FindFirstValue("name") ?? User.Identity?.Name ?? "Usuario do portal";
 
     private static BlockOut ToBlockOut(BlockDTO block)
     {

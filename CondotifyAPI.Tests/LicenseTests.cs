@@ -71,6 +71,42 @@ namespace CondotifyAPI.Tests
         }
 
         [Fact]
+        public void AddBlock_ShouldRejectNullAndConfiguredCapacity()
+        {
+            var license = License.Create(
+                "Com blocos",
+                "12345678000190",
+                LicenseTypeEnum.Full,
+                new Location(),
+                DateTime.UtcNow.AddYears(1),
+                DateTime.UtcNow);
+
+            Assert.False(license.AddBlock(null!));
+
+            license.Blocks = Enumerable.Range(0, byte.MaxValue)
+                .Select(index => new Block { Id = Guid.NewGuid(), Name = $"Bloco {index}" })
+                .ToList();
+
+            Assert.False(license.AddBlock(new Block { Id = Guid.NewGuid(), Name = "Excedente" }));
+            Assert.Equal(byte.MaxValue, license.Blocks.Count);
+        }
+
+        [Fact]
+        public void AddDevice_ShouldRejectNull()
+        {
+            var license = License.Create(
+                "Com equipamentos",
+                "12345678000190",
+                LicenseTypeEnum.Full,
+                new Location(),
+                DateTime.UtcNow.AddYears(1),
+                DateTime.UtcNow);
+
+            Assert.False(license.AddDevice(null!));
+            Assert.Empty(license.Devices);
+        }
+
+        [Fact]
         public void MaskCNPJ_ShouldMaskValidCnpj()
         {
             var license = License.Create(

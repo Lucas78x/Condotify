@@ -3,6 +3,7 @@ using CondotifyAPI.Data.Amenities;
 using CondotifyAPI.Domain.DTO.Amenities;
 using CondotifyAPI.Domain.Enums.Amenities;
 using CondotifyAPI.Infrastructure;
+using CondotifyAPI.Services.Amenities;
 using CondotifyAPI.Services.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -240,6 +241,15 @@ public sealed class AmenitiesController : ControllerBase
             if (slot.StartTime < TimeSpan.Zero || slot.EndTime > TimeSpan.FromDays(1) || slot.StartTime >= slot.EndTime)
                 return "Existe um horario invalido na grade semanal.";
         }
+
+        if (AmenityBookingValidator.HasOverlappingSlots(input.ScheduleSlots.Select(x => new AmenityScheduleSlotDTO
+            {
+                DayOfWeek = x.DayOfWeek,
+                StartTime = x.StartTime,
+                EndTime = x.EndTime,
+                Active = x.Active
+            })))
+            return "Existem horarios sobrepostos na grade semanal.";
 
         foreach (var blackout in input.Blackouts)
         {

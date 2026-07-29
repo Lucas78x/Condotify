@@ -129,7 +129,8 @@ public sealed class AccessControlOperationsController : ControllerBase
             .Select(x => new AccessAuditOut
             {
                 Id = x.Id, EntityType = x.EntityType, EntityId = x.EntityId, Action = x.Action,
-                Status = x.Status, Summary = x.Summary, UserName = x.UserName, CreatedAt = x.CreatedAt
+                Status = x.Status, Summary = x.Summary, DetailsJson = x.DetailsJson,
+                UserName = x.UserName, CreatedAt = x.CreatedAt
             }).ToListAsync();
         var deviceAuditRows = await _context.DeviceAudits.AsNoTracking()
             .Where(x => x.Device.LicenseId == licenseId)
@@ -141,7 +142,7 @@ public sealed class AccessControlOperationsController : ControllerBase
         {
             Id = x.Id, EntityType = "Device", EntityId = x.DeviceId, Action = x.Action.ToString(),
             Status = "Recorded", Summary = x.DeviceName + " | " + x.ChangedFields,
-            UserName = x.UserName, CreatedAt = x.Timestamp
+            DetailsJson = "{}", UserName = x.UserName, CreatedAt = x.Timestamp
         });
         return Ok(items.Concat(deviceItems).OrderByDescending(x => x.CreatedAt).Take(limit));
     }

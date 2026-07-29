@@ -5,11 +5,30 @@ namespace CondotifyAPI.Data.Structure
         public string? Name { get; set; }
     }
 
+    public class UpdateBlockIn
+    {
+        public string? Name { get; set; }
+    }
+
     public class CreateUnitIn
     {
         public Guid BlockId { get; set; }
         public string? Number { get; set; }
         public string? Floor { get; set; }
+    }
+
+    public class UpdateUnitIn : CreateUnitIn
+    {
+    }
+
+    public class UpdateAccessDeviceIn
+    {
+        public string? Name { get; set; }
+        public string? IPAddress { get; set; }
+        public int Port { get; set; }
+        public string? Username { get; set; }
+        public string? Password { get; set; }
+        public bool IsActive { get; set; }
     }
 
     public class CreateResidentIn
@@ -92,6 +111,7 @@ namespace CondotifyAPI.Data.Structure
         public string Name { get; set; } = string.Empty;
         public string IPAddress { get; set; } = string.Empty;
         public int Port { get; set; }
+        public string Username { get; set; } = string.Empty;
         public string Model { get; set; } = string.Empty;
         public string SerialNumber { get; set; } = string.Empty;
         public string MACAddress { get; set; } = string.Empty;

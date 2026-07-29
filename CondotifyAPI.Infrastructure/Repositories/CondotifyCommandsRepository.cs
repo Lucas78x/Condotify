@@ -30,13 +30,17 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
 
     public async Task<UserAccessCreateResult> AddUserAccessAsync(UserAccess user)
     {
+        if (user.EnterpriseId == Guid.Empty ||
+            !await _context.Enterprises.AsNoTracking().AnyAsync(x => x.Id == user.EnterpriseId))
+            return UserAccessCreateResult.InvalidData;
+
         var existentAccount = await _context.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(x =>
                 x.Email == user.Email ||
-                x.CPF == user.CPF ||
-                x.RG == user.RG ||
-                x.PhoneNumber == user.PhoneNumber);
+                (!string.IsNullOrEmpty(user.CPF) && x.CPF == user.CPF) ||
+                (!string.IsNullOrEmpty(user.RG) && x.RG == user.RG) ||
+                (!string.IsNullOrEmpty(user.PhoneNumber) && x.PhoneNumber == user.PhoneNumber));
 
         if (existentAccount != null)
         {

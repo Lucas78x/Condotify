@@ -4,7 +4,7 @@
     {
         public Guid Id { get; private set; }
         public Guid TicketId { get; private set; }
-        public string Action { get; private set; }
+        public string Action { get; private set; } = string.Empty;
         public TicketStatusTypeEnum Status { get; private set; }
         public DateTime Date { get; private set; }
 

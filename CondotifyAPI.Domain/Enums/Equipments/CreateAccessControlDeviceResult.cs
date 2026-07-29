@@ -4,5 +4,6 @@
     SerialInUse,
     MacInUse,
     IPInUse,
-    InvalidData
+    InvalidData,
+    PersistenceFailed
 }

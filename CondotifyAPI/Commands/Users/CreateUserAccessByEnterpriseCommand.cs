@@ -62,8 +62,8 @@ namespace CondotifyAPI.Commands.Users
                      request.BirthDate,
                      request.Type,
                      true,
-                     DateTime.Now,
-                     DateTime.Now,
+                     DateTime.UtcNow,
+                     DateTime.UtcNow,
                      hasher,
                      request.EnterpriseId);
 
@@ -85,35 +85,14 @@ namespace CondotifyAPI.Commands.Users
                 .MaximumLength(50);
 
             RuleFor(x => x.Email)
+                .NotEmpty()
+                .EmailAddress()
+                .MaximumLength(150)
                 .NotEqual(x => x.Password);
 
-            When(x => string.IsNullOrEmpty(x.CPF), () =>
-            {
-                RuleFor(x => x.Email)
-                    .NotEmpty()
-                    .EmailAddress()
-                    .MaximumLength(50);
-            });
-
-            When(x => string.IsNullOrEmpty(x.Email), () =>
-            {
-                RuleFor(x => x.CPF)
-                    .NotEmpty();
-            });
-
-            When(x => string.IsNullOrEmpty(x.RG), () =>
-            {
-                RuleFor(x => x.Email)
-                    .NotEmpty()
-                    .EmailAddress()
-                    .MaximumLength(50);
-            });
-
-            When(x => string.IsNullOrEmpty(x.Email), () =>
-            {
-                RuleFor(x => x.RG)
-                    .NotEmpty();
-            });
+            RuleFor(x => x.Name)
+                .NotEmpty()
+                .MaximumLength(150);
         }
     }
 }

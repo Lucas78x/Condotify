@@ -6,7 +6,7 @@ namespace DigitalWorldOnline.Management.Api.Data;
 public class CreateTicketIn
 {
     public Guid UnitId { get; set; }
-    public string Title { get; set; }
+        public string Title { get; set; } = string.Empty;
     public DateTime ExpiredDate { get; set; }
 
     /// <summary>

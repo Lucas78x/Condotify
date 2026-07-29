@@ -15,7 +15,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.AccessControl;
+using CondotifyAPI.Services.Auditing;
 using CondotifyAPI.Services.Security;
+using CondotifyAPI.Services.RecycleBin;
 
 namespace CondotifyAPI.Controllers;
 
@@ -26,11 +28,13 @@ public class PeopleManagementController : ControllerBase
 {
     private readonly DatabaseContext _context;
     private readonly IPrivateMediaStore _media;
+    private readonly IRecycleBinService _recycleBin;
 
-    public PeopleManagementController(DatabaseContext context, IPrivateMediaStore media)
+    public PeopleManagementController(DatabaseContext context, IPrivateMediaStore media, IRecycleBinService recycleBin)
     {
         _context = context;
         _media = media;
+        _recycleBin = recycleBin;
     }
 
     [HttpGet("units/{unitId:guid}/details")]
@@ -77,6 +81,13 @@ public class PeopleManagementController : ControllerBase
         if (resident == null) return NotFound();
         if (string.IsNullOrWhiteSpace(input.Name)) return BadRequest(new { Errors = "Nome completo e obrigatorio." });
 
+        var before = new
+        {
+            resident.Name, resident.Email, resident.PhoneNumber, resident.CommercialPhone,
+            resident.CPF, resident.RG, resident.BirthDate, resident.Description,
+            resident.NotifyAccess, resident.IsActive, HasPhoto = !string.IsNullOrWhiteSpace(resident.ImgUrl),
+            Relationship = (resident.UnitLinks.FirstOrDefault(x => x.IsPrimary) ?? resident.UnitLinks.FirstOrDefault())?.Relationship
+        };
         resident.Name = input.Name.Trim();
         resident.Email = input.Email?.Trim() ?? string.Empty;
         resident.PhoneNumber = input.PhoneNumber?.Trim() ?? string.Empty;
@@ -118,15 +129,24 @@ public class PeopleManagementController : ControllerBase
                 RequestedBy = User.FindFirstValue("name") ?? User.Identity?.Name ?? "Atualizacao da pessoa",
                 FilterJson = JsonSerializer.Serialize(new { credentialIds }), CreatedAt = DateTime.UtcNow
             });
-            _context.AccessOperationAudits.Add(new AccessOperationAuditDTO
-            {
-                Id = Guid.NewGuid(), LicenseId = licenseId, EntityType = "Resident", EntityId = resident.Id,
-                Action = "ProfileUpdated", Status = "Queued",
-                Summary = $"Cadastro de {resident.Name} atualizado; {credentialIds.Count} credencial(is) enviada(s) para reconciliacao.",
-                DetailsJson = JsonSerializer.Serialize(new { input.Relationship, input.IsActive, HasPhoto = !string.IsNullOrWhiteSpace(resident.ImgUrl) }),
-                UserName = User.FindFirstValue("name") ?? User.Identity?.Name ?? string.Empty, CreatedAt = DateTime.UtcNow
-            });
         }
+        AddManagementAudit(
+            licenseId,
+            "Resident",
+            resident.Id,
+            "Updated",
+            credentialIds.Count > 0
+                ? $"Cadastro de {resident.Name} atualizado; {credentialIds.Count} credencial(is) enviada(s) para reconciliacao."
+                : $"Cadastro de {resident.Name} atualizado.",
+            new { ChangedFields = AuditChangeTracker.GetChangedFieldNames(before, new
+            {
+                resident.Name, resident.Email, resident.PhoneNumber, resident.CommercialPhone,
+                resident.CPF, resident.RG, resident.BirthDate, resident.Description,
+                resident.NotifyAccess, resident.IsActive,
+                HasPhoto = !string.IsNullOrWhiteSpace(resident.ImgUrl),
+                Relationship = input.Relationship
+            }), CredentialReconciliationCount = credentialIds.Count },
+            credentialIds.Count > 0 ? "Queued" : "Success");
         await _context.SaveChangesAsync();
         if (!string.Equals(previousPhoto, resident.ImgUrl, StringComparison.Ordinal))
             await _media.DeleteAsync(licenseId, previousPhoto, HttpContext.RequestAborted);
@@ -173,8 +193,91 @@ public class PeopleManagementController : ControllerBase
                 });
             }
         }
+        AddManagementAudit(licenseId, "Vehicle", vehicle.Id, "Created", $"Veiculo {vehicle.Plate} cadastrado para {resident.Name}.", new { vehicle.Plate, vehicle.Brand, vehicle.Model, vehicle.Color, vehicle.Type, vehicle.TagIdentifier, vehicle.UnitId });
         await _context.SaveChangesAsync();
         return Created(string.Empty, ToVehicle(vehicle, resident.Name));
+    }
+
+    [HttpPatch("residents/{residentId:guid}/vehicles/{vehicleId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManagePeople)]
+    public async Task<IActionResult> UpdateVehicle(Guid licenseId, Guid residentId, Guid vehicleId, [FromBody] UpdateVehicleIn input)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var vehicle = await _context.Vehicles.Include(x => x.Unit).ThenInclude(x => x.Block)
+            .FirstOrDefaultAsync(x => x.Id == vehicleId && x.ResidentId == residentId && x.Unit.Block.LicenseId == licenseId);
+        if (vehicle == null) return NotFound();
+
+        var unitId = input.UnitId == Guid.Empty ? vehicle.UnitId : input.UnitId;
+        if (!await _context.Units.AnyAsync(x => x.Id == unitId && x.Block.LicenseId == licenseId)) return NotFound();
+        var plate = NormalizePlate(input.Plate);
+        if (string.IsNullOrWhiteSpace(plate)) return BadRequest(new { Errors = "Placa do veiculo e obrigatoria." });
+        if (await _context.Vehicles.AnyAsync(x => x.Id != vehicleId && x.UnitId == unitId && x.Plate == plate))
+            return Conflict(new { Errors = "Este veiculo ja esta cadastrado na unidade." });
+
+        var previous = new { vehicle.UnitId, vehicle.Plate, vehicle.Brand, vehicle.Model, vehicle.Color, vehicle.Type, vehicle.TagIdentifier, vehicle.IsActive };
+        var oldTag = vehicle.TagIdentifier;
+        var newTag = input.TagIdentifier?.Trim() ?? string.Empty;
+        if (!string.Equals(oldTag, newTag, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(oldTag))
+        {
+            var oldCredential = await _context.ResidentAccessCredentials.Include(x => x.Devices).FirstOrDefaultAsync(x =>
+                x.ResidentId == residentId && x.CredentialType == AccessCredentialTypeEnum.VehicleTag && x.Identifier == oldTag);
+            if (oldCredential?.Devices.Count > 0)
+                return Conflict(new { Result = "CredentialLinked", Errors = "Remova a TAG dos equipamentos antes de alterar o identificador do veiculo." });
+            if (oldCredential != null) _context.ResidentAccessCredentials.Remove(oldCredential);
+        }
+
+        var now = DateTime.UtcNow;
+        vehicle.UnitId = unitId;
+        vehicle.Plate = plate;
+        vehicle.Brand = input.Brand?.Trim() ?? string.Empty;
+        vehicle.Model = input.Model?.Trim() ?? string.Empty;
+        vehicle.Color = input.Color?.Trim() ?? string.Empty;
+        vehicle.Type = input.Type?.Trim() ?? "Carro";
+        vehicle.TagIdentifier = newTag;
+        vehicle.IsActive = input.IsActive;
+        vehicle.UpdatedAt = now;
+
+        if (!string.IsNullOrWhiteSpace(newTag) && !string.Equals(oldTag, newTag, StringComparison.OrdinalIgnoreCase))
+        {
+            var duplicateTag = await _context.ResidentAccessCredentials.AnyAsync(x =>
+                x.ResidentId == residentId && x.CredentialType == AccessCredentialTypeEnum.VehicleTag && x.Identifier == newTag);
+            if (duplicateTag) return Conflict(new { Result = "DuplicateTag", Errors = "Esta TAG ja esta vinculada a outra credencial da pessoa." });
+            _context.ResidentAccessCredentials.Add(new ResidentAccessCredentialDTO
+            {
+                Id = Guid.NewGuid(), ResidentId = residentId, CredentialType = AccessCredentialTypeEnum.VehicleTag,
+                Identifier = newTag, IsActive = input.IsActive, ValidFrom = now, ValidTo = now.AddYears(10),
+                CreatedAt = now, Devices = new List<ResidentAccessDeviceDTO>()
+            });
+        }
+
+        AddManagementAudit(licenseId, "Vehicle", vehicle.Id, "Updated", $"Veiculo {vehicle.Plate} atualizado.", new { Before = previous, After = new { vehicle.UnitId, vehicle.Plate, vehicle.Brand, vehicle.Model, vehicle.Color, vehicle.Type, vehicle.TagIdentifier, vehicle.IsActive } });
+        await _context.SaveChangesAsync();
+        return Ok(ToVehicle(vehicle));
+    }
+
+    [HttpDelete("residents/{residentId:guid}/vehicles/{vehicleId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManagePeople)]
+    public async Task<IActionResult> DeleteVehicle(Guid licenseId, Guid residentId, Guid vehicleId)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var vehicle = await _context.Vehicles.Include(x => x.Unit).ThenInclude(x => x.Block)
+            .FirstOrDefaultAsync(x => x.Id == vehicleId && x.ResidentId == residentId && x.Unit.Block.LicenseId == licenseId);
+        if (vehicle == null) return NotFound();
+
+        if (!string.IsNullOrWhiteSpace(vehicle.TagIdentifier))
+        {
+            var credential = await _context.ResidentAccessCredentials.Include(x => x.Devices).FirstOrDefaultAsync(x =>
+                x.ResidentId == residentId && x.CredentialType == AccessCredentialTypeEnum.VehicleTag && x.Identifier == vehicle.TagIdentifier);
+            if (credential?.Devices.Count > 0)
+                return Conflict(new { Result = "CredentialLinked", Errors = "Remova a TAG dos equipamentos antes de excluir o veiculo." });
+            if (credential != null) _context.ResidentAccessCredentials.Remove(credential);
+        }
+
+        _recycleBin.CaptureVehicle(licenseId, vehicle, CurrentActor());
+        AddManagementAudit(licenseId, "Vehicle", vehicle.Id, "Trashed", $"Veiculo {vehicle.Plate} movido para a lixeira.", new { vehicle.Plate, vehicle.Brand, vehicle.Model, vehicle.Color, vehicle.Type, vehicle.TagIdentifier, vehicle.UnitId });
+        _context.Vehicles.Remove(vehicle);
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpPatch("residents/{residentId:guid}/vehicles/{vehicleId:guid}/status")]
@@ -193,6 +296,7 @@ public class PeopleManagementController : ControllerBase
                 x.ResidentId == residentId && x.CredentialType == AccessCredentialTypeEnum.VehicleTag && x.Identifier == vehicle.TagIdentifier);
             if (credential != null) credential.IsActive = input.IsActive;
         }
+        AddManagementAudit(licenseId, "Vehicle", vehicle.Id, input.IsActive ? "Activated" : "Deactivated", $"Veiculo {vehicle.Plate} {(input.IsActive ? "ativado" : "desativado")}.", new { vehicle.Plate, vehicle.TagIdentifier, vehicle.IsActive });
         await _context.SaveChangesAsync();
         return Ok(ToVehicle(vehicle));
     }
@@ -221,6 +325,7 @@ public class PeopleManagementController : ControllerBase
             CreatedAt = now, UpdatedAt = now
         };
         _context.RegistrationInvites.Add(invite);
+        AddManagementAudit(licenseId, "RegistrationInvite", invite.Id, "Created", $"Convite de cadastro gerado para {resident.Name}.", new { ResidentId = resident.Id, input.Channel, invite.ExpiresAt });
         await _context.SaveChangesAsync();
         return Created(string.Empty, ToInvite(invite, resident.Name, $"/cadastro/convite/{token}"));
     }
@@ -239,6 +344,37 @@ public class PeopleManagementController : ControllerBase
         return Ok(invites.Select(x => ToInvite(x, x.Resident.Name)));
     }
 
+    [HttpDelete("residents/{residentId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManagePeople)]
+    public async Task<IActionResult> DeleteResident(Guid licenseId, Guid residentId)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var resident = await ResidentQuery(licenseId).FirstOrDefaultAsync(x => x.Id == residentId);
+        if (resident == null) return NotFound();
+        if (resident.AccessCredentials.Count > 0 || resident.Vehicles.Count > 0)
+            return Conflict(new
+            {
+                Result = "ResidentInUse",
+                Errors = $"A pessoa possui {resident.AccessCredentials.Count} credencial(is) e {resident.Vehicles.Count} veiculo(s). Exclua esses vinculos antes de remover o cadastro."
+            });
+
+        var overrides = await _context.AccessRouteResidentOverrides
+            .Where(x => x.ResidentId == resident.Id)
+            .ToListAsync();
+        var link = resident.UnitLinks.FirstOrDefault(x => x.IsPrimary) ?? resident.UnitLinks.FirstOrDefault();
+        _recycleBin.CaptureResident(
+            licenseId,
+            resident,
+            link,
+            resident.RegistrationInvites.ToList(),
+            overrides,
+            CurrentActor());
+        AddManagementAudit(licenseId, "Resident", resident.Id, "Trashed", $"Pessoa {resident.Name} movida para a lixeira.", new { resident.UnitId, resident.AccessType, HasPhoto = !string.IsNullOrWhiteSpace(resident.ImgUrl) });
+        _context.Residents.Remove(resident);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
     private IQueryable<ResidentAccessDTO> ResidentQuery(Guid licenseId) => _context.Residents
         .Include(x => x.Unit).ThenInclude(x => x.Block)
         .Include(x => x.UnitLinks).ThenInclude(x => x.Unit)
@@ -250,6 +386,33 @@ public class PeopleManagementController : ControllerBase
     private async Task<bool> HasLicenseAccessAsync(Guid licenseId) =>
         Guid.TryParse(User.FindFirstValue("enterprise_id"), out var enterpriseId) &&
         await _context.Licenses.AsNoTracking().AnyAsync(x => x.Id == licenseId && x.EnterpriseId == enterpriseId);
+
+    private void AddManagementAudit(
+        Guid licenseId,
+        string entityType,
+        Guid entityId,
+        string action,
+        string summary,
+        object details,
+        string status = "Success")
+    {
+        _context.AccessOperationAudits.Add(new AccessOperationAuditDTO
+        {
+            Id = Guid.NewGuid(),
+            LicenseId = licenseId,
+            EntityType = entityType,
+            EntityId = entityId,
+            Action = action,
+            Status = status,
+            Summary = summary,
+            DetailsJson = JsonSerializer.Serialize(details),
+            UserName = User.FindFirstValue("name") ?? User.Identity?.Name ?? string.Empty,
+            CreatedAt = DateTime.UtcNow
+        });
+    }
+
+    private string CurrentActor() =>
+        User.FindFirstValue("name") ?? User.Identity?.Name ?? "Usuario do portal";
 
     private static PersonSummaryOut ToSummary(ResidentAccessDTO resident, ResidentUnitLinkDTO? link) => new()
     {

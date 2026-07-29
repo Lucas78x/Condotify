@@ -10,5 +10,7 @@ public enum TicketStatusTypeEnum
     Viewed = 2,
     [Description("Expirado")]
     Expired = 3,
+    [Description("Cancelado")]
+    Canceled = 4,
 }
 

@@ -121,6 +121,7 @@ public sealed class AccessAuditOut
     public string Action { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string Summary { get; set; } = string.Empty;
+    public string DetailsJson { get; set; } = "{}";
     public string UserName { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
 }

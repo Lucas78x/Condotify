@@ -20,7 +20,7 @@ public class AmenityBookingValidatorTests
         var now = new DateTime(2026, 7, 18, 10, 0, 0, DateTimeKind.Utc);
         var date = new DateTime(2026, 7, 18, 0, 0, 0, DateTimeKind.Utc);
 
-        var error = AmenityBookingValidator.ValidateWindow(amenity, date, now);
+        var error = AmenityBookingValidator.ValidateWindow(amenity, date, new TimeSpan(8, 0, 0), now);
 
         Assert.NotNull(error);
     }
@@ -32,7 +32,7 @@ public class AmenityBookingValidatorTests
         var now = new DateTime(2026, 7, 18, 10, 0, 0, DateTimeKind.Utc);
         var date = new DateTime(2026, 7, 20, 0, 0, 0, DateTimeKind.Utc);
 
-        var error = AmenityBookingValidator.ValidateWindow(amenity, date, now);
+        var error = AmenityBookingValidator.ValidateWindow(amenity, date, new TimeSpan(10, 0, 0), now);
 
         Assert.Null(error);
     }
@@ -44,7 +44,7 @@ public class AmenityBookingValidatorTests
         var now = new DateTime(2026, 7, 18, 10, 0, 0, DateTimeKind.Utc);
         var date = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        var error = AmenityBookingValidator.ValidateWindow(amenity, date, now);
+        var error = AmenityBookingValidator.ValidateWindow(amenity, date, new TimeSpan(10, 0, 0), now);
 
         Assert.NotNull(error);
     }
@@ -56,7 +56,7 @@ public class AmenityBookingValidatorTests
         var now = new DateTime(2026, 7, 18, 10, 0, 0, DateTimeKind.Utc);
         var date = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
 
-        var error = AmenityBookingValidator.ValidateWindow(amenity, date, now);
+        var error = AmenityBookingValidator.ValidateWindow(amenity, date, new TimeSpan(10, 0, 0), now);
 
         Assert.NotNull(error);
     }
@@ -103,5 +103,42 @@ public class AmenityBookingValidatorTests
         var slotStart = new TimeSpan(8, 0, 0);
 
         Assert.True(AmenityBookingValidator.CanCancel(amenity, date, slotStart, now));
+    }
+
+    [Fact]
+    public void ValidateWindow_ShouldUseSlotStartInsteadOfEndOfDay()
+    {
+        var amenity = Amenity(minAdvanceHours: 12);
+        var now = new DateTime(2026, 7, 18, 21, 0, 0, DateTimeKind.Utc);
+        var date = new DateTime(2026, 7, 19, 0, 0, 0, DateTimeKind.Utc);
+
+        var error = AmenityBookingValidator.ValidateWindow(amenity, date, new TimeSpan(8, 0, 0), now);
+
+        Assert.NotNull(error);
+    }
+
+    [Fact]
+    public void HasOverlappingSlots_ShouldIgnoreAdjacentAndInactiveSlots()
+    {
+        var slots = new[]
+        {
+            new AmenityScheduleSlotDTO { DayOfWeek = DayOfWeek.Monday, StartTime = new(8, 0, 0), EndTime = new(10, 0, 0), Active = true },
+            new AmenityScheduleSlotDTO { DayOfWeek = DayOfWeek.Monday, StartTime = new(10, 0, 0), EndTime = new(12, 0, 0), Active = true },
+            new AmenityScheduleSlotDTO { DayOfWeek = DayOfWeek.Monday, StartTime = new(9, 0, 0), EndTime = new(11, 0, 0), Active = false }
+        };
+
+        Assert.False(AmenityBookingValidator.HasOverlappingSlots(slots));
+    }
+
+    [Fact]
+    public void HasOverlappingSlots_ShouldRejectActiveOverlapOnSameDay()
+    {
+        var slots = new[]
+        {
+            new AmenityScheduleSlotDTO { DayOfWeek = DayOfWeek.Monday, StartTime = new(8, 0, 0), EndTime = new(10, 0, 0), Active = true },
+            new AmenityScheduleSlotDTO { DayOfWeek = DayOfWeek.Monday, StartTime = new(9, 30, 0), EndTime = new(11, 0, 0), Active = true }
+        };
+
+        Assert.True(AmenityBookingValidator.HasOverlappingSlots(slots));
     }
 }

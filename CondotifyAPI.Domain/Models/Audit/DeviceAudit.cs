@@ -20,7 +20,7 @@
             ChangedFields = changedFields;
             UserId = userId;
             UserName = userName;
-            Timestamp = DateTime.Now;
+            Timestamp = DateTime.UtcNow;
         }
 
         public static DeviceAudit Create(string ChangedFields, Guid userId, string userName, ActionTypeEnum action = ActionTypeEnum.Create)
@@ -33,7 +33,7 @@
 
             Action = action;
             ChangedFields = changedFields;
-            Timestamp = DateTime.Now;
+            Timestamp = DateTime.UtcNow;
         }
     }
 }

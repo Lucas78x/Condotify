@@ -57,8 +57,8 @@ public class CreateTicketCommand : IRequest<CreateTicketResultModel>
                 request.LicenseId,
                 request.IsSecondCopy,
                 request.OriginalTicketId,
-                DateTime.Now,
-                DateTime.Now);
+                DateTime.UtcNow,
+                DateTime.UtcNow);
 
             var result = await _repository.AddTicketAsync(ticket);
 
@@ -84,7 +84,7 @@ public class CreateTicketCommand : IRequest<CreateTicketResultModel>
                 .MaximumLength(100);
 
             RuleFor(x => x.ExpiredDate)
-                .GreaterThan(DateTime.Now);
+                .GreaterThan(DateTime.UtcNow);
 
             When(x => x.IsSecondCopy, () =>
             {

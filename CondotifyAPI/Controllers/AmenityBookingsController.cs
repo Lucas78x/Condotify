@@ -42,8 +42,58 @@ public sealed class AmenityBookingsController : ControllerBase
         return Ok(bookings.Select(ToOut));
     }
 
+    [HttpGet("~/api/access/licenses/{licenseId:guid}/amenity-bookings")]
+    public async Task<IActionResult> GetLicenseBookings(
+        Guid licenseId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] Guid? amenityId,
+        [FromQuery] string? status,
+        [FromQuery] string? search)
+    {
+        if (!await HasLicenseAccessAsync(licenseId))
+            return NotFound();
+
+        var rangeStart = AsUtcDate(from ?? DateTime.UtcNow.AddMonths(-1));
+        var rangeEnd = AsUtcDate(to ?? DateTime.UtcNow.AddMonths(2));
+        if (rangeEnd < rangeStart || rangeEnd > rangeStart.AddYears(1))
+            return BadRequest(new { Result = "InvalidPeriod", Errors = "Informe um periodo valido de ate 12 meses." });
+
+        var query = BookingQuery(licenseId, amenityId)
+            .AsNoTracking()
+            .Where(x => x.Date >= rangeStart && x.Date <= rangeEnd);
+
+        if (!string.IsNullOrWhiteSpace(status) &&
+            Enum.TryParse<AmenityBookingStatusEnum>(status, true, out var parsedStatus))
+        {
+            query = query.Where(x => x.Status == parsedStatus);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x =>
+                EF.Functions.ILike(x.Amenity.Name, $"%{term}%") ||
+                EF.Functions.ILike(x.Unit.Number, $"%{term}%") ||
+                EF.Functions.ILike(x.Unit.Block.Name, $"%{term}%") ||
+                (x.Resident != null && EF.Functions.ILike(x.Resident.Name, $"%{term}%")) ||
+                EF.Functions.ILike(x.Notes, $"%{term}%"));
+        }
+
+        var bookings = await query
+            .OrderBy(x => x.Date)
+            .ThenBy(x => x.Slot.StartTime)
+            .ToListAsync();
+
+        return Ok(bookings.Select(ToOut));
+    }
+
     [HttpGet("availability")]
-    public async Task<IActionResult> GetAvailability(Guid licenseId, Guid amenityId, [FromQuery] DateTime date)
+    public async Task<IActionResult> GetAvailability(
+        Guid licenseId,
+        Guid amenityId,
+        [FromQuery] DateTime date,
+        [FromQuery] Guid? excludeBookingId)
     {
         if (!await HasLicenseAccessAsync(licenseId))
             return NotFound();
@@ -71,6 +121,7 @@ public sealed class AmenityBookingsController : ControllerBase
             .AsNoTracking()
             .Include(x => x.Unit)
             .Where(x => x.AmenityId == amenityId && x.Date == day &&
+                (!excludeBookingId.HasValue || x.Id != excludeBookingId.Value) &&
                 (x.Status == AmenityBookingStatusEnum.Pending || x.Status == AmenityBookingStatusEnum.Confirmed))
             .ToListAsync();
 
@@ -91,6 +142,7 @@ public sealed class AmenityBookingsController : ControllerBase
     }
 
     [HttpPost]
+    [RequireLicensePermission(LicensePermissionEnum.ManageBookings)]
     public async Task<IActionResult> CreateBooking(Guid licenseId, Guid amenityId, [FromBody] CreateAmenityBookingIn input)
     {
         if (!await HasLicenseAccessAsync(licenseId))
@@ -111,6 +163,9 @@ public sealed class AmenityBookingsController : ControllerBase
         if (!unitExists)
             return BadRequest(new { Result = "InvalidUnit", Errors = "A unidade informada nao pertence a esta licenca." });
 
+        if (!await ResidentBelongsToUnitAsync(input.ResidentId, input.UnitId))
+            return BadRequest(new { Result = "InvalidResident", Errors = "O morador informado nao pertence a unidade selecionada." });
+
         var bookingDate = AsUtcDate(input.Date);
 
         var slot = amenity.ScheduleSlots.FirstOrDefault(x => x.Id == input.SlotId && x.Active);
@@ -119,7 +174,7 @@ public sealed class AmenityBookingsController : ControllerBase
 
         var now = DateTime.UtcNow;
 
-        var windowError = AmenityBookingValidator.ValidateWindow(amenity, bookingDate, now);
+        var windowError = AmenityBookingValidator.ValidateWindow(amenity, bookingDate, slot.StartTime, now);
         if (windowError is not null)
             return BadRequest(new { Result = "OutsideBookingWindow", Errors = windowError });
 
@@ -181,6 +236,100 @@ public sealed class AmenityBookingsController : ControllerBase
         return Created(string.Empty, ToOut(created));
     }
 
+    [HttpPut("{bookingId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageBookings)]
+    public async Task<IActionResult> UpdateBooking(
+        Guid licenseId,
+        Guid amenityId,
+        Guid bookingId,
+        [FromBody] CreateAmenityBookingIn input)
+    {
+        if (!await HasLicenseAccessAsync(licenseId))
+            return NotFound();
+
+        var amenity = await _context.Amenities
+            .Include(x => x.ScheduleSlots)
+            .Include(x => x.Blackouts)
+            .FirstOrDefaultAsync(x => x.Id == amenityId && x.LicenseId == licenseId);
+        var booking = await _context.AmenityBookings
+            .FirstOrDefaultAsync(x => x.Id == bookingId && x.AmenityId == amenityId && x.LicenseId == licenseId);
+
+        if (amenity is null || booking is null)
+            return NotFound();
+
+        if (booking.Status is AmenityBookingStatusEnum.Cancelled or AmenityBookingStatusEnum.Rejected or AmenityBookingStatusEnum.Completed)
+            return Conflict(new { Result = "BookingClosed", Errors = "Agendamentos encerrados nao podem ser editados." });
+
+        if (!amenity.Active)
+            return BadRequest(new { Result = "AmenityInactive", Errors = "Este local nao esta disponivel para agendamento." });
+
+        var unitExists = await _context.Units.AsNoTracking()
+            .AnyAsync(x => x.Id == input.UnitId && x.Block.LicenseId == licenseId);
+        if (!unitExists)
+            return BadRequest(new { Result = "InvalidUnit", Errors = "A unidade informada nao pertence a esta licenca." });
+
+        if (!await ResidentBelongsToUnitAsync(input.ResidentId, input.UnitId))
+            return BadRequest(new { Result = "InvalidResident", Errors = "O morador informado nao pertence a unidade selecionada." });
+
+        var bookingDate = AsUtcDate(input.Date);
+        var slot = amenity.ScheduleSlots.FirstOrDefault(x => x.Id == input.SlotId && x.Active);
+        if (slot is null || slot.DayOfWeek != bookingDate.DayOfWeek)
+            return BadRequest(new { Result = "InvalidSlot", Errors = "O horario selecionado nao existe para este local nesta data." });
+
+        var now = DateTime.UtcNow;
+        var windowError = AmenityBookingValidator.ValidateWindow(amenity, bookingDate, slot.StartTime, now);
+        if (windowError is not null)
+            return BadRequest(new { Result = "OutsideBookingWindow", Errors = windowError });
+
+        if (AmenityBookingValidator.IsDateBlacked(amenity.Blackouts, bookingDate))
+            return BadRequest(new { Result = "DateBlacked", Errors = "Esta data nao esta disponivel para este local." });
+
+        var monthStart = new DateTime(bookingDate.Year, bookingDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var monthEnd = monthStart.AddMonths(1);
+        var existingThisMonth = await _context.AmenityBookings
+            .AsNoTracking()
+            .CountAsync(x => x.Id != bookingId && x.AmenityId == amenityId && x.UnitId == input.UnitId &&
+                x.Date >= monthStart && x.Date < monthEnd &&
+                (x.Status == AmenityBookingStatusEnum.Pending || x.Status == AmenityBookingStatusEnum.Confirmed));
+        if (AmenityBookingValidator.HasReachedMonthlyLimit(amenity.MonthlyLimitPerUnit, existingThisMonth))
+            return BadRequest(new { Result = "MonthlyLimitReached", Errors = "Esta unidade ja atingiu o limite mensal de agendamentos para este local." });
+
+        if (amenity.RequiresTermsAcceptance && booking.TermsAcceptedAt is null && !input.TermsAccepted)
+            return BadRequest(new { Result = "TermsNotAccepted", Errors = "E necessario aceitar o termo de uso para agendar este local." });
+
+        var slotTaken = await _context.AmenityBookings
+            .AsNoTracking()
+            .AnyAsync(x => x.Id != bookingId && x.AmenityId == amenityId && x.SlotId == input.SlotId && x.Date == bookingDate &&
+                (x.Status == AmenityBookingStatusEnum.Pending || x.Status == AmenityBookingStatusEnum.Confirmed));
+        if (slotTaken)
+            return Conflict(new { Result = "SlotTaken", Errors = "Este horario ja foi reservado para esta data." });
+
+        var scheduleChanged = booking.Date != bookingDate ||
+                              booking.SlotId != input.SlotId ||
+                              booking.UnitId != input.UnitId;
+
+        booking.UnitId = input.UnitId;
+        booking.ResidentId = input.ResidentId;
+        booking.Date = bookingDate;
+        booking.SlotId = input.SlotId;
+        booking.Notes = input.Notes?.Trim() ?? string.Empty;
+        booking.TermsAcceptedAt ??= amenity.RequiresTermsAcceptance ? now : null;
+        if (scheduleChanged && amenity.RequiresApproval)
+            booking.Status = AmenityBookingStatusEnum.Pending;
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            return Conflict(new { Result = "SlotTaken", Errors = "Este horario ja foi reservado para esta data." });
+        }
+
+        var updated = await BookingQuery(licenseId, amenityId).AsNoTracking().FirstAsync(x => x.Id == bookingId);
+        return Ok(ToOut(updated));
+    }
+
     [HttpPut("{bookingId:guid}/approve")]
     [RequireLicensePermission(LicensePermissionEnum.ManageBookings)]
     public async Task<IActionResult> ApproveBooking(Guid licenseId, Guid amenityId, Guid bookingId)
@@ -230,6 +379,7 @@ public sealed class AmenityBookingsController : ControllerBase
     }
 
     [HttpDelete("{bookingId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageBookings)]
     public async Task<IActionResult> CancelBooking(Guid licenseId, Guid amenityId, Guid bookingId, [FromBody] CancelAmenityBookingIn input)
     {
         if (!await HasLicenseAccessAsync(licenseId))
@@ -263,15 +413,25 @@ public sealed class AmenityBookingsController : ControllerBase
         return NoContent();
     }
 
-    private IQueryable<AmenityBookingDTO> BookingQuery(Guid licenseId, Guid amenityId)
+    private IQueryable<AmenityBookingDTO> BookingQuery(Guid licenseId, Guid? amenityId = null)
     {
-        return _context.AmenityBookings
+        var query = _context.AmenityBookings
             .Include(x => x.Unit).ThenInclude(x => x.Block)
             .Include(x => x.Resident)
             .Include(x => x.Slot)
             .Include(x => x.Amenity)
-            .Where(x => x.LicenseId == licenseId && x.AmenityId == amenityId);
+            .Where(x => x.LicenseId == licenseId);
+
+        return amenityId.HasValue
+            ? query.Where(x => x.AmenityId == amenityId.Value)
+            : query;
     }
+
+    private async Task<bool> ResidentBelongsToUnitAsync(Guid? residentId, Guid unitId) =>
+        !residentId.HasValue ||
+        await _context.Residents.AsNoTracking()
+            .AnyAsync(x => x.Id == residentId.Value &&
+                (x.UnitId == unitId || x.UnitLinks.Any(link => link.UnitId == unitId && link.IsActive)));
 
     private static bool IsUniqueViolation(DbUpdateException ex) =>
         ex.InnerException is Npgsql.PostgresException { SqlState: "23505" };

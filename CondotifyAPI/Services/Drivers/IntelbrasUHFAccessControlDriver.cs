@@ -817,42 +817,42 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
     #region TODO: Será refeito no User
     public class AccessUser
     {
-        public string UserID { get; set; }
-        public string UserName { get; set; }
+        public string UserID { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
         public int UserType { get; set; }
         public bool IsFirstEnter { get; set; }
         public int UserStatus { get; set; }
-        public string CitizenIDNo { get; set; }
-        public List<int> SpecialDaysSchedule { get; set; }
-        public string Password { get; set; }
-        public List<int> Doors { get; set; }
-        public List<int> TimeSections { get; set; }
+        public string CitizenIDNo { get; set; } = string.Empty;
+        public List<int> SpecialDaysSchedule { get; set; } = [];
+        public string Password { get; set; } = string.Empty;
+        public List<int> Doors { get; set; } = [];
+        public List<int> TimeSections { get; set; } = [];
         public DateTime ValidFrom { get; set; }
         public DateTime ValidTo { get; set; }
     }
     public class AccessUserCreate
     {
-        public string UserID { get; set; }
-        public string UserName { get; set; }
+        public string UserID { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
         public int UserType { get; set; }
         public int UseTime { get; set; }
         public int UserStatus { get; set; }
         public int Authority { get; set; }
-        public int[] Doors { get; set; }
-        public int[] TimeSections { get; set; }
-        public int[] SpecialDaysSchedule { get; set; }
+        public int[] Doors { get; set; } = [];
+        public int[] TimeSections { get; set; } = [];
+        public int[] SpecialDaysSchedule { get; set; } = [];
         public string? Password { get; set; }
-        public string ValidFrom { get; set; }
-        public string ValidTo { get; set; }
+        public string ValidFrom { get; set; } = string.Empty;
+        public string ValidTo { get; set; } = string.Empty;
     }
 
     public class AccessUserUpdate
     {
-        public string UserID { get; set; }
+        public string UserID { get; set; } = string.Empty;
         public string? UserName { get; set; }
         public int? UserType { get; set; }
-        public int[] Doors { get; set; }
-        public int[] TimeSections { get; set; }
+        public int[] Doors { get; set; } = [];
+        public int[] TimeSections { get; set; } = [];
         public int? Authority { get; set; }
         public string? Password { get; set; }
         public string? ValidFrom { get; set; }
@@ -861,7 +861,7 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
 
     public class UserListWrapper<T>
     {
-        public List<T> UserList { get; set; }
+        public List<T> UserList { get; set; } = [];
     }
     public class StartFindResponse
     {
@@ -872,20 +872,20 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
 
     public class DoFindResponse
     {
-        public List<AccessUser> Info { get; set; }
+        public List<AccessUser> Info { get; set; } = [];
     }
 
     public class AccessCard
     {
-        public string UserID { get; set; }
-        public string CardNo { get; set; }
+        public string UserID { get; set; } = string.Empty;
+        public string CardNo { get; set; } = string.Empty;
         public int CardType { get; set; }
         public int CardStatus { get; set; }
     }
 
     public class CardListWrapper
     {
-        public List<AccessCard> CardList { get; set; }
+        public List<AccessCard> CardList { get; set; } = [];
     }
 
     private static string Address(string ip, int port) => port is <= 0 or 80 ? ip : $"{ip}:{port}";

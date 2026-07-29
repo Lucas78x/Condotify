@@ -7,16 +7,16 @@ namespace CondotifyAPI.Domain.Enums.Resident
         public Guid Id { get; set; }
 
         public Guid ResidentAccessCredentialId { get; set; }
-        public ResidentAccessCredentialDTO Credential { get; set; }
+        public ResidentAccessCredentialDTO Credential { get; set; } = null!;
 
         public Guid DeviceId { get; set; }
         public DeviceTypeEnum DeviceType { get; set; } 
-        public CondotifyAPI.Domain.DTO.Equipments.AccessControlDeviceDTO Device { get; set; }
+        public CondotifyAPI.Domain.DTO.Equipments.AccessControlDeviceDTO Device { get; set; } = null!;
 
-        public string ExternalUserId { get; set; }         
-        public string ExternalCredentialId { get; set; }   
+        public string ExternalUserId { get; set; } = string.Empty;
+        public string ExternalCredentialId { get; set; } = string.Empty;
 
-        public string ExtraJson { get; set; }
+        public string ExtraJson { get; set; } = "{}";
 
         public bool IsSynced { get; set; }
         public DateTime LastSyncAt { get; set; }

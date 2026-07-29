@@ -1,5 +1,8 @@
 using CondotifyAPI.Services.Security;
+using DigitalWorldOnline.Management.Api.Controllers;
 using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Mvc;
+using DigitalWorldOnline.Management.Api.Data;
 
 namespace CondotifyAPI.Tests;
 
@@ -12,6 +15,83 @@ public sealed class SecurityServicesCollection
 [Collection(SecurityServicesCollection.Name)]
 public sealed class SecurityServicesTests
 {
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", "")]
+    [InlineData("configured", null)]
+    [InlineData(null, "supplied")]
+    [InlineData("configured", "different")]
+    public void ApiKey_ShouldRejectMissingOrDifferentValues(string? configured, string? supplied)
+    {
+        Assert.False(ApiKeySecurity.IsValid(configured, supplied));
+    }
+
+    [Fact]
+    public void ApiKey_ShouldAcceptOnlyTheExactConfiguredValue()
+    {
+        Assert.True(ApiKeySecurity.IsValid("private-integration-key", "private-integration-key"));
+        Assert.False(ApiKeySecurity.IsValid("private-integration-key", "Private-Integration-Key"));
+        Assert.False(ApiKeySecurity.IsValid(" private-integration-key", "private-integration-key"));
+    }
+
+    [Fact]
+    public void UserAccessController_ShouldBeDiscoverableAsATopLevelApiController()
+    {
+        var type = typeof(UserAccessController);
+
+        Assert.False(type.IsNested);
+        Assert.True(type.IsPublic);
+        Assert.NotNull(type.GetCustomAttributes(typeof(ApiControllerAttribute), inherit: true).SingleOrDefault());
+    }
+
+    [Fact]
+    public void UserCreationInput_ShouldLetValidatorHandleInvalidEnterpriseId()
+    {
+        var input = new CreateUserAccessByEnterpriseIn
+        {
+            EnterpriseId = "not-a-guid",
+            Name = "Test",
+            Email = "test@example.com",
+            Password = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("secret123"))
+        };
+
+        var command = input.ToCommand();
+
+        Assert.Equal(Guid.Empty, command.EnterpriseId);
+    }
+
+    [Fact]
+    public void UserCreationConverters_ShouldNotSwapCpfAndRg()
+    {
+        var input = new CreateUserAccessIn
+        {
+            EnterpriseId = Guid.NewGuid().ToString(),
+            Name = "Test",
+            Email = "test@example.com",
+            Password = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("sênha123")),
+            CPF = "12345678901",
+            RG = "11223344"
+        };
+        var byEnterprise = new CreateUserAccessByEnterpriseIn
+        {
+            EnterpriseId = Guid.NewGuid().ToString(),
+            Name = input.Name,
+            Email = input.Email,
+            Password = input.Password,
+            CPF = input.CPF,
+            RG = input.RG
+        };
+
+        var command = input.ToCommand();
+        var enterpriseCommand = byEnterprise.ToCommand();
+
+        Assert.Equal("12345678901", command.CPF);
+        Assert.Equal("11223344", command.RG);
+        Assert.Equal("sênha123", command.Password);
+        Assert.Equal("12345678901", enterpriseCommand.CPF);
+        Assert.Equal("11223344", enterpriseCommand.RG);
+    }
+
     [Fact]
     public void Totp_ShouldMatchRfc6238VectorAndAcceptAdjacentWindow()
     {
@@ -63,6 +143,39 @@ public sealed class SecurityServicesTests
 
             await store.DeleteAsync(licenseId, reference);
             Assert.False(File.Exists(encryptedPath));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CONDOTIFY_MEDIA_SECRET", previousSecret);
+            Environment.SetEnvironmentVariable("CONDOTIFY_PRIVATE_MEDIA_PATH", previousPath);
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task PrivateMedia_ShouldRejectTamperedCiphertextWithoutThrowing()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"condotify-media-{Guid.NewGuid():N}");
+        var previousSecret = Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_SECRET");
+        var previousPath = Environment.GetEnvironmentVariable("CONDOTIFY_PRIVATE_MEDIA_PATH");
+        try
+        {
+            Environment.SetEnvironmentVariable("CONDOTIFY_MEDIA_SECRET", "test-media-secret-with-enough-entropy");
+            Environment.SetEnvironmentVariable("CONDOTIFY_PRIVATE_MEDIA_PATH", root);
+            var store = new PrivateMediaStore(new ConfigurationBuilder().Build());
+            var licenseId = Guid.NewGuid();
+            var reference = await store.StoreDataUriAsync(
+                licenseId,
+                "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB");
+            var mediaId = Guid.Parse(reference.Split('/').Last());
+            var encryptedPath = Path.Combine(root, licenseId.ToString("N"), $"{mediaId:N}.bin");
+            var payload = await File.ReadAllBytesAsync(encryptedPath);
+            payload[^1] ^= 0xFF;
+            await File.WriteAllBytesAsync(encryptedPath, payload);
+
+            var result = await store.ReadAsync(licenseId, mediaId);
+
+            Assert.Null(result);
         }
         finally
         {

@@ -6,12 +6,12 @@ namespace CondotifyAPI.Domain.DTO.Audit
     {
         public Guid Id { get; set; } 
         public ActionTypeEnum Action { get; set; } 
-        public string ChangedFields { get; set; } 
+        public string ChangedFields { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; }
         public Guid UserId { get; set; }
-        public string UserName { get; set; }
+        public string UserName { get; set; } = string.Empty;
 
         public Guid DeviceId { get; set; }
-        public AccessControlDeviceDTO Device { get; set; }
+        public AccessControlDeviceDTO Device { get; set; } = null!;
     }
 }

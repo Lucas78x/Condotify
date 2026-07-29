@@ -121,6 +121,11 @@ public class CreateVehicleIn
     public string? TagIdentifier { get; set; }
 }
 
+public class UpdateVehicleIn : CreateVehicleIn
+{
+    public bool IsActive { get; set; } = true;
+}
+
 public class CreateRegistrationInviteIn
 {
     public string? Contact { get; set; }

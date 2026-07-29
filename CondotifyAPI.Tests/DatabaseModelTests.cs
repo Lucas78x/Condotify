@@ -10,6 +10,8 @@ using CondotifyAPI.Domain.DTO.Vehicle;
 using CondotifyAPI.Domain.DTO.Invitation;
 using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.DTO.Amenities;
+using CondotifyAPI.Domain.DTO.RecycleBin;
+using CondotifyAPI.Domain.DTO.Backup;
 using CondotifyAPI.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -84,6 +86,11 @@ namespace CondotifyAPI.Tests
             Assert.True(HasUniqueIndex(block!, nameof(BlockDTO.LicenseId), nameof(BlockDTO.Name)));
             Assert.True(HasUniqueIndex(unit!, nameof(UnitDTO.BlockId), nameof(UnitDTO.Number)));
             Assert.True(HasUniqueIndex(resident!, nameof(ResidentAccessDTO.UnitId), nameof(ResidentAccessDTO.CPF)));
+            var residentCpfIndex = resident!.GetIndexes().Single(x =>
+                x.IsUnique &&
+                x.Properties.Select(p => p.Name).SequenceEqual(
+                    [nameof(ResidentAccessDTO.UnitId), nameof(ResidentAccessDTO.CPF)]));
+            Assert.Equal("\"CPF\" <> ''", residentCpfIndex.GetFilter());
         }
 
         [Fact]
@@ -101,6 +108,62 @@ namespace CondotifyAPI.Tests
             Assert.True(HasUniqueIndex(vehicle!, nameof(VehicleDTO.UnitId), nameof(VehicleDTO.Plate)));
             Assert.True(HasUniqueIndex(invite!, nameof(RegistrationInviteDTO.TokenHash)));
             Assert.True(HasIndex(invite!, nameof(RegistrationInviteDTO.LicenseId), nameof(RegistrationInviteDTO.Status), nameof(RegistrationInviteDTO.SentAt)));
+        }
+
+        [Fact]
+        public void RecycleBin_ShouldEncryptSnapshotsAndKeepRetentionIndexes()
+        {
+            using var context = CreateContext();
+            var entity = context.Model.FindEntityType(typeof(RecycleBinItemDTO));
+
+            Assert.NotNull(entity);
+            Assert.True(HasIndex(
+                entity!,
+                nameof(RecycleBinItemDTO.LicenseId),
+                nameof(RecycleBinItemDTO.RestoredAt),
+                nameof(RecycleBinItemDTO.ExpiresAt)));
+            Assert.True(HasIndex(
+                entity!,
+                nameof(RecycleBinItemDTO.LicenseId),
+                nameof(RecycleBinItemDTO.EntityType),
+                nameof(RecycleBinItemDTO.EntityId)));
+
+            var property = entity!.FindProperty(nameof(RecycleBinItemDTO.SnapshotJson));
+            var converter = property!.GetValueConverter();
+            Assert.NotNull(converter);
+            const string snapshot = """{"password":"secret-value","name":"Portaria"}""";
+            var protectedValue = Assert.IsType<string>(converter!.ConvertToProvider(snapshot));
+
+            Assert.StartsWith("enc:v1:", protectedValue, StringComparison.Ordinal);
+            Assert.DoesNotContain("secret-value", protectedValue, StringComparison.Ordinal);
+            Assert.Equal(snapshot, converter.ConvertFromProvider(protectedValue));
+        }
+
+        [Fact]
+        public void ConfigurationBackups_ShouldEncryptPayloadAndVersionPerLicense()
+        {
+            using var context = CreateContext();
+            var entity = context.Model.FindEntityType(typeof(ConfigurationBackupDTO));
+
+            Assert.NotNull(entity);
+            Assert.True(HasUniqueIndex(
+                entity!,
+                nameof(ConfigurationBackupDTO.LicenseId),
+                nameof(ConfigurationBackupDTO.Version)));
+            Assert.True(HasIndex(
+                entity!,
+                nameof(ConfigurationBackupDTO.LicenseId),
+                nameof(ConfigurationBackupDTO.CreatedAt)));
+
+            var property = entity!.FindProperty(nameof(ConfigurationBackupDTO.PayloadJson));
+            var converter = property!.GetValueConverter();
+            Assert.NotNull(converter);
+            const string payload = """{"devices":[{"password":"terminal-secret"}]}""";
+            var protectedValue = Assert.IsType<string>(converter!.ConvertToProvider(payload));
+
+            Assert.StartsWith("enc:v1:", protectedValue, StringComparison.Ordinal);
+            Assert.DoesNotContain("terminal-secret", protectedValue, StringComparison.Ordinal);
+            Assert.Equal(payload, converter.ConvertFromProvider(protectedValue));
         }
 
         [Fact]

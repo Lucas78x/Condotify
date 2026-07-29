@@ -5,6 +5,7 @@ using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.CFTV;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using CondotifyAPI.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -15,17 +16,14 @@ public class CftvAccessController : ControllerBase
     private readonly ISender _sender;
     private readonly ICFTVService _cftvService;
     private readonly ILicenseAuthorizationService _authorization;
-    private readonly string _apiKey;
+    private readonly string? _apiKey;
 
     public CftvAccessController(ISender sender, ICFTVService cftvService, ILicenseAuthorizationService authorization)
     {
         _sender = sender;
         _cftvService = cftvService;
         _authorization = authorization;
-        _apiKey = Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY")!;
-#if DEBUG
-        _apiKey = "1";
-#endif
+        _apiKey = ApiKeySecurity.GetConfiguredKey();
     }
 
     [HttpPost("by-license")]
@@ -33,7 +31,7 @@ public class CftvAccessController : ControllerBase
         [FromHeader(Name = "X-API-Key")] string apiKey,
         [FromBody] CreateCftvDeviceByLicenseIn cftv)
     {
-        if (apiKey != _apiKey) return Unauthorized();
+        if (!ApiKeySecurity.IsValid(_apiKey, apiKey)) return Unauthorized();
 
         if (!Guid.TryParse(cftv.LicenseId, out var licenseId))
             return BadRequest(new { Result = "InvalidRequest", Errors = "A licenca informada e invalida." });
@@ -48,6 +46,14 @@ public class CftvAccessController : ControllerBase
             return BadRequest(new { Result = "InvalidRequest", Errors = validator.Errors.Select(e => e.ErrorMessage) });
 
         var result = await _sender.Send(command);
+        if (result is null)
+        {
+            return Conflict(new CreateCftvDeviceByLicenseOut
+            {
+                Result = CreateAccessControlDeviceResult.PersistenceFailed,
+                Errors = "Não foi possível persistir a câmera ou o gravador."
+            });
+        }
 
         return Created("", new CreateCftvDeviceByLicenseOut
         {
@@ -61,7 +67,7 @@ public class CftvAccessController : ControllerBase
         [FromHeader(Name = "X-API-Key")] string apiKey,
         [FromBody] TestCftvConnectionIn cftv)
     {
-        if (string.IsNullOrWhiteSpace(apiKey) || apiKey != _apiKey)
+        if (!ApiKeySecurity.IsValid(_apiKey, apiKey))
             return Unauthorized();
 
         if (!Guid.TryParse(cftv.LicenseId, out var licenseId))
@@ -87,8 +93,8 @@ public class CftvAccessController : ControllerBase
                         cftv.UserName,
                         cftv.Password,
                         cftv.IpAddress,
-                        cftv.HTTPPort,
-                        cftv.RTSPPort,
+                        string.IsNullOrWhiteSpace(cftv.HTTPPort) ? "80" : cftv.HTTPPort,
+                        string.IsNullOrWhiteSpace(cftv.RTSPPort) ? "554" : cftv.RTSPPort,
                         cftv.IpType,
                         ScreenProportionEnum.Widescreen,
                         cftv.Mark,

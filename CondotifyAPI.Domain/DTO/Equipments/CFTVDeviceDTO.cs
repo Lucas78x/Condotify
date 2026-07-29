@@ -7,13 +7,13 @@ namespace CondotifyAPI.Domain.DTO.Equipments
     {
         public Guid Id { get; set; }
 
-        public string Name { get; set; }
-        public string Username { get; set; }
-        public string Password { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
 
-        public string IpAddress { get; set; }
-        public string HTTPPort { get; set; }
-        public string RTSPPort { get; set; }
+        public string IpAddress { get; set; } = string.Empty;
+        public string HTTPPort { get; set; } = "80";
+        public string RTSPPort { get; set; } = "554";
 
         public IpTypeEnum IpType { get; set; }
         public ScreenProportionEnum Proportion { get; set; }
@@ -23,10 +23,10 @@ namespace CondotifyAPI.Domain.DTO.Equipments
 
         public int MaxChannels { get; set; }
 
-        public ICollection<CFTVChannelDTO> Channels { get; set; }
+        public ICollection<CFTVChannelDTO> Channels { get; set; } = [];
 
         // Reference Owner
         public Guid LicenseId { get; set; }
-        public LicenseDTO License { get; set; }
+        public LicenseDTO License { get; set; } = null!;
     }
 }

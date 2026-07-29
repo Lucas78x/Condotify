@@ -75,13 +75,21 @@ public sealed class PrivateMediaStore : IPrivateMediaStore
         var contentType = Encoding.ASCII.GetString(payload, 1, typeLength);
         var offset = 1 + typeLength;
         var plain = new byte[payload.Length - offset - NonceSize - TagSize];
-        using var aes = new AesGcm(_key, TagSize);
-        aes.Decrypt(
-            payload.AsSpan(offset, NonceSize),
-            payload.AsSpan(offset + NonceSize + TagSize),
-            payload.AsSpan(offset + NonceSize, TagSize),
-            plain);
-        return new PrivateMediaFile(plain, contentType);
+        try
+        {
+            using var aes = new AesGcm(_key, TagSize);
+            aes.Decrypt(
+                payload.AsSpan(offset, NonceSize),
+                payload.AsSpan(offset + NonceSize + TagSize),
+                payload.AsSpan(offset + NonceSize, TagSize),
+                plain);
+            return new PrivateMediaFile(plain, contentType);
+        }
+        catch (CryptographicException)
+        {
+            CryptographicOperations.ZeroMemory(plain);
+            return null;
+        }
     }
 
     public Task DeleteAsync(Guid licenseId, string? reference, CancellationToken cancellationToken = default)

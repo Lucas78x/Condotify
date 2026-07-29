@@ -1,11 +1,13 @@
 ﻿using CondotifyAPI.Commands.Equipments;
 using CondotifyAPI.Data.Equipments;
+using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.AccessControl;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using CondotifyAPI.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -20,7 +22,7 @@ public class DeviceAccessController : ControllerBase
     private readonly ILicenseAuthorizationService _authorization;
     private readonly DatabaseContext _context;
     private readonly ILogger<DeviceAccessController> _logger;
-    private readonly string _apiKey;
+    private readonly string? _apiKey;
 
     public DeviceAccessController(
         ISender sender,
@@ -34,10 +36,7 @@ public class DeviceAccessController : ControllerBase
         _authorization = authorization;
         _context = context;
         _logger = logger;
-        _apiKey = Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY")!;
-#if DEBUG
-        _apiKey = "1";
-#endif
+        _apiKey = ApiKeySecurity.GetConfiguredKey();
     }
 
     [HttpPost("by-license")]
@@ -45,7 +44,7 @@ public class DeviceAccessController : ControllerBase
         [FromHeader(Name = "X-API-Key")] string apiKey,
         [FromBody] CreateAccessControlDeviceByLicenseIn device)
     {
-        if (apiKey != _apiKey)
+        if (!ApiKeySecurity.IsValid(_apiKey, apiKey))
             return Unauthorized();
 
         if (!Guid.TryParse(device.LicenseId, out var licenseId))
@@ -103,6 +102,28 @@ public class DeviceAccessController : ControllerBase
             persistedDevice.CapacityJson = ValidJsonOrDefault(inspection.CapacityJson, "{}");
             persistedDevice.DiscoveredPortalsJson = JsonSerializer.Serialize(inspection.Portals);
             persistedDevice.LastUpdatedAt = now;
+            _context.AccessOperationAudits.Add(new AccessOperationAuditDTO
+            {
+                Id = Guid.NewGuid(),
+                LicenseId = licenseId,
+                EntityType = "Device",
+                EntityId = persistedDevice.Id,
+                Action = "Created",
+                Status = connectionSucceeded ? "Success" : "Offline",
+                Summary = $"Equipamento {persistedDevice.Name} cadastrado.",
+                DetailsJson = JsonSerializer.Serialize(new
+                {
+                    persistedDevice.Name,
+                    persistedDevice.IPAddress,
+                    persistedDevice.Port,
+                    persistedDevice.Model,
+                    persistedDevice.Type,
+                    persistedDevice.IsActive,
+                    ConnectionSucceeded = connectionSucceeded
+                }),
+                UserName = User.FindFirst("name")?.Value ?? User.Identity?.Name ?? string.Empty,
+                CreatedAt = now
+            });
             await _context.SaveChangesAsync();
         }
 
@@ -166,7 +187,7 @@ public class DeviceAccessController : ControllerBase
         [FromHeader(Name = "X-API-Key")] string apiKey,
         [FromBody] CreateAccessControlDeviceByLicenseIn device)
     {
-        if (apiKey != _apiKey)
+        if (!ApiKeySecurity.IsValid(_apiKey, apiKey))
             return Unauthorized();
 
         if (!Guid.TryParse(device.LicenseId, out var licenseId))

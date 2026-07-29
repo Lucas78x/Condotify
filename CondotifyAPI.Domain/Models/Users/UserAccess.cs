@@ -7,13 +7,13 @@ namespace CondotifyAPI.Domain.Models.Users
         public UserAccess() { }
 
         public Guid Id { get; set; }
-        public string Name { get; private set; }
-        public string Email { get; private set; }
-        public string PasswordHash { get; private set; }
-        public string PhoneNumber { get; private set; }
-        public string CPF { get; private set; }
-        public string RG { get; private set; }
-        public string BirthDate { get; private set; }
+        public string Name { get; private set; } = string.Empty;
+        public string Email { get; private set; } = string.Empty;
+        public string PasswordHash { get; private set; } = string.Empty;
+        public string PhoneNumber { get; private set; } = string.Empty;
+        public string CPF { get; private set; } = string.Empty;
+        public string RG { get; private set; } = string.Empty;
+        public string BirthDate { get; private set; } = string.Empty;
 
         public AccessTypeEnum AccessType { get; private set; }
         public bool FirstAccess { get; private set; }
@@ -69,11 +69,10 @@ namespace CondotifyAPI.Domain.Models.Users
             IPasswordHasher<UserAccess> hasher,
             Guid? enterpriseId = null)
         {
-            var passwordHash = hasher.HashPassword(null, password);
-            return new UserAccess(
+            var user = new UserAccess(
                 name,
                 email,
-                passwordHash,
+                string.Empty,
                 phoneNumber,
                 cpf,
                 rg,
@@ -83,6 +82,8 @@ namespace CondotifyAPI.Domain.Models.Users
                 lastAccess,
                 createdAt,
                 enterpriseId ?? Guid.NewGuid());
+            user.SetPassword(password, hasher);
+            return user;
         }
 
         public bool Update(

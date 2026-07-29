@@ -2,7 +2,11 @@
 using CondotifyAPI.Domain.Models;
 using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Data.Equipments;
+using CondotifyAPI.Domain.Enums.AccessControl;
+using CondotifyAPI.Domain.Enums.Resident;
+using CondotifyAPI.Services.AccessControl;
 using CondotifyAPI.Services.Extensions;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace CondotifyAPI.Tests
@@ -167,5 +171,92 @@ namespace CondotifyAPI.Tests
             Assert.Empty(jsonModel);
             Assert.Equal("DS-K1T671", xmlModel);
         }
+
+        [Fact]
+        public void HikvisionUserPayload_ShouldKeepDoorRightAndRightPlanTogether()
+        {
+            var request = CreateProvisionRequest();
+            var rightPlans = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["doorNo"] = 1,
+                    ["planTemplateNo"] = "1"
+                }
+            };
+
+            var payload = HikvisionAccessControlDriver.BuildUserPayload(
+                request,
+                "1001",
+                true,
+                new DateTime(2026, 7, 29, 8, 0, 0, DateTimeKind.Local),
+                new DateTime(2036, 7, 29, 8, 0, 0, DateTimeKind.Local),
+                [1],
+                rightPlans,
+                includeProfile: true,
+                includeAccessRights: true);
+
+            var userInfo = payload["UserInfo"]!.AsObject();
+
+            Assert.Equal("1", userInfo["doorRight"]!.GetValue<string>());
+            Assert.Single(userInfo["RightPlan"]!.AsArray());
+            Assert.Equal("Lucas Teste", userInfo["name"]!.GetValue<string>());
+        }
+
+        [Fact]
+        public void HikvisionStatusPayload_ShouldPreserveExistingProfileAndAccessRights()
+        {
+            var request = CreateProvisionRequest();
+
+            var payload = HikvisionAccessControlDriver.BuildUserPayload(
+                request,
+                "1001",
+                true,
+                new DateTime(2026, 7, 29, 8, 0, 0, DateTimeKind.Local),
+                new DateTime(2036, 7, 29, 8, 0, 0, DateTimeKind.Local),
+                [1],
+                [],
+                includeProfile: false,
+                includeAccessRights: false);
+
+            var userInfo = payload["UserInfo"]!.AsObject();
+
+            Assert.False(userInfo.ContainsKey("name"));
+            Assert.False(userInfo.ContainsKey("password"));
+            Assert.False(userInfo.ContainsKey("doorRight"));
+            Assert.False(userInfo.ContainsKey("RightPlan"));
+            Assert.True(userInfo["Valid"]!["enable"]!.GetValue<bool>());
+        }
+
+        [Fact]
+        public void HikvisionJsonContent_ShouldNotAppendCharset()
+        {
+            using var content = HikvisionAccessControlDriver.CreateJsonContent("""{"UserInfo":{"employeeNo":"1001"}}""");
+
+            Assert.Equal("application/json", content.Headers.ContentType?.MediaType);
+            Assert.Null(content.Headers.ContentType?.CharSet);
+        }
+
+        private static CredentialProvisionRequest CreateProvisionRequest() =>
+            new(
+                Guid.NewGuid(),
+                "Lucas Teste",
+                "1001",
+                AccessCredentialTypeEnum.Face,
+                string.Empty,
+                null,
+                DateTime.UtcNow,
+                DateTime.UtcNow.AddYears(10),
+                true,
+                Portals:
+                [
+                    new AccessPortalAssignment(
+                        1,
+                        AccessRouteDirectionEnum.Entry,
+                        "Entrada principal",
+                        127,
+                        TimeSpan.Zero,
+                        TimeSpan.FromHours(23))
+                ]);
     }
 }

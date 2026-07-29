@@ -69,35 +69,51 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
 
     private async Task<string?> LoginAsync(string ip, string username, string password)
     {
-        var http = _clientFactory.CreateClient();
-        http.Timeout = TimeSpan.FromSeconds(10);
-
-        var loginUrl = $"http://{ip}/login.fcgi?device_id=0";
-
-        var payload = new
+        try
         {
-            login = username,
-            password = password,
-            device_id = 0
-        };
+            var http = _clientFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(10);
 
-        var content = new StringContent(JsonSerializer.Serialize(payload),
-                                        Encoding.UTF8,
-                                        "application/json");
+            var loginUrl = $"http://{ip}/login.fcgi?device_id=0";
+            var payload = new
+            {
+                login = username,
+                password,
+                device_id = 0
+            };
 
-        var response = await http.PostAsync(loginUrl, content);
+            using var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                Encoding.UTF8,
+                "application/json");
+            using var response = await http.PostAsync(loginUrl, content);
 
-        if (!response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var body = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(body) || body.TrimStart().StartsWith('<'))
+                return null;
+
+            using var json = JsonDocument.Parse(body);
+
+            if (!json.RootElement.TryGetProperty("session", out var sessionProp))
+                return null;
+
+            return sessionProp.GetString();
+        }
+        catch (HttpRequestException)
+        {
             return null;
-
-        string body = await response.Content.ReadAsStringAsync();
-
-        using var json = JsonDocument.Parse(body);
-
-        if (!json.RootElement.TryGetProperty("session", out var sessionProp))
+        }
+        catch (TaskCanceledException)
+        {
             return null;
-
-        return sessionProp.GetString();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     public async Task<bool> TestConnectionAsync(CreateAccessControlDeviceByLicenseIn device)
@@ -218,26 +234,47 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
         if (!resp.IsSuccessStatusCode)
             return new List<ControlIdTagsModel>();
 
-        using var json = JsonDocument.Parse(body);
+        return ParseUhfTags(body);
+    }
 
-        var list = new List<ControlIdTagsModel>();
+    internal static List<ControlIdTagsModel> ParseUhfTags(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+            return [];
 
-        if (!json.RootElement.TryGetProperty("objects", out var objectsNode))
-            return list;
-
-        if (!objectsNode.TryGetProperty("uhf_tags", out var tagsNode))
-            return list;
-
-        foreach (var tag in tagsNode.EnumerateArray())
+        try
         {
-            list.Add(ControlIdTagsModel.Create(
-                tag.GetProperty("id").GetInt64(),
-                tag.GetProperty("value").GetString(),
-                tag.GetProperty("user_id").GetInt64()
-            ));
-        }
+            using var json = JsonDocument.Parse(body);
+            if (!json.RootElement.TryGetProperty("objects", out var objectsNode) ||
+                !objectsNode.TryGetProperty("uhf_tags", out var tagsNode) ||
+                tagsNode.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
 
-        return list;
+            var tags = new List<ControlIdTagsModel>();
+            foreach (var tag in tagsNode.EnumerateArray())
+            {
+                if (!tag.TryGetProperty("id", out var idNode) ||
+                    !idNode.TryGetInt64(out var id) ||
+                    !tag.TryGetProperty("user_id", out var userNode) ||
+                    !userNode.TryGetInt64(out var userId) ||
+                    !tag.TryGetProperty("value", out var valueNode))
+                {
+                    continue;
+                }
+
+                var value = valueNode.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                    tags.Add(ControlIdTagsModel.Create(id, value, userId));
+            }
+
+            return tags;
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     public async Task<string> GetUsersAsync(AccessControlDevice device)

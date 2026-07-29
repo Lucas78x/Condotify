@@ -850,6 +850,80 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.ToTable("UserAccessAudits", (string)null);
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Backup.ConfigurationBackupDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BindingCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Checksum")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int>("CredentialCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("DeviceCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("LastRestoredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastRestoredBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("OverrideCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("RouteCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LicenseId", "CreatedAt");
+
+                    b.HasIndex("LicenseId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("ConfigurationBackups", (string)null);
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Block.BlockDTO", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1805,6 +1879,60 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.ToTable("LicenseUserAccesses", (string)null);
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.RecycleBin.RecycleBinItemDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RestoredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RestoredBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LicenseId", "EntityType", "EntityId");
+
+                    b.HasIndex("LicenseId", "RestoredAt", "ExpiresAt");
+
+                    b.ToTable("RecycleBinItems", (string)null);
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentAccessCredentialDTO", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1975,7 +2103,8 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("UnitId", "CPF")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"CPF\" <> ''");
 
                     b.ToTable("Resident", (string)null);
                 });
@@ -2628,6 +2757,17 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Backup.ConfigurationBackupDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Block.BlockDTO", b =>
                 {
                     b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
@@ -2852,6 +2992,17 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("License");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.RecycleBin.RecycleBinItemDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentAccessCredentialDTO", b =>

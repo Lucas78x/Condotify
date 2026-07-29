@@ -7,13 +7,13 @@ namespace CondotifyAPI.Domain.DTO.Users
     public class UserAccessDTO
     {
         public Guid Id { get; set; }
-        public string Name { get; set; }
-        public string Email { get; set; }
-        public string PasswordHash { get; private set; }
-        public string PhoneNumber { get; set; }
-        public string CPF { get; set; }
-        public string RG { get; set; }
-        public string BirthDate { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string PasswordHash { get; private set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string CPF { get; set; } = string.Empty;
+        public string RG { get; set; } = string.Empty;
+        public string BirthDate { get; set; } = string.Empty;
 
         public AccessTypeEnum AccessType { get; set; }
         public bool FirstAccess { get; set; }
@@ -22,12 +22,12 @@ namespace CondotifyAPI.Domain.DTO.Users
         public string MfaRecoveryCodeHashesJson { get; set; } = "[]";
         public string MfaChallengeHash { get; set; } = string.Empty;
         public DateTime? MfaChallengeExpiresAt { get; set; }
-        public List<UserAccessAuditDTO> Audit { get; set; }
+        public List<UserAccessAuditDTO> Audit { get; set; } = [];
         public DateTime LastAccess { get; set; }
         public DateTime CreatedAt { get; set; }
 
         public Guid? EnterpriseId { get; set; }
-        public EnterpriseDTO Enterprise { get; set; }
+        public EnterpriseDTO Enterprise { get; set; } = null!;
         public List<LicenseUserAccessDTO> LicenseAccesses { get; set; } = new();
 
         public void SetPasswordHash(string passwordHash)

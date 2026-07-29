@@ -15,8 +15,8 @@ namespace CondotifyAPI.Commands.Equipments
         public string UserName { get; set; } = "";
         public string Password { get; set; } = "";
 
-        public string? HTTPPort { get; set; }
-        public string? RTSPPort { get; set; }
+        public string HTTPPort { get; set; } = "80";
+        public string RTSPPort { get; set; } = "554";
 
         public IpTypeEnum IpType { get; set; }
         public ScreenProportionEnum Propotion { get; set; }
@@ -49,8 +49,8 @@ namespace CondotifyAPI.Commands.Equipments
             IpAddress = ipAddress;
             UserName = userName;
             Password = password;
-            HTTPPort = port;
-            RTSPPort = rtspPort;
+            HTTPPort = string.IsNullOrWhiteSpace(port) ? "80" : port;
+            RTSPPort = string.IsNullOrWhiteSpace(rtspPort) ? "554" : rtspPort;
             IpType = ipType;
             Propotion = propotion;
             Mark = mark;
@@ -154,12 +154,12 @@ namespace CondotifyAPI.Commands.Equipments
             });
 
         }
-        private bool BeAValidIp(string ip)
+        private static bool BeAValidIp(string ip)
         {
             return IPAddress.TryParse(ip, out _);
         }
 
-        private bool BeAValidPort(string port)
+        private static bool BeAValidPort(string? port)
         {
             return int.TryParse(port, out var p) && p > 0 && p <= 65535;
         }

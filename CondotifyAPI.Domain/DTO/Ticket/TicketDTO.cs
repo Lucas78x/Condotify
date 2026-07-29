@@ -11,11 +11,11 @@ namespace CondotifyAPI.Domain.DTO.Ticket
 
         public Guid UnitId { get; set; }
 
-        public string Title { get; set; }
+        public string Title { get; set; } = string.Empty;
 
-        public string Barcode { get; set; }
+        public string Barcode { get; set; } = string.Empty;
 
-        public string BarcodeUrl { get; set; }
+        public string BarcodeUrl { get; set; } = string.Empty;
 
         public DateTime CreatedDate { get; set; }
 
@@ -26,13 +26,13 @@ namespace CondotifyAPI.Domain.DTO.Ticket
         public bool IsSecondCopy { get; set; }
         public Guid? OriginalTicketId { get; set; }
 
-        public List<TicketAuditDTO> Audit { get; set; }
+        public List<TicketAuditDTO> Audit { get; set; } = [];
 
         /// <summary>
         /// Reference Owner
         /// </summary>
         public Guid LicenseId { get; set; }
-        public LicenseDTO License { get; set; }
+        public LicenseDTO License { get; set; } = null!;
     }
 
 }

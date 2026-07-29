@@ -10,6 +10,9 @@ using CondotifyAPI.Services.Drivers;
 using CondotifyAPI.Services.Factorys;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.Security;
+using CondotifyAPI.Services.Imports;
+using CondotifyAPI.Services.RecycleBin;
+using CondotifyAPI.Services.Backups;
 using MediatR;
 using CondotifyAPI.Domain.Models.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -60,6 +63,9 @@ builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IPasswordHasher<UserAccess>, PasswordHasher<UserAccess>>();
 builder.Services.AddSingleton<ITotpService, TotpService>();
 builder.Services.AddSingleton<IPrivateMediaStore, PrivateMediaStore>();
+builder.Services.AddSingleton<StructureImportCsvParser>();
+builder.Services.AddScoped<IRecycleBinService, RecycleBinService>();
+builder.Services.AddScoped<IConfigurationBackupService, ConfigurationBackupService>();
 
 builder.Services.AddAuthentication(options =>
 {
@@ -115,7 +121,7 @@ builder.Services.AddDbContext<DatabaseContext>(options =>
 
 builder.Services.AddAutoMapper(_ => { }, typeof(CondotifyProfile).Assembly);
 
-builder.Services.AddHttpClient<IAccessControlService, AccessControlService>();
+builder.Services.AddHttpClient();
 
 builder.Services.AddTransient<Mediator>();
 builder.Services.AddScoped<ISender, ScopedSender<Mediator>>();
@@ -135,6 +141,7 @@ builder.Services.AddHostedService<ExpiredCredentialCleanupService>();
 builder.Services.AddHostedService<CredentialReconciliationWorker>();
 builder.Services.AddHostedService<AccessEventIngestionWorker>();
 builder.Services.AddHostedService<DeviceHealthMonitoringWorker>();
+builder.Services.AddHostedService<RecycleBinCleanupService>();
 
 builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();
 builder.Services.AddScoped<IAccessControlDriverFactory, AccessControlDriverFactory>();

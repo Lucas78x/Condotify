@@ -7,19 +7,19 @@ namespace CondotifyAPI.Domain.Models.Equipments
         public AccessControlDevice() { }
 
         public Guid Id { get; set; }
-        public string Name { get; set; }
-        public string IPAddress { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string IPAddress { get; set; } = string.Empty;
         public int Port { get; set; }
-        public string Username { get; set; }
-        public string Password { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
         public string? MACAddress { get; set; }
-        public string Model { get; set; }
+        public string Model { get; set; } = string.Empty;
         public string? SerialNumber { get; set; }
         public string? FirmwareVersion { get; set; }
         public DeviceTypeEnum Type { get; set; }
         public bool IsActive { get; set; }
-        public List<DeviceAudit> Audit { get; set; }
-        public Location Location { get; set; }
+        public List<DeviceAudit> Audit { get; set; } = [];
+        public Location Location { get; set; } = new();
         public DateTime CreatedAt { get; set; }
         public DateTime LastUpdatedAt { get; set; }
         public DateTime? LastHealthCheckAt { get; set; }

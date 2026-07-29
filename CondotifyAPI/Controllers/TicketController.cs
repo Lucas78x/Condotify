@@ -3,6 +3,7 @@ using DigitalWorldOnline.Management.Api.Data;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using static CondotifyAPI.Commands.Tickets.CreateTicketCommand;
+using CondotifyAPI.Services.Security;
 
 namespace DigitalWorldOnline.Management.Api.Controllers;
 
@@ -11,15 +12,12 @@ namespace DigitalWorldOnline.Management.Api.Controllers;
 public class TicketController : ControllerBase
 {
     private readonly ISender _sender;
-    private readonly string _apiKey;
+    private readonly string? _apiKey;
 
     public TicketController(ISender sender)
     {
         _sender = sender;
-        _apiKey = Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY")!;
-#if DEBUG
-        _apiKey = "1";
-#endif
+        _apiKey = ApiKeySecurity.GetConfiguredKey();
     }
 
     [HttpPost]
@@ -27,7 +25,7 @@ public class TicketController : ControllerBase
         [FromHeader(Name = "X-API-Key")] string apiKey,
         [FromBody] CreateTicketIn ticket)
     {
-        if (apiKey != _apiKey)
+        if (!ApiKeySecurity.IsValid(_apiKey, apiKey))
             return Unauthorized();
 
         var command = ticket.ToCommand();

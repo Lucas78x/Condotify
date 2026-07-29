@@ -32,21 +32,24 @@ namespace CondotifyAPI.Query
             var licenses = await _repository.GetLicensesByEnterpriseAsync(enterprise.Id);
 
             // Retorna dados resumidos
-            return licenses.Select(l => new LicenseSummaryDto
+            return licenses.Select(ToSummary).ToList();
+        }
+
+        internal static LicenseSummaryDto ToSummary(CondotifyAPI.Domain.Models.License.License license) =>
+            new()
             {
-                Id = l.Id,
-                Nome = l.Name,
-                Codigo = l.Code,
-                Moradores = l.Blocks?.Sum(b =>
+                Id = license.Id,
+                Nome = license.Name,
+                Codigo = license.Code,
+                Moradores = license.Blocks?.Sum(b =>
                     b.Units.Sum(u =>
                         u.Residents.Count(r => r.AccessType == ResidentAccessTypeEnum.Responsible
                                              || r.AccessType == ResidentAccessTypeEnum.NonResponsible)
                     )
                     ) ?? 0,
-                Cidade = l.CNPJ,
-                Estado = l.City
-            }).ToList();
-        }
+                Cidade = license.City,
+                Estado = license.Country
+            };
     }
 
     // Validator

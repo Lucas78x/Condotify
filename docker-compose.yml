@@ -33,6 +33,7 @@ services:
       JWTCondotify_Secret: ${JWT_SECRET:-condotify-local-jwt-secret-change-before-production-2026}
       JWTCondotify_Issuer: Condotify
       JWTCondotify_Audience: Condotify
+      CONDOTIFY_API_KEY: ${CONDOTIFY_API_KEY:?Defina CONDOTIFY_API_KEY no arquivo .env}
       CONDOTIFY_EQUIPMENT_SECRET: ${EQUIPMENT_SECRET:-condotify-local-equipment-secret-change-before-production-2026}
       CONDOTIFY_MEDIA_SECRET: ${MEDIA_SECRET:-condotify-local-media-secret-change-before-production-2026}
       CONDOTIFY_PRIVATE_MEDIA_PATH: /app/data/private-media
@@ -54,7 +55,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       CondotifyApi__BaseUrl: http://api:8080
-      CondotifyApi__ApiKey: ${CONDOTIFY_API_KEY:-1}
+      CondotifyApi__ApiKey: ${CONDOTIFY_API_KEY:?Defina CONDOTIFY_API_KEY no arquivo .env}
       DataProtection__KeysPath: /app/data-protection
     ports:
       - "5035:8080"

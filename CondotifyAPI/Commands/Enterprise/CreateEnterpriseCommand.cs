@@ -116,8 +116,8 @@ public class CreateEnterpriseCommand : IRequest<EnterpriseCreateResult>
                 request.ContactPhone,
                 request.LogoUrl,
                 request.Notes,
-                DateTime.Now,
-                DateTime.Now);
+                DateTime.UtcNow,
+                DateTime.UtcNow);
 
             return await _repository.AddEnterpriseAsync(enterprise);
         }

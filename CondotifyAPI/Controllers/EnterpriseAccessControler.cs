@@ -3,21 +3,19 @@ using CondotifyAPI.Data.Enterprise;
 using DigitalWorldOnline.Management.Api.Data;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using CondotifyAPI.Services.Security;
 
 [ApiController]
 [Route("api/access/enterprises")]
 public class EnterpriseAccessController : ControllerBase
 {
     private readonly ISender _sender;
-    private readonly string _apiKey;
+    private readonly string? _apiKey;
 
     public EnterpriseAccessController(ISender sender)
     {
         _sender = sender;
-        _apiKey = Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY")!;
-#if DEBUG
-        _apiKey = "1";
-#endif
+        _apiKey = ApiKeySecurity.GetConfiguredKey();
     }
 
     [HttpPost]
@@ -25,7 +23,7 @@ public class EnterpriseAccessController : ControllerBase
         [FromHeader(Name = "X-API-Key")] string apiKey,
         [FromBody] CreateEnterpriseIn enterprise)
     {
-        if (string.IsNullOrWhiteSpace(apiKey) || apiKey != _apiKey)
+        if (!ApiKeySecurity.IsValid(_apiKey, apiKey))
         {
             return Unauthorized();
         }

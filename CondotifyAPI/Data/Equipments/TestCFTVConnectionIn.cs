@@ -10,15 +10,15 @@ namespace CondotifyAPI.Data.Equipments
         public string UserName { get; set; } = "";
         public string Password { get; set; } = "";
 
-        public string? HTTPPort { get; set; }
-        public string? RTSPPort { get; set; }
+        public string HTTPPort { get; set; } = "80";
+        public string RTSPPort { get; set; } = "554";
 
         public IpTypeEnum IpType { get; set; }
         public MarkEnum Mark { get; set; }
 
         public CFTVDeviceTypeEnum DeviceType { get; set; }
 
-        public ICollection<int> Channels { get; set; }
+        public ICollection<int> Channels { get; set; } = [];
     }
     public class TestCftvConnectionInValidator : AbstractValidator<TestCftvConnectionIn>
     {
@@ -77,7 +77,7 @@ namespace CondotifyAPI.Data.Equipments
             return IPAddress.TryParse(ip, out _);
         }
 
-        private bool BeAValidPort(string port)
+        private static bool BeAValidPort(string? port)
         {
             return int.TryParse(port, out var p) && p > 0 && p <= 65535;
         }

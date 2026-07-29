@@ -8,6 +8,7 @@ namespace CondotifyAPI.Commands.Users;
 
 public class CreateUserAccessCommand : IRequest<UserAccessCreateResult>
 {
+    public Guid EnterpriseId { get; set; }
     public string Name { get; set; }
     public string Email { get; set; }
     public string Password { get; set; }
@@ -18,6 +19,7 @@ public class CreateUserAccessCommand : IRequest<UserAccessCreateResult>
     public AccessTypeEnum Type { get; set; }
 
     public CreateUserAccessCommand(
+        Guid enterpriseId,
         string name,
         string email,
         string password,
@@ -27,6 +29,7 @@ public class CreateUserAccessCommand : IRequest<UserAccessCreateResult>
         string birthDate,
         AccessTypeEnum type)
     {
+        EnterpriseId = enterpriseId;
         Name = name;
         Password = password;
         Email = email;
@@ -59,9 +62,10 @@ public class CreateUserAccessCommand : IRequest<UserAccessCreateResult>
                 request.BirthDate,
                 request.Type,
                 true,
-                DateTime.Now,
-                DateTime.Now,
-                hasher);
+                DateTime.UtcNow,
+                DateTime.UtcNow,
+                hasher,
+                request.EnterpriseId);
 
             return await _repository.AddUserAccessAsync(access);
         }
@@ -72,6 +76,8 @@ public class CreateUserAccessCommandValidator : AbstractValidator<CreateUserAcce
 {
     public CreateUserAccessCommandValidator()
     {
+        RuleFor(x => x.EnterpriseId)
+            .NotEmpty().WithMessage("EnterpriseId é obrigatório.");
 
         RuleFor(x => x.Password)
             .NotEmpty()
@@ -79,34 +85,13 @@ public class CreateUserAccessCommandValidator : AbstractValidator<CreateUserAcce
             .MaximumLength(50);
 
         RuleFor(x => x.Email)
+            .NotEmpty()
+            .EmailAddress()
+            .MaximumLength(150)
             .NotEqual(x => x.Password);
 
-        When(x => string.IsNullOrEmpty(x.CPF), () =>
-        {
-            RuleFor(x => x.Email)
-                .NotEmpty()
-                .EmailAddress()
-                .MaximumLength(50);
-        });
-
-        When(x => string.IsNullOrEmpty(x.Email), () =>
-        {
-            RuleFor(x => x.CPF)
-                .NotEmpty();
-        });
-
-        When(x => string.IsNullOrEmpty(x.RG), () =>
-        {
-            RuleFor(x => x.Email)
-                .NotEmpty()
-                .EmailAddress()
-                .MaximumLength(50);
-        });
-
-        When(x => string.IsNullOrEmpty(x.Email), () =>
-        {
-            RuleFor(x => x.RG)
-                .NotEmpty();
-        });
+        RuleFor(x => x.Name)
+            .NotEmpty()
+            .MaximumLength(150);
     }
 }

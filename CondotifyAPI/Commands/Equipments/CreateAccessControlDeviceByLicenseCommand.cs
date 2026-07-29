@@ -3,6 +3,7 @@ using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Domain.Models;
 using FluentValidation;
 using MediatR;
+using System.Net;
 
 namespace CondotifyAPI.Commands.Equipments
 {
@@ -97,10 +98,12 @@ namespace CondotifyAPI.Commands.Equipments
                 .NotEmpty().MaximumLength(200);
 
             RuleFor(x => x.IPAddress)
-                .NotEmpty().WithMessage("O IP Address é obrigatório.");
+                .NotEmpty().WithMessage("O IP Address é obrigatório.")
+                .Must(value => IPAddress.TryParse(value, out _))
+                .WithMessage("IP inválido.");
 
             RuleFor(x => x.Port)
-                .GreaterThan(0).WithMessage("Porta inválida.");
+                .InclusiveBetween(1, 65535).WithMessage("Porta inválida.");
 
             RuleFor(x => x.Username)
                 .NotEmpty();

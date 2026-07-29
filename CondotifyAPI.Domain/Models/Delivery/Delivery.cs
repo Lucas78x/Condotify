@@ -10,19 +10,19 @@
         public DeliveryTypeEnum Type { get; private set; }
         public DeliveryStatusEnum Status { get; private set; }
 
-        public string Name { get; private set; }
-        public string Description { get; private set; }
-        public string TrackingCode { get; private set; }
+        public string Name { get; private set; } = string.Empty;
+        public string Description { get; private set; } = string.Empty;
+        public string TrackingCode { get; private set; } = string.Empty;
 
-        public string PhotoUrl { get; private set; }
-        public string DeliveryProofUrl { get; private set; }
+        public string PhotoUrl { get; private set; } = string.Empty;
+        public string DeliveryProofUrl { get; private set; } = string.Empty;
 
         public Guid? ReceivedId { get; private set; }
-        public string ReceivedBy { get; private set; }
+        public string ReceivedBy { get; private set; } = string.Empty;
         public DateTime? ReceivedAt { get; private set; }
 
         public Guid? DeliveredToId { get; private set; }
-        public string DeliveredTo { get; private set; }
+        public string DeliveredTo { get; private set; } = string.Empty;
         public DateTime? DeliveredAt { get; private set; }
 
         public DateTime CreatedAt { get; private set; }
@@ -35,9 +35,9 @@
             DeliveryTypeEnum type,
             string name,
             Guid licensedId,
-            string description = null,
-            string trackingCode = null,
-            string photoUrl = null)
+            string? description = null,
+            string? trackingCode = null,
+            string? photoUrl = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Nome da entrega é obrigatório");
@@ -48,9 +48,9 @@
                 Type = type,
                 Status = DeliveryStatusEnum.Pending,
                 Name = name,
-                Description = description,
-                TrackingCode = trackingCode,
-                PhotoUrl = photoUrl,
+                Description = description ?? string.Empty,
+                TrackingCode = trackingCode ?? string.Empty,
+                PhotoUrl = photoUrl ?? string.Empty,
                 LicenseId = licensedId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -79,14 +79,14 @@
         public void Deliver(
             string deliveredTo,
             Guid? deliveredToId = null,
-            string deliveryProofUrl = null)
+            string? deliveryProofUrl = null)
         {
             if (Status != DeliveryStatusEnum.Received)
                 throw new InvalidOperationException("Entrega ainda não foi recebida");
 
             DeliveredTo = deliveredTo;
             DeliveredToId = deliveredToId;
-            DeliveryProofUrl = deliveryProofUrl;
+            DeliveryProofUrl = deliveryProofUrl ?? string.Empty;
             DeliveredAt = DateTime.UtcNow;
             Status = DeliveryStatusEnum.Delivered;
 

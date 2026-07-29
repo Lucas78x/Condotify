@@ -659,41 +659,16 @@ public sealed class HikvisionAccessControlDriver : IAccessControlDriver
             });
         }
 
-        /*
-         * Payload mínimo e compatível com as famílias:
-         * DS-K1T673, DS-K1T671 e DS-K1T323.
-         *
-         * Evitamos campos opcionais que alguns firmwares rejeitam
-         * com badJsonContent.
-         */
-        var userInfo = new JsonObject
-        {
-            ["employeeNo"] = employeeNo,
-            ["name"] = TruncateUtf8(request.ResidentName, 32),
-            ["userType"] = "normal",
-
-            ["Valid"] = new JsonObject
-            {
-                ["enable"] = active,
-                ["beginTime"] = FormatIsapiLocalDate(validFrom),
-                ["endTime"] = FormatIsapiLocalDate(validTo),
-                ["timeType"] = "local"
-            },
-
-            ["doorRight"] = string.Join(",", doorRights),
-            ["RightPlan"] = rightPlans
-        };
-
-        if (request.Type == AccessCredentialTypeEnum.Password &&
-            !string.IsNullOrWhiteSpace(request.Identifier))
-        {
-            userInfo["password"] = request.Identifier.Trim();
-        }
-
-        var payload = new JsonObject
-        {
-            ["UserInfo"] = userInfo
-        };
+        var payload = BuildUserPayload(
+            request,
+            employeeNo,
+            active,
+            validFrom,
+            validTo,
+            doorRights,
+            rightPlans,
+            includeProfile: true,
+            includeAccessRights: true);
 
         var result = await SendJsonForResultAsync(
             device,
@@ -704,48 +679,155 @@ public sealed class HikvisionAccessControlDriver : IAccessControlDriver
         if (result.Success)
             return result;
 
+        if (!IsBadJsonContent(result))
+            return result;
+
         /*
-         * Fallback para firmware que não aceita RightPlan no SetUp.
-         * Nesse caso, tentamos novamente com o JSON mais simples possível.
+         * O ISAPI separa inclusão (Record) de alteração (SetUp). Alguns
+         * firmwares aceitam SetUp como upsert, outros devolvem badJsonContent.
+         * Antes do fallback consultamos a pessoa para escolher a operação sem
+         * apagar nem sobrescrever permissões já configuradas no equipamento.
          */
-        if (IsBadJsonContent(result))
+        var userExists = await UserExistsAsync(device, employeeNo);
+
+        if (userExists == false)
         {
-            var simplifiedUserInfo = new JsonObject
+            return await SendJsonForResultAsync(
+                device,
+                HttpMethod.Post,
+                "/ISAPI/AccessControl/UserInfo/Record?format=json",
+                payload);
+        }
+
+        /*
+         * Para uma pessoa existente, restaurar/suspender requer somente a
+         * validade. doorRight e RightPlan formam um par no contrato ISAPI;
+         * remover apenas RightPlan, como fazia o fallback anterior, gera um
+         * JSON semanticamente inválido em diversos MinMoe.
+         */
+        var statusPayload = BuildUserPayload(
+            request,
+            employeeNo,
+            active,
+            validFrom,
+            validTo,
+            doorRights,
+            rightPlans,
+            includeProfile: false,
+            includeAccessRights: false);
+
+        var statusResult = await SendJsonForResultAsync(
+            device,
+            HttpMethod.Put,
+            "/ISAPI/AccessControl/UserInfo/SetUp?format=json",
+            statusPayload);
+
+        if (statusResult.Success || userExists == true)
+            return statusResult;
+
+        // Se a consulta não foi conclusiva, tentamos a inclusão oficial.
+        var recordResult = await SendJsonForResultAsync(
+            device,
+            HttpMethod.Post,
+            "/ISAPI/AccessControl/UserInfo/Record?format=json",
+            payload);
+
+        if (!IsDuplicateUser(recordResult))
+            return recordResult;
+
+        return statusResult;
+    }
+
+    internal static JsonObject BuildUserPayload(
+        CredentialProvisionRequest request,
+        string employeeNo,
+        bool active,
+        DateTime validFrom,
+        DateTime validTo,
+        IReadOnlyList<int> doorRights,
+        JsonArray rightPlans,
+        bool includeProfile,
+        bool includeAccessRights)
+    {
+        var userInfo = new JsonObject
+        {
+            ["employeeNo"] = employeeNo,
+            ["userType"] = "normal",
+            ["Valid"] = new JsonObject
             {
-                ["employeeNo"] = employeeNo,
-                ["name"] = TruncateUtf8(request.ResidentName, 32),
-                ["userType"] = "normal",
+                ["enable"] = active,
+                ["beginTime"] = FormatIsapiLocalDate(validFrom),
+                ["endTime"] = FormatIsapiLocalDate(validTo),
+                ["timeType"] = "local"
+            }
+        };
 
-                ["Valid"] = new JsonObject
-                {
-                    ["enable"] = active,
-                    ["beginTime"] = FormatIsapiLocalDate(validFrom),
-                    ["endTime"] = FormatIsapiLocalDate(validTo),
-                    ["timeType"] = "local"
-                },
-
-                ["doorRight"] = string.Join(",", doorRights)
-            };
+        if (includeProfile)
+        {
+            userInfo["name"] = TruncateUtf8(request.ResidentName, 32);
 
             if (request.Type == AccessCredentialTypeEnum.Password &&
                 !string.IsNullOrWhiteSpace(request.Identifier))
             {
-                simplifiedUserInfo["password"] = request.Identifier.Trim();
+                userInfo["password"] = request.Identifier.Trim();
             }
-
-            var simplifiedPayload = new JsonObject
-            {
-                ["UserInfo"] = simplifiedUserInfo
-            };
-
-            return await SendJsonForResultAsync(
-                device,
-                HttpMethod.Put,
-                "/ISAPI/AccessControl/UserInfo/SetUp?format=json",
-                simplifiedPayload);
         }
 
-        return result;
+        if (includeAccessRights)
+        {
+            userInfo["doorRight"] = string.Join(",", doorRights);
+            userInfo["RightPlan"] = rightPlans.DeepClone();
+        }
+
+        return new JsonObject { ["UserInfo"] = userInfo };
+    }
+
+    private async Task<bool?> UserExistsAsync(
+        AccessControlDevice device,
+        string employeeNo)
+    {
+        var payload = new
+        {
+            UserInfoSearchCond = new
+            {
+                searchID = Guid.NewGuid().ToString("N"),
+                searchResultPosition = 0,
+                maxResults = 1,
+                EmployeeNoList = new[]
+                {
+                    new { employeeNo }
+                }
+            }
+        };
+
+        var result = await SendJsonForResultAsync(
+            device,
+            HttpMethod.Post,
+            "/ISAPI/AccessControl/UserInfo/Search?format=json",
+            payload);
+
+        if (!result.Success || !LooksLikeJson(result.Body))
+            return null;
+
+        using var document = JsonDocument.Parse(result.Body!);
+        var search = TryGetPropertyIgnoreCase(document.RootElement, "UserInfoSearch")
+            ?? document.RootElement;
+        var users = TryGetPropertyIgnoreCase(search, "UserInfo");
+
+        if (users is not { ValueKind: JsonValueKind.Array })
+            return false;
+
+        return users.Value.EnumerateArray().Any(user =>
+            JsonText(user, "employeeNo").Equals(employeeNo, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsDuplicateUser(IsapiResult result)
+    {
+        var content = string.Join(" ", result.ErrorMessage, result.Body);
+
+        return content.Contains("alreadyExist", StringComparison.OrdinalIgnoreCase) ||
+               content.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
+               content.Contains("deviceUserAlreadyExist", StringComparison.OrdinalIgnoreCase);
     }
     private static string FormatIsapiLocalDate(DateTime value)
     {
@@ -1229,7 +1311,7 @@ public sealed class HikvisionAccessControlDriver : IAccessControlDriver
             "/ISAPI/System/deviceInfo");
     }
 
-    private Task<IsapiResult> SendJsonForResultAsync(
+    private async Task<IsapiResult> SendJsonForResultAsync(
         AccessControlDevice device,
         HttpMethod method,
         string path,
@@ -1239,7 +1321,15 @@ public sealed class HikvisionAccessControlDriver : IAccessControlDriver
             ? node.ToJsonString(JsonOptions)
             : JsonSerializer.Serialize(payload, JsonOptions);
 
-        return SendTextForResultAsync(device, method, path, json, "application/json");
+        using var content = CreateJsonContent(json);
+        return await SendContentForResultAsync(device, method, path, content);
+    }
+
+    internal static HttpContent CreateJsonContent(string json)
+    {
+        var content = new ByteArrayContent(Encoding.UTF8.GetBytes(json));
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        return content;
     }
 
     private async Task<IsapiResult> SendTextForResultAsync(

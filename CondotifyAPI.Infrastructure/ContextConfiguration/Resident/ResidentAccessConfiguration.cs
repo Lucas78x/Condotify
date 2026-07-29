@@ -91,7 +91,8 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Resident
                 .OnDelete(DeleteBehavior.Cascade);
 
             builder.HasIndex(r => new { r.UnitId, r.CPF })
-                .IsUnique();
+                .IsUnique()
+                .HasFilter("\"CPF\" <> ''");
 
         }
     }

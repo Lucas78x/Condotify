@@ -8,7 +8,7 @@ namespace CondotifyAPI.Domain.DTO.Resident
 
         public Guid ResidentId { get; set; }
 
-        public ResidentAccessDTO Resident { get; set; }
+        public ResidentAccessDTO Resident { get; set; } = null!;
 
         public AccessCredentialTypeEnum CredentialType { get; set; }
 
@@ -19,7 +19,7 @@ namespace CondotifyAPI.Domain.DTO.Resident
         /// - Card: número
         /// - Tag: código
         /// </summary>
-        public string Identifier { get; set; }
+        public string Identifier { get; set; } = string.Empty;
 
         public bool IsActive { get; set; }
         public bool IsTemporary { get; set; }
@@ -33,6 +33,6 @@ namespace CondotifyAPI.Domain.DTO.Resident
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
-        public ICollection<ResidentAccessDeviceDTO> Devices { get; set; }
+        public ICollection<ResidentAccessDeviceDTO> Devices { get; set; } = [];
     }
 }

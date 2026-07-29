@@ -11,27 +11,27 @@ namespace CondotifyAPI.Domain.DTO.Delivers
         public DeliveryTypeEnum Type { get; set; }
         public DeliveryStatusEnum Status { get; set; }
 
-        public string Name { get; set; }
-        public string Description { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
 
-        public string TrackingCode { get; set; }
+        public string TrackingCode { get; set; } = string.Empty;
 
-        public string PhotoUrl { get; set; }
-        public string DeliveryProofUrl { get; set; }
+        public string PhotoUrl { get; set; } = string.Empty;
+        public string DeliveryProofUrl { get; set; } = string.Empty;
 
         public Guid? ReceivedId { get; set; }
-        public string ReceivedBy { get; set; }
+        public string ReceivedBy { get; set; } = string.Empty;
         public DateTime? ReceivedAt { get; set; }
 
         public Guid? DeliveredToId { get; set; }
-        public string DeliveredTo { get; set; }
+        public string DeliveredTo { get; set; } = string.Empty;
         public DateTime? DeliveredAt { get; set; }
 
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 
         public Guid LicenseId { get; set; }
-        public LicenseDTO License { get; set; }
+        public LicenseDTO License { get; set; } = null!;
 
     }
 

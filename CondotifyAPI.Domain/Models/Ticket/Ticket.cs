@@ -12,10 +12,10 @@ namespace CondotifyAPI.Domain.Models.Ticket
         public Guid Id { get; private set; }
 
         public Guid UnitId { get; private set; }
-        public string Title { get; private set; }
+        public string Title { get; private set; } = string.Empty;
 
-        public string Barcode { get; private set; }
-        public string BarcodeUrl { get; private set; }
+        public string Barcode { get; private set; } = string.Empty;
+        public string BarcodeUrl { get; private set; } = string.Empty;
 
         public DateTime CreatedDate { get; private set; }
         public DateTime ExpiredDate { get; private set; }
@@ -27,7 +27,7 @@ namespace CondotifyAPI.Domain.Models.Ticket
 
         public Guid LicenseId { get; private set; }
 
-        public List<TicketAudit> Audits { get; private set; }
+        public List<TicketAudit> Audits { get; private set; } = [];
 
         protected Ticket() { }
 
@@ -85,11 +85,14 @@ namespace CondotifyAPI.Domain.Models.Ticket
         // 🔹 Regras de negócio
         public void Cancel(string reason)
         {
-            //if (Status == TicketStatusTypeEnum.Canceled)
-            //    return;
+            if (Status == TicketStatusTypeEnum.Canceled)
+                return;
 
-            //Status = TicketStatusTypeEnum.Canceled;
-            //AddAudit($"Ticket cancelado: {reason}", Status);
+            Status = TicketStatusTypeEnum.Canceled;
+            var detail = string.IsNullOrWhiteSpace(reason)
+                ? "Ticket cancelado"
+                : $"Ticket cancelado: {reason.Trim()}";
+            AddAudit(detail, Status);
         }
 
         public void Expire()
@@ -104,11 +107,11 @@ namespace CondotifyAPI.Domain.Models.Ticket
         // 🔹 Auditoria
         private void AddAudit(string action, TicketStatusTypeEnum status)
         {
-            //_audit.Add(new TicketAudit(
-            //    Id,
-            //    action,
-            //    status,
-            //    DateTime.UtcNow));
+            Audits.Add(new TicketAudit(
+                Id,
+                action,
+                status,
+                DateTime.UtcNow));
         }
 
         // 🔹 Helpers

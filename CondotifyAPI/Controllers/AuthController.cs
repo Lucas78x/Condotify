@@ -191,6 +191,19 @@ public sealed class AuthController : ControllerBase
     }
     private static string NormalizeRecoveryCode(string value) => value.Trim().Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value ?? string.Empty)));
-    private static bool FixedEquals(string left, string right) => CryptographicOperations.FixedTimeEquals(Convert.FromHexString(left), Convert.FromHexString(right));
+    private static bool FixedEquals(string left, string right)
+    {
+        try
+        {
+            var expected = Convert.FromHexString(left);
+            var supplied = Convert.FromHexString(right);
+            return expected.Length == supplied.Length &&
+                   CryptographicOperations.FixedTimeEquals(expected, supplied);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
     private static List<string> DeserializeHashes(string json) { try { return JsonSerializer.Deserialize<List<string>>(json) ?? []; } catch { return []; } }
 }

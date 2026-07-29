@@ -21,7 +21,9 @@ public enum LicensePermissionEnum : long
     ManageSettings = 1L << 16,
     ViewBookings = 1L << 17,
     ManageBookings = 1L << 18,
-    All = (1L << 19) - 1
+    ViewBackups = 1L << 19,
+    ManageBackups = 1L << 20,
+    All = (1L << 21) - 1
 }
 
 public enum LicenseAccessRoleEnum
@@ -68,6 +70,7 @@ public static class LicenseAccessDefaults
         if (permissions.HasFlag(LicensePermissionEnum.ManageUsers)) permissions |= LicensePermissionEnum.ViewUsers;
         if (permissions.HasFlag(LicensePermissionEnum.ManageSettings)) permissions |= LicensePermissionEnum.ViewSettings;
         if (permissions.HasFlag(LicensePermissionEnum.ManageBookings)) permissions |= LicensePermissionEnum.ViewBookings;
+        if (permissions.HasFlag(LicensePermissionEnum.ManageBackups)) permissions |= LicensePermissionEnum.ViewBackups;
         return permissions;
     }
 }

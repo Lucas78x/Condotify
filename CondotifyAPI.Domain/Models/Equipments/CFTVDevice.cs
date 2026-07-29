@@ -4,12 +4,12 @@
     {
         public Guid Id { get; set; }
 
-        public string Name { get; set; }
-        public string UserName { get; set; }
-        public string Password { get; set; }
-        public string IpAddress { get; set; }
-        public string HTTPPort { get; set; }
-        public string RTSPPort { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string IpAddress { get; set; } = string.Empty;
+        public string HTTPPort { get; set; } = "80";
+        public string RTSPPort { get; set; } = "554";
         public IpTypeEnum IpType { get; set; }
         public ScreenProportionEnum Proportion { get; set; }
         public MarkEnum Mark { get; set; }
@@ -18,7 +18,7 @@
 
         public int MaxChannels { get; set; }
 
-        public ICollection<CFTVChannel> Channels { get; set; }
+        public ICollection<CFTVChannel> Channels { get; set; } = [];
 
 
         private CFTVDevice(string name,
@@ -96,10 +96,10 @@
     public class CftvDeviceResponse
     {
         public Guid Id { get; set; }
-        public string Name { get; set; }
-        public string IpAddress { get; set; }
-        public string HTTPPort { get; set; }
-        public string RTSPPort { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string IpAddress { get; set; } = string.Empty;
+        public string HTTPPort { get; set; } = "80";
+        public string RTSPPort { get; set; } = "554";
         public CFTVDeviceTypeEnum DeviceType { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }

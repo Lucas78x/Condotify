@@ -8,12 +8,12 @@ namespace CondotifyAPI.Domain.DTO.Audit
         public Guid Id { get; set; }
 
         public Guid TicketId { get; set; }
-        public TicketDTO Ticket { get; set; }
+        public TicketDTO Ticket { get; set; } = null!;
 
         public ActionTypeEnum Action { get; set; }
 
         public Guid UserId { get; set; }
-        public UserAccessDTO User { get; set; }
+        public UserAccessDTO User { get; set; } = null!;
 
         public DateTime CreatedAt { get; set; }
     }

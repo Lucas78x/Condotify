@@ -8,19 +8,19 @@ namespace CondotifyAPI.Domain.Models.License
         public License() { }
 
         public Guid Id { get; set; }
-        public string Name { get; set; }
-        public string CNPJ { get; set; }
-        public string City { get; set; }
-        public string Country { get; set; }
-        public string Code { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string CNPJ { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string Country { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
 
 
         public OrganizationTypeEnum Organization { get; set; }
         public BuildingTypeEnum Building { get; set; }
         public LicenseTypeEnum Type { get; set; }
-        public List<Block> Blocks { get; set; }
-        public List<AccessControlDevice> Devices { get; set; }
-        public Location Location { get; set; }
+        public List<Block> Blocks { get; set; } = [];
+        public List<AccessControlDevice> Devices { get; set; } = [];
+        public Location Location { get; set; } = new();
 
         public DateTime ExpireDate { get; set; }
         public DateTime CreatedAt { get; set; }
@@ -56,10 +56,7 @@ namespace CondotifyAPI.Domain.Models.License
 
         public bool AddBlock(Block block)
         {
-            if (Blocks == null)
-                Blocks = new List<Block>();
-
-            if (block == null && Blocks.Count >= byte.MaxValue)
+            if (block is null || Blocks.Count >= byte.MaxValue)
                 return false;
 
             Blocks.Add(block);
@@ -68,10 +65,7 @@ namespace CondotifyAPI.Domain.Models.License
 
         public bool AddDevice(AccessControlDevice device)
         {
-            if (Devices == null)
-                Devices = new List<AccessControlDevice>();
-
-            if (device == null && Devices.Count >= byte.MaxValue)
+            if (device is null || Devices.Count >= byte.MaxValue)
                 return false;
 
             Devices.Add(device);

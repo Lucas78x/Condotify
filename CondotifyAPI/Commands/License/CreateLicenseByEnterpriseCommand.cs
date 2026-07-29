@@ -65,7 +65,7 @@ namespace CondotifyAPI.Commands.Licenses
                     request.Type,
                     request.Location,
                     request.ExpireDate,
-                    DateTime.Now);
+                    DateTime.UtcNow);
 
                 license.City = request.City;
                 license.Country = request.Country;

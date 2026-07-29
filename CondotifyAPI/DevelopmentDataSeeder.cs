@@ -29,7 +29,7 @@ public static class DevelopmentDataSeeder
         var context = services.GetRequiredService<DatabaseContext>();
         var hasher = services.GetRequiredService<IPasswordHasher<UserAccess>>();
 
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
 
         var enterprise = await context.Enterprises.FirstOrDefaultAsync(x => x.Id == EnterpriseId);
         if (enterprise == null)
@@ -86,7 +86,7 @@ public static class DevelopmentDataSeeder
                 EnterpriseId = EnterpriseId,
                 Audit = new()
             };
-            user.SetPasswordHash(hasher.HashPassword(null, TestPassword));
+            user.SetPasswordHash(hasher.HashPassword(null!, TestPassword));
             context.Users.Add(user);
         }
 

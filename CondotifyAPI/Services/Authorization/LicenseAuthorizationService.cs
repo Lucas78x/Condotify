@@ -20,6 +20,13 @@ public interface ILicenseAuthorizationService
     Task<LicenseAccessGrant?> GetGrantAsync(ClaimsPrincipal principal, Guid licenseId, CancellationToken cancellationToken = default);
     Task<bool> HasPermissionAsync(ClaimsPrincipal principal, Guid licenseId, LicensePermissionEnum permission, CancellationToken cancellationToken = default);
     Task<HashSet<Guid>> GetAccessibleLicenseIdsAsync(ClaimsPrincipal principal, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<Guid, LicensePermissionEnum>> GetLicensePermissionsAsync(
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken = default);
+    Task<HashSet<Guid>> GetLicenseIdsWithPermissionAsync(
+        ClaimsPrincipal principal,
+        LicensePermissionEnum permission,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class LicenseAuthorizationService : ILicenseAuthorizationService
@@ -46,17 +53,50 @@ public sealed class LicenseAuthorizationService : ILicenseAuthorizationService
     public async Task<bool> HasPermissionAsync(ClaimsPrincipal principal, Guid licenseId, LicensePermissionEnum permission, CancellationToken cancellationToken = default) =>
         (await GetGrantAsync(principal, licenseId, cancellationToken))?.Has(permission) == true;
 
-    public async Task<HashSet<Guid>> GetAccessibleLicenseIdsAsync(ClaimsPrincipal principal, CancellationToken cancellationToken = default)
-    {
-        if (!TryUser(principal, out var userId, out var enterpriseId)) return [];
-        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId && x.EnterpriseId == enterpriseId, cancellationToken);
-        if (user is null) return [];
-        if (user.AccessType is AccessTypeEnum.Developer or AccessTypeEnum.Admin)
-            return (await _context.Licenses.AsNoTracking().Where(x => x.EnterpriseId == enterpriseId).Select(x => x.Id).ToListAsync(cancellationToken)).ToHashSet();
+    public async Task<HashSet<Guid>> GetAccessibleLicenseIdsAsync(
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken = default) =>
+        (await GetLicensePermissionsAsync(principal, cancellationToken)).Keys.ToHashSet();
 
-        return (await _context.LicenseUserAccesses.AsNoTracking()
+    public async Task<IReadOnlyDictionary<Guid, LicensePermissionEnum>> GetLicensePermissionsAsync(
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryUser(principal, out var userId, out var enterpriseId))
+            return new Dictionary<Guid, LicensePermissionEnum>();
+
+        var user = await _context.Users.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == userId && x.EnterpriseId == enterpriseId, cancellationToken);
+        if (user is null)
+            return new Dictionary<Guid, LicensePermissionEnum>();
+
+        if (user.AccessType is AccessTypeEnum.Developer or AccessTypeEnum.Admin)
+        {
+            return await _context.Licenses.AsNoTracking()
+                .Where(x => x.EnterpriseId == enterpriseId)
+                .ToDictionaryAsync(x => x.Id, _ => LicensePermissionEnum.All, cancellationToken);
+        }
+
+        var grants = await _context.LicenseUserAccesses.AsNoTracking()
             .Where(x => x.UserId == userId && x.IsActive && x.License.EnterpriseId == enterpriseId)
-            .Select(x => x.LicenseId).ToListAsync(cancellationToken)).ToHashSet();
+            .Select(x => new { x.LicenseId, x.Permissions })
+            .ToListAsync(cancellationToken);
+
+        return grants.ToDictionary(
+            x => x.LicenseId,
+            x => LicenseAccessDefaults.Normalize(x.Permissions));
+    }
+
+    public async Task<HashSet<Guid>> GetLicenseIdsWithPermissionAsync(
+        ClaimsPrincipal principal,
+        LicensePermissionEnum permission,
+        CancellationToken cancellationToken = default)
+    {
+        var grants = await GetLicensePermissionsAsync(principal, cancellationToken);
+        return grants
+            .Where(x => (x.Value & permission) == permission)
+            .Select(x => x.Key)
+            .ToHashSet();
     }
 
     private static bool TryUser(ClaimsPrincipal principal, out Guid userId, out Guid enterpriseId)
