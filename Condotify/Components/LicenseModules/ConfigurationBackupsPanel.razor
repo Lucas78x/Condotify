@@ -1,16 +1,24 @@
 @inject CondotifyApiClient Api
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject Microsoft.JSInterop.IJSRuntime JS
 
 <div class="backup-management">
     <div class="admin-tab-head">
         <div>
             <strong>Histórico de configurações</strong>
-            <span>Snapshots criptografados de equipamentos, rotas, credenciais e políticas. As 50 versões mais recentes são preservadas.</span>
+            <span>Versões internas e arquivos externos protegidos.</span>
         </div>
         @if (CanManage)
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Backup" OnClick="CreateAsync">Novo snapshot</MudButton>
+            <div class="backup-head-actions">
+                <label class="file-button @(_importing ? "disabled" : null)">
+                    <MudIcon Icon="@Icons.Material.Outlined.UploadFile" />
+                    <span>@(_importing ? "Importando..." : "Importar")</span>
+                    <InputFile OnChange="ImportAsync" accept=".cnbak,application/octet-stream" disabled="@_importing" />
+                </label>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Backup" OnClick="CreateAsync">Novo snapshot</MudButton>
+            </div>
         }
     </div>
 
@@ -24,6 +32,45 @@
     }
     else
     {
+        @if (_policy is not null)
+        {
+            <section class="backup-automation">
+                <div class="backup-automation-status">
+                    <span class="@(_policy.Enabled ? "active" : null)"><MudIcon Icon="@Icons.Material.Outlined.Schedule" /></span>
+                    <div>
+                        <strong>@(_policy.Enabled ? "Agendamento ativo" : "Agendamento inativo")</strong>
+                        <small>@NextRunLabel</small>
+                    </div>
+                </div>
+                <div class="backup-automation-fields">
+                    <MudSelect T="int" @bind-Value="_policy.IntervalHours" Label="Frequência" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(!CanManage)">
+                        <MudSelectItem Value="6">A cada 6 horas</MudSelectItem>
+                        <MudSelectItem Value="12">A cada 12 horas</MudSelectItem>
+                        <MudSelectItem Value="24">Diariamente</MudSelectItem>
+                        <MudSelectItem Value="72">A cada 3 dias</MudSelectItem>
+                        <MudSelectItem Value="168">Semanalmente</MudSelectItem>
+                    </MudSelect>
+                    <MudNumericField T="int" @bind-Value="_policy.ExternalRetentionDays" Label="Retenção externa" Adornment="Adornment.End" AdornmentText="dias" Min="7" Max="3650" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(!CanManage || !_policy.ExportEnabled)" />
+                    <MudSwitch T="bool" @bind-Value="_policy.ExportEnabled" Label="Cópia externa" Color="Color.Primary" Disabled="@(!CanManage)" />
+                    <MudSwitch T="bool" @bind-Value="_policy.Enabled" Label="Automático" Color="Color.Primary" Disabled="@(!CanManage)" />
+                </div>
+                <div class="backup-automation-actions">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@(_policy.ExternalStorageReady ? Color.Success : Color.Error)" Icon="@(_policy.ExternalStorageReady ? Icons.Material.Outlined.CloudDone : Icons.Material.Outlined.CloudOff)">
+                        @_policy.ExternalStorageLabel
+                    </MudChip>
+                    @if (CanManage)
+                    {
+                        <MudTooltip Text="Salvar política"><MudIconButton Icon="@Icons.Material.Outlined.Save" Color="Color.Primary" Disabled="@(_savingPolicy || _running)" OnClick="SavePolicyAsync" /></MudTooltip>
+                        <MudTooltip Text="Executar agora"><MudIconButton Icon="@Icons.Material.Outlined.PlayArrow" Color="Color.Primary" Disabled="@(_savingPolicy || _running)" OnClick="RunNowAsync" /></MudTooltip>
+                    }
+                </div>
+            </section>
+            @if (!string.IsNullOrWhiteSpace(_policy.LastError))
+            {
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4">@_policy.LastError</MudAlert>
+            }
+        }
+
         <div class="admin-summary-strip backup-summary">
             <div><strong>@_items.Count</strong><span>versões disponíveis</span></div>
             <div><strong>@(_items.FirstOrDefault()?.Version ?? 0)</strong><span>versão mais recente</span></div>
@@ -35,7 +82,7 @@
             <div class="profile-empty backup-empty">
                 <MudIcon Icon="@Icons.Material.Outlined.CloudOff" />
                 <strong>Nenhum snapshot criado</strong>
-                <span>Crie uma versão antes de alterações importantes nos equipamentos ou nas rotas.</span>
+                <span>O histórico de configurações está vazio.</span>
             </div>
         }
         else
@@ -70,6 +117,7 @@
                         @if (CanManage)
                         {
                             <div class="backup-version-actions">
+                                <MudTooltip Text="Baixar arquivo criptografado"><MudIconButton Icon="@Icons.Material.Outlined.Download" Disabled="@(_downloadingId == item.Id)" OnClick="@(() => DownloadAsync(item))" /></MudTooltip>
                                 <MudTooltip Text="Simular e restaurar"><MudIconButton Icon="@Icons.Material.Outlined.SettingsBackupRestore" Color="Color.Primary" OnClick="@(() => RestoreAsync(item))" /></MudTooltip>
                                 <MudTooltip Text="Excluir snapshot"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" OnClick="@(() => DeleteAsync(item))" /></MudTooltip>
                             </div>
@@ -85,13 +133,24 @@
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
     [Parameter] public bool CanManage { get; set; }
 
+    private const long MaxArchiveSize = 15_000_000;
     private List<ConfigurationBackupViewModel> _items = [];
+    private BackupAutomationPolicyViewModel? _policy;
     private bool _loading = true;
+    private bool _savingPolicy;
+    private bool _running;
+    private bool _importing;
+    private Guid? _downloadingId;
     private string? _error;
     private string LastRestoreLabel => _items.Where(x => x.LastRestoredAt.HasValue)
         .OrderByDescending(x => x.LastRestoredAt)
         .Select(x => x.LastRestoredAt!.Value.ToLocalTime().ToString("dd/MM/yy"))
         .FirstOrDefault() ?? "Nunca";
+    private string NextRunLabel => _policy?.NextRunAt is { } next
+        ? $"Próxima execução em {next.ToLocalTime():dd/MM/yyyy HH:mm}"
+        : _policy?.LastSuccessAt is { } success
+            ? $"Último sucesso em {success.ToLocalTime():dd/MM/yyyy HH:mm}"
+            : "Sem execução registrada";
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -99,14 +158,112 @@
     {
         _loading = true;
         _error = null;
-        var result = await Api.GetConfigurationBackupsAsync(LicenseId);
+        var backupsTask = Api.GetConfigurationBackupsAsync(LicenseId);
+        var policyTask = Api.GetBackupAutomationAsync(LicenseId);
+        await Task.WhenAll(backupsTask, policyTask);
+        var backups = await backupsTask;
+        var policy = await policyTask;
         _loading = false;
-        if (!result.Success)
+        if (!backups.Success || !policy.Success)
         {
-            _error = result.Error ?? "Não foi possível carregar os snapshots.";
+            _error = backups.Error ?? policy.Error ?? "Não foi possível carregar os backups.";
             return;
         }
-        _items = (result.Value ?? []).OrderByDescending(x => x.Version).ToList();
+        _items = (backups.Value ?? []).OrderByDescending(x => x.Version).ToList();
+        _policy = policy.Value;
+    }
+
+    private async Task SavePolicyAsync()
+    {
+        if (_policy is null || !CanManage) return;
+        _savingPolicy = true;
+        var result = await Api.UpdateBackupAutomationAsync(LicenseId, _policy);
+        _savingPolicy = false;
+        if (!result.Success || result.Value is null)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível salvar o agendamento.", Severity.Error);
+            return;
+        }
+        _policy = result.Value;
+        Snackbar.Add("Política de backup atualizada.", Severity.Success);
+    }
+
+    private async Task RunNowAsync()
+    {
+        if (!CanManage) return;
+        _running = true;
+        var result = await Api.RunBackupNowAsync(LicenseId);
+        _running = false;
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível executar o backup.", Severity.Error);
+            return;
+        }
+        Snackbar.Add(result.Value?.Message ?? "Backup concluído.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task ImportAsync(InputFileChangeEventArgs args)
+    {
+        if (!CanManage) return;
+        _importing = true;
+        try
+        {
+            var file = args.File;
+            if (file.Size > MaxArchiveSize)
+            {
+                Snackbar.Add("O arquivo excede o limite de 15 MB.", Severity.Error);
+                return;
+            }
+            await using var stream = file.OpenReadStream(MaxArchiveSize);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            var content = memory.ToArray();
+            try
+            {
+                var result = await Api.ImportBackupArchiveAsync(
+                    LicenseId,
+                    file.Name,
+                    Convert.ToBase64String(content));
+                if (!result.Success)
+                {
+                    Snackbar.Add(result.Error ?? "Não foi possível importar o backup.", Severity.Error);
+                    return;
+                }
+                Snackbar.Add($"Arquivo importado como versão {result.Value?.Version}.", Severity.Success);
+                await LoadAsync();
+            }
+            finally
+            {
+                System.Security.Cryptography.CryptographicOperations.ZeroMemory(content);
+            }
+        }
+        catch (IOException)
+        {
+            Snackbar.Add("Não foi possível ler o arquivo selecionado.", Severity.Error);
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+
+    private async Task DownloadAsync(ConfigurationBackupViewModel item)
+    {
+        _downloadingId = item.Id;
+        var result = await Api.BuildBackupArchiveAsync(LicenseId, item.Id);
+        _downloadingId = null;
+        if (!result.Success || result.Value is null)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível gerar o arquivo.", Severity.Error);
+            return;
+        }
+        await JS.InvokeVoidAsync(
+            "portalInterop.downloadBase64",
+            result.Value.FileName,
+            result.Value.ContentBase64,
+            "application/octet-stream");
+        Snackbar.Add($"Arquivo gerado. SHA-256: {result.Value.Sha256[..12]}...", Severity.Success);
     }
 
     private async Task CreateAsync()

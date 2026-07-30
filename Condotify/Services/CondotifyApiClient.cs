@@ -46,6 +46,151 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<OperationalDashboardViewModel>> GetOperationalDashboardAsync(CancellationToken cancellationToken = default) =>
         GetAsync<OperationalDashboardViewModel>("api/access/operations/dashboard", cancellationToken);
 
+    public Task<ApiResult<OperationalAlertPageViewModel>> GetOperationalAlertsAsync(
+        string status,
+        string severity,
+        CancellationToken cancellationToken = default)
+    {
+        var query = $"status={Uri.EscapeDataString(status)}&severity={Uri.EscapeDataString(severity)}&pageSize=100";
+        return GetAsync<OperationalAlertPageViewModel>($"api/access/operations/alerts?{query}", cancellationToken);
+    }
+
+    public Task<ApiResult<OperationalAlertSummaryViewModel>> GetOperationalAlertSummaryAsync(
+        CancellationToken cancellationToken = default) =>
+        GetAsync<OperationalAlertSummaryViewModel>("api/access/operations/alerts/summary", cancellationToken);
+
+    public Task<ApiResult<OperationalAlertViewModel>> AcknowledgeOperationalAlertAsync(
+        Guid alertId,
+        string note = "",
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<OperationalAlertViewModel>(
+            HttpMethod.Post,
+            $"api/access/operations/alerts/{alertId}/acknowledge",
+            new { Note = note },
+            cancellationToken);
+
+    public Task<ApiResult<OperationalAlertViewModel>> ResolveOperationalAlertAsync(
+        Guid alertId,
+        string note = "",
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<OperationalAlertViewModel>(
+            HttpMethod.Post,
+            $"api/access/operations/alerts/{alertId}/resolve",
+            new { Note = note },
+            cancellationToken);
+
+    public Task<ApiResult<OperationalAlertViewModel>> ReopenOperationalAlertAsync(
+        Guid alertId,
+        string note = "",
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<OperationalAlertViewModel>(
+            HttpMethod.Post,
+            $"api/access/operations/alerts/{alertId}/reopen",
+            new { Note = note },
+            cancellationToken);
+
+    public Task<ApiResult<OperationalAlertViewModel>> SnoozeOperationalAlertAsync(
+        Guid alertId,
+        int minutes,
+        string note = "",
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<OperationalAlertViewModel>(
+            HttpMethod.Post,
+            $"api/access/operations/alerts/{alertId}/snooze",
+            new { Minutes = minutes, Note = note },
+            cancellationToken);
+
+    public Task<ApiResult<OperationalAlertViewModel>> UnsnoozeOperationalAlertAsync(
+        Guid alertId,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<OperationalAlertViewModel>(
+            HttpMethod.Post,
+            $"api/access/operations/alerts/{alertId}/unsnooze",
+            new { Note = string.Empty },
+            cancellationToken);
+
+    public Task<ApiResult<AlertNotificationPolicyViewModel>> GetAlertNotificationPolicyAsync(
+        Guid licenseId,
+        CancellationToken cancellationToken = default) =>
+        GetAsync<AlertNotificationPolicyViewModel>(
+            $"api/access/licenses/{licenseId}/notifications/policy",
+            cancellationToken);
+
+    public Task<ApiResult<AlertNotificationPolicyViewModel>> UpdateAlertNotificationPolicyAsync(
+        Guid licenseId,
+        AlertNotificationPolicyViewModel model,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<AlertNotificationPolicyViewModel>(
+            HttpMethod.Put,
+            $"api/access/licenses/{licenseId}/notifications/policy",
+            new
+            {
+                model.Enabled,
+                model.MinimumSeverity,
+                model.WarningSlaMinutes,
+                model.CriticalSlaMinutes,
+                model.EscalationRepeatMinutes,
+                model.WebhookEnabled,
+                model.WebhookUrl,
+                model.WebhookSecret,
+                model.ClearWebhook,
+                model.EmailEnabled,
+                model.EmailRecipients
+            },
+            cancellationToken);
+
+    public Task<ApiResult<List<AlertNotificationDeliveryViewModel>>> GetAlertNotificationDeliveriesAsync(
+        Guid licenseId,
+        CancellationToken cancellationToken = default) =>
+        GetAsync<List<AlertNotificationDeliveryViewModel>>(
+            $"api/access/licenses/{licenseId}/notifications/deliveries?take=100",
+            cancellationToken);
+
+    public Task<ApiResult<AlertNotificationTestViewModel>> TestAlertNotificationChannelAsync(
+        Guid licenseId,
+        string channel,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<AlertNotificationTestViewModel>(
+            HttpMethod.Post,
+            $"api/access/licenses/{licenseId}/notifications/test",
+            new { Channel = channel },
+            cancellationToken);
+
+    public Task<ApiResult<SmtpSettingsViewModel>> GetSmtpSettingsAsync(
+        Guid licenseId,
+        CancellationToken cancellationToken = default) =>
+        GetAsync<SmtpSettingsViewModel>(
+            $"api/access/licenses/{licenseId}/notifications/smtp",
+            cancellationToken);
+
+    public Task<ApiResult<SmtpSettingsViewModel>> UpdateSmtpSettingsAsync(
+        Guid licenseId,
+        SmtpSettingsViewModel model,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<SmtpSettingsViewModel>(
+            HttpMethod.Put,
+            $"api/access/licenses/{licenseId}/notifications/smtp",
+            new
+            {
+                model.Host,
+                model.Port,
+                model.Username,
+                model.Password,
+                model.FromEmail,
+                model.FromName,
+                model.EnableSsl
+            },
+            cancellationToken);
+
+    public Task<ApiResult<SmtpSettingsViewModel>> DeleteSmtpSettingsAsync(
+        Guid licenseId,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<SmtpSettingsViewModel>(
+            HttpMethod.Delete,
+            $"api/access/licenses/{licenseId}/notifications/smtp",
+            new { },
+            cancellationToken);
+
     public Task<ApiResult<MfaSecurityViewModel>> GetMfaStatusAsync(CancellationToken cancellationToken = default) =>
         GetAsync<MfaSecurityViewModel>("api/auth/mfa/status", cancellationToken);
 
@@ -406,6 +551,59 @@ public sealed class CondotifyApiClient
         Guid backupId,
         CancellationToken cancellationToken = default) =>
         DeleteAsync($"api/access/licenses/{licenseId}/backups/{backupId}", cancellationToken);
+
+    public Task<ApiResult<BackupAutomationPolicyViewModel>> GetBackupAutomationAsync(
+        Guid licenseId,
+        CancellationToken cancellationToken = default) =>
+        GetAsync<BackupAutomationPolicyViewModel>(
+            $"api/access/licenses/{licenseId}/backups/automation",
+            cancellationToken);
+
+    public Task<ApiResult<BackupAutomationPolicyViewModel>> UpdateBackupAutomationAsync(
+        Guid licenseId,
+        BackupAutomationPolicyViewModel model,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<BackupAutomationPolicyViewModel>(
+            HttpMethod.Put,
+            $"api/access/licenses/{licenseId}/backups/automation",
+            new
+            {
+                model.Enabled,
+                model.IntervalHours,
+                model.ExportEnabled,
+                model.ExternalRetentionDays
+            },
+            cancellationToken);
+
+    public Task<ApiResult<BackupRunViewModel>> RunBackupNowAsync(
+        Guid licenseId,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<BackupRunViewModel>(
+            HttpMethod.Post,
+            $"api/access/licenses/{licenseId}/backups/run",
+            new { },
+            cancellationToken);
+
+    public Task<ApiResult<BackupArchiveViewModel>> BuildBackupArchiveAsync(
+        Guid licenseId,
+        Guid backupId,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<BackupArchiveViewModel>(
+            HttpMethod.Post,
+            $"api/access/licenses/{licenseId}/backups/{backupId}/archive",
+            new { },
+            cancellationToken);
+
+    public Task<ApiResult<ConfigurationBackupViewModel>> ImportBackupArchiveAsync(
+        Guid licenseId,
+        string fileName,
+        string contentBase64,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<ConfigurationBackupViewModel>(
+            HttpMethod.Post,
+            $"api/access/licenses/{licenseId}/backups/import",
+            new { FileName = fileName, ContentBase64 = contentBase64 },
+            cancellationToken);
 
     public Task<ApiResult<bool>> SetVehicleStatusAsync(Guid licenseId, Guid residentId, Guid vehicleId, bool isActive, CancellationToken cancellationToken = default) =>
         PatchAsync($"api/access/licenses/{licenseId}/residents/{residentId}/vehicles/{vehicleId}/status", new { IsActive = isActive }, cancellationToken);

@@ -131,7 +131,7 @@ else
     private string? _operationsError;
     private List<LicenseViewModel> _licenses = [];
     private OperationalDashboardViewModel? _operations;
-    private int AttentionCount => _operations?.Alerts.Count(x => x.Severity is "Error" or "Warning") ?? 0;
+    private int AttentionCount => _operations?.Alerts.Count(x => x.Severity is "Critical" or "Warning") ?? 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -165,7 +165,11 @@ else
     private static string AlertIcon(string type) => type switch
     {
         "DeviceOffline" => Icons.Material.Outlined.PortableWifiOff,
+        "DeviceSlow" => Icons.Material.Outlined.Speed,
         "BatchFailure" => Icons.Material.Outlined.SyncProblem,
+        "CredentialSyncFailure" => Icons.Material.Outlined.SyncProblem,
+        "BackupFailure" => Icons.Material.Outlined.Backup,
+        "BackupOverdue" => Icons.Material.Outlined.Schedule,
         "CredentialExpired" => Icons.Material.Outlined.Badge,
         "BookingApproval" => Icons.Material.Outlined.EventAvailable,
         _ => Icons.Material.Outlined.NotificationImportant

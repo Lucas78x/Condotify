@@ -10,17 +10,11 @@
         <MudIconButton Icon="@Icons.Material.Outlined.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" Class="mobile-menu" />
         <div class="appbar-context">
             <MudText Typo="Typo.subtitle1" Class="appbar-title">Central de operações</MudText>
-            <div class="appbar-environment"><span></span>Operação online</div>
+            <div class="appbar-environment"><span></span>Ambiente operacional</div>
         </div>
         <MudSpacer />
         <MudButton Href="/pesquisa" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Search" Class="appbar-search">Pesquisar pessoas e credenciais</MudButton>
-        <MudMenu Icon="@Icons.Material.Outlined.NotificationsNone" AriaLabel="Central de alertas" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="appbar-action">
-            <MudMenuItem Href="/operacoes" Icon="@Icons.Material.Outlined.NotificationImportant">Central de alertas</MudMenuItem>
-            <MudDivider />
-            <MudMenuItem Href="/portaria" Icon="@Icons.Material.Outlined.Doorbell">Operação de portaria</MudMenuItem>
-            <MudMenuItem Href="/equipamentos" Icon="@Icons.Material.Outlined.MonitorHeart">Saúde dos equipamentos</MudMenuItem>
-            <MudMenuItem Href="/credenciais" Icon="@Icons.Material.Outlined.SyncProblem">Pendências de credenciais</MudMenuItem>
-        </MudMenu>
+        <AlertIndicator />
         <AuthorizeView>
             <Authorized Context="auth">
                 <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="user-menu">
@@ -34,7 +28,7 @@
 
     <MudDrawer @bind-Open="_drawerOpen" Elevation="0" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md" Class="portal-drawer">
         <div class="brand-block">
-            <div class="brand-mark">C</div>
+            <div class="brand-mark"><span>C</span><i aria-hidden="true"></i></div>
             <div>
                 <MudText Typo="Typo.subtitle1" Class="brand-name">Condotify</MudText>
                 <MudText Typo="Typo.caption" Class="brand-subtitle">Controle de acesso</MudText>
@@ -65,35 +59,35 @@
         PaletteLight = new PaletteLight
         {
             Primary = "#3156D3",
-            Secondary = "#657083",
-            Tertiary = "#007A67",
-            Success = "#16845B",
-            Warning = "#B86B00",
-            Error = "#C13D4B",
-            Info = "#1976A3",
-            Background = "#F4F6F8",
+            Secondary = "#586579",
+            Tertiary = "#007C69",
+            Success = "#12805A",
+            Warning = "#A96300",
+            Error = "#BF3548",
+            Info = "#176D91",
+            Background = "#F3F5F8",
             Surface = "#FFFFFF",
             DrawerBackground = "#FFFFFF",
-            DrawerText = "#465063",
+            DrawerText = "#4E5A6D",
             AppbarBackground = "#FFFFFF",
-            AppbarText = "#202532",
-            TextPrimary = "#202532",
-            TextSecondary = "#697386",
-            LinesDefault = "#E3E7ED"
+            AppbarText = "#1C2431",
+            TextPrimary = "#1C2431",
+            TextSecondary = "#687386",
+            LinesDefault = "#DDE3EA"
         },
         LayoutProperties = new LayoutProperties
         {
-            DefaultBorderRadius = "6px",
-            DrawerWidthLeft = "248px",
-            AppbarHeight = "72px"
+            DefaultBorderRadius = "7px",
+            DrawerWidthLeft = "256px",
+            AppbarHeight = "68px"
         },
         Typography = new Typography
         {
             Default = new DefaultTypography { FontFamily = ["Inter", "Segoe UI", "sans-serif"] },
-            H1 = new H1Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.75rem", FontWeight = "700", LineHeight = "1.2" },
-            H2 = new H2Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.45rem", FontWeight = "700", LineHeight = "1.3" },
-            H5 = new H5Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.1rem", FontWeight = "600" },
-            Subtitle1 = new Subtitle1Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontWeight = "600" }
+            H1 = new H1Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.7rem", FontWeight = "700", LineHeight = "1.22" },
+            H2 = new H2Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.4rem", FontWeight = "700", LineHeight = "1.3" },
+            H5 = new H5Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.05rem", FontWeight = "650" },
+            Subtitle1 = new Subtitle1Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontWeight = "650" }
         }
     };
 

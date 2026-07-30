@@ -1,0 +1,59 @@
+@implements IAsyncDisposable
+@inject CondotifyApiClient Api
+
+<MudTooltip Text="@Tooltip">
+    <a href="/operacoes" class="alert-indicator" aria-label="@Tooltip">
+        <MudIcon Icon="@(Summary.Critical > 0 ? Icons.Material.Filled.NotificationsActive : Icons.Material.Outlined.NotificationsNone)" />
+        @if (Summary.Active > 0)
+        {
+            <span class="alert-indicator-count @(Summary.Critical > 0 ? "critical" : null)">@CountLabel</span>
+        }
+    </a>
+</MudTooltip>
+
+@code {
+    private readonly CancellationTokenSource _cancellation = new();
+    private OperationalAlertSummaryViewModel Summary { get; set; } = new();
+    private string CountLabel => Summary.Active > 99 ? "99+" : Summary.Active.ToString();
+    private string Tooltip => Summary.Active == 0
+        ? Summary.Suppressed > 0
+            ? $"{Summary.Suppressed} alerta(s) silenciado(s)"
+            : "Nenhum alerta ativo"
+        : $"{Summary.Active} alerta(s) ativo(s), {Summary.Critical} crítico(s), {Summary.Suppressed} silenciado(s)";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _ = RefreshLoopAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await Api.GetOperationalAlertSummaryAsync(_cancellation.Token);
+        if (result.Success && result.Value is not null)
+        {
+            Summary = result.Value;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task RefreshLoopAsync()
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
+            while (await timer.WaitForNextTickAsync(_cancellation.Token))
+                await LoadAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

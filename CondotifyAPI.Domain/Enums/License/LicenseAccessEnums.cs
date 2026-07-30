@@ -23,7 +23,9 @@ public enum LicensePermissionEnum : long
     ManageBookings = 1L << 18,
     ViewBackups = 1L << 19,
     ManageBackups = 1L << 20,
-    All = (1L << 21) - 1
+    ViewAlerts = 1L << 21,
+    ManageAlerts = 1L << 22,
+    All = (1L << 23) - 1
 }
 
 public enum LicenseAccessRoleEnum
@@ -47,16 +49,19 @@ public static class LicenseAccessDefaults
             LicensePermissionEnum.ManageCredentials | LicensePermissionEnum.ViewDevices |
             LicensePermissionEnum.OperateDevices | LicensePermissionEnum.ViewEvents |
             LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ManageDeliveries |
-            LicensePermissionEnum.ViewBookings | LicensePermissionEnum.ManageBookings,
+            LicensePermissionEnum.ViewBookings | LicensePermissionEnum.ManageBookings |
+            LicensePermissionEnum.ViewAlerts | LicensePermissionEnum.ManageAlerts,
         LicenseAccessRoleEnum.Operator => LicensePermissionEnum.ViewDashboard |
             LicensePermissionEnum.ViewStructure | LicensePermissionEnum.ViewPeople |
             LicensePermissionEnum.ViewCredentials | LicensePermissionEnum.ViewDevices |
             LicensePermissionEnum.OperateDevices | LicensePermissionEnum.ViewEvents |
-            LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ViewBookings,
+            LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ViewBookings |
+            LicensePermissionEnum.ViewAlerts,
         _ => LicensePermissionEnum.ViewDashboard | LicensePermissionEnum.ViewStructure |
             LicensePermissionEnum.ViewPeople | LicensePermissionEnum.ViewCredentials |
             LicensePermissionEnum.ViewDevices | LicensePermissionEnum.ViewEvents |
-            LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ViewBookings
+            LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ViewBookings |
+            LicensePermissionEnum.ViewAlerts
     };
 
     public static LicensePermissionEnum Normalize(LicensePermissionEnum permissions)
@@ -71,6 +76,7 @@ public static class LicenseAccessDefaults
         if (permissions.HasFlag(LicensePermissionEnum.ManageSettings)) permissions |= LicensePermissionEnum.ViewSettings;
         if (permissions.HasFlag(LicensePermissionEnum.ManageBookings)) permissions |= LicensePermissionEnum.ViewBookings;
         if (permissions.HasFlag(LicensePermissionEnum.ManageBackups)) permissions |= LicensePermissionEnum.ViewBackups;
+        if (permissions.HasFlag(LicensePermissionEnum.ManageAlerts)) permissions |= LicensePermissionEnum.ViewAlerts;
         return permissions;
     }
 }

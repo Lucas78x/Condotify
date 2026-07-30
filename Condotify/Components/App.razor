@@ -12,15 +12,24 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="css/portal.css" />
+    <link rel="stylesheet" href="css/design-system.css" />
     <link rel="icon" type="image/png" href="assets/logo/logo.png" />
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 
 <body>
     <Routes @rendermode="InteractiveServer" />
+    <div id="components-reconnect-modal" class="components-reconnect-hide reconnect-surface" role="status" aria-live="polite">
+        <span class="reconnect-spinner" aria-hidden="true"></span>
+        <span class="reconnect-message reconnecting"><strong>Reconectando</strong><small>Restabelecendo a sessão operacional...</small></span>
+        <span class="reconnect-message failed"><strong>Conexão interrompida</strong><small>Não foi possível reconectar automaticamente.</small></span>
+        <span class="reconnect-message rejected"><strong>Sessão encerrada</strong><small>Recarregue a página para entrar novamente.</small></span>
+        <button type="button" onclick="location.reload()">Recarregar</button>
+    </div>
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
     <script src="js/portal-interop.js"></script>
+    <script src="js/portal-motion.js"></script>
 </body>
 
 </html>

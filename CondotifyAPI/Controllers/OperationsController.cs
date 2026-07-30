@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Domain.Enums.AccessControl;
 using CondotifyAPI.Domain.Enums.Amenities;
+using CondotifyAPI.Domain.DTO.Observability;
 using System.Security.Claims;
 
 namespace CondotifyAPI.Controllers;
@@ -137,100 +138,40 @@ public sealed class OperationsController(
             })
             .ToListAsync();
 
-        var offlineDevices = await context.Devices.AsNoTracking()
-            .Where(x => deviceLicenseIds.Contains(x.LicenseId) && !x.IsActive)
-            .OrderByDescending(x => x.LastHealthCheckAt)
-            .Take(5)
-            .Select(x => new { x.LicenseId, LicenseName = x.License.Name, x.Name, x.LastHealthCheckAt })
-            .ToListAsync();
-        output.Alerts.AddRange(offlineDevices.Select(x => new OperationalAlertOut
-        {
-            Type = "DeviceOffline",
-            Severity = "Error",
-            LicenseId = x.LicenseId,
-            LicenseName = x.LicenseName,
-            Title = $"{x.Name} está offline",
-            Message = "O equipamento requer diagnóstico de conectividade.",
-            OccurredAt = x.LastHealthCheckAt ?? now,
-            TargetUrl = $"/licencas/{x.LicenseId}/equipamentos"
-        }));
-
-        var failedBatches = await context.AccessBatchOperations.AsNoTracking()
-            .Where(x => credentialLicenseIds.Contains(x.LicenseId) &&
-                (x.Status == AccessBatchStatusEnum.Failed ||
-                 x.Status == AccessBatchStatusEnum.DeadLetter ||
-                 x.Status == AccessBatchStatusEnum.CompletedWithErrors))
-            .OrderByDescending(x => x.CreatedAt)
-            .Take(5)
-            .Select(x => new { x.LicenseId, LicenseName = x.License.Name, x.Status, x.FailedItems, x.CreatedAt })
-            .ToListAsync();
-        output.Alerts.AddRange(failedBatches.Select(x => new OperationalAlertOut
-        {
-            Type = "BatchFailure",
-            Severity = x.Status == AccessBatchStatusEnum.DeadLetter ? "Error" : "Warning",
-            LicenseId = x.LicenseId,
-            LicenseName = x.LicenseName,
-            Title = "Sincronização requer atenção",
-            Message = $"{x.FailedItems} item(ns) não foram sincronizados. Consulte a auditoria da licença para os detalhes.",
-            OccurredAt = x.CreatedAt,
-            TargetUrl = $"/licencas/{x.LicenseId}/credenciais"
-        }));
-
-        var expiredCredentials = await context.ResidentAccessCredentials.AsNoTracking()
-            .Where(x => credentialLicenseIds.Contains(x.Resident.Unit.Block.LicenseId) && x.IsActive && x.ValidTo < now)
-            .OrderByDescending(x => x.ValidTo)
-            .Take(5)
-            .Select(x => new
-            {
-                LicenseId = x.Resident.Unit.Block.LicenseId,
-                LicenseName = x.Resident.Unit.Block.License.Name,
-                ResidentName = x.Resident.Name,
-                x.CredentialType,
-                x.ValidTo
-            })
-            .ToListAsync();
-        output.Alerts.AddRange(expiredCredentials.Select(x => new OperationalAlertOut
-        {
-            Type = "CredentialExpired",
-            Severity = "Warning",
-            LicenseId = x.LicenseId,
-            LicenseName = x.LicenseName,
-            Title = $"Credencial vencida de {x.ResidentName}",
-            Message = $"{x.CredentialType} está fora da validade configurada.",
-            OccurredAt = x.ValidTo,
-            TargetUrl = $"/licencas/{x.LicenseId}/credenciais"
-        }));
-
-        var pendingBookings = await context.AmenityBookings.AsNoTracking()
-            .Where(x => bookingLicenseIds.Contains(x.LicenseId) && x.Status == AmenityBookingStatusEnum.Pending)
-            .GroupBy(x => new { x.LicenseId, LicenseName = x.License.Name })
-            .Select(group => new
-            {
-                group.Key.LicenseId,
-                group.Key.LicenseName,
-                Count = group.Count(),
-                Oldest = group.Min(x => x.CreatedAt)
-            })
-            .OrderByDescending(x => x.Count)
-            .Take(5)
-            .ToListAsync();
-        output.Alerts.AddRange(pendingBookings.Select(x => new OperationalAlertOut
-        {
-            Type = "BookingApproval",
-            Severity = "Info",
-            LicenseId = x.LicenseId,
-            LicenseName = x.LicenseName,
-            Title = "Reservas aguardando aprovação",
-            Message = $"{x.Count} solicitação(ões) precisam de análise.",
-            OccurredAt = x.Oldest,
-            TargetUrl = $"/licencas/{x.LicenseId}/agendamento"
-        }));
-
-        output.Alerts = output.Alerts
-            .OrderBy(x => x.Severity == "Error" ? 0 : x.Severity == "Warning" ? 1 : 2)
-            .ThenByDescending(x => x.OccurredAt)
+        var alertLicenseIds = PermissionScope(permissionMap, LicensePermissionEnum.ViewAlerts);
+        output.Alerts = await context.OperationalAlerts.AsNoTracking()
+            .Where(x => x.LicenseId != null &&
+                        alertLicenseIds.Contains(x.LicenseId.Value) &&
+                        x.Status != OperationalAlertStatus.Resolved)
+            .OrderByDescending(x => x.Severity)
+            .ThenByDescending(x => x.LastOccurredAt)
             .Take(12)
-            .ToList();
+            .Select(x => new OperationalAlertOut
+            {
+                Id = x.Id,
+                Type = x.Type,
+                Severity = x.Severity.ToString(),
+                Status = x.Status.ToString(),
+                LicenseId = x.LicenseId,
+                LicenseName = x.License!.Name,
+                Title = x.Title,
+                Message = x.Message,
+                IsConditionActive = x.IsConditionActive,
+                OccurrenceCount = x.OccurrenceCount,
+                FirstOccurredAt = x.FirstOccurredAt,
+                OccurredAt = x.LastOccurredAt,
+                AcknowledgedAt = x.AcknowledgedAt,
+                AcknowledgedBy = x.AcknowledgedBy,
+                AcknowledgementNote = x.AcknowledgementNote,
+                ResolvedAt = x.ResolvedAt,
+                ResolvedBy = x.ResolvedBy,
+                ResolutionNote = x.ResolutionNote,
+                TargetUrl = x.TargetUrl,
+                SuppressedUntil = x.SuppressedUntil,
+                SuppressedBy = x.SuppressedBy,
+                SuppressionReason = x.SuppressionReason
+            })
+            .ToListAsync();
 
         return Ok(output);
     }

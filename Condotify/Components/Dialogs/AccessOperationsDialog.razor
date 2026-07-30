@@ -46,7 +46,7 @@
                     <div class="operation-batch-list">
                         @foreach (var batch in _batches)
                         {
-                            <div class="operation-batch-row">
+                            <div class="operation-batch-row @batch.Status.ToLowerInvariant()">
                                 <span class="operation-status-icon @batch.Status.ToLowerInvariant()"><MudIcon Icon="@BatchIcon(batch.Status)" /></span>
                                 <div class="operation-batch-main"><strong>@BatchLabel(batch.Status)</strong><span>Solicitado por @batch.RequestedBy em @batch.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</span><small>@AttemptLabel(batch)</small></div>
                                 <div class="operation-progress"><MudProgressLinear Value="@BatchProgress(batch)" Color="@BatchColor(batch.Status)" Rounded="false" /><small>@batch.ProcessedItems de @batch.TotalItems | @batch.FailedItems falha(s)</small></div>
@@ -230,6 +230,10 @@
         "Trashed" => "Movido para a lixeira",
         "Restored" => "Restaurado",
         "Purged" => "Excluido definitivamente",
+        "Imported" => "Importado",
+        "Exported" => "Exportado",
+        "ExportFailed" => "Falha na exportacao",
+        "ArchiveGenerated" => "Arquivo gerado",
         "Completed" => "Concluido",
         _ => action
     };
@@ -243,6 +247,7 @@
         "Credential" => "Credencial",
         "AccessRoute" => "Rota",
         "ConfigurationBackup" => "Backup de configuracao",
+        "BackupAutomation" => "Agendamento de backup",
         _ => entity
     };
     private static string AuditDetails(AccessAuditViewModel audit)

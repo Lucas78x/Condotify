@@ -43,6 +43,7 @@ public partial class DatabaseContext : DbContext
         AuditsEntityConfiguration(modelBuilder);
         RecycleBinEntityConfiguration(modelBuilder);
         BackupsEntityConfiguration(modelBuilder);
+        ObservabilityEntityConfiguration(modelBuilder);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {

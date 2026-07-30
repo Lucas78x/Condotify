@@ -1,0 +1,291 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject Microsoft.JSInterop.IJSRuntime JS
+
+<div class="alert-center-controls">
+    <MudSelect T="string" Label="Situação" Value="_status" ValueChanged="StatusChangedAsync" Variant="Variant.Outlined" Margin="Margin.Dense">
+        <MudSelectItem Value="@("active")">Ativos</MudSelectItem>
+        <MudSelectItem Value="@("open")">Novos</MudSelectItem>
+        <MudSelectItem Value="@("acknowledged")">Reconhecidos</MudSelectItem>
+        <MudSelectItem Value="@("resolved")">Resolvidos</MudSelectItem>
+        <MudSelectItem Value="@("all")">Todos</MudSelectItem>
+    </MudSelect>
+    <MudSelect T="string" Label="Severidade" Value="_severity" ValueChanged="SeverityChangedAsync" Variant="Variant.Outlined" Margin="Margin.Dense">
+        <MudSelectItem Value="@("")">Todas</MudSelectItem>
+        <MudSelectItem Value="@("Critical")">Crítica</MudSelectItem>
+        <MudSelectItem Value="@("Warning")">Atenção</MudSelectItem>
+        <MudSelectItem Value="@("Info")">Informativa</MudSelectItem>
+    </MudSelect>
+    <MudTooltip Text="Atualizar alertas">
+        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" Disabled="_loading" OnClick="LoadAsync" aria-label="Atualizar alertas" />
+    </MudTooltip>
+</div>
+
+@if (_loading)
+{
+    <div class="alert-center-loading">
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="68px" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="68px" />
+    </div>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+}
+else if (_page.Items.Count == 0)
+{
+    <div class="operations-empty">
+        <MudIcon Icon="@Icons.Material.Outlined.TaskAlt" Color="Color.Success" />
+        <strong>Nenhum alerta neste filtro</strong>
+        <span>A operação não possui ocorrências que correspondam à seleção.</span>
+    </div>
+}
+else
+{
+    <div class="alert-center-summary">
+        <span><strong>@_page.Open</strong> novos</span>
+        <span><strong>@_page.Acknowledged</strong> reconhecidos</span>
+        <span class="@(_page.Critical > 0 ? "critical" : null)"><strong>@_page.Critical</strong> críticos</span>
+    </div>
+    <div class="operational-alert-center-list">
+        @foreach (var alert in _page.Items)
+        {
+            <article id="@($"operational-alert-{alert.Id:N}")" class="operational-alert-item @alert.Severity.ToLowerInvariant() @alert.Status.ToLowerInvariant()">
+                <span class="operational-alert-icon"><MudIcon Icon="@AlertIcon(alert.Type)" /></span>
+                <div class="operational-alert-copy">
+                    <div class="operational-alert-heading">
+                        <strong>@alert.Title</strong>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@SeverityColor(alert.Severity)">
+                            @SeverityLabel(alert.Severity)
+                        </MudChip>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@StatusLabel(alert.Status)</MudChip>
+                    </div>
+                    <p>@alert.Message</p>
+                    <div class="operational-alert-meta">
+                        @if (!string.IsNullOrWhiteSpace(alert.LicenseName))
+                        {
+                            <span><MudIcon Icon="@Icons.Material.Outlined.Domain" Size="Size.Small" />@alert.LicenseName</span>
+                        }
+                        <span><MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" />@RelativeTime(alert.OccurredAt)</span>
+                        @if (alert.OccurrenceCount > 1)
+                        {
+                            <span><MudIcon Icon="@Icons.Material.Outlined.Replay" Size="Size.Small" />@alert.OccurrenceCount ocorrências</span>
+                        }
+                        @if (!alert.IsConditionActive)
+                        {
+                            <span class="condition-normal"><MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Size="Size.Small" />Condição normalizada</span>
+                        }
+                        @if (IsSuppressed(alert))
+                        {
+                            <span class="alert-suppressed"><MudIcon Icon="@Icons.Material.Outlined.NotificationsPaused" Size="Size.Small" />Silenciado até @alert.SuppressedUntil!.Value.ToLocalTime().ToString("dd/MM HH:mm")</span>
+                        }
+                    </div>
+                </div>
+                <div class="operational-alert-actions">
+                    @if (!string.IsNullOrWhiteSpace(alert.TargetUrl))
+                    {
+                        <MudTooltip Text="Abrir contexto">
+                            <MudIconButton Href="@alert.TargetUrl" Icon="@Icons.Material.Outlined.OpenInNew" aria-label="Abrir contexto do alerta" />
+                        </MudTooltip>
+                    }
+                    @if (alert.CanManage && alert.Status == "Open")
+                    {
+                        <MudTooltip Text="Reconhecer">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Visibility" Color="Color.Primary" OnClick="@(() => AcknowledgeAsync(alert))" aria-label="Reconhecer alerta" />
+                        </MudTooltip>
+                    }
+                    @if (alert.CanManage && alert.Status != "Resolved")
+                    {
+                        <MudTooltip Text="Resolver">
+                            <MudIconButton Icon="@Icons.Material.Outlined.CheckCircleOutline" Color="Color.Success" OnClick="@(() => ResolveAsync(alert))" aria-label="Resolver alerta" />
+                        </MudTooltip>
+                    }
+                    @if (alert.CanManage && alert.Status != "Resolved" && !IsSuppressed(alert))
+                    {
+                        <MudMenu Icon="@Icons.Material.Outlined.Snooze" AriaLabel="Silenciar alerta" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                            <MudMenuItem OnClick="@(() => SnoozeAsync(alert, 60))">1 hora</MudMenuItem>
+                            <MudMenuItem OnClick="@(() => SnoozeAsync(alert, 240))">4 horas</MudMenuItem>
+                            <MudMenuItem OnClick="@(() => SnoozeAsync(alert, 1440))">24 horas</MudMenuItem>
+                            <MudMenuItem OnClick="@(() => SnoozeAsync(alert, 10080))">7 dias</MudMenuItem>
+                        </MudMenu>
+                    }
+                    @if (alert.CanManage && IsSuppressed(alert))
+                    {
+                        <MudTooltip Text="Retomar notificações">
+                            <MudIconButton Icon="@Icons.Material.Outlined.NotificationsActive" Color="Color.Primary" OnClick="@(() => UnsnoozeAsync(alert))" aria-label="Retomar notificações do alerta" />
+                        </MudTooltip>
+                    }
+                    @if (alert.CanManage && alert.Status == "Resolved")
+                    {
+                        <MudTooltip Text="Reabrir">
+                            <MudIconButton Icon="@Icons.Material.Outlined.RestartAlt" Color="Color.Warning" OnClick="@(() => ReopenAsync(alert))" aria-label="Reabrir alerta" />
+                        </MudTooltip>
+                    }
+                </div>
+            </article>
+        }
+    </div>
+}
+
+@code {
+    private OperationalAlertPageViewModel _page = new();
+    private string _status = "active";
+    private string _severity = string.Empty;
+    private string? _error;
+    private bool _loading = true;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task StatusChangedAsync(string value)
+    {
+        _status = value;
+        await LoadAsync();
+    }
+
+    private async Task SeverityChangedAsync(string value)
+    {
+        _severity = value;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        var result = await Api.GetOperationalAlertsAsync(_status, _severity);
+        _loading = false;
+        if (result.Success && result.Value is not null)
+            _page = result.Value;
+        else
+            _error = result.Error ?? "Não foi possível carregar os alertas.";
+    }
+
+    private async Task AcknowledgeAsync(OperationalAlertViewModel alert)
+    {
+        var result = await Api.AcknowledgeOperationalAlertAsync(alert.Id);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível reconhecer o alerta.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Alerta reconhecido.", Severity.Success);
+        await AnimateExitAsync(alert.Id);
+        await LoadAsync();
+    }
+
+    private async Task ResolveAsync(OperationalAlertViewModel alert)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Resolver alerta",
+            "Confirma que esta ocorrência foi tratada? O histórico será preservado.",
+            yesText: "Resolver",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        var result = await Api.ResolveOperationalAlertAsync(alert.Id);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível resolver o alerta.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Alerta resolvido.", Severity.Success);
+        await AnimateExitAsync(alert.Id);
+        await LoadAsync();
+    }
+
+    private async Task ReopenAsync(OperationalAlertViewModel alert)
+    {
+        var result = await Api.ReopenOperationalAlertAsync(alert.Id);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível reabrir o alerta.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Alerta reaberto.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task SnoozeAsync(OperationalAlertViewModel alert, int minutes)
+    {
+        var result = await Api.SnoozeOperationalAlertAsync(alert.Id, minutes);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível silenciar o alerta.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Notificações do alerta pausadas.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task UnsnoozeAsync(OperationalAlertViewModel alert)
+    {
+        var result = await Api.UnsnoozeOperationalAlertAsync(alert.Id);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível retomar as notificações.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Notificações retomadas.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task AnimateExitAsync(Guid alertId)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("portalMotion.exitById", $"operational-alert-{alertId:N}");
+        }
+        catch (Microsoft.JSInterop.JSException)
+        {
+            // Motion is progressive enhancement; data refresh must always continue.
+        }
+    }
+
+    private static bool IsSuppressed(OperationalAlertViewModel alert) =>
+        alert.SuppressedUntil.HasValue && alert.SuppressedUntil.Value > DateTime.UtcNow;
+
+    private static string AlertIcon(string type) => type switch
+    {
+        "DeviceOffline" => Icons.Material.Outlined.PortableWifiOff,
+        "DeviceSlow" => Icons.Material.Outlined.Speed,
+        "CredentialSyncFailure" => Icons.Material.Outlined.SyncProblem,
+        "BatchFailure" => Icons.Material.Outlined.Rule,
+        "BackupFailure" => Icons.Material.Outlined.Backup,
+        "BackupOverdue" => Icons.Material.Outlined.Schedule,
+        "CredentialExpired" => Icons.Material.Outlined.Badge,
+        "BookingApproval" => Icons.Material.Outlined.EventAvailable,
+        _ => Icons.Material.Outlined.NotificationImportant
+    };
+
+    private static Color SeverityColor(string severity) => severity switch
+    {
+        "Critical" => Color.Error,
+        "Warning" => Color.Warning,
+        _ => Color.Info
+    };
+
+    private static string SeverityLabel(string severity) => severity switch
+    {
+        "Critical" => "Crítico",
+        "Warning" => "Atenção",
+        _ => "Informativo"
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Acknowledged" => "Reconhecido",
+        "Resolved" => "Resolvido",
+        _ => "Novo"
+    };
+
+    private static string RelativeTime(DateTime value)
+    {
+        var utc = value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime();
+        var elapsed = DateTime.UtcNow - utc;
+        if (elapsed.TotalMinutes < 1) return "agora";
+        if (elapsed.TotalHours < 1) return $"há {(int)elapsed.TotalMinutes} min";
+        if (elapsed.TotalDays < 1) return $"há {(int)elapsed.TotalHours} h";
+        return value.ToLocalTime().ToString("dd/MM HH:mm");
+    }
+}

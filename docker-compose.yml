@@ -37,10 +37,20 @@ services:
       CONDOTIFY_EQUIPMENT_SECRET: ${EQUIPMENT_SECRET:-condotify-local-equipment-secret-change-before-production-2026}
       CONDOTIFY_MEDIA_SECRET: ${MEDIA_SECRET:-condotify-local-media-secret-change-before-production-2026}
       CONDOTIFY_PRIVATE_MEDIA_PATH: /app/data/private-media
+      CONDOTIFY_BACKUP_EXPORT_SECRET: ${BACKUP_EXPORT_SECRET:?Defina BACKUP_EXPORT_SECRET no arquivo .env}
+      CONDOTIFY_BACKUP_EXPORT_PATH: /app/data/backups
+      CONDOTIFY_SMTP_HOST: ${CONDOTIFY_SMTP_HOST:-}
+      CONDOTIFY_SMTP_PORT: ${CONDOTIFY_SMTP_PORT:-587}
+      CONDOTIFY_SMTP_USERNAME: ${CONDOTIFY_SMTP_USERNAME:-}
+      CONDOTIFY_SMTP_PASSWORD: ${CONDOTIFY_SMTP_PASSWORD:-}
+      CONDOTIFY_SMTP_FROM_EMAIL: ${CONDOTIFY_SMTP_FROM_EMAIL:-}
+      CONDOTIFY_SMTP_FROM_NAME: ${CONDOTIFY_SMTP_FROM_NAME:-Condotify}
+      CONDOTIFY_SMTP_ENABLE_SSL: ${CONDOTIFY_SMTP_ENABLE_SSL:-true}
     ports:
       - "7118:8080"
     volumes:
       - condotify-private-media:/app/data/private-media
+      - ${BACKUP_EXPORT_PATH:-./backups}:/app/data/backups
     depends_on:
       postgres:
         condition: service_healthy

@@ -13,6 +13,7 @@ using CondotifyAPI.Services.Security;
 using CondotifyAPI.Services.Imports;
 using CondotifyAPI.Services.RecycleBin;
 using CondotifyAPI.Services.Backups;
+using CondotifyAPI.Services.Observability;
 using MediatR;
 using CondotifyAPI.Domain.Models.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -66,6 +67,10 @@ builder.Services.AddSingleton<IPrivateMediaStore, PrivateMediaStore>();
 builder.Services.AddSingleton<StructureImportCsvParser>();
 builder.Services.AddScoped<IRecycleBinService, RecycleBinService>();
 builder.Services.AddScoped<IConfigurationBackupService, ConfigurationBackupService>();
+builder.Services.AddSingleton<IConfigurationBackupArchiveService, ConfigurationBackupArchiveService>();
+builder.Services.AddScoped<IAutomaticBackupRunner, AutomaticBackupRunner>();
+builder.Services.AddScoped<IOperationalAlertEvaluationService, OperationalAlertEvaluationService>();
+builder.Services.AddScoped<IAlertNotificationChannelSender, AlertNotificationChannelSender>();
 
 builder.Services.AddAuthentication(options =>
 {
@@ -122,6 +127,11 @@ builder.Services.AddDbContext<DatabaseContext>(options =>
 builder.Services.AddAutoMapper(_ => { }, typeof(CondotifyProfile).Assembly);
 
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("AlertNotifications", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("Condotify-Notifications/1.0");
+});
 
 builder.Services.AddTransient<Mediator>();
 builder.Services.AddScoped<ISender, ScopedSender<Mediator>>();
@@ -142,6 +152,9 @@ builder.Services.AddHostedService<CredentialReconciliationWorker>();
 builder.Services.AddHostedService<AccessEventIngestionWorker>();
 builder.Services.AddHostedService<DeviceHealthMonitoringWorker>();
 builder.Services.AddHostedService<RecycleBinCleanupService>();
+builder.Services.AddHostedService<AutomaticBackupWorker>();
+builder.Services.AddHostedService<OperationalAlertWorker>();
+builder.Services.AddHostedService<AlertNotificationWorker>();
 
 builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();
 builder.Services.AddScoped<IAccessControlDriverFactory, AccessControlDriverFactory>();

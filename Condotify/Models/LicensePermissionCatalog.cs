@@ -9,6 +9,8 @@ public static class LicensePermissionCatalog
         new(LicensePermission.ViewDashboard, "Operacao", "Ver painel", "Indicadores e resumo do condominio"),
         new(LicensePermission.ViewEvents, "Operacao", "Consultar acessos", "Eventos autorizados, recusas e logs"),
         new(LicensePermission.OperateDevices, "Operacao", "Acionar equipamentos", "Abertura remota e comandos operacionais"),
+        new(LicensePermission.ViewAlerts, "Operacao", "Ver alertas", "Falhas, avisos e saude operacional"),
+        new(LicensePermission.ManageAlerts, "Operacao", "Tratar alertas", "Reconhecer, resolver e reabrir ocorrencias"),
         new(LicensePermission.ViewStructure, "Cadastros", "Ver estrutura", "Blocos, unidades e pessoas"),
         new(LicensePermission.ManageStructure, "Cadastros", "Editar estrutura", "Criar e alterar blocos e unidades"),
         new(LicensePermission.ViewPeople, "Cadastros", "Ver pessoas", "Moradores, visitantes e prestadores"),
@@ -37,13 +39,16 @@ public static class LicensePermissionCatalog
             LicensePermission.ManagePeople | LicensePermission.ViewCredentials | LicensePermission.ManageCredentials |
             LicensePermission.ViewDevices | LicensePermission.OperateDevices | LicensePermission.ViewEvents |
             LicensePermission.ViewDeliveries | LicensePermission.ManageDeliveries |
-            LicensePermission.ViewBookings | LicensePermission.ManageBookings),
+            LicensePermission.ViewBookings | LicensePermission.ManageBookings |
+            LicensePermission.ViewAlerts | LicensePermission.ManageAlerts),
         3 => (long)(LicensePermission.ViewDashboard | LicensePermission.ViewStructure | LicensePermission.ViewPeople |
             LicensePermission.ViewCredentials | LicensePermission.ViewDevices | LicensePermission.OperateDevices |
-            LicensePermission.ViewEvents | LicensePermission.ViewDeliveries | LicensePermission.ViewBookings),
+            LicensePermission.ViewEvents | LicensePermission.ViewDeliveries | LicensePermission.ViewBookings |
+            LicensePermission.ViewAlerts),
         _ => (long)(LicensePermission.ViewDashboard | LicensePermission.ViewStructure | LicensePermission.ViewPeople |
             LicensePermission.ViewCredentials | LicensePermission.ViewDevices | LicensePermission.ViewEvents |
-            LicensePermission.ViewDeliveries | LicensePermission.ViewBookings)
+            LicensePermission.ViewDeliveries | LicensePermission.ViewBookings |
+            LicensePermission.ViewAlerts)
     };
 
     public static long Normalize(long permissions)
@@ -58,6 +63,7 @@ public static class LicensePermissionCatalog
         if (value.HasFlag(LicensePermission.ManageUsers)) value |= LicensePermission.ViewUsers;
         if (value.HasFlag(LicensePermission.ManageSettings)) value |= LicensePermission.ViewSettings;
         if (value.HasFlag(LicensePermission.ManageBackups)) value |= LicensePermission.ViewBackups;
+        if (value.HasFlag(LicensePermission.ManageAlerts)) value |= LicensePermission.ViewAlerts;
         return (long)value;
     }
 
@@ -76,6 +82,7 @@ public static class LicensePermissionCatalog
             LicensePermission.ViewUsers => ~LicensePermission.ManageUsers,
             LicensePermission.ViewSettings => ~LicensePermission.ManageSettings,
             LicensePermission.ViewBackups => ~LicensePermission.ManageBackups,
+            LicensePermission.ViewAlerts => ~LicensePermission.ManageAlerts,
             _ => LicensePermission.All
         };
         return (long)value;

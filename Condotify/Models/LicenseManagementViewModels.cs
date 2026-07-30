@@ -442,7 +442,9 @@ namespace Condotify.Models
         ManageBookings = 1L << 18,
         ViewBackups = 1L << 19,
         ManageBackups = 1L << 20,
-        All = (1L << 21) - 1
+        ViewAlerts = 1L << 21,
+        ManageAlerts = 1L << 22,
+        All = (1L << 23) - 1
     }
 
     public class LicenseAdministrationViewModel
@@ -1114,5 +1116,34 @@ namespace Condotify.Models
         public Guid? ReconciliationBatchId { get; set; }
         public DateTime RestoredAt { get; set; }
         public string Message { get; set; } = string.Empty;
+    }
+
+    public class BackupAutomationPolicyViewModel
+    {
+        public bool Enabled { get; set; }
+        public int IntervalHours { get; set; } = 24;
+        public bool ExportEnabled { get; set; } = true;
+        public int ExternalRetentionDays { get; set; } = 90;
+        public DateTime? LastRunAt { get; set; }
+        public DateTime? LastSuccessAt { get; set; }
+        public DateTime? NextRunAt { get; set; }
+        public string LastError { get; set; } = string.Empty;
+        public bool ExternalStorageReady { get; set; }
+        public string ExternalStorageLabel { get; set; } = string.Empty;
+    }
+
+    public class BackupRunViewModel
+    {
+        public ConfigurationBackupViewModel Backup { get; set; } = new();
+        public bool Exported { get; set; }
+        public string ExportFileName { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class BackupArchiveViewModel
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string ContentBase64 { get; set; } = string.Empty;
+        public string Sha256 { get; set; } = string.Empty;
     }
 }

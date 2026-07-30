@@ -1,0 +1,390 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (_loading)
+{
+    <div class="notification-settings-loading">
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="220px" />
+    </div>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+}
+else
+{
+    <div class="notification-settings">
+        <div class="notification-master-row">
+            <div>
+                <MudText Typo="Typo.h6">Notificações operacionais</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Envie alertas críticos para responsáveis externos e acompanhe cada tentativa.</MudText>
+            </div>
+            <MudSwitch T="bool" @bind-Value="_policy.Enabled" Label="Automação ativa" Color="Color.Primary" Disabled="@(!CanManage)" />
+        </div>
+
+        <section class="notification-policy-band">
+            <div class="notification-section-title">
+                <span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Timer" /></span>
+                <div><strong>Severidade e SLA</strong><span>O primeiro aviso é imediato; o escalonamento começa quando o prazo expira.</span></div>
+            </div>
+            <div class="notification-policy-grid">
+                <MudSelect T="string" @bind-Value="_policy.MinimumSeverity" Label="Severidade mínima" Variant="Variant.Outlined" Disabled="@(!CanManage)">
+                    <MudSelectItem Value="@("Info")">Informativa</MudSelectItem>
+                    <MudSelectItem Value="@("Warning")">Atenção</MudSelectItem>
+                    <MudSelectItem Value="@("Critical")">Crítica</MudSelectItem>
+                </MudSelect>
+                <MudNumericField T="int" @bind-Value="_policy.CriticalSlaMinutes" Label="SLA crítico" Adornment="Adornment.End" AdornmentText="min" Variant="Variant.Outlined" Min="5" Max="10080" Disabled="@(!CanManage)" />
+                <MudNumericField T="int" @bind-Value="_policy.WarningSlaMinutes" Label="SLA de atenção" Adornment="Adornment.End" AdornmentText="min" Variant="Variant.Outlined" Min="5" Max="10080" Disabled="@(!CanManage)" />
+                <MudNumericField T="int" @bind-Value="_policy.EscalationRepeatMinutes" Label="Repetir escalonamento" Adornment="Adornment.End" AdornmentText="min" Variant="Variant.Outlined" Min="15" Max="10080" Disabled="@(!CanManage)" />
+            </div>
+        </section>
+
+        <section class="notification-policy-band">
+            <div class="notification-channel-heading">
+                <div class="notification-section-title">
+                    <span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.Webhook" /></span>
+                    <div><strong>Webhook assinado</strong><span>Integre com automações, mensageria ou sistemas de atendimento.</span></div>
+                </div>
+                <MudSwitch T="bool" @bind-Value="_policy.WebhookEnabled" Label="Habilitado" Color="Color.Primary" Disabled="@(!CanManage)" />
+            </div>
+            @if (_policy.WebhookConfigured)
+            {
+                <div class="notification-configured">
+                    <MudIcon Icon="@Icons.Material.Outlined.Link" />
+                    <span><strong>Endpoint configurado</strong><small>@_policy.WebhookEndpointLabel</small></span>
+                    @if (CanManage)
+                    {
+                        <MudTooltip Text="Remover configuração"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" OnClick="ClearWebhookAsync" /></MudTooltip>
+                    }
+                </div>
+            }
+            @if (CanManage)
+            {
+                <div class="notification-channel-fields">
+                    <MudTextField @bind-Value="_policy.WebhookUrl" Label="@(_policy.WebhookConfigured ? "Novo endpoint (opcional)" : "Endpoint HTTPS")" Placeholder="https://automacao.exemplo.com/alertas" Variant="Variant.Outlined" />
+                    <MudTextField @bind-Value="_policy.WebhookSecret" Label="Segredo de assinatura" InputType="InputType.Password" Placeholder="@(_policy.WebhookConfigured ? "Deixe vazio para manter o atual" : "Informe um segredo forte")" Variant="Variant.Outlined" />
+                    <MudTooltip Text="Enviar evento de teste"><MudIconButton Icon="@Icons.Material.Outlined.Send" Color="Color.Primary" Disabled="@(!_policy.WebhookConfigured || _testing)" OnClick="@(() => TestAsync("Webhook"))" /></MudTooltip>
+                </div>
+            }
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Assinatura HMAC-SHA256 enviada no cabeçalho X-Condotify-Signature.</MudText>
+        </section>
+
+        <section class="notification-policy-band">
+            <div class="notification-channel-heading">
+                <div class="notification-section-title">
+                    <span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.AlternateEmail" /></span>
+                    <div><strong>E-mail</strong><span>Encaminhe alertas aos responsáveis pela operação e infraestrutura.</span></div>
+                </div>
+                <div class="notification-channel-status">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@(_policy.EmailTransportReady ? Color.Success : Color.Warning)">
+                        @(_policy.EmailTransportReady ? "SMTP pronto" : "SMTP não configurado")
+                    </MudChip>
+                    <MudSwitch T="bool" @bind-Value="_policy.EmailEnabled" Label="Habilitado" Color="Color.Primary" Disabled="@(!CanManage)" />
+                </div>
+            </div>
+            <div class="notification-email-fields">
+                <MudTextField @bind-Value="_policy.EmailRecipients" Label="Destinatários" Placeholder="operacao@empresa.com; suporte@empresa.com" Lines="2" Variant="Variant.Outlined" Disabled="@(!CanManage)" />
+                @if (CanManage)
+                {
+                    <MudTooltip Text="Enviar e-mail de teste"><MudIconButton Icon="@Icons.Material.Outlined.Send" Color="Color.Primary" Disabled="@(!_policy.EmailTransportReady || string.IsNullOrWhiteSpace(_policy.EmailRecipients) || _testing)" OnClick="@(() => TestAsync("Email"))" /></MudTooltip>
+                }
+            </div>
+            @if (CanViewSettings && _smtp is not null)
+            {
+                <div class="smtp-settings">
+                    <div class="smtp-settings-head">
+                        <div>
+                            <strong>Servidor de envio</strong>
+                            <span>Configuração exclusiva desta licença. Quando ausente, o servidor definido no ambiente continua como contingência.</span>
+                        </div>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@SmtpSourceColor(_smtp.Source)">
+                            @SmtpSourceLabel(_smtp.Source)
+                        </MudChip>
+                    </div>
+
+                    @if (CanManageSettings)
+                    {
+                        <div class="smtp-settings-grid">
+                            <MudTextField @bind-Value="_smtp.Host" Label="Servidor SMTP" Placeholder="smtp.empresa.com" Variant="Variant.Outlined" />
+                            <MudNumericField T="int" @bind-Value="_smtp.Port" Label="Porta" Variant="Variant.Outlined" Min="1" Max="65535" />
+                            <MudTextField @bind-Value="_smtp.Username" Label="Usuário" Variant="Variant.Outlined" />
+                            <MudTextField @bind-Value="_smtp.Password" Label="Senha" InputType="InputType.Password"
+                                          Placeholder="@(_smtp.PasswordConfigured ? "Deixe vazio para manter a atual" : "Informe a senha")"
+                                          Variant="Variant.Outlined" />
+                            <MudTextField @bind-Value="_smtp.FromEmail" Label="E-mail do remetente" Placeholder="acesso@empresa.com" Variant="Variant.Outlined" />
+                            <MudTextField @bind-Value="_smtp.FromName" Label="Nome do remetente" Variant="Variant.Outlined" />
+                        </div>
+                        <div class="smtp-settings-actions">
+                            <MudSwitch T="bool" @bind-Value="_smtp.EnableSsl" Label="Conexão segura (TLS)" Color="Color.Primary" />
+                            <div>
+                                @if (_smtp.Source == "Web")
+                                {
+                                    <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.DeleteOutline"
+                                               Disabled="_savingSmtp" OnClick="DeleteSmtpAsync">
+                                        Remover
+                                    </MudButton>
+                                }
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save"
+                                           Disabled="_savingSmtp" OnClick="SaveSmtpAsync">
+                                    @(_savingSmtp ? "Salvando..." : "Salvar servidor")
+                                </MudButton>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="smtp-settings-summary">
+                            <span><small>Servidor</small><strong>@SmtpValue(_smtp.Host)</strong></span>
+                            <span><small>Porta</small><strong>@(_smtp.Source == "Web" ? _smtp.Port.ToString() : "Gerenciada no ambiente")</strong></span>
+                            <span><small>Remetente</small><strong>@SmtpValue(_smtp.FromEmail)</strong></span>
+                            <span><small>Segurança</small><strong>@(_smtp.EnableSsl ? "TLS habilitado" : "Sem TLS")</strong></span>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        @if (CanManage)
+        {
+            <div class="notification-save-row">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveAsync">
+                    @(_saving ? "Salvando..." : "Salvar política")
+                </MudButton>
+            </div>
+        }
+
+        <section class="notification-delivery-section">
+            <div class="panel-toolbar">
+                <div>
+                    <MudText Typo="Typo.h6">Histórico de entregas</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Tentativas, escalonamentos e falhas dos canais externos.</MudText>
+                </div>
+                <MudTooltip Text="Atualizar histórico"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadDeliveriesAsync" /></MudTooltip>
+            </div>
+            @if (_deliveries.Count == 0)
+            {
+                <div class="operations-empty compact">
+                    <MudIcon Icon="@Icons.Material.Outlined.Outbox" />
+                    <strong>Nenhuma notificação enviada</strong>
+                    <span>As entregas aparecerão quando um alerta atingir a severidade configurada.</span>
+                </div>
+            }
+            else
+            {
+                <div class="notification-delivery-list">
+                    @foreach (var delivery in _deliveries)
+                    {
+                        <div class="notification-delivery-row">
+                            <span class="notification-delivery-icon @DeliveryTone(delivery.Status)"><MudIcon Icon="@ChannelIcon(delivery.Channel)" /></span>
+                            <div class="notification-delivery-main">
+                                <strong>@delivery.AlertTitle</strong>
+                                <span>@ChannelLabel(delivery.Channel) · @delivery.DestinationLabel</span>
+                                @if (!string.IsNullOrWhiteSpace(delivery.LastError))
+                                {
+                                    <small>@delivery.LastError</small>
+                                }
+                            </div>
+                            <div class="notification-delivery-attempt">
+                                <strong>Nível @delivery.EscalationLevel</strong>
+                                <span>@delivery.AttemptCount tentativa(s)</span>
+                            </div>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@DeliveryColor(delivery.Status)">@DeliveryLabel(delivery.Status)</MudChip>
+                            <time>@delivery.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</time>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public bool CanViewSettings { get; set; }
+    [Parameter] public bool CanManageSettings { get; set; }
+
+    private AlertNotificationPolicyViewModel _policy = new();
+    private SmtpSettingsViewModel? _smtp;
+    private List<AlertNotificationDeliveryViewModel> _deliveries = [];
+    private bool _loading = true;
+    private bool _saving;
+    private bool _savingSmtp;
+    private bool _testing;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var policyTask = Api.GetAlertNotificationPolicyAsync(LicenseId);
+        var deliveriesTask = Api.GetAlertNotificationDeliveriesAsync(LicenseId);
+        var smtpTask = CanViewSettings
+            ? Api.GetSmtpSettingsAsync(LicenseId)
+            : null;
+        if (smtpTask is null)
+            await Task.WhenAll(policyTask, deliveriesTask);
+        else
+            await Task.WhenAll(policyTask, deliveriesTask, smtpTask);
+        var policy = await policyTask;
+        var deliveries = await deliveriesTask;
+        var smtp = smtpTask is null ? null : await smtpTask;
+        _loading = false;
+        if (!policy.Success)
+        {
+            _error = policy.Error ?? "Não foi possível carregar a política de notificações.";
+            return;
+        }
+        _policy = policy.Value ?? new();
+        if (deliveries.Success)
+            _deliveries = deliveries.Value ?? [];
+        if (CanViewSettings && smtp is not null)
+        {
+            if (!smtp.Success)
+            {
+                _error = smtp.Error ?? "Não foi possível carregar a configuração SMTP.";
+                return;
+            }
+            _smtp = smtp.Value ?? new();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!CanManage) return;
+        _saving = true;
+        var result = await Api.UpdateAlertNotificationPolicyAsync(LicenseId, _policy);
+        _saving = false;
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível salvar a política.", Severity.Error);
+            return;
+        }
+        _policy = result.Value ?? _policy;
+        Snackbar.Add("Política de notificações atualizada.", Severity.Success);
+    }
+
+    private async Task TestAsync(string channel)
+    {
+        _testing = true;
+        var result = await Api.TestAlertNotificationChannelAsync(LicenseId, channel);
+        _testing = false;
+        Snackbar.Add(
+            result.Value?.Message ?? result.Error ?? "Não foi possível testar o canal.",
+            result.Success ? Severity.Success : Severity.Error);
+    }
+
+    private async Task ClearWebhookAsync()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Remover webhook",
+            "O endpoint e o segredo criptografado serão removidos desta licença.",
+            yesText: "Remover",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+        _policy.ClearWebhook = true;
+        _policy.WebhookEnabled = false;
+        _policy.WebhookUrl = string.Empty;
+        _policy.WebhookSecret = string.Empty;
+        await SaveAsync();
+    }
+
+    private async Task SaveSmtpAsync()
+    {
+        if (!CanManageSettings || _smtp is null) return;
+        _savingSmtp = true;
+        var result = await Api.UpdateSmtpSettingsAsync(LicenseId, _smtp);
+        _savingSmtp = false;
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível salvar o servidor SMTP.", Severity.Error);
+            return;
+        }
+
+        _smtp = result.Value ?? _smtp;
+        _smtp.Password = string.Empty;
+        _policy.EmailTransportReady = _smtp.Configured;
+        Snackbar.Add("Servidor de e-mail atualizado.", Severity.Success);
+    }
+
+    private async Task DeleteSmtpAsync()
+    {
+        if (!CanManageSettings || _smtp is null) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Remover servidor SMTP",
+            "A configuração desta licença será removida. Se houver um servidor definido no ambiente, ele será usado automaticamente.",
+            yesText: "Remover",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        _savingSmtp = true;
+        var result = await Api.DeleteSmtpSettingsAsync(LicenseId);
+        _savingSmtp = false;
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível remover o servidor SMTP.", Severity.Error);
+            return;
+        }
+
+        _smtp = result.Value ?? new();
+        _policy.EmailTransportReady = _smtp.Configured;
+        Snackbar.Add(
+            _smtp.Configured ? "Configuração web removida. O servidor do ambiente está ativo." : "Configuração SMTP removida.",
+            Severity.Success);
+    }
+
+    private async Task LoadDeliveriesAsync()
+    {
+        var result = await Api.GetAlertNotificationDeliveriesAsync(LicenseId);
+        if (result.Success)
+            _deliveries = result.Value ?? [];
+        else
+            Snackbar.Add(result.Error ?? "Não foi possível atualizar o histórico.", Severity.Error);
+    }
+
+    private static string ChannelIcon(string channel) => channel == "Email"
+        ? Icons.Material.Outlined.AlternateEmail
+        : Icons.Material.Outlined.Webhook;
+    private static string ChannelLabel(string channel) => channel == "Email" ? "E-mail" : "Webhook";
+    private static string DeliveryTone(string status) => status switch
+    {
+        "Delivered" => "success",
+        "DeadLetter" or "Failed" => "error",
+        "Cancelled" => "neutral",
+        _ => "warning"
+    };
+    private static Color DeliveryColor(string status) => status switch
+    {
+        "Delivered" => Color.Success,
+        "DeadLetter" or "Failed" => Color.Error,
+        "Cancelled" => Color.Default,
+        _ => Color.Warning
+    };
+    private static string DeliveryLabel(string status) => status switch
+    {
+        "Queued" => "Na fila",
+        "Sending" => "Enviando",
+        "Delivered" => "Entregue",
+        "Failed" => "Nova tentativa",
+        "DeadLetter" => "Falha definitiva",
+        "Cancelled" => "Cancelada",
+        _ => status
+    };
+
+    private static Color SmtpSourceColor(string source) => source switch
+    {
+        "Web" => Color.Success,
+        "Environment" => Color.Info,
+        _ => Color.Warning
+    };
+
+    private static string SmtpSourceLabel(string source) => source switch
+    {
+        "Web" => "Configuração web",
+        "Environment" => "Ambiente",
+        _ => "Não configurado"
+    };
+
+    private static string SmtpValue(string value) =>
+        string.IsNullOrWhiteSpace(value) ? "Gerenciado no ambiente" : value;
+}

@@ -850,6 +850,63 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.ToTable("UserAccessAudits", (string)null);
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Backup.BackupAutomationPolicyDTO", b =>
+                {
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("ExportEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("ExternalRetentionDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(90);
+
+                    b.Property<int>("IntervalHours")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(24);
+
+                    b.Property<string>("LastError")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("LastRunAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastSuccessAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LeaseOwner")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTime?>("NextRunAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("LicenseId");
+
+                    b.HasIndex("Enabled", "NextRunAt", "LeaseExpiresAt");
+
+                    b.ToTable("BackupAutomationPolicies", (string)null);
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Backup.ConfigurationBackupDTO", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1879,6 +1936,320 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.ToTable("LicenseUserAccesses", (string)null);
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Observability.AlertNotificationDeliveryDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AlertId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("DeliveryKey")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<string>("DestinationLabel")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
+                    b.Property<int>("EscalationLevel")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastError")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LeaseOwner")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("MaxAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ResponseCode")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AlertId");
+
+                    b.HasIndex("DeliveryKey")
+                        .IsUnique();
+
+                    b.HasIndex("LicenseId", "CreatedAt");
+
+                    b.HasIndex("Status", "NextAttemptAt", "LeaseExpiresAt");
+
+                    b.ToTable("AlertNotificationDeliveries", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Observability.AlertNotificationPolicyDTO", b =>
+                {
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CriticalSlaMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(15);
+
+                    b.Property<bool>("EmailEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("EmailRecipients")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("EscalationRepeatMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(60);
+
+                    b.Property<int>("MinimumSeverity")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("SmtpEnableSsl")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("SmtpFromEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SmtpFromName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("SmtpHost")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SmtpPassword")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SmtpPort")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(587);
+
+                    b.Property<string>("SmtpUsername")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("WarningSlaMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(60);
+
+                    b.Property<bool>("WebhookEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("WebhookSecret")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("WebhookUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("LicenseId");
+
+                    b.ToTable("AlertNotificationPolicies", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Observability.OperationalAlertDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AcknowledgedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AcknowledgedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("AcknowledgedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AcknowledgementNote")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<Guid>("EnterpriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("EscalationLevel")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTime>("FirstOccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsConditionActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastNotifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastOccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("NextEscalationAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("OccurrenceCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResolutionNote")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResolvedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("ResolvedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ResourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("Severity")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SuppressedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("SuppressedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("SuppressedUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SuppressionReason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("TargetUrl")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EnterpriseId", "Fingerprint")
+                        .IsUnique();
+
+                    b.HasIndex("LicenseId", "Status", "LastOccurredAt");
+
+                    b.HasIndex("EnterpriseId", "Status", "Severity", "LastOccurredAt");
+
+                    b.ToTable("OperationalAlerts", (string)null);
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.RecycleBin.RecycleBinItemDTO", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2757,6 +3128,17 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Backup.BackupAutomationPolicyDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithOne()
+                        .HasForeignKey("CondotifyAPI.Domain.DTO.Backup.BackupAutomationPolicyDTO", "LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Backup.ConfigurationBackupDTO", b =>
                 {
                     b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
@@ -2992,6 +3374,54 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("License");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Observability.AlertNotificationDeliveryDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Observability.OperationalAlertDTO", "Alert")
+                        .WithMany()
+                        .HasForeignKey("AlertId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Alert");
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Observability.AlertNotificationPolicyDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithOne()
+                        .HasForeignKey("CondotifyAPI.Domain.DTO.Observability.AlertNotificationPolicyDTO", "LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Observability.OperationalAlertDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Enterprise.EnterpriseDTO", "Enterprise")
+                        .WithMany()
+                        .HasForeignKey("EnterpriseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Enterprise");
+
+                    b.Navigation("License");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.RecycleBin.RecycleBinItemDTO", b =>

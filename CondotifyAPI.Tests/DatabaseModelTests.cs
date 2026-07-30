@@ -12,6 +12,7 @@ using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.DTO.Amenities;
 using CondotifyAPI.Domain.DTO.RecycleBin;
 using CondotifyAPI.Domain.DTO.Backup;
+using CondotifyAPI.Domain.DTO.Observability;
 using CondotifyAPI.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -164,6 +165,23 @@ namespace CondotifyAPI.Tests
             Assert.StartsWith("enc:v1:", protectedValue, StringComparison.Ordinal);
             Assert.DoesNotContain("terminal-secret", protectedValue, StringComparison.Ordinal);
             Assert.Equal(payload, converter.ConvertFromProvider(protectedValue));
+        }
+
+        [Fact]
+        public void BackupAutomation_ShouldKeepSinglePolicyAndDueLookupIndex()
+        {
+            using var context = CreateContext();
+            var entity = context.Model.FindEntityType(typeof(BackupAutomationPolicyDTO));
+
+            Assert.NotNull(entity);
+            Assert.Equal(
+                nameof(BackupAutomationPolicyDTO.LicenseId),
+                entity!.FindPrimaryKey()!.Properties.Single().Name);
+            Assert.True(HasIndex(
+                entity,
+                nameof(BackupAutomationPolicyDTO.Enabled),
+                nameof(BackupAutomationPolicyDTO.NextRunAt),
+                nameof(BackupAutomationPolicyDTO.LeaseExpiresAt)));
         }
 
         [Fact]
@@ -331,6 +349,55 @@ namespace CondotifyAPI.Tests
 
             Assert.NotEmpty(dateProperties);
             Assert.All(dateProperties, property => Assert.Equal("timestamp with time zone", property.GetColumnType()));
+        }
+
+        [Fact]
+        public void OperationalAlerts_ShouldBeDeduplicatedAndIndexedForTheWorkQueue()
+        {
+            using var context = CreateContext();
+            var alert = context.Model.FindEntityType(typeof(OperationalAlertDTO));
+
+            Assert.NotNull(alert);
+            Assert.True(HasUniqueIndex(
+                alert!,
+                nameof(OperationalAlertDTO.EnterpriseId),
+                nameof(OperationalAlertDTO.Fingerprint)));
+            Assert.True(HasIndex(
+                alert!,
+                nameof(OperationalAlertDTO.EnterpriseId),
+                nameof(OperationalAlertDTO.Status),
+                nameof(OperationalAlertDTO.Severity),
+                nameof(OperationalAlertDTO.LastOccurredAt)));
+
+            var licenseForeignKey = alert!.GetForeignKeys()
+                .Single(x => x.PrincipalEntityType.ClrType == typeof(LicenseDTO));
+            Assert.Equal(DeleteBehavior.SetNull, licenseForeignKey.DeleteBehavior);
+        }
+
+        [Fact]
+        public void AlertNotifications_ShouldEncryptDestinationsAndDeduplicateDeliveries()
+        {
+            using var context = CreateContext();
+            var policy = context.Model.FindEntityType(typeof(AlertNotificationPolicyDTO));
+            var delivery = context.Model.FindEntityType(typeof(AlertNotificationDeliveryDTO));
+
+            Assert.NotNull(policy);
+            Assert.NotNull(delivery);
+            Assert.Equal(
+                nameof(AlertNotificationPolicyDTO.LicenseId),
+                policy!.FindPrimaryKey()!.Properties.Single().Name);
+            Assert.NotNull(policy.FindProperty(nameof(AlertNotificationPolicyDTO.WebhookUrl))!.GetValueConverter());
+            Assert.NotNull(policy.FindProperty(nameof(AlertNotificationPolicyDTO.WebhookSecret))!.GetValueConverter());
+            Assert.NotNull(policy.FindProperty(nameof(AlertNotificationPolicyDTO.EmailRecipients))!.GetValueConverter());
+            Assert.NotNull(policy.FindProperty(nameof(AlertNotificationPolicyDTO.SmtpUsername))!.GetValueConverter());
+            Assert.NotNull(policy.FindProperty(nameof(AlertNotificationPolicyDTO.SmtpPassword))!.GetValueConverter());
+            Assert.NotNull(policy.FindProperty(nameof(AlertNotificationPolicyDTO.SmtpFromEmail))!.GetValueConverter());
+            Assert.True(HasUniqueIndex(delivery!, nameof(AlertNotificationDeliveryDTO.DeliveryKey)));
+            Assert.True(HasIndex(
+                delivery!,
+                nameof(AlertNotificationDeliveryDTO.Status),
+                nameof(AlertNotificationDeliveryDTO.NextAttemptAt),
+                nameof(AlertNotificationDeliveryDTO.LeaseExpiresAt)));
         }
 
         private static DatabaseContext CreateContext()

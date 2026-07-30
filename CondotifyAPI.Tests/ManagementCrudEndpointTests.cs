@@ -134,6 +134,10 @@ public sealed class ManagementCrudEndpointTests
     [InlineData(nameof(ConfigurationBackupsController.Preview), typeof(HttpPostAttribute), "{backupId:guid}/preview")]
     [InlineData(nameof(ConfigurationBackupsController.Restore), typeof(HttpPostAttribute), "{backupId:guid}/restore")]
     [InlineData(nameof(ConfigurationBackupsController.Delete), typeof(HttpDeleteAttribute), "{backupId:guid}")]
+    [InlineData(nameof(ConfigurationBackupsController.UpdateAutomation), typeof(HttpPutAttribute), "automation")]
+    [InlineData(nameof(ConfigurationBackupsController.RunNow), typeof(HttpPostAttribute), "run")]
+    [InlineData(nameof(ConfigurationBackupsController.BuildArchive), typeof(HttpPostAttribute), "{backupId:guid}/archive")]
+    [InlineData(nameof(ConfigurationBackupsController.ImportArchive), typeof(HttpPostAttribute), "import")]
     public void BackupMutationEndpoints_ShouldRequireManagePermission(
         string methodName,
         Type httpAttributeType,
@@ -173,5 +177,98 @@ public sealed class ManagementCrudEndpointTests
         Assert.True(administrator.HasFlag(LicensePermissionEnum.ViewBackups));
         Assert.True(administrator.HasFlag(LicensePermissionEnum.ManageBackups));
         Assert.True(normalized.HasFlag(LicensePermissionEnum.ViewBackups));
+    }
+
+    [Theory]
+    [InlineData(nameof(OperationalAlertsController.Acknowledge), "acknowledge")]
+    [InlineData(nameof(OperationalAlertsController.Resolve), "resolve")]
+    [InlineData(nameof(OperationalAlertsController.Reopen), "reopen")]
+    public void AlertActions_ShouldExposeLifecycleEndpoints(string methodName, string action)
+    {
+        var method = typeof(OperationalAlertsController).GetMethod(methodName);
+
+        Assert.NotNull(method);
+        var route = Assert.Single(method!.GetCustomAttributes<HttpPostAttribute>(inherit: true));
+        Assert.Equal($"{{alertId:guid}}/{action}", route.Template);
+    }
+
+    [Theory]
+    [InlineData(nameof(OperationalAlertsController.Snooze), "snooze")]
+    [InlineData(nameof(OperationalAlertsController.Unsnooze), "unsnooze")]
+    public void AlertSnoozeActions_ShouldExposeLifecycleEndpoints(string methodName, string action)
+    {
+        var method = typeof(OperationalAlertsController).GetMethod(methodName);
+
+        Assert.NotNull(method);
+        var route = Assert.Single(method!.GetCustomAttributes<HttpPostAttribute>(inherit: true));
+        Assert.Equal($"{{alertId:guid}}/{action}", route.Template);
+    }
+
+    [Fact]
+    public void AlertPermissions_ShouldBeIncludedInOperationalRolesAndNormalized()
+    {
+        var administrator = LicenseAccessDefaults.ForRole(LicenseAccessRoleEnum.Administrator);
+        var operatorPermissions = LicenseAccessDefaults.ForRole(LicenseAccessRoleEnum.Operator);
+        var normalized = LicenseAccessDefaults.Normalize(LicensePermissionEnum.ManageAlerts);
+
+        Assert.True(administrator.HasFlag(LicensePermissionEnum.ManageAlerts));
+        Assert.True(operatorPermissions.HasFlag(LicensePermissionEnum.ViewAlerts));
+        Assert.False(operatorPermissions.HasFlag(LicensePermissionEnum.ManageAlerts));
+        Assert.True(normalized.HasFlag(LicensePermissionEnum.ViewAlerts));
+    }
+
+    [Theory]
+    [InlineData(nameof(AlertNotificationsController.UpdatePolicy), typeof(HttpPutAttribute), "policy")]
+    [InlineData(nameof(AlertNotificationsController.TestChannel), typeof(HttpPostAttribute), "test")]
+    public void NotificationMutations_ShouldRequireAlertManagement(
+        string methodName,
+        Type attributeType,
+        string route)
+    {
+        var method = typeof(AlertNotificationsController).GetMethod(methodName);
+
+        Assert.NotNull(method);
+        var httpAttribute = Assert.IsAssignableFrom<HttpMethodAttribute>(
+            method!.GetCustomAttributes(attributeType, inherit: true).Single());
+        Assert.Equal(route, httpAttribute.Template);
+        var permission = Assert.Single(
+            method.GetCustomAttributes<RequireLicensePermissionAttribute>(inherit: true));
+        Assert.Equal(
+            LicensePermissionEnum.ManageAlerts,
+            Assert.IsType<LicensePermissionEnum>(Assert.Single(permission.Arguments!)));
+    }
+
+    [Fact]
+    public void NotificationController_ShouldRequireAlertVisibility()
+    {
+        var permission = Assert.Single(
+            typeof(AlertNotificationsController)
+                .GetCustomAttributes<RequireLicensePermissionAttribute>(inherit: true));
+
+        Assert.Equal(
+            LicensePermissionEnum.ViewAlerts,
+            Assert.IsType<LicensePermissionEnum>(Assert.Single(permission.Arguments!)));
+    }
+
+    [Theory]
+    [InlineData(nameof(AlertNotificationsController.GetSmtp), typeof(HttpGetAttribute), LicensePermissionEnum.ViewSettings)]
+    [InlineData(nameof(AlertNotificationsController.UpdateSmtp), typeof(HttpPutAttribute), LicensePermissionEnum.ManageSettings)]
+    [InlineData(nameof(AlertNotificationsController.DeleteSmtp), typeof(HttpDeleteAttribute), LicensePermissionEnum.ManageSettings)]
+    public void SmtpEndpoints_ShouldUseSettingsPermissions(
+        string methodName,
+        Type attributeType,
+        LicensePermissionEnum expectedPermission)
+    {
+        var method = typeof(AlertNotificationsController).GetMethod(methodName);
+
+        Assert.NotNull(method);
+        var httpAttribute = Assert.IsAssignableFrom<HttpMethodAttribute>(
+            method!.GetCustomAttributes(attributeType, inherit: true).Single());
+        Assert.Equal("smtp", httpAttribute.Template);
+        var permission = Assert.Single(
+            method.GetCustomAttributes<RequireLicensePermissionAttribute>(inherit: true));
+        Assert.Equal(
+            expectedPermission,
+            Assert.IsType<LicensePermissionEnum>(Assert.Single(permission.Arguments!)));
     }
 }
