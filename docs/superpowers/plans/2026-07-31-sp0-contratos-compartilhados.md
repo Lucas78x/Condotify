@@ -4,7 +4,7 @@
 
 **Goal:** Extrair de `Condotify` os contratos e o cliente HTTP para bibliotecas compartilhadas, sem alterar o comportamento da versão web, para que o app MAUI (SP-4) os consuma sem duplicação.
 
-**Architecture:** Três bibliotecas `net8.0` novas — `Condotify.Contracts` (ViewModels e DTOs), `Condotify.ApiClient` (`CondotifyApiClient`, `ApiResult<T>` e a abstração de token) e `Condotify.UI` (tema MudBlazor único). Os namespaces `Condotify.Models`, `Condotify.Out` e `Condotify.Services` são preservados, então nenhum arquivo `.razor` precisa mudar. A dependência de `AuthenticationStateProvider` dentro de `CondotifyApiClient` é substituída pela interface `IAccessTokenProvider`, cuja implementação web replica exatamente o comportamento atual e cuja implementação MAUI (SP-4) lerá do `SecureStorage`.
+**Architecture:** Três bibliotecas `net8.0` novas — `Condotify.Contracts` (ViewModels e DTOs), `Condotify.ApiClient` (`CondotifyApiClient`, `ApiResult<T>` e a abstração de sessão) e `Condotify.UI` (tema MudBlazor único). Os namespaces `Condotify.Models`, `Condotify.Out` e `Condotify.Services` são preservados, então nenhum arquivo `.razor` precisa mudar. A dependência de `AuthenticationStateProvider` dentro de `CondotifyApiClient` é substituída pela interface `ISessionContextProvider`, cuja implementação web replica exatamente o comportamento atual e cuja implementação MAUI (SP-4) lerá do `SecureStorage`.
 
 **Tech Stack:** .NET 8, ASP.NET Core Blazor Server, MudBlazor 9.7.0, QRCoder 1.8.0, xUnit 2.5.3.
 
@@ -25,7 +25,7 @@ Spec: [SP-0 Design](../specs/2026-07-31-sp0-contratos-compartilhados-design.md) 
 
 ### Desvios conscientes em relação ao spec
 
-1. O spec previa `ClaimsAccessTokenProvider` no projeto `Condotify`. O plano o coloca em `Condotify.ApiClient`. Motivo: é o item de risco **Alto** do SP-0 e precisa de teste unitário; mantê-lo na biblioteca permite testá-lo num projeto de teste leve, sem arrastar o app web inteiro. A classe é genuinamente reutilizável por qualquer host Blazor baseado em `ClaimsPrincipal`.
+1. O spec previa `ClaimsAccessTokenProvider` no projeto `Condotify`. O plano renomeia a abstração para `ISessionContextProvider`/`ClaimsSessionContextProvider` (ver correção na Task 3) e a coloca em `Condotify.ApiClient`. Motivo: é o item de risco **Alto** do SP-0 e precisa de teste unitário; mantê-lo na biblioteca permite testá-lo num projeto de teste leve, sem arrastar o app web inteiro. A classe é genuinamente reutilizável por qualquer host Blazor baseado em `ClaimsPrincipal`.
 2. O spec previa SDK Razor para `Condotify.ApiClient`. O plano usa `Microsoft.NET.Sdk`, porque o projeto não contém nenhum `.razor` e `IBrowserFile` vem do pacote `Microsoft.AspNetCore.Components.Web`.
 3. O spec não mencionava `Condotify/Out/LoginOut.cs`. Ele é contrato de login, será necessário no SP-4 e portanto entra em `Condotify.Contracts`.
 
@@ -41,10 +41,10 @@ Spec: [SP-0 Design](../specs/2026-07-31-sp0-contratos-compartilhados-design.md) 
 | `Condotify.Contracts/*.cs` (10 arquivos movidos) | ViewModels, catálogos e `LoginOut` |
 | `Condotify.ApiClient/Condotify.ApiClient.csproj` | Biblioteca de acesso à API |
 | `Condotify.ApiClient/*.cs` (4 arquivos movidos) | `CondotifyApiClient`, `ApiResult`, `FacePhotoProcessor`, `QrCodeRenderer` |
-| `Condotify.ApiClient/IAccessTokenProvider.cs` | Abstração de obtenção do token |
-| `Condotify.ApiClient/ClaimsAccessTokenProvider.cs` | Implementação sobre `ClaimsPrincipal` + constante do claim |
+| `Condotify.ApiClient/ISessionContextProvider.cs` | Abstração dos dados da sessão (token + enterprise id) |
+| `Condotify.ApiClient/ClaimsSessionContextProvider.cs` | Implementação sobre `ClaimsPrincipal` + constantes dos claims |
 | `Condotify.ApiClient.Tests/Condotify.ApiClient.Tests.csproj` | Projeto de teste |
-| `Condotify.ApiClient.Tests/ClaimsAccessTokenProviderTests.cs` | Testes do item de risco Alto |
+| `Condotify.ApiClient.Tests/ClaimsSessionContextProviderTests.cs` | Testes do item de risco Alto |
 | `Condotify.UI/Condotify.UI.csproj` | Biblioteca de UI compartilhada |
 | `Condotify.UI/CondotifyTheme.cs` | Tema MudBlazor único, claro e escuro |
 
@@ -54,10 +54,10 @@ Spec: [SP-0 Design](../specs/2026-07-31-sp0-contratos-compartilhados-design.md) 
 |---|---|
 | `Condotify.sln` | Adiciona 4 projetos |
 | `Condotify/Condotify.csproj` | Adiciona 3 `ProjectReference` |
-| `Condotify/Services/CondotifyApiClient.cs` | Troca `AuthenticationStateProvider` por `IAccessTokenProvider`; remove a constante do claim |
-| `Condotify/Controllers/LoginController.cs:34,157` | `CondotifyApiClient.AccessTokenClaim` → `ClaimsAccessTokenProvider.AccessTokenClaim` |
+| `Condotify.ApiClient/CondotifyApiClient.cs` | Troca `AuthenticationStateProvider` por `ISessionContextProvider`; remove a constante do claim |
+| `Condotify/Controllers/LoginController.cs:34,157` | `CondotifyApiClient.AccessTokenClaim` → `ClaimsSessionContextProvider.AccessTokenClaim` |
 | `Condotify/Controllers/PrivateMediaController.cs:17` | idem |
-| `Condotify/Program.cs:30` | Registra `IAccessTokenProvider` |
+| `Condotify/Program.cs:30` | Registra `ISessionContextProvider` |
 | `Condotify/Components/Layout/MainLayout.razor` | Usa `CondotifyTheme.Default` |
 | `Condotify/Components/Layout/PublicLayout.razor` | Usa `CondotifyTheme.Default` |
 
@@ -189,6 +189,15 @@ Cada pacote cobre um uso concreto: `Components.Web` traz `IBrowserFile` para o `
 
 Deliberadamente **não** se usa `Microsoft.NET.Sdk.Razor` nem `FrameworkReference` — ver Global Constraints.
 
+> **Nota de execução (2026-07-31).** Duas edições de conteúdo em `CondotifyApiClient.cs` foram inevitáveis ao sair do SDK Web, nenhuma delas alterando comportamento:
+>
+> 1. Acrescentar `using Microsoft.Extensions.Configuration;` e `using Microsoft.Extensions.Logging;`. O `Microsoft.NET.Sdk.Web` fornece esses dois como *implicit usings*; o SDK de biblioteca não.
+> 2. Trocar duas chamadas `ClaimsPrincipal.FindFirstValue(x)` por `FindFirst(x)?.Value`, que é exatamente o corpo do método de extensão. A extensão vive em `Microsoft.AspNetCore.Authentication.Abstractions`, que é assembly do shared framework e **não pode** ser referenciado como pacote autônomo — tentar `dotnet add package` falha com "incompatível com as estruturas". Isso confirma na prática a restrição global sobre `FrameworkReference`.
+>
+> `Microsoft.Extensions.Logging.Abstractions` ficou em **8.0.3** (e não 8.0.2) por conflito de resolução de versão com os demais pacotes.
+>
+> As duas chamadas `FindFirst` são temporárias: a Task 3 remove ambas ao introduzir `ISessionContextProvider`.
+
 - [ ] **Step 2: Mover os arquivos**
 
 ```bash
@@ -230,12 +239,14 @@ consumable from the MAUI app in SP-4."
 
 Esta é a tarefa de risco Alto do SP-0. Uma regressão aqui passa pelo compilador e pelos testes existentes, e só aparece como falha de autenticação em runtime.
 
+> **Correção do plano aplicada em 2026-07-31, durante a execução.** O desenho original previa apenas `IAccessTokenProvider`, cobrindo o token. A Task 2 revelou que `CondotifyApiClient` lê **dois** valores da sessão, não um: além do token em `CreateClientAsync`, o método `CreateLicenseAsync` lê o claim `enterprise_id`. Uma abstração só de token deixaria `CreateLicenseAsync` preso ao `AuthenticationStateProvider` e portanto quebrado no MAUI. A interface passa a se chamar `ISessionContextProvider` e expõe os dois valores — nome que descreve o que ela realmente é.
+
 **Files:**
-- Create: `Condotify.ApiClient/IAccessTokenProvider.cs`
-- Create: `Condotify.ApiClient/ClaimsAccessTokenProvider.cs`
+- Create: `Condotify.ApiClient/ISessionContextProvider.cs`
+- Create: `Condotify.ApiClient/ClaimsSessionContextProvider.cs`
 - Create: `Condotify.ApiClient.Tests/Condotify.ApiClient.Tests.csproj`
-- Create: `Condotify.ApiClient.Tests/ClaimsAccessTokenProviderTests.cs`
-- Modify: `Condotify.ApiClient/CondotifyApiClient.cs:11-40,1093-1101`
+- Create: `Condotify.ApiClient.Tests/ClaimsSessionContextProviderTests.cs`
+- Modify: `Condotify.ApiClient/CondotifyApiClient.cs` (usings, campo, construtor, `CreateLicenseAsync`, `CreateClientAsync`)
 - Modify: `Condotify/Controllers/LoginController.cs:34,157`
 - Modify: `Condotify/Controllers/PrivateMediaController.cs:17`
 - Modify: `Condotify/Program.cs:30`
@@ -244,9 +255,11 @@ Esta é a tarefa de risco Alto do SP-0. Uma regressão aqui passa pelo compilado
 **Interfaces:**
 - Consumes: `CondotifyApiClient` da Task 2.
 - Produces:
-  - `Condotify.Services.IAccessTokenProvider` com `ValueTask<string?> GetAccessTokenAsync(CancellationToken cancellationToken = default)`.
-  - `Condotify.Services.ClaimsAccessTokenProvider`, implementação de `IAccessTokenProvider`, com a constante pública `const string AccessTokenClaim = "condotify_access_token"` e construtor `ClaimsAccessTokenProvider(AuthenticationStateProvider)`.
-  - `CondotifyApiClient` passa a receber `IAccessTokenProvider` no lugar de `AuthenticationStateProvider` como segundo parâmetro do construtor. O SP-4 fornecerá uma implementação sobre `SecureStorage`.
+  - `Condotify.Services.ISessionContextProvider` com dois membros:
+    - `ValueTask<string?> GetAccessTokenAsync(CancellationToken cancellationToken = default)`
+    - `ValueTask<string?> GetEnterpriseIdAsync(CancellationToken cancellationToken = default)`
+  - `Condotify.Services.ClaimsSessionContextProvider`, implementação de `ISessionContextProvider`, com as constantes públicas `const string AccessTokenClaim = "condotify_access_token"` e `const string EnterpriseIdClaim = "enterprise_id"`, e construtor `ClaimsSessionContextProvider(AuthenticationStateProvider)`.
+  - `CondotifyApiClient` passa a receber `ISessionContextProvider` no lugar de `AuthenticationStateProvider` como segundo parâmetro do construtor, e deixa de referenciar `ClaimsPrincipal` por completo. O SP-4 fornecerá uma implementação sobre `SecureStorage`.
 
 - [ ] **Step 1: Criar o projeto de teste**
 
@@ -288,7 +301,7 @@ dotnet sln Condotify.sln add Condotify.ApiClient.Tests/Condotify.ApiClient.Tests
 
 - [ ] **Step 2: Escrever o teste que falha**
 
-Criar `Condotify.ApiClient.Tests/ClaimsAccessTokenProviderTests.cs`:
+Criar `Condotify.ApiClient.Tests/ClaimsSessionContextProviderTests.cs`:
 
 ```csharp
 using System.Security.Claims;
@@ -297,17 +310,15 @@ using Microsoft.AspNetCore.Components.Authorization;
 
 namespace Condotify.ApiClient.Tests;
 
-public class ClaimsAccessTokenProviderTests
+public class ClaimsSessionContextProviderTests
 {
     [Fact]
     public async Task GetAccessTokenAsync_ReturnsToken_WhenClaimPresent()
     {
         var provider = CreateProvider(
-            new Claim(ClaimsAccessTokenProvider.AccessTokenClaim, "jwt-abc-123"));
+            new Claim(ClaimsSessionContextProvider.AccessTokenClaim, "jwt-abc-123"));
 
-        var token = await provider.GetAccessTokenAsync();
-
-        Assert.Equal("jwt-abc-123", token);
+        Assert.Equal("jwt-abc-123", await provider.GetAccessTokenAsync());
     }
 
     [Fact]
@@ -315,43 +326,65 @@ public class ClaimsAccessTokenProviderTests
     {
         var provider = CreateProvider(new Claim(ClaimTypes.Email, "user@condotify.local"));
 
-        var token = await provider.GetAccessTokenAsync();
-
-        Assert.Null(token);
+        Assert.Null(await provider.GetAccessTokenAsync());
     }
 
     [Fact]
     public async Task GetAccessTokenAsync_ReturnsNull_WhenClaimIsWhitespace()
     {
         var provider = CreateProvider(
-            new Claim(ClaimsAccessTokenProvider.AccessTokenClaim, "   "));
+            new Claim(ClaimsSessionContextProvider.AccessTokenClaim, "   "));
 
-        var token = await provider.GetAccessTokenAsync();
-
-        Assert.Null(token);
+        Assert.Null(await provider.GetAccessTokenAsync());
     }
 
     [Fact]
     public async Task GetAccessTokenAsync_ReturnsNull_WhenUserIsAnonymous()
     {
-        var provider = new ClaimsAccessTokenProvider(
+        var provider = new ClaimsSessionContextProvider(
             new StubAuthenticationStateProvider(new ClaimsPrincipal(new ClaimsIdentity())));
 
-        var token = await provider.GetAccessTokenAsync();
-
-        Assert.Null(token);
+        Assert.Null(await provider.GetAccessTokenAsync());
     }
 
     [Fact]
-    public void AccessTokenClaim_KeepsTheValueTheCookieAlreadyStores()
+    public async Task GetEnterpriseIdAsync_ReturnsValue_WhenClaimPresent()
     {
-        Assert.Equal("condotify_access_token", ClaimsAccessTokenProvider.AccessTokenClaim);
+        var provider = CreateProvider(
+            new Claim(ClaimsSessionContextProvider.EnterpriseIdClaim, "8f1d0d3e-0000-4a1b-9c2d-000000000001"));
+
+        Assert.Equal("8f1d0d3e-0000-4a1b-9c2d-000000000001", await provider.GetEnterpriseIdAsync());
     }
 
-    private static ClaimsAccessTokenProvider CreateProvider(params Claim[] claims)
+    [Fact]
+    public async Task GetEnterpriseIdAsync_ReturnsNull_WhenClaimMissing()
+    {
+        var provider = CreateProvider(
+            new Claim(ClaimsSessionContextProvider.AccessTokenClaim, "jwt-abc-123"));
+
+        Assert.Null(await provider.GetEnterpriseIdAsync());
+    }
+
+    [Fact]
+    public async Task GetEnterpriseIdAsync_ReturnsNull_WhenClaimIsWhitespace()
+    {
+        var provider = CreateProvider(
+            new Claim(ClaimsSessionContextProvider.EnterpriseIdClaim, "   "));
+
+        Assert.Null(await provider.GetEnterpriseIdAsync());
+    }
+
+    [Fact]
+    public void ClaimNames_KeepTheValuesTheCookieAlreadyStores()
+    {
+        Assert.Equal("condotify_access_token", ClaimsSessionContextProvider.AccessTokenClaim);
+        Assert.Equal("enterprise_id", ClaimsSessionContextProvider.EnterpriseIdClaim);
+    }
+
+    private static ClaimsSessionContextProvider CreateProvider(params Claim[] claims)
     {
         var identity = new ClaimsIdentity(claims, "TestAuth");
-        return new ClaimsAccessTokenProvider(
+        return new ClaimsSessionContextProvider(
             new StubAuthenticationStateProvider(new ClaimsPrincipal(identity)));
     }
 
@@ -363,34 +396,38 @@ public class ClaimsAccessTokenProviderTests
 }
 ```
 
-O último teste é deliberado: a string `"condotify_access_token"` já está gravada nos cookies de sessão dos usuários. Alterá-la desloga todo mundo silenciosamente. O teste trava esse valor.
+O último teste é deliberado. As strings `"condotify_access_token"` e `"enterprise_id"` já estão gravadas nos cookies de sessão em produção — `LoginController.CreatePrincipal` emite ambas. Alterá-las desloga todo mundo silenciosamente, ou quebra a criação de licenças. O teste trava os dois valores.
 
 - [ ] **Step 3: Rodar o teste e confirmar que falha**
 
 Run: `dotnet test Condotify.ApiClient.Tests/Condotify.ApiClient.Tests.csproj`
-Expected: FALHA de compilação — `CS0246: The type or namespace name 'ClaimsAccessTokenProvider' could not be found`.
+Expected: FALHA de compilação — `CS0246: The type or namespace name 'ClaimsSessionContextProvider' could not be found`.
 
 - [ ] **Step 4: Criar a interface**
 
-Criar `Condotify.ApiClient/IAccessTokenProvider.cs`:
+Criar `Condotify.ApiClient/ISessionContextProvider.cs`:
 
 ```csharp
 namespace Condotify.Services;
 
 /// <summary>
-/// Fornece o token de acesso usado pelo <see cref="CondotifyApiClient"/>.
+/// Fornece os dados da sessao atual usados pelo <see cref="CondotifyApiClient"/>.
 /// A web resolve a partir dos claims do cookie de sessao; o aplicativo MAUI
 /// resolve a partir do SecureStorage.
 /// </summary>
-public interface IAccessTokenProvider
+public interface ISessionContextProvider
 {
+    /// <summary>Token Bearer enviado a API. Null quando nao ha sessao.</summary>
     ValueTask<string?> GetAccessTokenAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Empresa da sessao, exigida ao criar uma licenca. Null quando ausente.</summary>
+    ValueTask<string?> GetEnterpriseIdAsync(CancellationToken cancellationToken = default);
 }
 ```
 
 - [ ] **Step 5: Criar a implementação sobre claims**
 
-Criar `Condotify.ApiClient/ClaimsAccessTokenProvider.cs`:
+Criar `Condotify.ApiClient/ClaimsSessionContextProvider.cs`:
 
 ```csharp
 using System.Security.Claims;
@@ -399,9 +436,9 @@ using Microsoft.AspNetCore.Components.Authorization;
 namespace Condotify.Services;
 
 /// <summary>
-/// Le o token do claim gravado no cookie de sessao pelo LoginController.
+/// Le os dados da sessao dos claims gravados no cookie pelo LoginController.
 /// </summary>
-public sealed class ClaimsAccessTokenProvider : IAccessTokenProvider
+public sealed class ClaimsSessionContextProvider : ISessionContextProvider
 {
     /// <summary>
     /// Nome do claim que guarda o token. Este valor ja existe nos cookies
@@ -409,16 +446,28 @@ public sealed class ClaimsAccessTokenProvider : IAccessTokenProvider
     /// </summary>
     public const string AccessTokenClaim = "condotify_access_token";
 
+    /// <summary>
+    /// Nome do claim que guarda a empresa. Emitido por LoginController a
+    /// partir do payload do JWT.
+    /// </summary>
+    public const string EnterpriseIdClaim = "enterprise_id";
+
     private readonly AuthenticationStateProvider _authenticationStateProvider;
 
-    public ClaimsAccessTokenProvider(AuthenticationStateProvider authenticationStateProvider) =>
+    public ClaimsSessionContextProvider(AuthenticationStateProvider authenticationStateProvider) =>
         _authenticationStateProvider = authenticationStateProvider;
 
-    public async ValueTask<string?> GetAccessTokenAsync(CancellationToken cancellationToken = default)
+    public ValueTask<string?> GetAccessTokenAsync(CancellationToken cancellationToken = default) =>
+        ReadClaimAsync(AccessTokenClaim);
+
+    public ValueTask<string?> GetEnterpriseIdAsync(CancellationToken cancellationToken = default) =>
+        ReadClaimAsync(EnterpriseIdClaim);
+
+    private async ValueTask<string?> ReadClaimAsync(string claimType)
     {
         var state = await _authenticationStateProvider.GetAuthenticationStateAsync();
-        var token = state.User.FindFirstValue(AccessTokenClaim);
-        return string.IsNullOrWhiteSpace(token) ? null : token;
+        var value = state.User.FindFirst(claimType)?.Value;
+        return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 }
 ```
@@ -426,81 +475,100 @@ public sealed class ClaimsAccessTokenProvider : IAccessTokenProvider
 - [ ] **Step 6: Rodar os testes e confirmar que passam**
 
 Run: `dotnet test Condotify.ApiClient.Tests/Condotify.ApiClient.Tests.csproj`
-Expected: `Passed! - Failed: 0, Passed: 5`.
+Expected: `Passed! - Failed: 0, Passed: 8`.
 
 - [ ] **Step 7: Trocar a dependência no `CondotifyApiClient`**
 
-Em `Condotify.ApiClient/CondotifyApiClient.cs`, remover a linha 2:
+Em `Condotify.ApiClient/CondotifyApiClient.cs`, remover estes três `using` do topo do arquivo — nenhum deles continua em uso depois desta etapa:
 
 ```csharp
 using Microsoft.AspNetCore.Components.Authorization;
+using System.Security.Claims;
 ```
 
-Remover a constante da linha 13 (ela agora vive em `ClaimsAccessTokenProvider`):
+Remover a constante que vive logo após a abertura da classe (ela agora pertence a `ClaimsSessionContextProvider`):
 
 ```csharp
     public const string AccessTokenClaim = "condotify_access_token";
 ```
 
-Substituir o campo e o construtor (linhas 26-40) por:
+Substituir o bloco de campos e o construtor por:
 
 ```csharp
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IAccessTokenProvider _accessTokenProvider;
+    private readonly ISessionContextProvider _sessionContext;
     private readonly IConfiguration _configuration;
     private readonly ILogger<CondotifyApiClient> _logger;
 
     public CondotifyApiClient(
         IHttpClientFactory httpClientFactory,
-        IAccessTokenProvider accessTokenProvider,
+        ISessionContextProvider sessionContext,
         IConfiguration configuration,
         ILogger<CondotifyApiClient> logger)
     {
         _httpClientFactory = httpClientFactory;
-        _accessTokenProvider = accessTokenProvider;
+        _sessionContext = sessionContext;
         _configuration = configuration;
         _logger = logger;
     }
 ```
 
-Substituir `CreateClientAsync` (linhas 1093-1101) por:
+Em `CreateLicenseAsync`, substituir as duas primeiras linhas do corpo:
+
+```csharp
+        var user = (await _authenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var enterpriseId = user.FindFirst("enterprise_id")?.Value;
+```
+
+por:
+
+```csharp
+        var enterpriseId = await _sessionContext.GetEnterpriseIdAsync(cancellationToken);
+```
+
+O resto do método fica inalterado, incluindo a guarda `if (!Guid.TryParse(enterpriseId, out _))` e a mensagem de erro que ela devolve.
+
+Substituir `CreateClientAsync` por:
 
 ```csharp
     private async Task<HttpClient> CreateClientAsync()
     {
         var client = _httpClientFactory.CreateClient();
-        var token = await _accessTokenProvider.GetAccessTokenAsync();
+        var token = await _sessionContext.GetAccessTokenAsync();
         if (!string.IsNullOrWhiteSpace(token))
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
     }
 ```
 
-A guarda `IsNullOrWhiteSpace` é mantida de propósito, mesmo com o provider já normalizando: assim o comportamento continua idêntico ao atual para qualquer implementação futura de `IAccessTokenProvider`.
+A guarda `IsNullOrWhiteSpace` é mantida de propósito, mesmo com o provider já normalizando: assim o comportamento continua idêntico ao atual para qualquer implementação futura de `ISessionContextProvider`.
 
-O `using System.Security.Claims;` na linha 5 fica sem uso após esta mudança — removê-lo.
+Ao final desta etapa, `CondotifyApiClient` não referencia mais `ClaimsPrincipal` nem `AuthenticationStateProvider` em lugar nenhum. Confirme com:
+
+Run: `grep -n "ClaimsPrincipal\|AuthenticationStateProvider\|FindFirst" Condotify.ApiClient/CondotifyApiClient.cs`
+Expected: saída vazia.
 
 - [ ] **Step 8: Atualizar as três referências à constante**
 
 Em `Condotify/Controllers/LoginController.cs:34`:
 
 ```csharp
-            var token = User.FindFirstValue(ClaimsAccessTokenProvider.AccessTokenClaim);
+            var token = User.FindFirstValue(ClaimsSessionContextProvider.AccessTokenClaim);
 ```
 
 Em `Condotify/Controllers/LoginController.cs:157`:
 
 ```csharp
-                new(ClaimsAccessTokenProvider.AccessTokenClaim, accessToken),
+                new(ClaimsSessionContextProvider.AccessTokenClaim, accessToken),
 ```
 
 Em `Condotify/Controllers/PrivateMediaController.cs:17`:
 
 ```csharp
-        var token = User.FindFirstValue(ClaimsAccessTokenProvider.AccessTokenClaim);
+        var token = User.FindFirstValue(ClaimsSessionContextProvider.AccessTokenClaim);
 ```
 
-Os três arquivos já declaram `using Condotify.Services;`, então nenhum `using` novo é necessário.
+Os três arquivos já declaram `using Condotify.Services;`, então nenhum `using` novo é necessário. Aqui `FindFirstValue` continua válido porque estes arquivos vivem no projeto web, que tem o framework do ASP.NET Core — não os altere para `FindFirst`.
 
 - [ ] **Step 9: Registrar no contêiner de DI**
 
@@ -513,7 +581,7 @@ builder.Services.AddScoped<CondotifyApiClient>();
 por:
 
 ```csharp
-builder.Services.AddScoped<IAccessTokenProvider, ClaimsAccessTokenProvider>();
+builder.Services.AddScoped<ISessionContextProvider, ClaimsSessionContextProvider>();
 builder.Services.AddScoped<CondotifyApiClient>();
 ```
 
@@ -537,13 +605,18 @@ Expected: saída vazia.
 ```bash
 git add Condotify.ApiClient Condotify.ApiClient.Tests Condotify.sln Condotify/Program.cs Condotify/Controllers/LoginController.cs Condotify/Controllers/PrivateMediaController.cs
 git status --short   # confirmar que launchSettings.json e contexto.txt NAO estao no indice
-git commit -m "refactor: abstract access token retrieval behind IAccessTokenProvider
+git commit -m "refactor: abstract session lookup behind ISessionContextProvider
 
-CondotifyApiClient no longer depends on AuthenticationStateProvider, so
-the MAUI app can supply a SecureStorage-backed implementation in SP-4.
-ClaimsAccessTokenProvider replicates the current cookie-claim lookup and
-is covered by unit tests, including one that pins the claim name since
-changing it would silently invalidate live sessions."
+CondotifyApiClient no longer depends on AuthenticationStateProvider or
+ClaimsPrincipal, so the MAUI app can supply a SecureStorage-backed
+implementation in SP-4.
+
+The abstraction covers both session values the client actually reads:
+the bearer token in CreateClientAsync and the enterprise_id claim in
+CreateLicenseAsync. ClaimsSessionContextProvider replicates the current
+cookie-claim lookup and is covered by unit tests, including one that
+pins both claim names since changing either would silently invalidate
+live sessions or break licence creation."
 ```
 
 ---
@@ -761,7 +834,7 @@ Percorrer, no navegador:
 2. Entrar com um usuário válido — o redirecionamento para `/` acontece.
 3. O dashboard exibe dados vindos da API, não mensagem de erro.
 
-O passo 3 é o critério que importa: dados no dashboard provam que `ClaimsAccessTokenProvider` entregou o token e que o header `Bearer` chegou à API. Se aparecer "Sua sessão expirou. Entre novamente." ou "A API está indisponível", o defeito está na Task 3.
+O passo 3 é o critério que importa: dados no dashboard provam que `ClaimsSessionContextProvider` entregou o token e que o header `Bearer` chegou à API. Se aparecer "Sua sessão expirou. Entre novamente." ou "A API está indisponível", o defeito está na Task 3.
 
 - [ ] **Step 4: Validar um módulo que usa POST e mídia privada**
 
