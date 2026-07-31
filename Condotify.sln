@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Condotify.ApiClient", "Cond
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Condotify.ApiClient.Tests", "Condotify.ApiClient.Tests\Condotify.ApiClient.Tests.csproj", "{23173251-3274-4813-A319-439628EFF2FB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Condotify.UI", "Condotify.UI\Condotify.UI.csproj", "{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -125,6 +127,18 @@ Global
 		{23173251-3274-4813-A319-439628EFF2FB}.Release|x64.Build.0 = Release|Any CPU
 		{23173251-3274-4813-A319-439628EFF2FB}.Release|x86.ActiveCfg = Release|Any CPU
 		{23173251-3274-4813-A319-439628EFF2FB}.Release|x86.Build.0 = Release|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Debug|x64.Build.0 = Debug|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Debug|x86.Build.0 = Debug|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Release|x64.ActiveCfg = Release|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Release|x64.Build.0 = Release|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Release|x86.ActiveCfg = Release|Any CPU
+		{1CE6F01A-0BCD-4A05-B920-20BA1FC4CD73}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

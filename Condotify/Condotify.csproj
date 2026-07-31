@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Condotify.Contracts\Condotify.Contracts.csproj" />
     <ProjectReference Include="..\Condotify.ApiClient\Condotify.ApiClient.csproj" />
+    <ProjectReference Include="..\Condotify.UI\Condotify.UI.csproj" />
   </ItemGroup>
 
 </Project>

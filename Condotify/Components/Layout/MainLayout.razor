@@ -1,6 +1,7 @@
+@using Condotify.UI
 @inherits LayoutComponentBase
 
-<MudThemeProvider Theme="_theme" />
+<MudThemeProvider Theme="CondotifyTheme.Default" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -53,43 +54,6 @@
 
 @code {
     private bool _drawerOpen = true;
-
-    private readonly MudTheme _theme = new()
-    {
-        PaletteLight = new PaletteLight
-        {
-            Primary = "#3156D3",
-            Secondary = "#586579",
-            Tertiary = "#007C69",
-            Success = "#12805A",
-            Warning = "#A96300",
-            Error = "#BF3548",
-            Info = "#176D91",
-            Background = "#F3F5F8",
-            Surface = "#FFFFFF",
-            DrawerBackground = "#FFFFFF",
-            DrawerText = "#4E5A6D",
-            AppbarBackground = "#FFFFFF",
-            AppbarText = "#1C2431",
-            TextPrimary = "#1C2431",
-            TextSecondary = "#687386",
-            LinesDefault = "#DDE3EA"
-        },
-        LayoutProperties = new LayoutProperties
-        {
-            DefaultBorderRadius = "7px",
-            DrawerWidthLeft = "256px",
-            AppbarHeight = "68px"
-        },
-        Typography = new Typography
-        {
-            Default = new DefaultTypography { FontFamily = ["Inter", "Segoe UI", "sans-serif"] },
-            H1 = new H1Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.7rem", FontWeight = "700", LineHeight = "1.22" },
-            H2 = new H2Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.4rem", FontWeight = "700", LineHeight = "1.3" },
-            H5 = new H5Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontSize = "1.05rem", FontWeight = "650" },
-            Subtitle1 = new Subtitle1Typography { FontFamily = ["Inter", "Segoe UI", "sans-serif"], FontWeight = "650" }
-        }
-    };
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
