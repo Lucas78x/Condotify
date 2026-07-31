@@ -21,6 +21,7 @@ Spec: [SP-0 Design](../specs/2026-07-31-sp0-contratos-compartilhados-design.md) 
 - Versões de pacote fixas conforme já usadas na solution: `MudBlazor` 9.7.0, `QRCoder` 1.8.0, `xunit` 2.5.3, `Microsoft.NET.Test.Sdk` 17.8.0, `coverlet.collector` 6.0.0. Para os pacotes novos, as versões abaixo foram verificadas como existentes no NuGet — **não existe 8.0.24 para os pacotes `Microsoft.AspNetCore.Components.*`**, cuja série 8.0 começa em 8.0.27.
 - **Nenhum arquivo `.cshtml` pode ser modificado.** `Condotify/Views/_ViewImports.cshtml:2` já declara `@using Condotify.Models` e `Condotify/Views/Login/Login.cshtml:1` usa `@model Condotify.Models.LoginViewModel` totalmente qualificado. Como o namespace é preservado na movimentação, ambos continuam válidos sem alteração.
 - Comandos executados a partir de `D:\repos\Condotify`.
+- **Nunca usar `git add -A` nem `git add .`.** O working tree contém alterações locais não relacionadas que devem permanecer não commitadas: `Condotify/Properties/launchSettings.json`, `CondotifyAPI/Properties/launchSettings.json` (modificados) e `contexto.txt` (não rastreado). Sempre listar os caminhos explicitamente no `git add`. Antes de cada commit, conferir com `git status --short` que esses três continuam fora do índice.
 
 ### Desvios conscientes em relação ao spec
 
@@ -132,7 +133,8 @@ Expected: `Build succeeded`, 0 erros. Se aparecer `CS0246` para algum tipo de `C
 - [ ] **Step 6: Commit**
 
 ```bash
-git add -A
+git add Condotify.Contracts Condotify/Models Condotify/Out Condotify.sln Condotify/Condotify.csproj
+git status --short   # confirmar que launchSettings.json e contexto.txt NAO estao no indice
 git commit -m "refactor: extract Condotify.Contracts from web project
 
 Moves the 118 view model types and LoginOut into a dependency-free
@@ -211,7 +213,8 @@ Expected: `Build succeeded`, 0 erros.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add -A
+git add Condotify.ApiClient Condotify/Services Condotify.sln Condotify/Condotify.csproj
+git status --short   # confirmar que launchSettings.json e contexto.txt NAO estao no indice
 git commit -m "refactor: extract Condotify.ApiClient from web project
 
 Moves CondotifyApiClient, ApiResult, FacePhotoProcessor and
@@ -532,7 +535,8 @@ Expected: saída vazia.
 - [ ] **Step 12: Commit**
 
 ```bash
-git add -A
+git add Condotify.ApiClient Condotify.ApiClient.Tests Condotify.sln Condotify/Program.cs Condotify/Controllers/LoginController.cs Condotify/Controllers/PrivateMediaController.cs
+git status --short   # confirmar que launchSettings.json e contexto.txt NAO estao no indice
 git commit -m "refactor: abstract access token retrieval behind IAccessTokenProvider
 
 CondotifyApiClient no longer depends on AuthenticationStateProvider, so
@@ -707,7 +711,8 @@ Expected: exatamente duas linhas, `M Condotify/Components/Layout/MainLayout.razo
 - [ ] **Step 8: Commit**
 
 ```bash
-git add -A
+git add Condotify.UI Condotify.sln Condotify/Condotify.csproj Condotify/Components/Layout/MainLayout.razor Condotify/Components/Layout/PublicLayout.razor
+git status --short   # confirmar que launchSettings.json e contexto.txt NAO estao no indice
 git commit -m "refactor: centralize MudBlazor theme in Condotify.UI
 
 MainLayout and PublicLayout each carried their own palette, and the two
