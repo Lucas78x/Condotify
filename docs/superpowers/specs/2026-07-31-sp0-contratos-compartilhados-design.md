@@ -129,7 +129,9 @@ builder.Services.AddScoped<CondotifyApiClient>();
 
 Ambos os layouts passam a usar `Theme="CondotifyTheme.Default"`.
 
-**Impacto visual:** oito propriedades mudam na tela pública de convite (`RegistrationInvite.razor`, via `PublicLayout`). São diferenças de poucos pontos de matiz, imperceptíveis lado a lado, mas é a única mudança visível do SP-0 na versão web e fica registrada aqui.
+**Impacto visual:** oito propriedades mudam na tela pública de convite (`RegistrationInvite.razor`, via `PublicLayout`). São diferenças de poucos pontos de matiz, imperceptíveis lado a lado.
+
+`PaletteDark` é criado aqui mas **não é ativado na web**. `MudThemeProvider.ObserveSystemDarkModeChange` tem default `true` na MudBlazor 9.7.0, então acrescentar uma paleta escura sem mais nada faria com que usuários com o sistema operacional em modo escuro passassem a ver componentes MudBlazor escuros dentro do CSS claro escrito à mão (`portal.css` e `design-system.css` somam cerca de 550 cores fixas e nenhuma regra `prefers-color-scheme`). Por isso os dois layouts declaram `ObserveSystemDarkModeChange="false"`. A paleta escura existe para o aplicativo mobile do SP-4, onde o CSS a acompanha.
 
 ## Riscos
 

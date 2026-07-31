@@ -42,6 +42,15 @@ public class ClaimsSessionContextProviderTests
     }
 
     [Fact]
+    public async Task GetEnterpriseIdAsync_ReturnsNull_WhenUserIsAnonymous()
+    {
+        var provider = new ClaimsSessionContextProvider(
+            new StubAuthenticationStateProvider(new ClaimsPrincipal(new ClaimsIdentity())));
+
+        Assert.Null(await provider.GetEnterpriseIdAsync());
+    }
+
+    [Fact]
     public async Task GetEnterpriseIdAsync_ReturnsValue_WhenClaimPresent()
     {
         var provider = CreateProvider(

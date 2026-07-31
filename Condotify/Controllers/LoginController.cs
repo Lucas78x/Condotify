@@ -169,7 +169,7 @@ namespace Condotify.Controllers
 
                     AddClaim(json.RootElement, claims, "sub", ClaimTypes.NameIdentifier);
                     AddClaim(json.RootElement, claims, "name", ClaimTypes.Name);
-                    AddClaim(json.RootElement, claims, "enterprise_id", "enterprise_id");
+                    AddClaim(json.RootElement, claims, "enterprise_id", ClaimsSessionContextProvider.EnterpriseIdClaim);
                     AddClaim(json.RootElement, claims, "access_type", "access_type");
                 }
             }

@@ -962,7 +962,7 @@ public sealed class CondotifyApiClient
     {
         try
         {
-            using var client = await CreateClientAsync();
+            using var client = await CreateClientAsync(cancellationToken);
             using var response = await client.GetAsync(BuildApiUrl(path), cancellationToken);
             if (!response.IsSuccessStatusCode)
                 return ApiResult<T>.Fail(await ReadErrorAsync(response, "Nao foi possivel carregar os dados."), response.StatusCode);
@@ -1048,7 +1048,7 @@ public sealed class CondotifyApiClient
     {
         try
         {
-            using var client = await CreateClientAsync();
+            using var client = await CreateClientAsync(cancellationToken);
             if (includeApiKey && GetApiKey() is { Length: > 0 } apiKey)
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-API-Key", apiKey);
 
@@ -1087,10 +1087,10 @@ public sealed class CondotifyApiClient
         }
     }
 
-    private async Task<HttpClient> CreateClientAsync()
+    private async Task<HttpClient> CreateClientAsync(CancellationToken cancellationToken = default)
     {
         var client = _httpClientFactory.CreateClient();
-        var token = await _sessionContext.GetAccessTokenAsync();
+        var token = await _sessionContext.GetAccessTokenAsync(cancellationToken);
         if (!string.IsNullOrWhiteSpace(token))
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
