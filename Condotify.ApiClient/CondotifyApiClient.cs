@@ -1,5 +1,7 @@
 using Condotify.Models;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
@@ -313,7 +315,7 @@ public sealed class CondotifyApiClient
     public async Task<ApiResult<Guid>> CreateLicenseAsync(CreateLicenseViewModel model, CancellationToken cancellationToken = default)
     {
         var user = (await _authenticationStateProvider.GetAuthenticationStateAsync()).User;
-        var enterpriseId = user.FindFirstValue("enterprise_id");
+        var enterpriseId = user.FindFirst("enterprise_id")?.Value;
         if (!Guid.TryParse(enterpriseId, out _))
             return ApiResult<Guid>.Fail("Nao foi possivel identificar a empresa da sessao. Entre novamente.");
 
@@ -1094,7 +1096,7 @@ public sealed class CondotifyApiClient
     {
         var client = _httpClientFactory.CreateClient();
         var user = (await _authenticationStateProvider.GetAuthenticationStateAsync()).User;
-        var token = user.FindFirstValue(AccessTokenClaim);
+        var token = user.FindFirst(AccessTokenClaim)?.Value;
         if (!string.IsNullOrWhiteSpace(token))
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
