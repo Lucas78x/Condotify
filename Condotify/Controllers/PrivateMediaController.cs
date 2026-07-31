@@ -14,7 +14,7 @@ public sealed class PrivateMediaController(IHttpClientFactory clients, IConfigur
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> Get(Guid licenseId, Guid mediaId, CancellationToken cancellationToken)
     {
-        var token = User.FindFirstValue(CondotifyApiClient.AccessTokenClaim);
+        var token = User.FindFirstValue(ClaimsSessionContextProvider.AccessTokenClaim);
         if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
         using var client = clients.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);

@@ -31,7 +31,7 @@ namespace Condotify.Controllers
         [HttpGet]
         public async Task<IActionResult> Login()
         {
-            var token = User.FindFirstValue(CondotifyApiClient.AccessTokenClaim);
+            var token = User.FindFirstValue(ClaimsSessionContextProvider.AccessTokenClaim);
             if (User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(token))
             {
                 var client = _httpClientFactory.CreateClient();
@@ -154,7 +154,7 @@ namespace Condotify.Controllers
         {
             var claims = new List<Claim>
             {
-                new(CondotifyApiClient.AccessTokenClaim, accessToken),
+                new(ClaimsSessionContextProvider.AccessTokenClaim, accessToken),
                 new(ClaimTypes.Email, fallbackEmail)
             };
 

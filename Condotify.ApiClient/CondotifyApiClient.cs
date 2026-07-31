@@ -1,10 +1,8 @@
 using Condotify.Models;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -12,8 +10,6 @@ namespace Condotify.Services;
 
 public sealed class CondotifyApiClient
 {
-    public const string AccessTokenClaim = "condotify_access_token";
-
     // Mirrors the API's global JsonStringEnumConverter (CondotifyAPI/Program.cs) so enum
     // properties serialized as strings (e.g. "Saturday") deserialize correctly on this side.
     private static readonly JsonSerializerOptions GetJsonOptions = CreateJsonOptions();
@@ -26,18 +22,18 @@ public sealed class CondotifyApiClient
     }
 
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly AuthenticationStateProvider _authenticationStateProvider;
+    private readonly ISessionContextProvider _sessionContext;
     private readonly IConfiguration _configuration;
     private readonly ILogger<CondotifyApiClient> _logger;
 
     public CondotifyApiClient(
         IHttpClientFactory httpClientFactory,
-        AuthenticationStateProvider authenticationStateProvider,
+        ISessionContextProvider sessionContext,
         IConfiguration configuration,
         ILogger<CondotifyApiClient> logger)
     {
         _httpClientFactory = httpClientFactory;
-        _authenticationStateProvider = authenticationStateProvider;
+        _sessionContext = sessionContext;
         _configuration = configuration;
         _logger = logger;
     }
@@ -314,8 +310,7 @@ public sealed class CondotifyApiClient
 
     public async Task<ApiResult<Guid>> CreateLicenseAsync(CreateLicenseViewModel model, CancellationToken cancellationToken = default)
     {
-        var user = (await _authenticationStateProvider.GetAuthenticationStateAsync()).User;
-        var enterpriseId = user.FindFirst("enterprise_id")?.Value;
+        var enterpriseId = await _sessionContext.GetEnterpriseIdAsync(cancellationToken);
         if (!Guid.TryParse(enterpriseId, out _))
             return ApiResult<Guid>.Fail("Nao foi possivel identificar a empresa da sessao. Entre novamente.");
 
@@ -1095,8 +1090,7 @@ public sealed class CondotifyApiClient
     private async Task<HttpClient> CreateClientAsync()
     {
         var client = _httpClientFactory.CreateClient();
-        var user = (await _authenticationStateProvider.GetAuthenticationStateAsync()).User;
-        var token = user.FindFirst(AccessTokenClaim)?.Value;
+        var token = await _sessionContext.GetAccessTokenAsync();
         if (!string.IsNullOrWhiteSpace(token))
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
