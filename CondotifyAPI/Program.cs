@@ -176,6 +176,7 @@ builder.Services.AddScoped<IAccessRouteResolver, AccessRouteResolver>();
 builder.Services.AddScoped<ICredentialReconciliationService, CredentialReconciliationService>();
 builder.Services.AddScoped<IDeviceInventoryService, DeviceInventoryService>();
 builder.Services.AddScoped<ILicenseAuthorizationService, LicenseAuthorizationService>();
+builder.Services.AddScoped<IResidentAuthorizationService, ResidentAuthorizationService>();
 builder.Services.AddHostedService<ExpiredCredentialCleanupService>();
 builder.Services.AddHostedService<CredentialReconciliationWorker>();
 builder.Services.AddHostedService<AccessEventIngestionWorker>();
