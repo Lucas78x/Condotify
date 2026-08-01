@@ -134,6 +134,12 @@ builder.Services.AddHttpClient("AlertNotifications", client =>
     client.Timeout = TimeSpan.FromSeconds(15);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("Condotify-Notifications/1.0");
 });
+builder.Services.AddHttpClient<IMediaGatewayClient, MediaGatewayClient>(client =>
+{
+    client.BaseAddress = new Uri(
+        Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_GATEWAY_URL") ?? "http://mediamtx:9997");
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
 
 builder.Services.AddTransient<Mediator>();
 builder.Services.AddScoped<ISender, ScopedSender<Mediator>>();
