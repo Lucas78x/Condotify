@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8" />
+<title>Condotify — Media Gateway Harness</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    max-width: 720px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.25rem; }
+  p.note {
+    background: rgba(127,127,127,0.12);
+    border-left: 3px solid #888;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+  label { display: block; margin-top: 1rem; font-weight: 600; font-size: 0.85rem; }
+  input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem;
+    font-family: monospace;
+    font-size: 0.85rem;
+  }
+  button {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  video {
+    width: 100%;
+    margin-top: 1rem;
+    background: #000;
+  }
+  #status {
+    margin-top: 0.75rem;
+    font-family: monospace;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .ok { color: #1a7f37; }
+  .err { color: #c0392b; }
+</style>
+</head>
+<body>
+
+<h1>Condotify — Media Gateway Harness</h1>
+
+<p class="note">
+  Ferramenta manual para SP-1 Task 8 (verificação integrada do gateway CFTV).
+  Não faz parte do produto: confirma visualmente que um <code>playbackUrl</code>
+  + token devolvidos pela API realmente produzem imagem via HLS, e não apenas
+  um HTTP 200. Cole os valores emitidos pela API (ex.: resposta de
+  <code>POST /api/access/licenses/{licenseId}/cftv/{deviceId}/sessions</code>)
+  ou os de um harness de token, e clique em "Carregar".
+</p>
+
+<label for="playbackUrl">Playback URL (base, sem query) — ex.: http://localhost:8888/&lt;caminho&gt;/index.m3u8</label>
+<input type="text" id="playbackUrl" placeholder="http://localhost:8888/l.../index.m3u8" />
+
+<label for="token">Token</label>
+<input type="text" id="token" placeholder="token emitido pela API (curta duração — 120s)" />
+
+<button id="loadBtn">Carregar</button>
+<button id="stopBtn">Parar</button>
+
+<video id="video" controls muted playsinline></video>
+<div id="status">Aguardando...</div>
+
+<!-- hls.js via CDN. Se o ambiente de teste não tiver acesso à internet,
+     baixe hls.min.js e troque o src abaixo por um caminho local. -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+<script>
+(function () {
+  const video = document.getElementById('video');
+  const statusEl = document.getElementById('status');
+  const playbackUrlEl = document.getElementById('playbackUrl');
+  const tokenEl = document.getElementById('token');
+  const loadBtn = document.getElementById('loadBtn');
+  const stopBtn = document.getElementById('stopBtn');
+
+  let hls = null;
+
+  function setStatus(text, kind) {
+    statusEl.textContent = text;
+    statusEl.className = kind || '';
+  }
+
+  function fullUrl() {
+    const base = playbackUrlEl.value.trim();
+    const token = tokenEl.value.trim();
+    if (!base) return '';
+    const sep = base.includes('?') ? '&' : '?';
+    return token ? `${base}${sep}token=${encodeURIComponent(token)}` : base;
+  }
+
+  function stop() {
+    if (hls) {
+      hls.destroy();
+      hls = null;
+    }
+    video.removeAttribute('src');
+    video.load();
+    setStatus('Parado.');
+  }
+
+  function load() {
+    stop();
+    const url = fullUrl();
+    if (!url) {
+      setStatus('Informe a Playback URL.', 'err');
+      return;
+    }
+
+    setStatus('Carregando: ' + url);
+
+    if (window.Hls && window.Hls.isSupported()) {
+      hls = new window.Hls({ maxBufferLength: 5 });
+      hls.on(window.Hls.Events.ERROR, function (_event, data) {
+        setStatus('Erro HLS: ' + (data.details || data.type) +
+          (data.response ? ' (HTTP ' + data.response.code + ')' : ''), 'err');
+      });
+      hls.on(window.Hls.Events.MANIFEST_PARSED, function () {
+        setStatus('Manifesto carregado. Reproduzindo...', 'ok');
+        video.play().catch(function (e) { setStatus('play() falhou: ' + e, 'err'); });
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari: suporte nativo a HLS, sem hls.js.
+      video.src = url;
+      video.addEventListener('loadedmetadata', function () {
+        setStatus('Manifesto carregado (HLS nativo). Reproduzindo...', 'ok');
+        video.play().catch(function (e) { setStatus('play() falhou: ' + e, 'err'); });
+      });
+      video.addEventListener('error', function () {
+        setStatus('Erro ao carregar via HLS nativo.', 'err');
+      });
+    } else {
+      setStatus('Nenhum suporte a HLS disponível neste navegador.', 'err');
+    }
+  }
+
+  loadBtn.addEventListener('click', load);
+  stopBtn.addEventListener('click', stop);
+})();
+</script>
+
+</body>
+</html>
