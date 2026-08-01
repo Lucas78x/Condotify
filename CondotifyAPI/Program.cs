@@ -163,6 +163,7 @@ builder.Services.AddHostedService<ExpiredCredentialCleanupService>();
 builder.Services.AddHostedService<CredentialReconciliationWorker>();
 builder.Services.AddHostedService<AccessEventIngestionWorker>();
 builder.Services.AddHostedService<DeviceHealthMonitoringWorker>();
+builder.Services.AddHostedService<CftvHealthMonitoringWorker>();
 builder.Services.AddHostedService<RecycleBinCleanupService>();
 builder.Services.AddHostedService<AutomaticBackupWorker>();
 builder.Services.AddHostedService<OperationalAlertWorker>();

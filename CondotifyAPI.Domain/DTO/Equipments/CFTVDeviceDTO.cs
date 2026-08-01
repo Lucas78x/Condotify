@@ -23,6 +23,10 @@ namespace CondotifyAPI.Domain.DTO.Equipments
 
         public int MaxChannels { get; set; }
 
+        public bool IsActive { get; set; }
+        public DateTime? LastSeenAt { get; set; }
+        public string HealthMessage { get; set; } = string.Empty;
+
         public ICollection<CFTVChannelDTO> Channels { get; set; } = [];
 
         // Reference Owner

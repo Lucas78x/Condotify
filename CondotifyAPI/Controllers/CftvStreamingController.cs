@@ -101,6 +101,19 @@ public sealed class CftvStreamingController : ControllerBase
         return Ok(new CftvSessionOut(Guid.NewGuid(), playbackUrl, token, expiresAt, protocol));
     }
 
+    [HttpGet("status")]
+    public async Task<IActionResult> GetStatus(Guid licenseId, CancellationToken cancellationToken)
+    {
+        var devices = await _context.CFTVDevices
+            .AsNoTracking()
+            .Where(x => x.LicenseId == licenseId)
+            .OrderBy(x => x.Name)
+            .Select(x => new CftvStatusOut(x.Id, x.Name, x.IsActive, x.LastSeenAt, x.HealthMessage, x.MaxChannels))
+            .ToListAsync(cancellationToken);
+
+        return Ok(devices);
+    }
+
     [HttpDelete("{deviceId:guid}/sessions/{channel:int}")]
     public async Task<IActionResult> CloseSession(
         Guid licenseId,

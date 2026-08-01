@@ -65,6 +65,12 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
                 .HasDefaultValue(MarkEnum.None)
                 .IsRequired();
 
+            builder.Property(x => x.IsActive)
+                .HasDefaultValue(false);
+
+            builder.Property(x => x.HealthMessage)
+                .HasMaxLength(300)
+                .HasDefaultValue(string.Empty);
 
             builder.HasMany(x => x.Channels)
                 .WithOne(c => c.Device)
