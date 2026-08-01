@@ -143,7 +143,7 @@ public sealed class AuthController : ControllerBase
         if (!user.VerifyPassword(input.CurrentPassword, _passwordHasher))
             return BadRequest(new { Errors = "A senha atual está incorreta." });
 
-        var passwordError = ValidateNewPassword(input.NewPassword);
+        var passwordError = PasswordPolicy.Validate(input.NewPassword);
         if (passwordError is not null)
             return BadRequest(new { Errors = passwordError });
 
@@ -181,14 +181,6 @@ public sealed class AuthController : ControllerBase
     });
     private static IActionResult InvalidCredentials() => new UnauthorizedObjectResult(new LoginOut { Result = "InvalidCredentials" });
     private static string RecoveryCode() => $"{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}-{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}";
-    private static string? ValidateNewPassword(string password)
-    {
-        if (string.IsNullOrWhiteSpace(password) || password.Length < 8 || password.Length > 100)
-            return "A nova senha deve ter entre 8 e 100 caracteres.";
-        if (!password.Any(char.IsUpper) || !password.Any(char.IsLower) || !password.Any(char.IsDigit) || !password.Any(x => !char.IsLetterOrDigit(x)))
-            return "Use letras maiúsculas e minúsculas, número e caractere especial.";
-        return null;
-    }
     private static string NormalizeRecoveryCode(string value) => value.Trim().Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value ?? string.Empty)));
     private static bool FixedEquals(string left, string right)

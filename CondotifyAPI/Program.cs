@@ -16,6 +16,7 @@ using CondotifyAPI.Services.Backups;
 using CondotifyAPI.Services.Observability;
 using MediatR;
 using CondotifyAPI.Domain.Models.Users;
+using CondotifyAPI.Domain.Models.Resident;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -62,6 +63,7 @@ var key = Encoding.UTF8.GetBytes(secret);
 
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IPasswordHasher<UserAccess>, PasswordHasher<UserAccess>>();
+builder.Services.AddScoped<IPasswordHasher<ResidentAccess>, PasswordHasher<ResidentAccess>>();
 builder.Services.AddSingleton<ITotpService, TotpService>();
 builder.Services.AddSingleton<IPrivateMediaStore, PrivateMediaStore>();
 builder.Services.AddSingleton<StructureImportCsvParser>();
