@@ -12,69 +12,12 @@ namespace CondotifyAPI.Services.CFTV
     {
         private const string DefaultRtspUser = "admin";
 
-        private static readonly Dictionary<MarkEnum, string[]> RtspPathsByBrand = new()
+        private readonly ICftvStreamPathResolver _pathResolver;
+
+        public CFTVService(ICftvStreamPathResolver pathResolver)
         {
-            // Intelbras / Dahua-like (muitos modelos)
-            [MarkEnum.Intelbras] = new[]
-            {
-                "/cam/realmonitor?channel=1&subtype=0",
-                "/cam/realmonitor?channel=1&subtype=1",
-                "/live",
-                "/h264"
-            },
-
-            [MarkEnum.Dahua] = new[]
-            {
-                "/cam/realmonitor?channel=1&subtype=0",
-                "/cam/realmonitor?channel=1&subtype=1",
-            },
-
-            // Hikvision / Hilook
-            [MarkEnum.Hikvision] = new[]
-            {
-                "/Streaming/Channels/101",
-                "/Streaming/Channels/102",
-                "/h264/ch1/main/av_stream",
-                "/h264/ch1/sub/av_stream",
-            },
-            [MarkEnum.Hilook] = new[]
-            {
-                "/Streaming/Channels/101",
-                "/Streaming/Channels/102",
-                "/h264/ch1/main/av_stream",
-                "/h264/ch1/sub/av_stream",
-            },
-
-            // Uniview
-            [MarkEnum.Uniview] = new[]
-            {
-                "/live/0/main",
-                "/live/0/sub",
-                "/live/ch00_0",
-                "/live/ch00_1",
-            },
-
-            // Axis
-            [MarkEnum.Axis] = new[]
-            {
-                "/axis-media/media.amp",
-                "/axis-media/media.amp?videocodec=h264",
-            },
-        };
-
-        private static readonly string[] GenericRtspPaths = new[]
-        {
-            "/cam/realmonitor?channel=1&subtype=0",
-            "/cam/realmonitor?channel=1&subtype=1",
-            "/Streaming/Channels/101",
-            "/Streaming/Channels/102",
-            "/h264/ch1/main/av_stream",
-            "/h264/ch1/sub/av_stream",
-            "/live",
-            "/stream1",
-            "/stream2",
-            "/h264",
-        };
+            _pathResolver = pathResolver;
+        }
 
         public async Task<TestCftvConnectionOut> TestAsync(CFTVDevice device, CancellationToken ct = default)
         {
@@ -122,13 +65,13 @@ namespace CondotifyAPI.Services.CFTV
                 ChannelNumber = 1
             };
 
-            var templates = GetCameraTemplates(device.Mark);
+            var templates = _pathResolver.ConnectivityProbePaths(device.Mark, device.DeviceType, 1);
 
             foreach (var path in templates)
             {
                 ct.ThrowIfCancellationRequested();
 
-                var url = BuildRtspUrl(
+                var url = _pathResolver.BuildRtspUrl(
                     device.IpAddress,
                     rtspPort,
                     device.UserName,
@@ -174,15 +117,13 @@ namespace CondotifyAPI.Services.CFTV
                 ChannelNumber = channel
             };
 
-            var templates = GetDvrTemplates(device.Mark);
+            var templates = _pathResolver.ConnectivityProbePaths(device.Mark, device.DeviceType, channel);
 
-            foreach (var tpl in templates)
+            foreach (var path in templates)
             {
                 ct.ThrowIfCancellationRequested();
 
-                var path = tpl.Replace("{ch}", channel.ToString("D2"));
-
-                var url = BuildRtspUrl(
+                var url = _pathResolver.BuildRtspUrl(
                     device.IpAddress,
                     rtspPort,
                     device.UserName,
@@ -217,76 +158,6 @@ namespace CondotifyAPI.Services.CFTV
             return channelResult;
         }
 
-        private static IEnumerable<string> GetCameraTemplates(MarkEnum mark)
-        {
-            return mark switch
-            {
-                MarkEnum.Axis => new[]
-                {
-            "/axis-media/media.amp",
-            "/axis-media/media.amp?videocodec=h264"
-        },
-
-                _ => new[]
-                     {
-            "/live",
-            "/stream1",
-            "/h264"
-        }
-            };
-        }
-
-        private static IEnumerable<string> GetDvrTemplates(MarkEnum mark)
-        {
-            if (RtspPathTemplatesByBrand.TryGetValue(mark, out var paths))
-                return paths;
-
-            return new[]
-            {
-              "/cam/realmonitor?channel={ch}&subtype=0",
-              "/Streaming/Channels/{ch}01"
-            };
-        }
-        private static readonly Dictionary<MarkEnum, string[]> RtspPathTemplatesByBrand = new()
-        {
-            [MarkEnum.Intelbras] = new[]
-            {
-                "/cam/realmonitor?channel={ch}&subtype=0",
-                "/cam/realmonitor?channel={ch}&subtype=1",
-            },
-
-            [MarkEnum.Dahua] = new[]
-            {
-                "/cam/realmonitor?channel={ch}&subtype=0",
-                "/cam/realmonitor?channel={ch}&subtype=1",
-            },
-
-            [MarkEnum.Hikvision] = new[]
-            {
-                "/Streaming/Channels/{ch}01",
-                "/Streaming/Channels/{ch}02",
-                "/h264/ch{ch}/main/av_stream",
-                "/h264/ch{ch}/sub/av_stream",
-            },
-
-            [MarkEnum.Hilook] = new[]
-            {
-                "/Streaming/Channels/{ch}01",
-                "/Streaming/Channels/{ch}02",
-            },
-
-            [MarkEnum.Uniview] = new[]
-            {
-                "/live/ch{ch}_0",
-                "/live/ch{ch}_1",
-            },
-
-            [MarkEnum.Axis] = new[]
-            {
-                "/axis-media/media.amp"
-            }
-        };
-
         private static int ParsePortOrDefault(string? port, int defaultPort)
         {
             if (string.IsNullOrWhiteSpace(port)) return defaultPort;
@@ -296,16 +167,6 @@ namespace CondotifyAPI.Services.CFTV
                 return p;
 
             return defaultPort;
-        }
-
-        private static string BuildRtspUrl(string ip, int port, string user, string pass, string path)
-        {
-            if (!path.StartsWith("/")) path = "/" + path;
-
-            var u = Uri.EscapeDataString(user);
-            var p = Uri.EscapeDataString(pass ?? "");
-
-            return $"rtsp://{u}:{p}@{ip}:{port}{path}";
         }
 
         private static async Task<bool> PingAsync(string ip, int timeoutMs)

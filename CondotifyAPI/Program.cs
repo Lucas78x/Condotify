@@ -71,6 +71,7 @@ builder.Services.AddSingleton<IConfigurationBackupArchiveService, ConfigurationB
 builder.Services.AddScoped<IAutomaticBackupRunner, AutomaticBackupRunner>();
 builder.Services.AddScoped<IOperationalAlertEvaluationService, OperationalAlertEvaluationService>();
 builder.Services.AddScoped<IAlertNotificationChannelSender, AlertNotificationChannelSender>();
+builder.Services.AddSingleton<ICftvStreamPathResolver, CftvStreamPathResolver>();
 
 builder.Services.AddAuthentication(options =>
 {
