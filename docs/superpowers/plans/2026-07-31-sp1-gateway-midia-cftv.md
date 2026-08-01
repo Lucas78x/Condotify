@@ -891,16 +891,1006 @@ and cross-licence reuse, and a foreign signing secret."
 
 ---
 
-## Tasks 4 a 8
+## Task 4: MediaMTX no compose
 
-As tasks seguintes dependem de decisões que só podem ser tomadas com o MediaMTX rodando localmente e com a resposta real da sua Control API, cujo formato varia entre versões maiores. Serão detalhadas com o mesmo nível das anteriores assim que a Task 3 estiver aprovada e a imagem estiver fixada em uma versão concreta.
+**Files:**
+- Create: `mediamtx/mediamtx.yml`
+- Modify: `docker-compose.yml`
+- Modify: `.env.example`
 
-Escopo previsto:
+**Interfaces:**
+- Consumes: nada.
+- Produces: serviço `mediamtx` alcançável por `http://mediamtx:9997` (Control API), `http://mediamtx:8888` (HLS) e `http://mediamtx:8889` (WebRTC) **de dentro da rede Docker**, e as variáveis `CONDOTIFY_MEDIA_GATEWAY_URL`, `CONDOTIFY_MEDIA_PLAYBACK_BASEURL`.
 
-- **Task 4 — MediaMTX no compose.** Serviço com imagem em versão fixa, `mediamtx/mediamtx.yml` com `authMethod: http` apontando para o callback, `9997` sem publicação de porta, variáveis novas em `.env.example`.
-- **Task 5 — `MediaGatewayClient`.** Cliente tipado da Control API: garantir caminho, remover caminho, consultar caminhos ativos. `HttpClient` nomeado, como já se faz em `AddHttpClient("AlertNotifications", ...)`.
-- **Task 6 — Endpoints de sessão e callback.** `CftvStreamingController` com `POST`/`DELETE` de sessões e `MediaAuthController` com o callback. Auditoria de cada abertura. Códigos de erro distintos conforme a tabela do spec.
-- **Task 7 — Snapshot, saúde e migração.** Três colunas novas em `CFTVDevices`, migração, `CftvHealthMonitoringWorker` reaproveitando `PingAsync`/`TcpPortOpenAsync`, endpoint de snapshot e de status.
-- **Task 8 — Verificação integrada.** Fonte RTSP sintética publicada por `ffmpeg` no MediaMTX, prova do caminho RTSP→HLS→autorização fim a fim, e harness HTML com player. Registrar explicitamente que a compatibilidade por modelo de fabricante **não** foi verificada.
+- [ ] **Step 1: Criar a configuração**
 
-O `CftvStreamingContractTests`, que garante que nenhum DTO de saída serializa `Password`, `UserName` ou `rtsp://`, entra na Task 6 junto dos DTOs.
+Criar `mediamtx/mediamtx.yml`:
+
+```yaml
+# Condotify — configuracao do gateway de midia.
+#
+# ATENCAO: com authMethod: http, a Control API (apiAddress) NAO e coberta
+# pelo callback de autenticacao. Verificado em 2026-08-01 contra a imagem
+# 1.9.3: POST /v3/config/paths/add e GET /v3/config/paths/list respondem 200
+# sem credencial e sem disparar o callback, e paths/list devolve o campo
+# source em texto claro, ou seja rtsp://usuario:senha@host/caminho.
+# A porta 9997 NUNCA pode ser publicada no host.
+
+logLevel: info
+logDestinations: [stdout]
+
+api: yes
+apiAddress: :9997
+
+metrics: no
+pprof: no
+playback: no
+
+# Protocolos de entrega ao cliente.
+hls: yes
+hlsAddress: :8888
+hlsVariant: lowLatency
+hlsAlwaysRemux: no
+
+webrtc: yes
+webrtcAddress: :8889
+
+# Protocolos que nao usamos: desligados para reduzir superficie.
+rtmp: no
+srt: no
+
+# O RTSP fica ligado apenas como CLIENTE (para puxar das cameras).
+# O servidor RTSP de entrada nao e necessario.
+rtsp: no
+
+# Autorizacao delegada a API do Condotify. Toda leitura dispara este callback.
+authMethod: http
+authHTTPAddress: http://api:8080/api/internal/media-auth
+
+paths: {}
+```
+
+`hlsVariant: lowLatency` reduz a latência de HLS; o WebRTC continua sendo o caminho preferido.
+
+- [ ] **Step 2: Acrescentar o serviço ao compose**
+
+Em `docker-compose.yml`, acrescentar após o serviço `api`:
+
+```yaml
+  mediamtx:
+    image: bluenviron/mediamtx:1.9.3
+    container_name: condotify-mediamtx
+    restart: unless-stopped
+    volumes:
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      # 8888 (HLS) e 8889 (WebRTC) sao os unicos publicados, e apenas
+      # porque o callback de autenticacao protege cada leitura.
+      # 9997 (Control API) NAO e publicada: ver mediamtx/mediamtx.yml.
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+    depends_on:
+      - api
+```
+
+A porta `8189/udp` é o ICE do WebRTC e precisa estar aberta para a mídia fluir.
+
+- [ ] **Step 3: Ligar a API ao gateway**
+
+No serviço `api` do mesmo arquivo, acrescentar ao bloco `environment`:
+
+```yaml
+      CONDOTIFY_MEDIA_GATEWAY_URL: http://mediamtx:9997
+      CONDOTIFY_MEDIA_PLAYBACK_BASEURL: ${CONDOTIFY_MEDIA_PLAYBACK_BASEURL:-http://localhost:8889}
+```
+
+`CONDOTIFY_MEDIA_GATEWAY_URL` é interno à rede Docker. `CONDOTIFY_MEDIA_PLAYBACK_BASEURL` é o endereço que o **cliente** usa, e em produção deve ser o host público que serve o WebRTC.
+
+- [ ] **Step 4: Documentar as variáveis**
+
+Acrescentar ao final de `.env.example`:
+
+```
+# Endereco publico pelo qual o aplicativo alcanca o gateway de video.
+# Em producao, aponte para o host/proxy que expoe as portas 8888 e 8889.
+CONDOTIFY_MEDIA_PLAYBACK_BASEURL=http://localhost:8889
+```
+
+- [ ] **Step 5: Verificar que a Control API não está exposta**
+
+```bash
+docker compose up -d mediamtx
+sleep 5
+```
+
+Run: `curl -s -o /dev/null -w "%{http_code}" --max-time 3 http://localhost:9997/v3/config/paths/list ; echo`
+Expected: **falha de conexão** (código `000` e mensagem de recusa). Se responder `200`, a porta foi publicada por engano e o deploy está inseguro — corrigir antes de seguir.
+
+Run: `docker compose exec api sh -c "wget -qO- http://mediamtx:9997/v3/config/paths/list" 2>/dev/null || docker run --rm --network condotify_default curlimages/curl -s http://mediamtx:9997/v3/config/paths/list`
+Expected: JSON com `itemCount: 0` — a API alcança o gateway pela rede interna.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add mediamtx docker-compose.yml .env.example
+git status --short
+git commit -m "feat: add MediaMTX as the CFTV media data plane"
+```
+
+Corpo:
+
+```
+Converts camera RTSP into WebRTC and HLS so a browser or mobile WebView
+can play it, with every read authorised by a callback into the API.
+
+Only 8888, 8889 and the WebRTC ICE port are published. 9997 is
+deliberately not: measured against this exact image version, the Control
+API answers 200 with no credential and without firing the auth callback
+when authMethod is http, and paths/list returns each path's source field
+verbatim - which is rtsp://user:pass@host/path. Anything that can reach
+that port can read every camera password in the installation.
+```
+
+---
+
+## Task 5: Cliente da Control API
+
+**Files:**
+- Create: `CondotifyAPI/Services/CFTV/MediaGatewayClient.cs`
+- Modify: `CondotifyAPI/Program.cs`
+- Test: `CondotifyAPI.Tests/MediaGatewayClientTests.cs`
+
+**Interfaces:**
+- Consumes: nada das tasks anteriores.
+- Produces: `IMediaGatewayClient` com:
+  - `Task<bool> EnsurePathAsync(string path, string rtspSource, CancellationToken ct)`
+  - `Task RemovePathAsync(string path, CancellationToken ct)`
+  - `Task<int> ActivePathCountAsync(CancellationToken ct)`
+
+`EnsurePathAsync` devolve `false` quando o gateway está indisponível, para que o chamador responda `503 GatewayUnavailable` em vez de estourar.
+
+- [ ] **Step 1: Escrever os testes que falham**
+
+Criar `CondotifyAPI.Tests/MediaGatewayClientTests.cs`:
+
+```csharp
+using System.Net;
+using System.Text;
+using CondotifyAPI.Services.CFTV;
+using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
+
+namespace CondotifyAPI.Tests;
+
+public class MediaGatewayClientTests
+{
+    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
+    {
+        public List<HttpRequestMessage> Requests { get; } = [];
+        public List<string> Bodies { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            Bodies.Add(request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken));
+            return respond(request);
+        }
+    }
+
+    private static (MediaGatewayClient Client, StubHandler Handler) Create(
+        Func<HttpRequestMessage, HttpResponseMessage> respond)
+    {
+        var handler = new StubHandler(respond);
+        var http = new HttpClient(handler) { BaseAddress = new Uri("http://mediamtx:9997") };
+        return (new MediaGatewayClient(http, NullLogger<MediaGatewayClient>.Instance), handler);
+    }
+
+    [Fact]
+    public async Task EnsurePathAsync_PostsTheSourceOnDemand_AndReturnsTrue()
+    {
+        var (client, handler) = Create(_ => new HttpResponseMessage(HttpStatusCode.OK));
+
+        var ok = await client.EnsurePathAsync("l1_d2_c1", "rtsp://u:p@10.0.0.1:554/live", CancellationToken.None);
+
+        Assert.True(ok);
+        Assert.Contains("/v3/config/paths/add/l1_d2_c1", handler.Requests[0].RequestUri!.ToString());
+        Assert.Contains("\"sourceOnDemand\":true", handler.Bodies[0]);
+        Assert.Contains("rtsp://u:p@10.0.0.1:554/live", handler.Bodies[0]);
+    }
+
+    [Fact]
+    public async Task EnsurePathAsync_TreatsAnExistingPathAsSuccess()
+    {
+        // O MediaMTX devolve 400 quando o caminho ja existe; isso nao e erro
+        // para o nosso fluxo, porque o caminho ja esta pronto para leitura.
+        var (client, _) = Create(request => request.RequestUri!.ToString().Contains("/add/")
+            ? new HttpResponseMessage(HttpStatusCode.BadRequest)
+            { Content = new StringContent("path already exists", Encoding.UTF8) }
+            : new HttpResponseMessage(HttpStatusCode.OK));
+
+        Assert.True(await client.EnsurePathAsync("l1_d2_c1", "rtsp://x", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task EnsurePathAsync_ReturnsFalse_WhenTheGatewayIsUnreachable()
+    {
+        var (client, _) = Create(_ => throw new HttpRequestException("connection refused"));
+
+        Assert.False(await client.EnsurePathAsync("l1_d2_c1", "rtsp://x", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task EnsurePathAsync_ReturnsFalse_OnUnexpectedStatus()
+    {
+        var (client, _) = Create(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+
+        Assert.False(await client.EnsurePathAsync("l1_d2_c1", "rtsp://x", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RemovePathAsync_CallsDelete_AndSwallowsFailure()
+    {
+        var (client, handler) = Create(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        await client.RemovePathAsync("l1_d2_c1", CancellationToken.None);
+
+        Assert.Contains("/v3/config/paths/delete/l1_d2_c1", handler.Requests[0].RequestUri!.ToString());
+    }
+
+    [Fact]
+    public async Task ActivePathCountAsync_ReadsItemCount()
+    {
+        var (client, _) = Create(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"itemCount\":3,\"items\":[]}", Encoding.UTF8, "application/json")
+        });
+
+        Assert.Equal(3, await client.ActivePathCountAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ActivePathCountAsync_ReturnsZero_WhenTheGatewayIsUnreachable()
+    {
+        var (client, _) = Create(_ => throw new HttpRequestException("connection refused"));
+
+        Assert.Equal(0, await client.ActivePathCountAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task TheRtspSource_IsNeverWrittenToTheLog()
+    {
+        // O logger nulo nao registra nada; este teste existe para travar a
+        // intencao: se alguem trocar por um logger real e passar a URL, o
+        // teste deve ser atualizado deliberadamente, nao por acidente.
+        var (client, handler) = Create(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+
+        await client.EnsurePathAsync("l1_d2_c1", "rtsp://user:senha@10.0.0.1:554/live", CancellationToken.None);
+
+        Assert.Single(handler.Bodies);
+    }
+}
+```
+
+- [ ] **Step 2: RED**
+
+Run: `dotnet test CondotifyAPI.Tests --filter MediaGatewayClientTests`
+Expected: falha de compilação — `MediaGatewayClient` não existe.
+
+- [ ] **Step 3: Implementar**
+
+Criar `CondotifyAPI/Services/CFTV/MediaGatewayClient.cs`:
+
+```csharp
+using System.Net.Http.Json;
+using System.Text.Json;
+
+namespace CondotifyAPI.Services.CFTV;
+
+public interface IMediaGatewayClient
+{
+    Task<bool> EnsurePathAsync(string path, string rtspSource, CancellationToken cancellationToken = default);
+    Task RemovePathAsync(string path, CancellationToken cancellationToken = default);
+    Task<int> ActivePathCountAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Cliente da Control API do MediaMTX. Esta API NAO tem autenticacao quando
+/// authMethod e http, entao o endereco configurado precisa ser alcancavel
+/// apenas pela rede interna. Nunca registre o rtspSource: ele contem a
+/// credencial da camera.
+/// </summary>
+public sealed class MediaGatewayClient : IMediaGatewayClient
+{
+    private readonly HttpClient _http;
+    private readonly ILogger<MediaGatewayClient> _logger;
+
+    public MediaGatewayClient(HttpClient http, ILogger<MediaGatewayClient> logger)
+    {
+        _http = http;
+        _logger = logger;
+    }
+
+    public async Task<bool> EnsurePathAsync(string path, string rtspSource, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await _http.PostAsJsonAsync(
+                $"/v3/config/paths/add/{path}",
+                new { source = rtspSource, sourceOnDemand = true },
+                cancellationToken);
+
+            if (response.IsSuccessStatusCode) return true;
+
+            // O gateway devolve 400 quando o caminho ja existe. Para o nosso
+            // fluxo isso e sucesso: o caminho esta pronto para leitura.
+            if (response.StatusCode == System.Net.HttpStatusCode.BadRequest) return true;
+
+            _logger.LogWarning(
+                "O gateway de midia recusou o registro do caminho {Path}. Status {Status}.",
+                path, (int)response.StatusCode);
+            return false;
+        }
+        catch (Exception exception)
+        {
+            // A mensagem nunca inclui rtspSource.
+            _logger.LogError(exception, "Falha ao comunicar com o gateway de midia ao registrar {Path}.", path);
+            return false;
+        }
+    }
+
+    public async Task RemovePathAsync(string path, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await _http.PostAsync($"/v3/config/paths/delete/{path}", null, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                _logger.LogDebug("O caminho {Path} nao pode ser removido. Status {Status}.", path, (int)response.StatusCode);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Falha ao remover o caminho {Path} do gateway de midia.", path);
+        }
+    }
+
+    public async Task<int> ActivePathCountAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await _http.GetAsync("/v3/paths/list", cancellationToken);
+            if (!response.IsSuccessStatusCode) return 0;
+
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            return document.RootElement.TryGetProperty("itemCount", out var count) ? count.GetInt32() : 0;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Falha ao consultar os caminhos ativos do gateway de midia.");
+            return 0;
+        }
+    }
+}
+```
+
+- [ ] **Step 4: GREEN**
+
+Run: `dotnet test CondotifyAPI.Tests --filter MediaGatewayClientTests`
+Expected: `Aprovado! - Com falha: 0, Aprovado: 8`.
+
+- [ ] **Step 5: Registrar como HttpClient nomeado**
+
+Em `CondotifyAPI/Program.cs`, seguindo o padrão de `AddHttpClient("AlertNotifications", ...)`:
+
+```csharp
+builder.Services.AddHttpClient<IMediaGatewayClient, MediaGatewayClient>(client =>
+{
+    client.BaseAddress = new Uri(
+        Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_GATEWAY_URL") ?? "http://mediamtx:9997");
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+```
+
+O timeout curto importa: se o gateway travar, a abertura de sessão precisa falhar rápido em vez de segurar a requisição do usuário.
+
+- [ ] **Step 6: Build e suíte**
+
+Run: `dotnet build Condotify.sln` — 0 erros.
+Run: `dotnet test Condotify.sln` — tudo passa.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add CondotifyAPI/Services/CFTV/MediaGatewayClient.cs CondotifyAPI/Program.cs CondotifyAPI.Tests/MediaGatewayClientTests.cs
+git status --short
+git commit -m "feat: add a typed client for the MediaMTX control API"
+```
+
+---
+
+## Task 6: Sessões de vídeo e callback de autorização
+
+Esta é a task central do sub-projeto: é onde a credencial da câmera é usada sem sair do servidor.
+
+**Files:**
+- Create: `CondotifyAPI/Data/Equipments/CftvStreamingDtos.cs`
+- Create: `CondotifyAPI/Controllers/CftvStreamingController.cs`
+- Create: `CondotifyAPI/Controllers/MediaAuthController.cs`
+- Test: `CondotifyAPI.Tests/CftvStreamingContractTests.cs`
+
+**Interfaces:**
+- Consumes: `ICftvStreamPathResolver` (Task 2), `IMediaAccessTokenService` + `MediaAccessTokenService.PathFor` (Task 3), `IMediaGatewayClient` (Task 5).
+- Produces: `CftvSessionOut` — `record(Guid SessionId, string PlaybackUrl, string Token, DateTime ExpiresAt, string Protocol)`. **Nenhum outro campo.**
+
+- [ ] **Step 1: Escrever o teste de contrato que falha**
+
+Este teste é a rede de segurança do sub-projeto inteiro: ele falha se alguém acrescentar um campo que vaze credencial.
+
+Criar `CondotifyAPI.Tests/CftvStreamingContractTests.cs`:
+
+```csharp
+using System.Text.Json;
+using CondotifyAPI.Data.Equipments;
+using Xunit;
+
+namespace CondotifyAPI.Tests;
+
+public class CftvStreamingContractTests
+{
+    [Fact]
+    public void CftvSessionOut_NeverSerializesCredentialsOrRtspUrls()
+    {
+        var session = new CftvSessionOut(
+            SessionId: Guid.NewGuid(),
+            PlaybackUrl: "http://localhost:8889/l1_d2_c1/whep",
+            Token: "token-opaco",
+            ExpiresAt: DateTime.UtcNow.AddSeconds(120),
+            Protocol: "webrtc");
+
+        var json = JsonSerializer.Serialize(session);
+
+        Assert.DoesNotContain("rtsp://", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("password", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("username", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("senha", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CftvSessionOut_ExposesOnlyTheFiveIntendedProperties()
+    {
+        var names = typeof(CftvSessionOut).GetProperties().Select(x => x.Name).OrderBy(x => x).ToArray();
+
+        Assert.Equal(
+            ["ExpiresAt", "PlaybackUrl", "Protocol", "SessionId", "Token"],
+            names);
+    }
+}
+```
+
+O segundo teste é o que realmente protege: acrescentar qualquer propriedade ao DTO o quebra, forçando quem acrescentar a justificar.
+
+- [ ] **Step 2: RED**
+
+Run: `dotnet test CondotifyAPI.Tests --filter CftvStreamingContractTests`
+Expected: falha de compilação — `CftvSessionOut` não existe.
+
+- [ ] **Step 3: Criar os DTOs**
+
+Criar `CondotifyAPI/Data/Equipments/CftvStreamingDtos.cs`:
+
+```csharp
+namespace CondotifyAPI.Data.Equipments;
+
+/// <summary>
+/// Resposta de abertura de sessao de video. NAO acrescente campos sem antes
+/// verificar CftvStreamingContractTests: nada aqui pode revelar credencial,
+/// URL RTSP ou endereco interno do equipamento.
+/// </summary>
+public sealed record CftvSessionOut(
+    Guid SessionId,
+    string PlaybackUrl,
+    string Token,
+    DateTime ExpiresAt,
+    string Protocol);
+
+public sealed record OpenCftvSessionIn(int Channel = 1, string Quality = "main", string Protocol = "webrtc");
+
+public sealed record CftvStatusOut(
+    Guid DeviceId,
+    string Name,
+    bool Online,
+    DateTime? LastSeenAt,
+    string HealthMessage,
+    int MaxChannels);
+
+/// <summary>Corpo enviado pelo MediaMTX ao callback de autorizacao.</summary>
+public sealed class MediaAuthIn
+{
+    public string Action { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty;
+    public string Query { get; set; } = string.Empty;
+    public string Protocol { get; set; } = string.Empty;
+    public string Ip { get; set; } = string.Empty;
+    public string User { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+}
+```
+
+- [ ] **Step 4: GREEN**
+
+Run: `dotnet test CondotifyAPI.Tests --filter CftvStreamingContractTests`
+Expected: 2 passam.
+
+- [ ] **Step 5: Criar o controller de sessões**
+
+Criar `CondotifyAPI/Controllers/CftvStreamingController.cs`:
+
+```csharp
+using System.Security.Claims;
+using CondotifyAPI.Data.Equipments;
+using CondotifyAPI.Domain.Models.Equipments;
+using CondotifyAPI.Infrastructure;
+using CondotifyAPI.Services.Authorization;
+using CondotifyAPI.Services.CFTV;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace CondotifyAPI.Controllers;
+
+[ApiController]
+[Authorize]
+[Route("api/access/licenses/{licenseId:guid}/cftv")]
+[RequireLicensePermission(LicensePermissionEnum.ViewDevices)]
+public sealed class CftvStreamingController : ControllerBase
+{
+    private const int TokenLifetimeSeconds = 120;
+    private const int MaxConcurrentPaths = 24;
+
+    private readonly DatabaseContext _context;
+    private readonly ICftvStreamPathResolver _paths;
+    private readonly IMediaAccessTokenService _tokens;
+    private readonly IMediaGatewayClient _gateway;
+    private readonly ILogger<CftvStreamingController> _logger;
+
+    public CftvStreamingController(
+        DatabaseContext context,
+        ICftvStreamPathResolver paths,
+        IMediaAccessTokenService tokens,
+        IMediaGatewayClient gateway,
+        ILogger<CftvStreamingController> logger)
+    {
+        _context = context;
+        _paths = paths;
+        _tokens = tokens;
+        _gateway = gateway;
+        _logger = logger;
+    }
+
+    [HttpPost("{deviceId:guid}/sessions")]
+    public async Task<IActionResult> OpenSession(
+        Guid licenseId,
+        Guid deviceId,
+        [FromBody] OpenCftvSessionIn input,
+        CancellationToken cancellationToken)
+    {
+        var device = await _context.CFTVDevices
+            .AsNoTracking()
+            .Include(x => x.Channels)
+            .FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId, cancellationToken);
+
+        if (device is null) return NotFound();
+
+        var channel = input.Channel < 1 ? 1 : input.Channel;
+        if (device.DeviceType != CFTVDeviceTypeEnum.Camera && channel > device.MaxChannels)
+            return BadRequest(new { Result = "InvalidChannel", Errors = "O canal informado nao existe neste equipamento." });
+
+        if (await _gateway.ActivePathCountAsync(cancellationToken) >= MaxConcurrentPaths)
+            return StatusCode(StatusCodes.Status429TooManyRequests,
+                new { Result = "SessionLimitReached", Errors = "Limite de visualizacoes simultaneas atingido. Tente novamente em instantes." });
+
+        var quality = string.Equals(input.Quality, "secondary", StringComparison.OrdinalIgnoreCase)
+            ? StreamQuality.Secondary
+            : StreamQuality.Main;
+
+        var path = _paths.PreferredPath(device.Mark, device.DeviceType, channel, quality)
+            ?? _paths.ConnectivityProbePaths(device.Mark, device.DeviceType, channel).FirstOrDefault();
+
+        if (path is null)
+            return StatusCode(StatusCodes.Status502BadGateway,
+                new { Result = "UnsupportedDevice", Errors = "Este modelo ainda nao possui caminho de video conhecido." });
+
+        var rtspPort = int.TryParse(new string(device.RTSPPort.Where(char.IsDigit).ToArray()), out var parsed) ? parsed : 554;
+
+        // A credencial e usada aqui e apenas aqui. Nao pode ser registrada,
+        // devolvida, nem entrar em mensagem de erro.
+        var source = _paths.BuildRtspUrl(device.IpAddress, rtspPort, device.Username, device.Password, path);
+
+        var mediaPath = MediaAccessTokenService.PathFor(licenseId, deviceId, channel);
+
+        if (!await _gateway.EnsurePathAsync(mediaPath, source, cancellationToken))
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { Result = "GatewayUnavailable", Errors = "O servico de video esta indisponivel. Tente novamente em instantes." });
+
+        var userId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedUser) ? parsedUser : Guid.Empty;
+        var expiresAt = DateTime.UtcNow.AddSeconds(TokenLifetimeSeconds);
+        var token = _tokens.Issue(new MediaAccessGrant(licenseId, deviceId, channel, userId, expiresAt));
+
+        var protocol = string.Equals(input.Protocol, "hls", StringComparison.OrdinalIgnoreCase) ? "hls" : "webrtc";
+        var baseUrl = (Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_PLAYBACK_BASEURL") ?? "http://localhost:8889").TrimEnd('/');
+        var playbackUrl = protocol == "hls"
+            ? $"{baseUrl}/{mediaPath}/index.m3u8?token={Uri.EscapeDataString(token)}"
+            : $"{baseUrl}/{mediaPath}/whep?token={Uri.EscapeDataString(token)}";
+
+        _logger.LogInformation(
+            "Sessao de video aberta. Licenca {LicenseId}, equipamento {DeviceId}, canal {Channel}, usuario {UserId}, origem {Ip}.",
+            licenseId, deviceId, channel, userId, HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconhecido");
+
+        return Ok(new CftvSessionOut(Guid.NewGuid(), playbackUrl, token, expiresAt, protocol));
+    }
+
+    [HttpDelete("{deviceId:guid}/sessions/{channel:int}")]
+    public async Task<IActionResult> CloseSession(
+        Guid licenseId,
+        Guid deviceId,
+        int channel,
+        CancellationToken cancellationToken)
+    {
+        if (!await _context.CFTVDevices.AsNoTracking().AnyAsync(x => x.Id == deviceId && x.LicenseId == licenseId, cancellationToken))
+            return NotFound();
+
+        await _gateway.RemovePathAsync(MediaAccessTokenService.PathFor(licenseId, deviceId, channel), cancellationToken);
+
+        _logger.LogInformation(
+            "Sessao de video encerrada. Licenca {LicenseId}, equipamento {DeviceId}, canal {Channel}.",
+            licenseId, deviceId, channel);
+
+        return NoContent();
+    }
+}
+```
+
+Repare que **nenhuma** mensagem de erro devolvida menciona IP, credencial ou caminho RTSP.
+
+- [ ] **Step 6: Criar o callback de autorização**
+
+Criar `CondotifyAPI/Controllers/MediaAuthController.cs`:
+
+```csharp
+using CondotifyAPI.Data.Equipments;
+using CondotifyAPI.Services.CFTV;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
+
+namespace CondotifyAPI.Controllers;
+
+/// <summary>
+/// Chamado pelo MediaMTX a cada leitura de midia. So deve ser alcancavel pela
+/// rede interna: o MediaMTX nao autentica esta chamada.
+/// </summary>
+[ApiController]
+[AllowAnonymous]
+[Route("api/internal/media-auth")]
+public sealed class MediaAuthController : ControllerBase
+{
+    private readonly IMediaAccessTokenService _tokens;
+    private readonly ILogger<MediaAuthController> _logger;
+
+    public MediaAuthController(IMediaAccessTokenService tokens, ILogger<MediaAuthController> logger)
+    {
+        _tokens = tokens;
+        _logger = logger;
+    }
+
+    [HttpPost]
+    public IActionResult Authorize([FromBody] MediaAuthIn input)
+    {
+        // Somente leitura e permitida por token. Publicacao e API nunca.
+        if (!string.Equals(input.Action, "read", StringComparison.OrdinalIgnoreCase))
+            return Unauthorized();
+
+        // Esta versao do MediaMTX nao envia um campo token: ele vem na query.
+        var token = QueryHelpers.ParseQuery(input.Query).TryGetValue("token", out var values)
+            ? values.ToString()
+            : string.Empty;
+
+        var grant = _tokens.Validate(token, input.Path);
+        if (grant is null)
+        {
+            _logger.LogWarning(
+                "Leitura de video recusada. Caminho {Path}, protocolo {Protocol}, origem {Ip}.",
+                input.Path, input.Protocol, input.Ip);
+            return Unauthorized();
+        }
+
+        _logger.LogInformation(
+            "Leitura de video autorizada. Licenca {LicenseId}, equipamento {DeviceId}, canal {Channel}, usuario {UserId}, protocolo {Protocol}, origem {Ip}.",
+            grant.LicenseId, grant.DeviceId, grant.Channel, grant.UserId, input.Protocol, input.Ip);
+
+        return Ok();
+    }
+}
+```
+
+- [ ] **Step 7: Build e suíte**
+
+Run: `dotnet build Condotify.sln` — 0 erros.
+Run: `dotnet test Condotify.sln` — tudo passa.
+
+- [ ] **Step 8: Confirmar que nenhum DTO novo carrega credencial**
+
+Run: `grep -rn "Password\|Username\|rtsp://" CondotifyAPI/Data/Equipments/CftvStreamingDtos.cs`
+Expected: apenas o campo `Password` de `MediaAuthIn`, que é **entrada** vinda do MediaMTX (sempre vazio nesta configuração) e nunca é devolvido.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add CondotifyAPI/Data/Equipments/CftvStreamingDtos.cs CondotifyAPI/Controllers/CftvStreamingController.cs CondotifyAPI/Controllers/MediaAuthController.cs CondotifyAPI.Tests/CftvStreamingContractTests.cs
+git status --short
+git commit -m "feat: add CFTV streaming sessions and the media authorisation callback"
+```
+
+---
+
+## Task 7: Estado operacional das câmeras
+
+**Files:**
+- Modify: `CondotifyAPI.Domain/DTO/Equipments/CFTVDeviceDTO.cs`
+- Modify: `CondotifyAPI.Infrastructure/ContextConfiguration/Equipments/CFTVDeviceConfiguration.cs`
+- Create: migração EF
+- Create: `CondotifyAPI/Services/CFTV/CftvHealthMonitoringWorker.cs`
+- Modify: `CondotifyAPI/Controllers/CftvStreamingController.cs` (endpoint de status)
+- Modify: `CondotifyAPI/Program.cs`
+
+**Interfaces:**
+- Consumes: `CftvStatusOut` (Task 6).
+- Produces: colunas `IsActive`, `LastSeenAt`, `HealthMessage` em `CFTVDevices`; `GET .../cftv/status`.
+
+- [ ] **Step 1: Acrescentar as três propriedades ao DTO**
+
+Em `CondotifyAPI.Domain/DTO/Equipments/CFTVDeviceDTO.cs`, junto às demais:
+
+```csharp
+        public bool IsActive { get; set; }
+        public DateTime? LastSeenAt { get; set; }
+        public string HealthMessage { get; set; } = string.Empty;
+```
+
+- [ ] **Step 2: Mapear**
+
+Em `CFTVDeviceConfiguration.Configure`, antes do `HasMany`:
+
+```csharp
+            builder.Property(x => x.IsActive)
+                .HasDefaultValue(false);
+
+            builder.Property(x => x.HealthMessage)
+                .HasMaxLength(300)
+                .HasDefaultValue(string.Empty);
+```
+
+`LastSeenAt` é anulável e não precisa de configuração explícita.
+
+- [ ] **Step 3: Gerar a migração**
+
+```bash
+dotnet ef migrations add AddCftvOperationalState --project CondotifyAPI.Infrastructure --startup-project CondotifyAPI
+```
+
+Conferir o arquivo gerado: deve conter apenas três `AddColumn` sobre `CFTVDevices`, nenhum `DropColumn`, nenhuma alteração em outra tabela. Se contiver mais, algo divergiu do snapshot — investigar antes de seguir.
+
+- [ ] **Step 4: Criar o worker de saúde**
+
+Criar `CondotifyAPI/Services/CFTV/CftvHealthMonitoringWorker.cs`, seguindo o padrão de `DeviceHealthMonitoringWorker`:
+
+```csharp
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using CondotifyAPI.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+
+namespace CondotifyAPI.Services.CFTV;
+
+/// <summary>
+/// Verifica periodicamente se cada camera responde, para que o aplicativo
+/// possa mostrar online/offline sem esperar o timeout de um stream.
+/// </summary>
+public sealed class CftvHealthMonitoringWorker : BackgroundService
+{
+    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(2);
+
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<CftvHealthMonitoringWorker> _logger;
+
+    public CftvHealthMonitoringWorker(IServiceScopeFactory scopeFactory, ILogger<CftvHealthMonitoringWorker> logger)
+    {
+        _scopeFactory = scopeFactory;
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await CheckAllAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Falha ao verificar a saude das cameras.");
+            }
+
+            try
+            {
+                await Task.Delay(Interval, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private async Task CheckAllAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+
+        var devices = await context.CFTVDevices.ToListAsync(cancellationToken);
+        if (devices.Count == 0) return;
+
+        foreach (var device in devices)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var port = int.TryParse(new string(device.RTSPPort.Where(char.IsDigit).ToArray()), out var parsed) ? parsed : 554;
+            var reachable = await TcpReachableAsync(device.IpAddress, port, 1500, cancellationToken);
+
+            device.IsActive = reachable;
+            device.HealthMessage = reachable ? string.Empty : "Sem resposta na porta RTSP.";
+            if (reachable) device.LastSeenAt = DateTime.UtcNow;
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task<bool> TcpReachableAsync(string host, int port, int timeoutMs, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(timeoutMs);
+            await client.ConnectAsync(host, port, timeout.Token);
+            return client.Connected;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
+```
+
+- [ ] **Step 5: Endpoint de status**
+
+Acrescentar a `CftvStreamingController`:
+
+```csharp
+    [HttpGet("status")]
+    public async Task<IActionResult> GetStatus(Guid licenseId, CancellationToken cancellationToken)
+    {
+        var devices = await _context.CFTVDevices
+            .AsNoTracking()
+            .Where(x => x.LicenseId == licenseId)
+            .OrderBy(x => x.Name)
+            .Select(x => new CftvStatusOut(x.Id, x.Name, x.IsActive, x.LastSeenAt, x.HealthMessage, x.MaxChannels))
+            .ToListAsync(cancellationToken);
+
+        return Ok(devices);
+    }
+```
+
+`CftvStatusOut` deliberadamente não expõe `IpAddress`, `Username`, `Password` nem portas.
+
+- [ ] **Step 6: Registrar o worker**
+
+Em `CondotifyAPI/Program.cs`, junto aos demais `AddHostedService`:
+
+```csharp
+builder.Services.AddHostedService<CftvHealthMonitoringWorker>();
+```
+
+- [ ] **Step 7: Build, migração e suíte**
+
+Run: `dotnet build Condotify.sln` — 0 erros.
+Run: `dotnet ef database update --project CondotifyAPI.Infrastructure --startup-project CondotifyAPI` — aplica sem erro.
+Run: `dotnet test Condotify.sln` — tudo passa.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add CondotifyAPI.Domain/DTO/Equipments/CFTVDeviceDTO.cs CondotifyAPI.Infrastructure/ContextConfiguration/Equipments/CFTVDeviceConfiguration.cs CondotifyAPI.Infrastructure/Migrations CondotifyAPI/Services/CFTV/CftvHealthMonitoringWorker.cs CondotifyAPI/Controllers/CftvStreamingController.cs CondotifyAPI/Program.cs
+git status --short
+git commit -m "feat: track CFTV operational state and expose camera status"
+```
+
+---
+
+## Task 8: Verificação integrada
+
+Esta task não escreve funcionalidade: prova que o conjunto funciona.
+
+**Files:**
+- Create: `tools/media-gateway-harness.html`
+- Create: `docs/superpowers/plans/2026-07-31-sp1-verificacao.md` (registro do resultado)
+
+- [ ] **Step 1: Subir a infraestrutura**
+
+```bash
+docker compose up -d postgres mediamtx
+dotnet run --project CondotifyAPI/CondotifyAPI.csproj
+```
+
+- [ ] **Step 2: Confirmar que a Control API não escapou**
+
+Run: `curl -s -o /dev/null -w "%{http_code}" --max-time 3 http://localhost:9997/v3/config/paths/list ; echo`
+Expected: **`000`**, falha de conexão.
+
+Se responder `200`, **pare**: a porta foi publicada e qualquer um na rede lê as senhas de todas as câmeras. Corrija o compose antes de continuar.
+
+- [ ] **Step 3: Publicar uma fonte RTSP sintética**
+
+Sem câmera real disponível, `ffmpeg` gera um padrão de cores e o publica no MediaMTX:
+
+```bash
+docker run --rm --network condotify_default linuxserver/ffmpeg \
+  -re -f lavfi -i testsrc=size=640x480:rate=15 \
+  -f lavfi -i sine=frequency=1000 \
+  -c:v libx264 -preset ultrafast -tune zerolatency -c:a aac \
+  -f rtsp rtsp://mediamtx:8554/camera-sintetica
+```
+
+**Nota:** isto exige `rtsp: yes` no `mediamtx.yml` para aceitar a publicação. Ligue temporariamente para o teste e **volte a desligar** ao final — o servidor RTSP de entrada não é necessário em produção e é superfície de ataque desnecessária. Registre no relatório que essa alteração foi revertida.
+
+- [ ] **Step 4: Provar que a autorização funciona**
+
+Com um token válido emitido pela API para o caminho sintético:
+
+Run: `curl -s -o /dev/null -w "%{http_code}" "http://localhost:8888/camera-sintetica/index.m3u8?token=TOKEN_VALIDO"`
+Expected: `200`.
+
+Run: `curl -s -o /dev/null -w "%{http_code}" "http://localhost:8888/camera-sintetica/index.m3u8?token=TOKEN_ADULTERADO"`
+Expected: `401`.
+
+Run: `curl -s -o /dev/null -w "%{http_code}" "http://localhost:8888/camera-sintetica/index.m3u8"`
+Expected: `401` — sem token, sem acesso.
+
+Estes três resultados juntos provam a cadeia: API emite → MediaMTX consulta → API valida → mídia flui ou não.
+
+- [ ] **Step 5: Harness visual**
+
+Criar `tools/media-gateway-harness.html` com um `<video>` e hls.js embutido, apontando para o `playbackUrl` devolvido pela API. Serve para confirmar que a imagem realmente aparece, não só que o HTTP responde 200.
+
+- [ ] **Step 6: Registrar o que NÃO foi verificado**
+
+Escrever `docs/superpowers/plans/2026-07-31-sp1-verificacao.md` declarando explicitamente:
+
+- O que foi provado: emissão e validação de token, autorização por callback, entrega HLS, recusa sem token e com token adulterado, isolamento da Control API.
+- **O que não foi provado: compatibilidade com qualquer modelo real de câmera.** Não há câmera cadastrada no ambiente; `CFTVDevices` está vazia. Os caminhos RTSP por fabricante em `PreferredPath` nunca foram exercitados contra hardware.
+- **O que não foi provado: WebRTC.** O harness usa HLS; o caminho WebRTC (`/whep`) precisa de navegador real.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add tools/media-gateway-harness.html docs/superpowers/plans/2026-07-31-sp1-verificacao.md
+git status --short
+git commit -m "test: verify the CFTV media gateway end to end with a synthetic source"
+```
+
