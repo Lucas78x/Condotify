@@ -12,6 +12,14 @@
     <PackageReference Include="FluentValidation" Version="12.0.0" />
     <PackageReference Include="MediatR" Version="13.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.24" />
+    <!-- Pinned: Microsoft.AspNetCore.Authentication.JwtBearer 8.0.24 wants System.IdentityModel.Tokens.Jwt ~7.1.2,
+         but another dependency in the graph (Azure Container Tools -> MSAL) pulls Microsoft.IdentityModel.Tokens/
+         JsonWebTokens/Abstractions up to 8.14.0. Left unpinned, NuGet resolves System.IdentityModel.Tokens.Jwt at
+         7.1.2 against Microsoft.IdentityModel.Tokens 8.14.0, a version-skewed pair whose JwtPayload/Claims
+         enumeration silently drops claims at runtime (observed while adding the license_id/principal_type claims
+         in JwtPrincipalTypeTests - the encoded JWT was correct, but reading it back lost entries). Pinning to the
+         same 8.x line keeps the whole IdentityModel family internally consistent. -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.14.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.9">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

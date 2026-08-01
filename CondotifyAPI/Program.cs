@@ -18,6 +18,7 @@ using MediatR;
 using CondotifyAPI.Domain.Models.Users;
 using CondotifyAPI.Domain.Models.Resident;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -95,6 +96,20 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 });
+
+// Ponto central: todo [Authorize] sem parametros ja existente na base passa a exigir
+// principal_type=user (equipe) sem que nenhuma rota seja editada. Um token de morador
+// tem principal_type=resident e portanto falha a politica padrao - a direcao do erro e
+// segura, pois esquecer de anotar uma rota como acessivel ao morador a torna inacessivel,
+// nunca o contrario.
+builder.Services.AddAuthorizationBuilder()
+    .SetDefaultPolicy(new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .RequireClaim(PrincipalTypes.Claim, PrincipalTypes.User)
+        .Build())
+    .AddPolicy("Resident", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireClaim(PrincipalTypes.Claim, PrincipalTypes.Resident));
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

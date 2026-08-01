@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using CondotifyAPI.Domain.DTO.Resident;
 using CondotifyAPI.Domain.Models.Users;
 
 namespace CondotifyAPI.Jwt
@@ -9,6 +10,18 @@ namespace CondotifyAPI.Jwt
     public interface IJwtTokenService
     {
         string CreateAccessToken(UserAccess user);
+
+        /// <summary>
+        /// Issues a resident access token. Takes <see cref="ResidentAccessDTO"/> (the
+        /// projection resident login already loads from the database, rather than the
+        /// bare <c>ResidentAccess</c> domain model) plus the licence id the resident is
+        /// signing into, because a resident's licence is selected/known at login time and
+        /// is not a property of the DTO itself. Deliberately does NOT accept or embed the
+        /// resident's unit(s): unit membership can change (or be revoked) between issuance
+        /// and expiry, and baking it into the token would let a revoked link keep working
+        /// until the token expires. Callers must resolve current units per request instead.
+        /// </summary>
+        string CreateResidentAccessToken(ResidentAccessDTO resident, Guid licenseId);
     }
 
     public sealed class JwtTokenService : IJwtTokenService
@@ -32,9 +45,6 @@ namespace CondotifyAPI.Jwt
 
         public string CreateAccessToken(UserAccess user)
         {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secret));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
             var claims = new List<Claim>
             {
                 new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
@@ -42,14 +52,39 @@ namespace CondotifyAPI.Jwt
                 new("enterprise_id", user.EnterpriseId.ToString()),
                 new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
                 new("name", user.Name ?? ""),
-                new("access_type", user.AccessType.ToString())
+                new("access_type", user.AccessType.ToString()),
+                new(PrincipalTypes.Claim, PrincipalTypes.User)
             };
 
+            return WriteToken(claims);
+        }
+
+        public string CreateResidentAccessToken(ResidentAccessDTO resident, Guid licenseId)
+        {
+            var claims = new List<Claim>
+            {
+                new(JwtRegisteredClaimNames.Sub, resident.Id.ToString()),
+                new(ClaimTypes.NameIdentifier, resident.Id.ToString()),
+                new(JwtRegisteredClaimNames.Email, resident.Email ?? ""),
+                new("license_id", licenseId.ToString()),
+                new(PrincipalTypes.Claim, PrincipalTypes.Resident)
+            };
+
+            return WriteToken(claims);
+        }
+
+        private string WriteToken(List<Claim> claims)
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secret));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var now = DateTime.UtcNow;
             var token = new JwtSecurityToken(
                 issuer: _issuer,
                 audience: _audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddHours(8), // 8 horas
+                notBefore: now,
+                expires: now.AddHours(1), // 1 hora
                 signingCredentials: creds
             );
 
