@@ -119,8 +119,12 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-                       ?? Environment.GetEnvironmentVariable("CONDOTIFY_DB_CONNECTION")
+// A variavel de ambiente vem primeiro de proposito: ela e o mecanismo de
+// deploy (docker-compose.yml a define), enquanto appsettings.json carrega um
+// padrao de desenvolvimento fixo. Na ordem inversa o padrao "Server=localhost"
+// sempre vencia, e a API em contentor nunca alcancava o banco.
+var connectionString = Environment.GetEnvironmentVariable("CONDOTIFY_DB_CONNECTION")
+                       ?? builder.Configuration.GetConnectionString("DefaultConnection")
                        ?? DatabaseContext.GetDefaultConnectionString();
 
 builder.Services.AddDbContext<DatabaseContext>(options =>
