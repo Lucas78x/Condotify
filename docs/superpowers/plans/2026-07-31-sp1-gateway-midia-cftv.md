@@ -1136,6 +1136,7 @@ public class MediaGatewayClientTests
 
         await client.RemovePathAsync("l1_d2_c1", CancellationToken.None);
 
+        Assert.Equal(HttpMethod.Delete, handler.Requests[0].Method);
         Assert.Contains("/v3/config/paths/delete/l1_d2_c1", handler.Requests[0].RequestUri!.ToString());
     }
 
@@ -1244,7 +1245,7 @@ public sealed class MediaGatewayClient : IMediaGatewayClient
     {
         try
         {
-            using var response = await _http.PostAsync($"/v3/config/paths/delete/{path}", null, cancellationToken);
+            using var response = await _http.DeleteAsync($"/v3/config/paths/delete/{path}", cancellationToken);
             if (!response.IsSuccessStatusCode)
                 _logger.LogDebug("O caminho {Path} nao pode ser removido. Status {Status}.", path, (int)response.StatusCode);
         }
