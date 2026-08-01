@@ -136,7 +136,7 @@ namespace CondotifyAPI.Services.CFTV
                     path
                 );
 
-                channelResult.Attempts.Add(url);
+                channelResult.Attempts.Add(RtspUrlMasker.Mask(url));
 
                 var (okOpt, _) = await RtspOptionsAsync(
                     device.IpAddress, rtspPort, url, 2200);
@@ -144,7 +144,7 @@ namespace CondotifyAPI.Services.CFTV
                 if (okOpt)
                 {
                     channelResult.RtspOk = true;
-                    channelResult.RtspUrlWorking = url;
+                    channelResult.RtspUrlWorking = RtspUrlMasker.Mask(url);
                     return channelResult;
                 }
 
@@ -154,7 +154,7 @@ namespace CondotifyAPI.Services.CFTV
                 if (okDesc)
                 {
                     channelResult.RtspOk = true;
-                    channelResult.RtspUrlWorking = url;
+                    channelResult.RtspUrlWorking = RtspUrlMasker.Mask(url);
                     return channelResult;
                 }
             }
@@ -190,7 +190,7 @@ namespace CondotifyAPI.Services.CFTV
                     path
                 );
 
-                channelResult.Attempts.Add(url);
+                channelResult.Attempts.Add(RtspUrlMasker.Mask(url));
 
                 var (okOpt, _) = await RtspOptionsAsync(
                     device.IpAddress, rtspPort, url, 2200);
@@ -198,7 +198,7 @@ namespace CondotifyAPI.Services.CFTV
                 if (okOpt)
                 {
                     channelResult.RtspOk = true;
-                    channelResult.RtspUrlWorking = url;
+                    channelResult.RtspUrlWorking = RtspUrlMasker.Mask(url);
                     return channelResult;
                 }
 
@@ -208,7 +208,7 @@ namespace CondotifyAPI.Services.CFTV
                 if (okDesc)
                 {
                     channelResult.RtspOk = true;
-                    channelResult.RtspUrlWorking = url;
+                    channelResult.RtspUrlWorking = RtspUrlMasker.Mask(url);
                     return channelResult;
                 }
             }
