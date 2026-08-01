@@ -103,6 +103,12 @@ builder.Services.AddAuthentication(options =>
 // tem principal_type=resident e portanto falha a politica padrao - a direcao do erro e
 // segura, pois esquecer de anotar uma rota como acessivel ao morador a torna inacessivel,
 // nunca o contrario.
+// Task 7: session routes (refresh/logout/logout-all/sessions) must work for BOTH
+// principal types - a bare [Authorize] would use the default policy above and lock
+// residents out of logging themselves out. AnyPrincipalPolicy requires only that the
+// caller is authenticated (no principal_type claim check at all), so it is used
+// explicitly by name (see SessionController.AnyPrincipalPolicy) rather than by adding a
+// third implicit default - the default policy itself is unchanged.
 builder.Services.AddAuthorizationBuilder()
     .SetDefaultPolicy(new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
@@ -110,7 +116,9 @@ builder.Services.AddAuthorizationBuilder()
         .Build())
     .AddPolicy("Resident", policy => policy
         .RequireAuthenticatedUser()
-        .RequireClaim(PrincipalTypes.Claim, PrincipalTypes.Resident));
+        .RequireClaim(PrincipalTypes.Claim, PrincipalTypes.Resident))
+    .AddPolicy(CondotifyAPI.Controllers.SessionController.AnyPrincipalPolicy, policy => policy
+        .RequireAuthenticatedUser());
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

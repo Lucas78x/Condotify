@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using AutoMapper;
+using CondotifyAPI.Controllers;
 using CondotifyAPI.Data.Login;
 using CondotifyAPI.Domain.DTO.Users;
 using CondotifyAPI.Domain.Models.Users;
@@ -27,14 +28,16 @@ public sealed class AuthController : ControllerBase
     private readonly IJwtTokenService _jwt;
     private readonly IPasswordHasher<UserAccess> _passwordHasher;
     private readonly ITotpService _totp;
+    private readonly IRefreshTokenService _refreshTokens;
 
-    public AuthController(DatabaseContext context, IMapper mapper, IJwtTokenService jwt, IPasswordHasher<UserAccess> passwordHasher, ITotpService totp)
+    public AuthController(DatabaseContext context, IMapper mapper, IJwtTokenService jwt, IPasswordHasher<UserAccess> passwordHasher, ITotpService totp, IRefreshTokenService refreshTokens)
     {
         _context = context;
         _mapper = mapper;
         _jwt = jwt;
         _passwordHasher = passwordHasher;
         _totp = totp;
+        _refreshTokens = refreshTokens;
     }
 
     [HttpGet("validate")]
@@ -43,7 +46,7 @@ public sealed class AuthController : ControllerBase
 
     [HttpPost("login")]
     [EnableRateLimiting("login")]
-    public async Task<IActionResult> Login([FromBody] LoginIn input)
+    public async Task<IActionResult> Login([FromBody] LoginIn input, CancellationToken cancellationToken)
     {
         var email = input.Email.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(input.Password)) return InvalidCredentials();
@@ -62,13 +65,13 @@ public sealed class AuthController : ControllerBase
         }
 
         dto.LastAccess = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-        return Success(user);
+        var refresh = await IssueRefreshTokenAsync(dto.Id, input.DeviceLabel, cancellationToken);
+        return Success(user, refresh);
     }
 
     [HttpPost("mfa/verify")]
     [EnableRateLimiting("login")]
-    public async Task<IActionResult> VerifyMfa([FromBody] VerifyMfaIn input)
+    public async Task<IActionResult> VerifyMfa([FromBody] VerifyMfaIn input, CancellationToken cancellationToken)
     {
         var challengeHash = Hash(input.ChallengeToken);
         var dto = await _context.Users.FirstOrDefaultAsync(x => x.MfaEnabled && x.MfaChallengeHash == challengeHash && x.MfaChallengeExpiresAt > DateTime.UtcNow);
@@ -76,8 +79,8 @@ public sealed class AuthController : ControllerBase
         dto.MfaChallengeHash = string.Empty;
         dto.MfaChallengeExpiresAt = null;
         dto.LastAccess = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-        return Success(_mapper.Map<UserAccess>(dto));
+        var refresh = await IssueRefreshTokenAsync(dto.Id, input.DeviceLabel, cancellationToken);
+        return Success(_mapper.Map<UserAccess>(dto), refresh);
     }
 
     [HttpGet("mfa/status")]
@@ -175,9 +178,23 @@ public sealed class AuthController : ControllerBase
         return true;
     }
 
-    private IActionResult Success(UserAccess user) => Ok(new LoginOut
+    /// <summary>Issues the refresh token half of a new session, alongside whatever change
+    /// the caller already staged on the tracked <c>UserAccessDTO</c> (LastAccess, cleared MFA
+    /// challenge, ...) - IssueAsync's own SaveChangesAsync flushes both in one round trip,
+    /// the same pattern ResidentAuthController.Login uses for the resident side.</summary>
+    private async Task<RefreshTokenIssued> IssueRefreshTokenAsync(Guid userId, string? deviceLabelInput, CancellationToken cancellationToken)
     {
-        Result = "Success", AccessToken = _jwt.CreateAccessToken(user), ExpiresIn = _jwt.AccessTokenLifetimeSeconds
+        var deviceLabel = SessionController.ResolveDeviceLabel(deviceLabelInput, Request.Headers.UserAgent.ToString());
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconhecido";
+        return await _refreshTokens.IssueAsync(userId, PrincipalTypes.User, deviceLabel, ip, cancellationToken);
+    }
+
+    private IActionResult Success(UserAccess user, RefreshTokenIssued refresh) => Ok(new LoginOut
+    {
+        Result = "Success",
+        AccessToken = _jwt.CreateAccessToken(user),
+        RefreshToken = refresh.Token,
+        ExpiresIn = _jwt.AccessTokenLifetimeSeconds
     });
     private static IActionResult InvalidCredentials() => new UnauthorizedObjectResult(new LoginOut { Result = "InvalidCredentials" });
     private static string RecoveryCode() => $"{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}-{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}";
