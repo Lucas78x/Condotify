@@ -118,7 +118,21 @@ O token autoriza **leitura de um caminho específico**. Não é um bearer de ses
 | `GET` | `/api/access/licenses/{licenseId}/cftv/status` | `ViewDevices` | Estado online/offline por câmera |
 | `POST` | `/api/internal/media-auth` | interna | Callback do MediaMTX; valida o token |
 
-`/api/internal/media-auth` é chamado apenas pelo MediaMTX pela rede interna do Docker. Além de validar o token, exige o `X-API-Key` já usado em outras rotas internas, para que não seja invocável de fora mesmo que a porta escape.
+`/api/internal/media-auth` é chamado pelo MediaMTX a cada leitura.
+
+> **Correção aplicada em 2026-08-01, durante a Task 6.** A versão original deste spec dizia que o endpoint exigiria o cabeçalho `X-API-Key` usado em outras rotas internas. **Isso é impossível:** o MediaMTX 1.9.3 não permite configurar cabeçalhos no `authHTTPAddress`, então exigir o cabeçalho recusaria todas as chamadas legítimas e nenhum vídeo funcionaria.
+>
+> O endpoint é, portanto, `[AllowAnonymous]` — e como a API é publicada na porta 7118, ele **é alcançável de fora**. Isso precisa ser dito com todas as letras em vez de ficar implícito.
+>
+> **O que um atacante ganha com ele:** consegue submeter um par token/caminho e descobrir se é válido, pelo `200` contra `401`. É um oráculo de validação. O valor é baixo porque exige já possuir um token válido, que vive 120 segundos e é vinculado a uma câmera específica. O endpoint não devolve mídia, não devolve dado do equipamento e não revela por que a validação falhou.
+>
+> **O que não funciona como mitigação, e por quê:**
+> - *Filtro por IP de origem.* Em Docker, tanto o MediaMTX quanto uma requisição vinda do host chegam com endereço privado (`172.x`). O filtro não distingue os dois.
+> - *Rate limiting.* A callback dispara a cada segmento HLS, várias vezes por segundo por espectador. Qualquer limite apertado o bastante para deter um atacante quebraria a reprodução legítima.
+>
+> **A mitigação correta, registrada como endurecimento pendente e não implementada aqui:** fazer o Kestrel escutar em duas portas e publicar apenas uma, mantendo as rotas `api/internal/*` acessíveis somente pela porta não publicada. É mudança de hospedagem, não de código de aplicação, e merece sub-projeto próprio junto com as demais pendências de infraestrutura.
+>
+> Enquanto isso, a proteção real é a criptografia do token: sem a chave derivada de `CONDOTIFY_MEDIA_SECRET`, nenhum token pode ser forjado, e o vínculo com o caminho impede reuso entre câmeras.
 
 ## Contrato do MediaMTX, medido e não presumido
 
