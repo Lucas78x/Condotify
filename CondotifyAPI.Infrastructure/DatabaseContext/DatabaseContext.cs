@@ -44,6 +44,7 @@ public partial class DatabaseContext : DbContext
         RecycleBinEntityConfiguration(modelBuilder);
         BackupsEntityConfiguration(modelBuilder);
         ObservabilityEntityConfiguration(modelBuilder);
+        RefreshTokensEntityConfiguration(modelBuilder);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {

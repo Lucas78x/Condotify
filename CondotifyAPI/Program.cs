@@ -76,6 +76,7 @@ builder.Services.AddScoped<IOperationalAlertEvaluationService, OperationalAlertE
 builder.Services.AddScoped<IAlertNotificationChannelSender, AlertNotificationChannelSender>();
 builder.Services.AddSingleton<ICftvStreamPathResolver, CftvStreamPathResolver>();
 builder.Services.AddSingleton<IMediaAccessTokenService, MediaAccessTokenService>();
+builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 
 builder.Services.AddAuthentication(options =>
 {
