@@ -172,6 +172,23 @@ builder.Services.AddScoped<IAccessControlDriver, HikvisionAccessControlDriver>()
 
 var app = builder.Build();
 
+var internalPort = int.TryParse(Environment.GetEnvironmentVariable("CONDOTIFY_INTERNAL_PORT"), out var configuredInternalPort)
+    ? configuredInternalPort
+    : 8081;
+
+app.Use(async (context, next) =>
+{
+    var localPort = context.Connection.LocalPort;
+    if (!InternalRouteGuard.IsAllowed(context.Request.Path.Value ?? string.Empty, localPort, internalPort))
+    {
+        // 404 e nao 403: nao confirmamos sequer que a rota existe.
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await next();
+});
+
 app.UseExceptionHandler();
 app.UseSerilogRequestLogging(options =>
 {

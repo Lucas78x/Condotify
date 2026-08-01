@@ -28,7 +28,9 @@ services:
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: http://+:8080
+      # 8080 e publicada; 8081 e interna e serve apenas api/internal/*.
+      ASPNETCORE_URLS: http://+:8080;http://+:8081
+      CONDOTIFY_INTERNAL_PORT: "8081"
       CONDOTIFY_DB_CONNECTION: Host=postgres;Port=5432;Database=Condotify;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
       JWTCondotify_Secret: ${JWT_SECRET:-condotify-local-jwt-secret-change-before-production-2026}
       JWTCondotify_Issuer: Condotify

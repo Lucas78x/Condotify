@@ -36,6 +36,6 @@ rtsp: no
 
 # Autorizacao delegada a API do Condotify. Toda leitura dispara este callback.
 authMethod: http
-authHTTPAddress: http://api:8080/api/internal/media-auth
+authHTTPAddress: http://api:8081/api/internal/media-auth
 
 paths: {}
