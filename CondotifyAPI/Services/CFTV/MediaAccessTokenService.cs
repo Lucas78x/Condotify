@@ -9,7 +9,8 @@ public sealed record MediaAccessGrant(
     Guid DeviceId,
     int Channel,
     Guid UserId,
-    DateTime ExpiresAt);
+    DateTime ExpiresAt,
+    StreamQuality Quality = StreamQuality.Main);
 
 public interface IMediaAccessTokenService
 {
@@ -26,7 +27,7 @@ public sealed class MediaAccessTokenService : IMediaAccessTokenService
 {
     private const int NonceSize = 12;
     private const int TagSize = 16;
-    private const int PayloadSize = 16 + 16 + 4 + 16 + 8; // license + device + channel + user + expiry
+    private const int PayloadSize = 16 + 16 + 4 + 16 + 8 + 1; // license + device + channel + user + expiry + quality
 
     private readonly byte[] _key;
 
@@ -41,8 +42,8 @@ public sealed class MediaAccessTokenService : IMediaAccessTokenService
     {
     }
 
-    public static string PathFor(Guid licenseId, Guid deviceId, int channel) =>
-        $"l{licenseId:N}_d{deviceId:N}_c{channel}";
+    public static string PathFor(Guid licenseId, Guid deviceId, int channel, StreamQuality quality) =>
+        $"l{licenseId:N}_d{deviceId:N}_c{channel}_{(quality == StreamQuality.Secondary ? "s" : "m")}";
 
     public string Issue(MediaAccessGrant grant)
     {
@@ -54,6 +55,7 @@ public sealed class MediaAccessTokenService : IMediaAccessTokenService
         BinaryPrimitives.WriteInt64LittleEndian(
             plain.AsSpan(52, 8),
             new DateTimeOffset(DateTime.SpecifyKind(grant.ExpiresAt, DateTimeKind.Utc)).ToUnixTimeSeconds());
+        plain[60] = (byte)grant.Quality;
 
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);
         var cipher = new byte[plain.Length];
@@ -106,11 +108,12 @@ public sealed class MediaAccessTokenService : IMediaAccessTokenService
             BinaryPrimitives.ReadInt32LittleEndian(plain.AsSpan(32, 4)),
             new Guid(plain.AsSpan(36, 16)),
             DateTimeOffset.FromUnixTimeSeconds(
-                BinaryPrimitives.ReadInt64LittleEndian(plain.AsSpan(52, 8))).UtcDateTime);
+                BinaryPrimitives.ReadInt64LittleEndian(plain.AsSpan(52, 8))).UtcDateTime,
+            (StreamQuality)plain[60]);
 
         if (grant.ExpiresAt <= DateTime.UtcNow) return null;
 
-        var boundPath = PathFor(grant.LicenseId, grant.DeviceId, grant.Channel);
+        var boundPath = PathFor(grant.LicenseId, grant.DeviceId, grant.Channel, grant.Quality);
         return string.Equals(boundPath, expectedPath, StringComparison.Ordinal) ? grant : null;
     }
 

@@ -17,7 +17,8 @@ namespace CondotifyAPI.Controllers;
 public sealed class CftvStreamingController : ControllerBase
 {
     private const int TokenLifetimeSeconds = 120;
-    private const int MaxConcurrentPaths = 24;
+    private const int DefaultMaxViewersPerLicense = 24;
+    private const int OfflineGraceMinutes = 10;
 
     private readonly DatabaseContext _context;
     private readonly ICftvStreamPathResolver _paths;
@@ -53,24 +54,28 @@ public sealed class CftvStreamingController : ControllerBase
 
         if (device is null) return NotFound();
 
-        var channel = input.Channel < 1 ? 1 : input.Channel;
+        if (IsCameraOffline(device.IsActive, device.LastSeenAt, DateTime.UtcNow))
+            return StatusCode(StatusCodes.Status409Conflict,
+                new { Result = "CameraOffline", Errors = "A camera esta offline no momento. Tente novamente mais tarde." });
+
+        var channel = ResolveChannel(device.DeviceType, input.Channel);
         if (device.DeviceType != CFTVDeviceTypeEnum.Camera && channel > device.MaxChannels)
             return BadRequest(new { Result = "InvalidChannel", Errors = "O canal informado nao existe neste equipamento." });
-
-        if (await _gateway.ActivePathCountAsync(cancellationToken) >= MaxConcurrentPaths)
-            return StatusCode(StatusCodes.Status429TooManyRequests,
-                new { Result = "SessionLimitReached", Errors = "Limite de visualizacoes simultaneas atingido. Tente novamente em instantes." });
 
         var quality = string.Equals(input.Quality, "secondary", StringComparison.OrdinalIgnoreCase)
             ? StreamQuality.Secondary
             : StreamQuality.Main;
 
-        var path = _paths.PreferredPath(device.Mark, device.DeviceType, channel, quality)
-            ?? _paths.ConnectivityProbePaths(device.Mark, device.DeviceType, channel).FirstOrDefault();
+        var licensePrefix = $"l{licenseId:N}_";
+        if (await _gateway.ActiveViewerCountAsync(licensePrefix, cancellationToken) >= MaxViewersPerLicense)
+            return StatusCode(StatusCodes.Status429TooManyRequests,
+                new { Result = "SessionLimitReached", Errors = "Limite de visualizacoes simultaneas atingido. Tente novamente em instantes." });
 
-        if (path is null)
-            return StatusCode(StatusCodes.Status502BadGateway,
-                new { Result = "UnsupportedDevice", Errors = "Este modelo ainda nao possui caminho de video conhecido." });
+        // ConnectivityProbePaths sempre devolve pelo menos um caminho (generico por tipo de
+        // equipamento), entao esta segunda opcao nunca fica vazia: PreferredPath so retorna
+        // null para marca desconhecida.
+        var path = _paths.PreferredPath(device.Mark, device.DeviceType, channel, quality)
+            ?? _paths.ConnectivityProbePaths(device.Mark, device.DeviceType, channel).First();
 
         var rtspPort = int.TryParse(new string(device.RTSPPort.Where(char.IsDigit).ToArray()), out var parsed) ? parsed : 554;
 
@@ -78,7 +83,7 @@ public sealed class CftvStreamingController : ControllerBase
         // devolvida, nem entrar em mensagem de erro.
         var source = _paths.BuildRtspUrl(device.IpAddress, rtspPort, device.Username, device.Password, path);
 
-        var mediaPath = MediaAccessTokenService.PathFor(licenseId, deviceId, channel);
+        var mediaPath = MediaAccessTokenService.PathFor(licenseId, deviceId, channel, quality);
 
         if (!await _gateway.EnsurePathAsync(mediaPath, source, cancellationToken))
             return StatusCode(StatusCodes.Status503ServiceUnavailable,
@@ -86,10 +91,12 @@ public sealed class CftvStreamingController : ControllerBase
 
         var userId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedUser) ? parsedUser : Guid.Empty;
         var expiresAt = DateTime.UtcNow.AddSeconds(TokenLifetimeSeconds);
-        var token = _tokens.Issue(new MediaAccessGrant(licenseId, deviceId, channel, userId, expiresAt));
+        var token = _tokens.Issue(new MediaAccessGrant(licenseId, deviceId, channel, userId, expiresAt, quality));
 
         var protocol = string.Equals(input.Protocol, "hls", StringComparison.OrdinalIgnoreCase) ? "hls" : "webrtc";
-        var baseUrl = (Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_PLAYBACK_BASEURL") ?? "http://localhost:8889").TrimEnd('/');
+        var baseUrl = protocol == "hls"
+            ? (Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_HLS_BASEURL") ?? "http://localhost:8888").TrimEnd('/')
+            : (Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_WEBRTC_BASEURL") ?? "http://localhost:8889").TrimEnd('/');
         var playbackUrl = protocol == "hls"
             ? $"{baseUrl}/{mediaPath}/index.m3u8?token={Uri.EscapeDataString(token)}"
             : $"{baseUrl}/{mediaPath}/whep?token={Uri.EscapeDataString(token)}";
@@ -124,7 +131,10 @@ public sealed class CftvStreamingController : ControllerBase
         if (!await _context.CFTVDevices.AsNoTracking().AnyAsync(x => x.Id == deviceId && x.LicenseId == licenseId, cancellationToken))
             return NotFound();
 
-        await _gateway.RemovePathAsync(MediaAccessTokenService.PathFor(licenseId, deviceId, channel), cancellationToken);
+        // CloseSession nao sabe qual qualidade estava aberta (a rota nao carrega esse dado),
+        // entao remove os dois caminhos possiveis; remover um caminho que nao existe e inocuo.
+        await _gateway.RemovePathAsync(MediaAccessTokenService.PathFor(licenseId, deviceId, channel, StreamQuality.Main), cancellationToken);
+        await _gateway.RemovePathAsync(MediaAccessTokenService.PathFor(licenseId, deviceId, channel, StreamQuality.Secondary), cancellationToken);
 
         _logger.LogInformation(
             "Sessao de video encerrada. Licenca {LicenseId}, equipamento {DeviceId}, canal {Channel}.",
@@ -132,4 +142,28 @@ public sealed class CftvStreamingController : ControllerBase
 
         return NoContent();
     }
+
+    private static int MaxViewersPerLicense =>
+        int.TryParse(Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE"), out var configured) && configured > 0
+            ? configured
+            : DefaultMaxViewersPerLicense;
+
+    /// <summary>
+    /// Camera nao tem canais de verdade: PreferredPath ignora o canal informado para
+    /// DeviceType.Camera e sempre resolve a mesma origem RTSP. Sem este clamp, canal:1 e
+    /// canal:999999 acabam sendo dois caminhos MediaMTX diferentes para a mesma camera,
+    /// deixando um unico usuario autorizado esgotar sozinho o limite de visualizadores.
+    /// </summary>
+    internal static int ResolveChannel(CFTVDeviceTypeEnum deviceType, int requestedChannel) =>
+        deviceType == CFTVDeviceTypeEnum.Camera ? 1 : Math.Max(requestedChannel, 1);
+
+    /// <summary>
+    /// Com sourceOnDemand:true o MediaMTX so contata a camera na primeira leitura, entao sem
+    /// esta checagem o cliente recebe 200 e um player travado quando a camera esta offline,
+    /// com senha errada ou com caminho incompativel para o modelo. IsActive e LastSeenAt vem
+    /// do CftvHealthMonitoringWorker; uma folga de 10 minutos evita falso positivo entre duas
+    /// passagens do worker.
+    /// </summary>
+    internal static bool IsCameraOffline(bool isActive, DateTime? lastSeenAt, DateTime utcNow) =>
+        !isActive && (lastSeenAt is null || lastSeenAt < utcNow.AddMinutes(-OfflineGraceMinutes));
 }

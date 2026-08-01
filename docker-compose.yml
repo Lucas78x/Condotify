@@ -49,7 +49,12 @@ services:
       CONDOTIFY_SMTP_FROM_NAME: ${CONDOTIFY_SMTP_FROM_NAME:-Condotify}
       CONDOTIFY_SMTP_ENABLE_SSL: ${CONDOTIFY_SMTP_ENABLE_SSL:-true}
       CONDOTIFY_MEDIA_GATEWAY_URL: http://mediamtx:9997
-      CONDOTIFY_MEDIA_PLAYBACK_BASEURL: ${CONDOTIFY_MEDIA_PLAYBACK_BASEURL:-http://localhost:8889}
+      # Endereco publico pelo qual o aplicativo alcanca o gateway de video. Em
+      # producao, aponte para o host/proxy que expoe as portas 8888 (HLS) e
+      # 8889 (WebRTC) -- um unico proxy pode fazer frente as duas.
+      CONDOTIFY_MEDIA_HLS_BASEURL: ${CONDOTIFY_MEDIA_HLS_BASEURL:-http://localhost:8888}
+      CONDOTIFY_MEDIA_WEBRTC_BASEURL: ${CONDOTIFY_MEDIA_WEBRTC_BASEURL:-http://localhost:8889}
+      CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE: ${CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE:-24}
     ports:
       - "7118:8080"
     volumes:
@@ -58,6 +63,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - default
+      - condotify-media
 
   mediamtx:
     image: bluenviron/mediamtx:1.9.3
@@ -74,6 +82,8 @@ services:
       - "8189:8189/udp"
     depends_on:
       - api
+    networks:
+      - condotify-media
 
   portal:
     build:
@@ -111,6 +121,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+networks:
+  # So a API e o MediaMTX participam desta rede. A porta 9997 (Control API do
+  # MediaMTX) nao tem autenticacao e devolve a credencial de cada camera em
+  # texto claro em GET /v3/config/paths/list; qualquer outro contentor
+  # (portal, pgadmin) que a alcancasse comprometeria todas as cameras da
+  # instalacao. mediamtx NAO entra na rede default por causa disto.
+  condotify-media:
 
 volumes:
   condotify-postgres-data:
