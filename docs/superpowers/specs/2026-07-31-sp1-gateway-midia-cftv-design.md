@@ -42,7 +42,7 @@ Dentro do escopo:
 - Serviço MediaMTX no `docker-compose.yml`, acessível apenas pela rede interna.
 - Plano de controle na `CondotifyAPI`: abertura de sessão de vídeo, emissão de token efêmero, registro do caminho no MediaMTX.
 - Endpoint de callback que autoriza cada leitura do MediaMTX.
-- Endpoint de snapshot autenticado, para miniatura de lista, fallback de câmera offline e economia de dados.
+- ~~Endpoint de snapshot autenticado~~ — **não entregue**, ver retirada registrada na tabela de endpoints.
 - Extração do resolvedor de caminhos RTSP de `CFTVService`.
 - Encerramento de sessão e expiração automática.
 - Auditoria de quem assistiu o quê e quando.
@@ -102,6 +102,7 @@ Payload:
 | `Channel` | gravadores têm vários canais com permissões iguais mas identidades distintas |
 | `UserId` | auditoria e revogação |
 | `ExpiresAt` | validade curta |
+| `Quality` | principal ou secundário; dentro do payload selado, para o cliente não poder trocar |
 | `Nonce` | unicidade |
 
 TTL padrão de **120 segundos**, renovável pelo cliente enquanto a tela estiver aberta. Curto o bastante para que um token vazado seja inútil, longo o bastante para tolerar rede móvel ruim.
@@ -113,10 +114,11 @@ O token autoriza **leitura de um caminho específico**. Não é um bearer de ses
 | Método | Rota | Permissão | Função |
 |---|---|---|---|
 | `POST` | `/api/access/licenses/{licenseId}/cftv/{deviceId}/sessions` | `ViewDevices` | Abre sessão, devolve `playbackUrl`, `token`, `expiresAt`, `protocol` |
-| `DELETE` | `/api/access/licenses/{licenseId}/cftv/{deviceId}/sessions/{sessionId}` | `ViewDevices` | Encerra a sessão e libera o caminho |
-| `GET` | `/api/access/licenses/{licenseId}/cftv/{deviceId}/snapshot` | `ViewDevices` | JPEG autenticado, para miniatura e fallback |
+| `DELETE` | `/api/access/licenses/{licenseId}/cftv/{deviceId}/sessions/{channel}` | `ViewDevices` | Encerra a sessão e libera o caminho. Recebe o canal, não um identificador de sessão: não há registro de sessão persistido. |
 | `GET` | `/api/access/licenses/{licenseId}/cftv/status` | `ViewDevices` | Estado online/offline por câmera |
 | `POST` | `/api/internal/media-auth` | interna | Callback do MediaMTX; valida o token |
+
+> **Retirada registrada em 2026-08-01.** O endpoint de **snapshot** constava desta tabela e da arquitetura, e **não foi implementado**. Nenhuma task o cobriu, `ICFTVService` não ganhou `SnapshotAsync`, e a verificação nunca o mencionou. Foi omissão, não decisão: as tasks 4 a 8 foram escritas depois de medir o MediaMTX e o snapshot escapou. Ele continua sendo necessário — miniatura de lista, fallback de câmera offline e economia de dados em rede móvel dependem dele — e fica registrado como pendência do SP-4 ou de um sub-projeto próprio, não como algo entregue.
 
 `/api/internal/media-auth` é chamado pelo MediaMTX a cada leitura.
 
@@ -167,7 +169,9 @@ Versão fixada: **`bluenviron/mediamtx:1.9.3`**. Os fatos abaixo foram obtidos r
 
 Ou seja, **quem alcança a porta 9997 lê a senha de todas as câmeras da instalação e registra origens arbitrárias.** Não é higiene: é a superfície de ataque mais séria deste sub-projeto.
 
-Regra decorrente, sem exceção: a porta `9997` **nunca** é publicada no host, nem em desenvolvimento. O MediaMTX participa de uma rede Docker interna, e apenas o contêiner da API alcança essa porta. Um teste de fumaça na Task 8 deve tentar alcançar `9997` a partir do host e **exigir falha de conexão**; se responder, o deploy está errado.
+Regra decorrente, sem exceção: a porta `9997` **nunca** é publicada no host, nem em desenvolvimento.
+
+> **Correção aplicada em 2026-08-01, após a revisão final.** A versão original desta frase afirmava que "o MediaMTX participa de uma rede Docker interna, e apenas o contêiner da API alcança essa porta". **Isso era falso como entregue.** O `docker-compose.yml` não declarava seção `networks:` alguma, então os cinco serviços — `postgres`, `api`, `mediamtx`, `portal`, `pgadmin` — compartilhavam a bridge padrão, e qualquer um deles alcançava `mediamtx:9997`. Um `portal` comprometido ou vulnerável a SSRF revelaria a credencial de todas as câmeras. A rede dedicada `condotify-media`, com apenas `api` e `mediamtx`, foi criada depois; a frase só passou a ser verdadeira nesse momento. Um teste de fumaça na Task 8 deve tentar alcançar `9997` a partir do host e **exigir falha de conexão**; se responder, o deploy está errado.
 
 ## Segurança
 

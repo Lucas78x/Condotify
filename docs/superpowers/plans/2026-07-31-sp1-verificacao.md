@@ -318,3 +318,17 @@ diferença; não faz parte do commit desta task.
    pré-existente (246 + 11) não foi executada como parte desta verificação
    porque nenhum código de produção foi alterado; não havia motivo para
    rodá-la.
+
+
+## Adendo de 2026-08-01 — lacunas que a revisão final encontrou
+
+A lista original de "não provado" estava honesta mas **incompleta**. Estes pontos também não foram verificados, e três deles esconderam defeitos reais:
+
+- **`EnsurePathAsync` e `RemovePathAsync` nunca foram chamados contra o gateway em execução.** O caminho sintético foi publicado por `ffmpeg`, não registrado pela API. Foi aqui que se escondeu o defeito de acúmulo de caminhos: `ActiveViewerCountAsync` contava caminhos já registrados em vez de espectadores, e depois de 24 combinações câmera/canal a funcionalidade travava em 429 de forma permanente.
+- **A URL de playback que o controller realmente emite nunca foi usada.** O `.m3u8` foi montado à mão contra a porta 8888, o que escondeu que o controller emitia HLS apontando para 8889, a porta do WebRTC.
+- **`GET .../cftv/status` nunca foi chamado**, e o caminho de escrita do `CftvHealthMonitoringWorker` nunca rodou, porque `CFTVDevices` está vazia. A migração foi verificada; o código que grava aquelas três colunas, não.
+- **O ramo de limite (429) nunca foi exercitado.**
+- **A guarda de rota interna num deploy de porta única.** Com `CONDOTIFY_INTERNAL_PORT` em 8081 e a aplicação escutando só na 5000, toda rota `api/internal/*` devolve 404 sem log algum. Isso é configuração perigosa e não estava listada.
+- **O isolamento intra-rede nunca foi verificado**, só o isolamento a partir do host. Não existia: os cinco serviços compartilhavam a bridge padrão, e `portal` ou `pgadmin` alcançavam `mediamtx:9997`, que devolve a credencial de cada câmera em texto claro.
+
+Todos foram corrigidos. O que continua **não provado** segue sendo: compatibilidade com qualquer modelo real de câmera, reprodução por WebRTC, e a renderização do harness num navegador.
