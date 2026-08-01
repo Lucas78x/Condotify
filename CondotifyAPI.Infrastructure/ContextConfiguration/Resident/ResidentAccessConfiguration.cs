@@ -20,6 +20,10 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Resident
             builder.Property(r => r.Email)
                 .HasMaxLength(150);
 
+            // Guarda o hash produzido por IPasswordHasher<ResidentAccess>
+            // (PublicRegistrationController / ResidentPasswordSetter), nunca a senha em
+            // texto claro. Sem conversor de criptografia porque um hash de senha, ao
+            // contrario de um segredo de equipamento, nunca precisa ser recuperado.
             builder.Property(r => r.Password)
                 .HasMaxLength(150);
 

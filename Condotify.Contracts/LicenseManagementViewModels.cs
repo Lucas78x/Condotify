@@ -938,6 +938,11 @@ namespace Condotify.Models
         public string CPF { get; set; } = string.Empty;
         public string RG { get; set; } = string.Empty;
         public string BirthDate { get; set; } = string.Empty;
+
+        // Compartilhado com o futuro app MAUI (SP-0): este mesmo contrato serve a tela de
+        // convite mobile, entao o campo fica aqui, nao apenas na pagina Blazor.
+        [Required, MinLength(8), MaxLength(100)] public string Password { get; set; } = string.Empty;
+        [Required, Compare(nameof(Password), ErrorMessage = "As senhas nao coincidem.")] public string PasswordConfirmation { get; set; } = string.Empty;
     }
 
     public class ConciergeDashboardViewModel

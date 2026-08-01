@@ -168,4 +168,11 @@ public class CompleteRegistrationInviteIn
     public string? CPF { get; set; }
     public string? RG { get; set; }
     public string? BirthDate { get; set; }
+
+    /// <summary>
+    /// Senha em texto claro do morador. Obrigatoria: um convite completado sem senha
+    /// deixaria o morador sem meio de acesso. Nunca gravada, logada ou devolvida como
+    /// veio — ver <c>ResidentPasswordSetter</c>.
+    /// </summary>
+    public string? Password { get; set; }
 }

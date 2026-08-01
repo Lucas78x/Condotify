@@ -38,4 +38,21 @@ public class PasswordPolicyTests
         Assert.NotNull(message);
         Assert.DoesNotContain("segredo", message);
     }
+
+    [Fact]
+    public void Validate_WithoutASubject_DefaultsToNovaSenha_UnchangedFromProduction()
+    {
+        // AuthController's change-password flow already ships this exact wording;
+        // the default must stay byte-for-byte identical.
+        Assert.Equal("A nova senha deve ter entre 8 e 100 caracteres.", PasswordPolicy.Validate(null));
+    }
+
+    [Fact]
+    public void Validate_WithACustomSubject_UsesItInsteadOfNovaSenha()
+    {
+        var message = PasswordPolicy.Validate(null, "senha");
+
+        Assert.Equal("A senha deve ter entre 8 e 100 caracteres.", message);
+        Assert.DoesNotContain("nova", message);
+    }
 }

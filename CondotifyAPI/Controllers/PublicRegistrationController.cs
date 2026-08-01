@@ -2,8 +2,11 @@ using System.Security.Cryptography;
 using System.Text;
 using CondotifyAPI.Data.People;
 using CondotifyAPI.Domain.Enums.Invitation;
+using CondotifyAPI.Domain.Models.Resident;
 using CondotifyAPI.Infrastructure;
+using CondotifyAPI.Services.Security;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,8 +18,13 @@ namespace CondotifyAPI.Controllers;
 public class PublicRegistrationController : ControllerBase
 {
     private readonly DatabaseContext _context;
+    private readonly IPasswordHasher<ResidentAccess> _passwordHasher;
 
-    public PublicRegistrationController(DatabaseContext context) => _context = context;
+    public PublicRegistrationController(DatabaseContext context, IPasswordHasher<ResidentAccess> passwordHasher)
+    {
+        _context = context;
+        _passwordHasher = passwordHasher;
+    }
 
     [HttpGet("{token}")]
     public async Task<IActionResult> Get(string token)
@@ -56,6 +64,9 @@ public class PublicRegistrationController : ControllerBase
         }
         if (string.IsNullOrWhiteSpace(input.Name)) return BadRequest(new { Errors = "Informe o nome completo." });
 
+        var passwordResult = ResidentPasswordSetter.Resolve(input.Password, _passwordHasher);
+        if (!passwordResult.Succeeded) return BadRequest(new { Errors = passwordResult.Error });
+
         var resident = invite.Resident;
         resident.Name = input.Name.Trim();
         resident.Email = input.Email?.Trim() ?? resident.Email;
@@ -63,6 +74,7 @@ public class PublicRegistrationController : ControllerBase
         resident.CPF = input.CPF?.Trim() ?? resident.CPF;
         resident.RG = input.RG?.Trim() ?? resident.RG;
         resident.BirthDate = input.BirthDate?.Trim() ?? resident.BirthDate;
+        resident.Password = passwordResult.Hash!;
         resident.FirstAccess = false;
         invite.Status = RegistrationInviteStatusEnum.Completed;
         invite.CompletedAt = now;

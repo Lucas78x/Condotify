@@ -37,6 +37,8 @@
                 <MudTextField T="string" @bind-Value="_form.BirthDate" Label="Data de nascimento" Placeholder="dd/mm/aaaa" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.Email" Label="E-mail" InputType="InputType.Email" For="@(() => _form.Email)" Variant="Variant.Outlined" Class="full" />
+                <MudTextField T="string" @bind-Value="_form.Password" Label="Senha" Required InputType="InputType.Password" For="@(() => _form.Password)" Variant="Variant.Outlined" HelperText="Minimo de 8 caracteres, com maiuscula, minuscula, numero e caractere especial." />
+                <MudTextField T="string" @bind-Value="_form.PasswordConfirmation" Label="Confirme a senha" Required InputType="InputType.Password" For="@(() => _form.PasswordConfirmation)" Variant="Variant.Outlined" />
             </div>
             <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="public-privacy-note">Os dados serao usados somente para identificacao e controle de acesso da propriedade.</MudAlert>
             <MudButton ButtonType="ButtonType.Submit" FullWidth Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Outlined.Check" Disabled="_saving">@(_saving ? "Enviando..." : "Concluir cadastro")</MudButton>

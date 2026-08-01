@@ -621,7 +621,8 @@ public sealed class CondotifyApiClient
             model.PhoneNumber,
             model.CPF,
             model.RG,
-            model.BirthDate
+            model.BirthDate,
+            model.Password
         }, cancellationToken);
 
     public Task<ApiResult<AccessDeviceCreationViewModel>> CreateDeviceAsync(Guid licenseId, AccessDeviceFormViewModel model, CancellationToken cancellationToken = default)
