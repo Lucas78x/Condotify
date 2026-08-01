@@ -9,6 +9,13 @@ namespace CondotifyAPI.Jwt
 {
     public interface IJwtTokenService
     {
+        /// <summary>
+        /// Validade do access token, em segundos. Fonte unica de verdade: quem
+        /// responde ExpiresIn ao cliente deve ler daqui, e nao repetir o numero.
+        /// O aplicativo agenda a renovacao com base neste valor.
+        /// </summary>
+        int AccessTokenLifetimeSeconds { get; }
+
         string CreateAccessToken(UserAccess user);
 
         /// <summary>
@@ -26,6 +33,10 @@ namespace CondotifyAPI.Jwt
 
     public sealed class JwtTokenService : IJwtTokenService
     {
+        private static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromHours(1);
+
+        public int AccessTokenLifetimeSeconds => (int)AccessTokenLifetime.TotalSeconds;
+
         private readonly string _secret;
         private readonly string _issuer;
         private readonly string _audience;
@@ -84,7 +95,7 @@ namespace CondotifyAPI.Jwt
                 audience: _audience,
                 claims: claims,
                 notBefore: now,
-                expires: now.AddHours(1), // 1 hora
+                expires: now.Add(AccessTokenLifetime),
                 signingCredentials: creds
             );
 

@@ -177,7 +177,7 @@ public sealed class AuthController : ControllerBase
 
     private IActionResult Success(UserAccess user) => Ok(new LoginOut
     {
-        Result = "Success", AccessToken = _jwt.CreateAccessToken(user), ExpiresIn = 60 * 60 * 8
+        Result = "Success", AccessToken = _jwt.CreateAccessToken(user), ExpiresIn = _jwt.AccessTokenLifetimeSeconds
     });
     private static IActionResult InvalidCredentials() => new UnauthorizedObjectResult(new LoginOut { Result = "InvalidCredentials" });
     private static string RecoveryCode() => $"{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}-{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}";
