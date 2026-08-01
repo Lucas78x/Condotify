@@ -13,7 +13,22 @@ O aplicativo mobile precisa exibir câmeras. Um WebView não consome RTSP, e ent
 
 ### O que já existe e será reaproveitado
 
-**`CFTVService` já sabe montar URLs RTSP por fabricante.** Os métodos privados `GetCameraTemplates(MarkEnum)`, `GetDvrTemplates(MarkEnum)` e `BuildRtspUrl(...)` cobrem Intelbras/Dahua, Hikvision/Hilook, Uniview e Axis, e já distinguem stream principal de secundário (`subtype=0/1`, `Channels/101` vs `/102`). Isso atende diretamente ao requisito de escolha de stream. Serão extraídos para um resolvedor reutilizável em vez de reescritos.
+**`CFTVService` sabe montar URLs RTSP por fabricante — mas só para gravadores.** Corrigido em 2026-08-01, durante a execução da Task 2, que descobriu que a afirmação original deste spec estava errada:
+
+| | Situação real |
+|---|---|
+| **Gravadores** | `GetDvrTemplates` consulta `RtspPathTemplatesByBrand`, que cobre Intelbras, Dahua, Hikvision, Hilook, Uniview e Axis, com substituição de canal e distinção principal/secundário. **Código vivo.** |
+| **Câmeras** | `GetCameraTemplates` devolve `/axis-media/media.amp` para Axis e, **para todas as demais marcas**, apenas `/live`, `/stream1`, `/h264`. Sem caminho por fabricante, sem distinção de stream. |
+| `RtspPathsByBrand` (linha 15) e `GenericRtspPaths` (linha 65) | Dicionários ricos, com `subtype=0/1` e `Channels/101` vs `/102` — **código morto, nunca referenciados.** |
+
+Ou seja: alguém escreveu a tabela por fabricante para câmeras com a intenção certa e nunca a ligou. O requisito de escolher stream principal ou secundário, portanto, **não** está atendido hoje para câmeras.
+
+Consequência para o desenho: o resolvedor extraído expõe duas famílias de método, deliberadamente separadas.
+
+- `ConnectivityProbePaths(...)` reproduz **exatamente** o comportamento vivo de hoje, incluindo a pobreza dos caminhos de câmera. É o que o teste de conexão continua usando, para que a extração não altere o que acontece contra hardware real.
+- `PreferredPath(...)` usa a tabela rica, hoje morta, e serve **apenas ao gateway**. É comportamento novo, aditivo, e nenhum caminho existente passa a usá-lo.
+
+A separação é intencional: mudar o que o teste de conexão tenta contra uma câmera real é uma alteração que nenhum teste desta base consegue validar, e não há câmera no ambiente para verificar. Melhorar a descoberta de caminhos de câmera fica registrado como trabalho futuro, com hardware disponível.
 
 **Senhas de equipamento já são cifradas em repouso.** `CFTVDeviceConfiguration` aplica `EquipmentSecretConverter` à coluna `Password`, que usa AES-GCM com chave derivada de `CONDOTIFY_EQUIPMENT_SECRET`. O texto claro existe apenas em memória, depois que o EF decifra.
 

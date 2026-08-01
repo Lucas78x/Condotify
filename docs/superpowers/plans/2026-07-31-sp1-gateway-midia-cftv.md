@@ -229,6 +229,10 @@ URL is still what actually connects; only what is reported changes."
 
 ## Task 2: Extrair o resolvedor de caminhos RTSP
 
+> **Correção do plano aplicada em 2026-08-01, durante a execução.** A primeira versão desta task assumia que `CFTVService` resolvia caminhos por fabricante para câmeras. Não resolve. `GetCameraTemplates` devolve `/axis-media/media.amp` para Axis e apenas `/live`, `/stream1`, `/h264` para **todas** as outras marcas. Os dicionários ricos `RtspPathsByBrand` (linha 15) e `GenericRtspPaths` (linha 65) existem mas são **código morto**, nunca referenciados. Só `RtspPathTemplatesByBrand`, usado por `GetDvrTemplates`, é vivo — e seus valores diferem da reconstrução que a versão anterior deste plano trazia, em Uniview, Axis, Hikvision e no fallback genérico.
+>
+> O resolvedor passa a expor duas famílias separadas: `ConnectivityProbePaths`, que reproduz o comportamento vivo byte a byte, e `PreferredPath`, que usa a tabela rica e serve só ao gateway. Nenhum caminho existente muda de comportamento.
+
 **Files:**
 - Create: `CondotifyAPI/Services/CFTV/CftvStreamPathResolver.cs`
 - Modify: `CondotifyAPI/Services/CFTV/CFTVService.cs`
@@ -239,33 +243,102 @@ URL is still what actually connects; only what is reported changes."
 - Consumes: `RtspUrlMasker` da Task 1.
 - Produces:
   - `CondotifyAPI.Services.CFTV.StreamQuality` — enum `{ Main = 0, Secondary = 1 }`.
-  - `CondotifyAPI.Services.CFTV.ICftvStreamPathResolver` com:
-    - `IReadOnlyList<string> CameraPaths(MarkEnum mark)`
-    - `IReadOnlyList<string> RecorderPaths(MarkEnum mark, int channel)`
-    - `string? PreferredPath(MarkEnum mark, CFTVDeviceTypeEnum deviceType, int channel, StreamQuality quality)`
+  - `ICftvStreamPathResolver` com:
+    - `IReadOnlyList<string> ConnectivityProbePaths(MarkEnum mark, CFTVDeviceTypeEnum deviceType, int channel)` — o que o teste de conexão usa; reproduz o comportamento atual.
+    - `string? PreferredPath(MarkEnum mark, CFTVDeviceTypeEnum deviceType, int channel, StreamQuality quality)` — só para o gateway; `null` quando a marca é desconhecida.
     - `string BuildRtspUrl(string ip, int port, string user, string password, string path)`
-  - `CftvStreamPathResolver`, implementação registrada como singleton.
+  - `CftvStreamPathResolver`, registrado como singleton.
 
-`PreferredPath` devolve `null` quando o fabricante é desconhecido; o chamador cai nos caminhos genéricos.
+- [ ] **Step 1: Conferir os valores reais antes de escrever qualquer teste**
 
-- [ ] **Step 1: Escrever os testes que falham**
+Run: `grep -n -A20 "GetCameraTemplates" CondotifyAPI/Services/CFTV/CFTVService.cs`
+Run: `grep -n -A40 "RtspPathTemplatesByBrand = new" CondotifyAPI/Services/CFTV/CFTVService.cs`
+Run: `grep -rn "enum CFTVDeviceTypeEnum" -A8 CondotifyAPI.Domain/`
 
-Acrescentar a `CondotifyAPI.Tests/CftvStreamPathResolverTests.cs`:
+Anote os valores exatos. **Os valores esperados nos testes abaixo devem bater com o que você encontrar. Se algum divergir, o código real vence — corrija o teste e reporte a divergência.** Confirme também o nome do membro de `CFTVDeviceTypeEnum` para gravador; este plano assume `Recorder`, mas pode ser outro.
+
+- [ ] **Step 2: Escrever os testes que falham**
+
+Acrescentar ao arquivo existente `CondotifyAPI.Tests/CftvStreamPathResolverTests.cs`, preservando a classe `RtspUrlMaskerTests` que já está nele:
 
 ```csharp
 public class CftvStreamPathResolverTests
 {
     private readonly CftvStreamPathResolver _resolver = new();
 
+    // --- ConnectivityProbePaths: contrato de NAO-REGRESSAO ---
+    // Estes valores sao os que CFTVService usa hoje contra hardware real.
+    // Se um destes testes falhar apos uma alteracao, a alteracao esta errada.
+
+    [Fact]
+    public void ConnectivityProbePaths_ForAxisCamera_MatchesTodaysBehaviour()
+    {
+        var paths = _resolver.ConnectivityProbePaths(MarkEnum.Axis, CFTVDeviceTypeEnum.Camera, 1);
+
+        Assert.Equal(["/axis-media/media.amp", "/axis-media/media.amp?videocodec=h264"], paths);
+    }
+
+    [Theory]
+    [InlineData(MarkEnum.Intelbras)]
+    [InlineData(MarkEnum.Dahua)]
+    [InlineData(MarkEnum.Hikvision)]
+    [InlineData(MarkEnum.Uniview)]
+    [InlineData(MarkEnum.None)]
+    public void ConnectivityProbePaths_ForNonAxisCamera_IsGeneric_AsToday(MarkEnum mark)
+    {
+        var paths = _resolver.ConnectivityProbePaths(mark, CFTVDeviceTypeEnum.Camera, 1);
+
+        Assert.Equal(["/live", "/stream1", "/h264"], paths);
+    }
+
+    [Fact]
+    public void ConnectivityProbePaths_ForHikvisionRecorder_SubstitutesChannel()
+    {
+        var paths = _resolver.ConnectivityProbePaths(MarkEnum.Hikvision, CFTVDeviceTypeEnum.Recorder, 3);
+
+        Assert.Equal(
+        [
+            "/Streaming/Channels/0301",
+            "/Streaming/Channels/0302",
+            "/h264/ch03/main/av_stream",
+            "/h264/ch03/sub/av_stream"
+        ], paths);
+    }
+
+    [Fact]
+    public void ConnectivityProbePaths_ForUniviewRecorder_UsesTheLiveChFormat()
+    {
+        var paths = _resolver.ConnectivityProbePaths(MarkEnum.Uniview, CFTVDeviceTypeEnum.Recorder, 2);
+
+        Assert.Equal(["/live/ch02_0", "/live/ch02_1"], paths);
+    }
+
+    [Fact]
+    public void ConnectivityProbePaths_ForAxisRecorder_HasNoChannelSubstitution()
+    {
+        var paths = _resolver.ConnectivityProbePaths(MarkEnum.Axis, CFTVDeviceTypeEnum.Recorder, 5);
+
+        Assert.Equal(["/axis-media/media.amp"], paths);
+    }
+
+    [Fact]
+    public void ConnectivityProbePaths_ForUnknownRecorderBrand_UsesTheTwoEntryFallback()
+    {
+        var paths = _resolver.ConnectivityProbePaths(MarkEnum.None, CFTVDeviceTypeEnum.Recorder, 7);
+
+        Assert.Equal(["/cam/realmonitor?channel=07&subtype=0", "/Streaming/Channels/0701"], paths);
+    }
+
+    // --- PreferredPath: comportamento NOVO, so para o gateway ---
+
     [Theory]
     [InlineData(MarkEnum.Intelbras, StreamQuality.Main, "subtype=0")]
     [InlineData(MarkEnum.Intelbras, StreamQuality.Secondary, "subtype=1")]
-    [InlineData(MarkEnum.Dahua, StreamQuality.Main, "subtype=0")]
     [InlineData(MarkEnum.Hikvision, StreamQuality.Main, "/Streaming/Channels/101")]
     [InlineData(MarkEnum.Hikvision, StreamQuality.Secondary, "/Streaming/Channels/102")]
     [InlineData(MarkEnum.Uniview, StreamQuality.Main, "/live/0/main")]
     [InlineData(MarkEnum.Uniview, StreamQuality.Secondary, "/live/0/sub")]
-    public void PreferredPath_PicksTheRightStream_ForKnownBrands(
+    public void PreferredPath_ForCamera_UsesThePerBrandTable(
         MarkEnum mark, StreamQuality quality, string expectedFragment)
     {
         var path = _resolver.PreferredPath(mark, CFTVDeviceTypeEnum.Camera, 1, quality);
@@ -281,19 +354,11 @@ public class CftvStreamPathResolverTests
     }
 
     [Fact]
-    public void CameraPaths_AreNonEmpty_ForEveryKnownBrand()
+    public void PreferredPath_ForRecorder_SubstitutesChannel()
     {
-        foreach (var mark in new[] { MarkEnum.Intelbras, MarkEnum.Dahua, MarkEnum.Hikvision, MarkEnum.Hilook, MarkEnum.Uniview, MarkEnum.Axis })
-            Assert.NotEmpty(_resolver.CameraPaths(mark));
-    }
+        var path = _resolver.PreferredPath(MarkEnum.Hikvision, CFTVDeviceTypeEnum.Recorder, 4, StreamQuality.Main);
 
-    [Fact]
-    public void RecorderPaths_SubstituteTheChannelNumber()
-    {
-        var paths = _resolver.RecorderPaths(MarkEnum.Hikvision, 3);
-
-        Assert.NotEmpty(paths);
-        Assert.All(paths, p => Assert.DoesNotContain("{ch}", p));
+        Assert.Equal("/Streaming/Channels/0401", path);
     }
 
     [Fact]
@@ -308,14 +373,14 @@ public class CftvStreamPathResolverTests
 }
 ```
 
-- [ ] **Step 2: Rodar e confirmar que falha**
+- [ ] **Step 3: Rodar e confirmar que falha**
 
 Run: `dotnet test CondotifyAPI.Tests --filter CftvStreamPathResolverTests`
 Expected: falha de compilação — `CftvStreamPathResolver` não existe.
 
-- [ ] **Step 3: Criar o resolvedor**
+- [ ] **Step 4: Criar o resolvedor**
 
-Criar `CondotifyAPI/Services/CFTV/CftvStreamPathResolver.cs`. Mover para cá, sem alterar valores, os dicionários `RtspPathsByBrand` e `GenericRtspPaths` e o método `BuildRtspUrl` que hoje vivem em `CFTVService.cs`. Acrescentar os caminhos de gravador por fabricante que `GetDvrTemplates` já usa.
+Criar `CondotifyAPI/Services/CFTV/CftvStreamPathResolver.cs`. As tabelas de sondagem devem ser **cópia literal** do que `GetCameraTemplates` e `RtspPathTemplatesByBrand` contêm hoje. A tabela de preferência vem do dicionário morto `RtspPathsByBrand`.
 
 ```csharp
 using CondotifyAPI.Domain.Models.Equipments;
@@ -330,65 +395,84 @@ public enum StreamQuality
 
 public interface ICftvStreamPathResolver
 {
-    IReadOnlyList<string> CameraPaths(MarkEnum mark);
-    IReadOnlyList<string> RecorderPaths(MarkEnum mark, int channel);
+    /// <summary>
+    /// Caminhos que o teste de conectividade percorre. Reproduz exatamente o
+    /// comportamento historico de CFTVService: nao alterar sem testar contra
+    /// o equipamento correspondente.
+    /// </summary>
+    IReadOnlyList<string> ConnectivityProbePaths(MarkEnum mark, CFTVDeviceTypeEnum deviceType, int channel);
+
+    /// <summary>
+    /// Melhor caminho conhecido para o gateway de midia. Comportamento novo:
+    /// nenhum fluxo existente usa isto. Devolve null para marca desconhecida.
+    /// </summary>
     string? PreferredPath(MarkEnum mark, CFTVDeviceTypeEnum deviceType, int channel, StreamQuality quality);
+
     string BuildRtspUrl(string ip, int port, string user, string password, string path);
 }
 
 public sealed class CftvStreamPathResolver : ICftvStreamPathResolver
 {
-    // Os valores abaixo sao os mesmos que CFTVService usava; nao alterar sem
-    // testar contra o equipamento correspondente.
-    private static readonly Dictionary<MarkEnum, string[]> CameraPathsByBrand = new()
-    {
-        [MarkEnum.Intelbras] = ["/cam/realmonitor?channel=1&subtype=0", "/cam/realmonitor?channel=1&subtype=1", "/live", "/h264"],
-        [MarkEnum.Dahua] = ["/cam/realmonitor?channel=1&subtype=0", "/cam/realmonitor?channel=1&subtype=1"],
-        [MarkEnum.Hikvision] = ["/Streaming/Channels/101", "/Streaming/Channels/102", "/h264/ch1/main/av_stream", "/h264/ch1/sub/av_stream"],
-        [MarkEnum.Hilook] = ["/Streaming/Channels/101", "/Streaming/Channels/102", "/h264/ch1/main/av_stream", "/h264/ch1/sub/av_stream"],
-        [MarkEnum.Uniview] = ["/live/0/main", "/live/0/sub", "/live/ch00_0", "/live/ch00_1"],
-        [MarkEnum.Axis] = ["/axis-media/media.amp", "/axis-media/media.amp?videocodec=h264"]
-    };
+    // === Sondagem: copia literal do comportamento vivo ===
 
-    private static readonly Dictionary<MarkEnum, string[]> RecorderPathsByBrand = new()
+    private static readonly string[] AxisCameraProbe =
+        ["/axis-media/media.amp", "/axis-media/media.amp?videocodec=h264"];
+
+    private static readonly string[] GenericCameraProbe =
+        ["/live", "/stream1", "/h264"];
+
+    private static readonly Dictionary<MarkEnum, string[]> RecorderProbeByBrand = new()
     {
         [MarkEnum.Intelbras] = ["/cam/realmonitor?channel={ch}&subtype=0", "/cam/realmonitor?channel={ch}&subtype=1"],
         [MarkEnum.Dahua] = ["/cam/realmonitor?channel={ch}&subtype=0", "/cam/realmonitor?channel={ch}&subtype=1"],
-        [MarkEnum.Hikvision] = ["/Streaming/Channels/{ch}01", "/Streaming/Channels/{ch}02"],
+        [MarkEnum.Hikvision] = ["/Streaming/Channels/{ch}01", "/Streaming/Channels/{ch}02", "/h264/ch{ch}/main/av_stream", "/h264/ch{ch}/sub/av_stream"],
         [MarkEnum.Hilook] = ["/Streaming/Channels/{ch}01", "/Streaming/Channels/{ch}02"],
-        [MarkEnum.Uniview] = ["/live/{ch}/main", "/live/{ch}/sub"],
-        [MarkEnum.Axis] = ["/axis-media/media.amp?camera={ch}"]
+        [MarkEnum.Uniview] = ["/live/ch{ch}_0", "/live/ch{ch}_1"],
+        [MarkEnum.Axis] = ["/axis-media/media.amp"]
     };
 
-    private static readonly string[] GenericPaths =
-    [
-        "/cam/realmonitor?channel=1&subtype=0", "/cam/realmonitor?channel=1&subtype=1",
-        "/Streaming/Channels/101", "/Streaming/Channels/102",
-        "/h264/ch1/main/av_stream", "/h264/ch1/sub/av_stream",
-        "/live", "/stream1", "/stream2", "/h264"
-    ];
+    private static readonly string[] GenericRecorderProbe =
+        ["/cam/realmonitor?channel={ch}&subtype=0", "/Streaming/Channels/{ch}01"];
 
-    public IReadOnlyList<string> CameraPaths(MarkEnum mark) =>
-        CameraPathsByBrand.TryGetValue(mark, out var paths) ? paths : GenericPaths;
+    // === Preferencia: tabela rica, ate agora nao utilizada, so para o gateway ===
 
-    public IReadOnlyList<string> RecorderPaths(MarkEnum mark, int channel)
+    private static readonly Dictionary<MarkEnum, string[]> PreferredCameraByBrand = new()
     {
-        var templates = RecorderPathsByBrand.TryGetValue(mark, out var found) ? found : GenericPaths;
-        return templates.Select(x => x.Replace("{ch}", channel.ToString("D2"))).ToArray();
+        [MarkEnum.Intelbras] = ["/cam/realmonitor?channel=1&subtype=0", "/cam/realmonitor?channel=1&subtype=1"],
+        [MarkEnum.Dahua] = ["/cam/realmonitor?channel=1&subtype=0", "/cam/realmonitor?channel=1&subtype=1"],
+        [MarkEnum.Hikvision] = ["/Streaming/Channels/101", "/Streaming/Channels/102"],
+        [MarkEnum.Hilook] = ["/Streaming/Channels/101", "/Streaming/Channels/102"],
+        [MarkEnum.Uniview] = ["/live/0/main", "/live/0/sub"],
+        [MarkEnum.Axis] = ["/axis-media/media.amp", "/axis-media/media.amp?videocodec=h264"]
+    };
+
+    public IReadOnlyList<string> ConnectivityProbePaths(MarkEnum mark, CFTVDeviceTypeEnum deviceType, int channel)
+    {
+        if (deviceType == CFTVDeviceTypeEnum.Camera)
+            return mark == MarkEnum.Axis ? AxisCameraProbe : GenericCameraProbe;
+
+        var templates = RecorderProbeByBrand.TryGetValue(mark, out var found) ? found : GenericRecorderProbe;
+        return Substitute(templates, channel);
     }
 
     public string? PreferredPath(MarkEnum mark, CFTVDeviceTypeEnum deviceType, int channel, StreamQuality quality)
     {
-        var paths = deviceType == CFTVDeviceTypeEnum.Camera
-            ? (CameraPathsByBrand.TryGetValue(mark, out var camera) ? camera : null)
-            : (RecorderPathsByBrand.TryGetValue(mark, out var recorder)
-                ? recorder.Select(x => x.Replace("{ch}", channel.ToString("D2"))).ToArray()
-                : null);
+        string[]? candidates;
 
-        if (paths is null || paths.Count == 0) return null;
+        if (deviceType == CFTVDeviceTypeEnum.Camera)
+        {
+            if (!PreferredCameraByBrand.TryGetValue(mark, out candidates)) return null;
+        }
+        else
+        {
+            if (!RecorderProbeByBrand.TryGetValue(mark, out var templates)) return null;
+            candidates = Substitute(templates, channel);
+        }
 
-        var index = quality == StreamQuality.Secondary && paths.Count > 1 ? 1 : 0;
-        return paths[index];
+        if (candidates.Length == 0) return null;
+
+        var index = quality == StreamQuality.Secondary && candidates.Length > 1 ? 1 : 0;
+        return candidates[index];
     }
 
     public string BuildRtspUrl(string ip, int port, string user, string password, string path)
@@ -398,50 +482,93 @@ public sealed class CftvStreamPathResolver : ICftvStreamPathResolver
         var escapedPassword = Uri.EscapeDataString(password ?? string.Empty);
         return $"rtsp://{escapedUser}:{escapedPassword}@{ip}:{port}{path}";
     }
+
+    private static string[] Substitute(string[] templates, int channel) =>
+        templates.Select(x => x.Replace("{ch}", channel.ToString("D2"))).ToArray();
 }
 ```
 
-- [ ] **Step 4: Rodar e confirmar que passa**
+- [ ] **Step 5: Rodar e confirmar que passa**
 
 Run: `dotnet test CondotifyAPI.Tests --filter CftvStreamPathResolverTests`
 Expected: todos passam.
 
-- [ ] **Step 5: Fazer `CFTVService` usar o resolvedor**
+- [ ] **Step 6: Fazer `CFTVService` consumir o resolvedor**
 
-Em `CFTVService.cs`, injetar `ICftvStreamPathResolver` pelo construtor e substituir os usos de `GetCameraTemplates(...)`, `GetDvrTemplates(...)` e `BuildRtspUrl(...)` pelas chamadas equivalentes ao resolvedor. Remover em seguida os dicionários e métodos privados que ficaram órfãos.
+Injetar `ICftvStreamPathResolver` pelo construtor de `CFTVService`. Em `TestCameraAsync`, substituir:
 
-**Não altere a lógica de tentativa**: a ordem dos caminhos e o encadeamento `RtspOptionsAsync` → `RtspDescribeAsync` permanecem exatamente como estão. Esta é uma extração, não uma reescrita.
+```csharp
+            var templates = GetCameraTemplates(device.Mark);
+```
 
-- [ ] **Step 6: Registrar no contêiner**
+por:
 
-Em `CondotifyAPI/Program.cs`, junto ao bloco de singletons (linhas 63-73):
+```csharp
+            var templates = _pathResolver.ConnectivityProbePaths(device.Mark, device.DeviceType, 1);
+```
+
+Em `TestChannelAsync`, substituir:
+
+```csharp
+            var templates = GetDvrTemplates(device.Mark);
+```
+
+por:
+
+```csharp
+            var templates = _pathResolver.ConnectivityProbePaths(device.Mark, device.DeviceType, channel);
+```
+
+e remover a linha `var path = tpl.Replace("{ch}", channel.ToString("D2"));`, ajustando o laço para iterar sobre `path` diretamente — a substituição de canal agora é feita pelo resolvedor. Substituir `BuildRtspUrl(...)` por `_pathResolver.BuildRtspUrl(...)` nos dois métodos.
+
+Remover em seguida, de `CFTVService.cs`, os membros que ficaram órfãos: `RtspPathsByBrand`, `GenericRtspPaths`, `GetCameraTemplates`, `GetDvrTemplates`, `RtspPathTemplatesByBrand` e `BuildRtspUrl`. Confirmar:
+
+Run: `grep -n "RtspPathsByBrand\|GenericRtspPaths\|GetCameraTemplates\|GetDvrTemplates\|RtspPathTemplatesByBrand" CondotifyAPI/Services/CFTV/CFTVService.cs`
+Expected: saída vazia.
+
+Os seis pontos de mascaramento da Task 1 permanecem intactos.
+
+- [ ] **Step 7: Registrar no contêiner**
+
+Em `CondotifyAPI/Program.cs`, junto ao bloco de singletons:
 
 ```csharp
 builder.Services.AddSingleton<ICftvStreamPathResolver, CftvStreamPathResolver>();
 ```
 
-- [ ] **Step 7: Build e suíte completa**
+- [ ] **Step 8: Build e suíte completa**
 
 Run: `dotnet build Condotify.sln`
-Expected: 0 erros, 0 avisos novos.
+Expected: 0 erros, sem avisos novos.
 
 Run: `dotnet test Condotify.sln`
 Expected: tudo passa.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add CondotifyAPI/Services/CFTV CondotifyAPI/Program.cs CondotifyAPI.Tests/CftvStreamPathResolverTests.cs
 git status --short
-git commit -m "refactor: extract the CFTV RTSP path resolver from CFTVService
+git commit -m "refactor: extract the CFTV RTSP path resolver from CFTVService"
+```
 
-The per-brand RTSP path tables and URL builder were private to
-CFTVService, which only tests connectivity. The media gateway needs the
-same knowledge to register camera paths, so they move into
-ICftvStreamPathResolver behind an interface, with the main/secondary
-stream selection the brands already encode made explicit as
-StreamQuality. Values are carried over unchanged and now covered by
-tests for all six supported brands."
+Corpo da mensagem de commit:
+
+```
+The media gateway needs to know how to reach a camera stream, knowledge
+that lived as private members of CFTVService. Extracting it surfaced
+that the per-brand camera table (RtspPathsByBrand) was dead code: the
+live GetCameraTemplates gives every brand but Axis the same three
+generic paths, with no main/secondary distinction. Only the recorder
+table was ever wired up.
+
+The resolver therefore separates two things that were being conflated.
+ConnectivityProbePaths reproduces the live behaviour byte for byte,
+including the poverty of the camera paths, and is what the connectivity
+test keeps using - so nothing changes about what is attempted against
+real hardware. PreferredPath uses the previously-dead per-brand table
+and serves only the gateway. Improving camera path discovery needs a
+camera to verify against and is deliberately left alone.
 ```
 
 ---
