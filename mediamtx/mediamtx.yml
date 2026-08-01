@@ -1,0 +1,41 @@
+# Condotify — configuracao do gateway de midia.
+#
+# ATENCAO: com authMethod: http, a Control API (apiAddress) NAO e coberta
+# pelo callback de autenticacao. Verificado em 2026-08-01 contra a imagem
+# 1.9.3: POST /v3/config/paths/add e GET /v3/config/paths/list respondem 200
+# sem credencial e sem disparar o callback, e paths/list devolve o campo
+# source em texto claro, ou seja rtsp://usuario:senha@host/caminho.
+# A porta 9997 NUNCA pode ser publicada no host.
+
+logLevel: info
+logDestinations: [stdout]
+
+api: yes
+apiAddress: :9997
+
+metrics: no
+pprof: no
+playback: no
+
+# Protocolos de entrega ao cliente.
+hls: yes
+hlsAddress: :8888
+hlsVariant: lowLatency
+hlsAlwaysRemux: no
+
+webrtc: yes
+webrtcAddress: :8889
+
+# Protocolos que nao usamos: desligados para reduzir superficie.
+rtmp: no
+srt: no
+
+# O RTSP fica ligado apenas como CLIENTE (para puxar das cameras).
+# O servidor RTSP de entrada nao e necessario.
+rtsp: no
+
+# Autorizacao delegada a API do Condotify. Toda leitura dispara este callback.
+authMethod: http
+authHTTPAddress: http://api:8080/api/internal/media-auth
+
+paths: {}

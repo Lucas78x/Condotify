@@ -46,6 +46,8 @@ services:
       CONDOTIFY_SMTP_FROM_EMAIL: ${CONDOTIFY_SMTP_FROM_EMAIL:-}
       CONDOTIFY_SMTP_FROM_NAME: ${CONDOTIFY_SMTP_FROM_NAME:-Condotify}
       CONDOTIFY_SMTP_ENABLE_SSL: ${CONDOTIFY_SMTP_ENABLE_SSL:-true}
+      CONDOTIFY_MEDIA_GATEWAY_URL: http://mediamtx:9997
+      CONDOTIFY_MEDIA_PLAYBACK_BASEURL: ${CONDOTIFY_MEDIA_PLAYBACK_BASEURL:-http://localhost:8889}
     ports:
       - "7118:8080"
     volumes:
@@ -54,6 +56,22 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  mediamtx:
+    image: bluenviron/mediamtx:1.9.3
+    container_name: condotify-mediamtx
+    restart: unless-stopped
+    volumes:
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      # 8888 (HLS) e 8889 (WebRTC) sao os unicos publicados, e apenas
+      # porque o callback de autenticacao protege cada leitura.
+      # 9997 (Control API) NAO e publicada: ver mediamtx/mediamtx.yml.
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+    depends_on:
+      - api
 
   portal:
     build:
