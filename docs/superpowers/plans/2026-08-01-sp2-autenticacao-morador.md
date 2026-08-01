@@ -18,7 +18,9 @@ Spec: [SP-2 Design](../specs/2026-08-01-sp2-autenticacao-morador-design.md) · R
 - **Unidades acessíveis são resolvidas a cada requisição, nunca lidas do token.**
 - Toda resposta a credencial inválida é idêntica, independentemente de o e-mail existir. `password/forgot` responde `202` sempre.
 - Convenções da API: `[ApiController]`, `[Authorize]`, DTOs manuais em `CondotifyAPI/Data/`, `DatabaseContext` injetado direto.
-- **Nenhuma alteração em `Condotify.Contracts`, `Condotify.ApiClient` ou `Condotify.UI`** — exceto a Task 9, que é explicitamente sobre o projeto web `Condotify`.
+- **Nenhuma alteração em `Condotify.UI`.** As Tasks 5 e 9 alteram `Condotify`, `Condotify.Contracts` e `Condotify.ApiClient` deliberadamente; as demais não.
+
+> **Correção do plano aplicada em 2026-08-01, durante a execução.** A restrição original dizia que só a Task 9 tocaria o projeto web. A Task 5 foi bloqueada por isso, com razão: `Condotify/Components/Pages/RegistrationInvite.razor` é o **único** chamador de `POST /api/public/registration-invites/{token}/complete`, e `CompleteRegistrationInviteViewModel` (`Condotify.Contracts/LicenseManagementViewModels.cs:933`) não tem campo de senha. Exigir senha só no servidor quebraria a única via de cadastro que existe, trocando "o morador não consegue entrar" por "o morador não consegue se cadastrar". Tratar o convite como backend-only foi erro de planejamento: o fluxo é inerentemente ponta a ponta.
 - Migrações via `dotnet ef migrations add <Nome> --project CondotifyAPI.Infrastructure --startup-project CondotifyAPI`. **Ler toda migração gerada antes de aplicar**: o banco de desenvolvimento tem dados reais.
 - **Nunca usar `git add -A` nem `git add .`.** Devem permanecer não commitados: `Condotify/Properties/launchSettings.json`, `CondotifyAPI/Properties/launchSettings.json` e `contexto.txt`.
 - Não perturbar o contêiner `condotify-postgres`: sem `docker compose down`, sem remover volumes.
@@ -379,6 +381,15 @@ Casos obrigatórios, com destaque para os dois últimos:
 - Test: `CondotifyAPI.Tests/RegistrationInvitePasswordTests.cs`
 
 Hoje o convite completa o cadastro e **não cria acesso nenhum**. Passa a exigir `Password`, validá-la com `PasswordPolicy` e gravá-la com `IPasswordHasher<ResidentAccess>`.
+
+**A task é ponta a ponta**, porque a única via de cadastro é a página web:
+
+1. `CondotifyAPI/Data/...` — `CompleteRegistrationInviteIn` ganha `Password`.
+2. `PublicRegistrationController` — valida com `PasswordPolicy`, grava o hash.
+3. `Condotify.Contracts/LicenseManagementViewModels.cs:933` — `CompleteRegistrationInviteViewModel` ganha `Password` e `PasswordConfirmation`.
+4. `Condotify/Components/Pages/RegistrationInvite.razor` — dois campos de senha, com confirmação, e validação no cliente antes de enviar.
+
+O campo em `Condotify.Contracts` serve também ao SP-4: o aplicativo terá a mesma tela de conclusão de convite e usará o mesmo contrato.
 
 - [ ] **Step 1:** teste que falha se a coluna `Password` contiver a senha original após completar o convite. Este teste é a rede de segurança contra regressão para texto claro.
 
