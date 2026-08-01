@@ -120,6 +120,41 @@ O token autoriza **leitura de um caminho específico**. Não é um bearer de ses
 
 `/api/internal/media-auth` é chamado apenas pelo MediaMTX pela rede interna do Docker. Além de validar o token, exige o `X-API-Key` já usado em outras rotas internas, para que não seja invocável de fora mesmo que a porta escape.
 
+## Contrato do MediaMTX, medido e não presumido
+
+Versão fixada: **`bluenviron/mediamtx:1.9.3`**. Os fatos abaixo foram obtidos rodando a imagem e observando o comportamento real, em 2026-08-01, não da documentação.
+
+**Payload do callback de autenticação.** Com `authMethod: http` e `authHTTPAddress`, o MediaMTX faz `POST` com `Content-Type: application/json` e este corpo:
+
+```json
+{
+  "action": "read",
+  "id": null,
+  "ip": "172.17.0.1",
+  "password": "",
+  "path": "probecam",
+  "protocol": "hls",
+  "query": "token=MEU_TOKEN_AQUI",
+  "user": ""
+}
+```
+
+`200` autoriza; qualquer outro status nega. Consequências para o desenho:
+
+- **Não existe campo `token` dedicado nesta versão.** O token viaja na `query`, e o endpoint precisa extraí-lo de uma query string crua.
+- `path` traz o nome do caminho, que é como o token fica atrelado a uma câmera específica.
+- `ip` e `protocol` alimentam a auditoria sem esforço adicional.
+
+**A Control API fica sem autenticação quando `authMethod: http`.** Este é o achado que mais afeta o desenho. Medido: `POST /v3/config/paths/add/...` e `GET /v3/config/paths/list` respondem `200` sem credencial alguma e **sem disparar o callback** — apenas o pedido de HLS gerou callback. Pior, `GET /v3/config/paths/list` devolve o campo `source` em texto claro:
+
+```
+- l1234_d5678_c1 | source: rtsp://user:pass@10.0.0.9:554/live | onDemand: True
+```
+
+Ou seja, **quem alcança a porta 9997 lê a senha de todas as câmeras da instalação e registra origens arbitrárias.** Não é higiene: é a superfície de ataque mais séria deste sub-projeto.
+
+Regra decorrente, sem exceção: a porta `9997` **nunca** é publicada no host, nem em desenvolvimento. O MediaMTX participa de uma rede Docker interna, e apenas o contêiner da API alcança essa porta. Um teste de fumaça na Task 8 deve tentar alcançar `9997` a partir do host e **exigir falha de conexão**; se responder, o deploy está errado.
+
 ## Segurança
 
 Não negociável:
