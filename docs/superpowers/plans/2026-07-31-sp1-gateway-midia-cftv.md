@@ -1634,6 +1634,227 @@ git commit -m "feat: add CFTV streaming sessions and the media authorisation cal
 
 ---
 
+## Task 6b: Isolar as rotas internas numa porta não publicada
+
+> **Origem.** A Task 6 descobriu que o spec pedia `X-API-Key` no callback de autorização, o que é impossível: o MediaMTX 1.9.3 não permite configurar cabeçalho algum em `authHTTPAddress`. **Trocar para JWT no cabeçalho esbarra no mesmo limite** — nenhum esquema baseado em cabeçalho funciona. E como a API é publicada na 7118, `/api/internal/media-auth` ficou alcançável de fora.
+>
+> A defesa que realmente funciona não depende de credencial nenhuma: fazer a API escutar em duas portas e publicar só uma, recusando as rotas `api/internal/*` em qualquer porta que não seja a interna. O `Dockerfile` da API já declara `EXPOSE 8081`, então a segunda porta já estava prevista.
+
+**Files:**
+- Modify: `CondotifyAPI/Program.cs`
+- Modify: `docker-compose.yml`
+- Modify: `mediamtx/mediamtx.yml`
+- Test: `CondotifyAPI.Tests/InternalRouteIsolationTests.cs`
+
+**Interfaces:**
+- Consumes: nada.
+- Produces: `CondotifyAPI.Infrastructure.InternalRouteGuard.IsInternalRequest(string path, int localPort, int internalPort)` — estático e puro, para ser testável sem subir servidor.
+
+- [ ] **Step 1: Escrever os testes que falham**
+
+Criar `CondotifyAPI.Tests/InternalRouteIsolationTests.cs`:
+
+```csharp
+using CondotifyAPI.Services.Security;
+using Xunit;
+
+namespace CondotifyAPI.Tests;
+
+public class InternalRouteIsolationTests
+{
+    private const int Public = 8080;
+    private const int Internal = 8081;
+
+    [Theory]
+    [InlineData("/api/internal/media-auth")]
+    [InlineData("/api/internal/media-auth/")]
+    [InlineData("/API/INTERNAL/MEDIA-AUTH")]
+    [InlineData("/api/internal/qualquer-rota-futura")]
+    public void InternalRoutes_AreRejected_OnThePublicPort(string path)
+    {
+        Assert.False(InternalRouteGuard.IsAllowed(path, Public, Internal));
+    }
+
+    [Theory]
+    [InlineData("/api/internal/media-auth")]
+    [InlineData("/API/INTERNAL/MEDIA-AUTH")]
+    public void InternalRoutes_AreAllowed_OnTheInternalPort(string path)
+    {
+        Assert.True(InternalRouteGuard.IsAllowed(path, Internal, Internal));
+    }
+
+    [Theory]
+    [InlineData("/api/auth/login")]
+    [InlineData("/api/access/licenses")]
+    [InlineData("/")]
+    [InlineData("/swagger")]
+    public void PublicRoutes_AreAllowed_OnBothPorts(string path)
+    {
+        Assert.True(InternalRouteGuard.IsAllowed(path, Public, Internal));
+        Assert.True(InternalRouteGuard.IsAllowed(path, Internal, Internal));
+    }
+
+    [Fact]
+    public void ARouteMerelyContainingTheWordInternal_IsNotTreatedAsInternal()
+    {
+        // "internal" no meio do caminho nao deve acionar a regra: so o prefixo.
+        Assert.True(InternalRouteGuard.IsAllowed("/api/access/internal-notes", Public, Internal));
+    }
+
+    [Fact]
+    public void WhenBothPortsAreTheSame_InternalRoutesStillWork()
+    {
+        // Desenvolvimento local com uma unica porta nao pode ficar impossivel.
+        Assert.True(InternalRouteGuard.IsAllowed("/api/internal/media-auth", 5000, 5000));
+    }
+}
+```
+
+O último teste importa: sem ele, rodar a API localmente com uma porta só tornaria o callback impossível de testar, e alguém acabaria desligando a proteção inteira para conseguir trabalhar.
+
+- [ ] **Step 2: RED**
+
+Run: `dotnet test CondotifyAPI.Tests --filter InternalRouteIsolationTests`
+Expected: falha de compilação — `InternalRouteGuard` não existe.
+
+- [ ] **Step 3: Implementar a guarda**
+
+Criar `CondotifyAPI/Services/Security/InternalRouteGuard.cs`:
+
+```csharp
+namespace CondotifyAPI.Services.Security;
+
+/// <summary>
+/// As rotas api/internal/* existem para comunicacao servidor-a-servidor,
+/// hoje apenas o callback de autorizacao do MediaMTX. Elas nao podem ser
+/// protegidas por cabecalho, porque o MediaMTX nao envia cabecalhos
+/// customizados no authHTTPAddress. A protecao e de rede: a API escuta em
+/// duas portas e apenas a publica sai do contentor.
+/// </summary>
+public static class InternalRouteGuard
+{
+    private const string InternalPrefix = "/api/internal/";
+
+    public static bool IsAllowed(string path, int localPort, int internalPort)
+    {
+        if (localPort == internalPort) return true;
+
+        var normalized = path.EndsWith('/') ? path : path + "/";
+        return !normalized.StartsWith(InternalPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+}
+```
+
+A normalização com barra final é o que faz `/api/access/internal-notes` **não** casar, enquanto `/api/internal/media-auth` casa.
+
+- [ ] **Step 4: GREEN**
+
+Run: `dotnet test CondotifyAPI.Tests --filter InternalRouteIsolationTests`
+Expected: `Aprovado! - Com falha: 0, Aprovado: 12`.
+
+- [ ] **Step 5: Ligar a guarda no pipeline**
+
+Em `CondotifyAPI/Program.cs`, imediatamente após `var app = builder.Build();` e **antes** de qualquer `UseAuthentication`/`UseAuthorization`/`MapControllers`:
+
+```csharp
+var internalPort = int.TryParse(Environment.GetEnvironmentVariable("CONDOTIFY_INTERNAL_PORT"), out var configuredInternalPort)
+    ? configuredInternalPort
+    : 8081;
+
+app.Use(async (context, next) =>
+{
+    var localPort = context.Connection.LocalPort;
+    if (!InternalRouteGuard.IsAllowed(context.Request.Path.Value ?? string.Empty, localPort, internalPort))
+    {
+        // 404 e nao 403: nao confirmamos sequer que a rota existe.
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await next();
+});
+```
+
+O `404` é deliberado. Um `403` confirmaria a existência da rota a quem estivesse sondando.
+
+- [ ] **Step 6: Fazer a API escutar nas duas portas**
+
+Em `docker-compose.yml`, no serviço `api`, alterar:
+
+```yaml
+      ASPNETCORE_URLS: http://+:8080
+```
+
+para:
+
+```yaml
+      # 8080 e publicada; 8081 e interna e serve apenas api/internal/*.
+      ASPNETCORE_URLS: http://+:8080;http://+:8081
+      CONDOTIFY_INTERNAL_PORT: "8081"
+```
+
+A lista `ports:` do serviço `api` **não** muda: continua publicando apenas `7118:8080`. A 8081 fica alcançável somente pela rede interna do Docker.
+
+- [ ] **Step 7: Apontar o MediaMTX para a porta interna**
+
+Em `mediamtx/mediamtx.yml`:
+
+```yaml
+authHTTPAddress: http://api:8081/api/internal/media-auth
+```
+
+- [ ] **Step 8: Build e suíte**
+
+Run: `dotnet build Condotify.sln` — 0 erros.
+Run: `dotnet test Condotify.sln` — tudo passa.
+
+- [ ] **Step 9: Provar o isolamento**
+
+```bash
+docker compose up -d --no-deps --build api
+sleep 8
+```
+
+Run: `curl -s -o /dev/null -w "publica -> %{http_code}\n" -X POST http://localhost:7118/api/internal/media-auth -H "Content-Type: application/json" -d '{"action":"read","path":"x","query":"token=y"}'`
+Expected: **`404`** — a rota não existe pela porta publicada.
+
+Run: `curl -s -o /dev/null -w "rota normal -> %{http_code}\n" http://localhost:7118/api/auth/validate`
+Expected: `401` — a porta pública continua servindo o resto da API normalmente. Se der `404`, a guarda está bloqueando demais.
+
+Run: `docker run --rm --network condotify_default curlimages/curl -s -o /dev/null -w "interna -> %{http_code}\n" -X POST http://api:8081/api/internal/media-auth -H "Content-Type: application/json" -d '{"action":"read","path":"x","query":"token=y"}'`
+Expected: **`401`** — a rota existe pela porta interna e recusa o token inválido, que é o comportamento correto.
+
+Os três juntos provam: invisível de fora, funcional por dentro, e o resto da API intacto.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add CondotifyAPI/Services/Security/InternalRouteGuard.cs CondotifyAPI/Program.cs CondotifyAPI.Tests/InternalRouteIsolationTests.cs docker-compose.yml mediamtx/mediamtx.yml
+git status --short
+git commit -m "fix: make api/internal routes unreachable from the published port"
+```
+
+Corpo:
+
+```
+The media authorisation callback cannot be protected by any header
+scheme: MediaMTX 1.9.3 sends no custom headers with authHTTPAddress, so
+neither X-API-Key nor a bearer token is available to it. With the API
+published on 7118, that left the endpoint reachable by anyone.
+
+The protection is therefore at the network layer instead. The API now
+listens on 8080 and 8081, only 8080 is published, and a guard rejects
+api/internal/* on any port other than the internal one. MediaMTX calls
+the internal port over the Docker network. The rejection is 404 rather
+than 403, so probing does not confirm the route exists.
+
+Local single-port development still works: when the public and internal
+ports are the same, the guard allows everything, so nobody has to
+disable the protection to get work done.
+```
+
+---
+
 ## Task 7: Estado operacional das câmeras
 
 **Files:**
