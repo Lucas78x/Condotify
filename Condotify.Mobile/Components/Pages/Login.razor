@@ -16,7 +16,7 @@
                 <MudText Typo="Typo.caption">Controle de acesso inteligente</MudText>
             </div>
         }
-        else
+        else if (_step != LoginStep.ForgotDone)
         {
             <div class="login-navbar">
                 <MudIconButton Icon="@Icons.Material.Outlined.ArrowBack"
@@ -73,6 +73,7 @@
                                   AdornmentIcon="@(_showPassword ? Icons.Material.Outlined.VisibilityOff : Icons.Material.Outlined.Visibility)"
                                   AdornmentAriaLabel="Exibir ou ocultar senha"
                                   OnAdornmentClick="TogglePassword" />
+                    <button type="button" class="login-fp" @onclick="OpenForgotPassword">Esqueci minha senha</button>
                     <MudButton FullWidth="true"
                                Size="Size.Large"
                                Variant="Variant.Filled"
@@ -128,6 +129,102 @@
                     </MudButton>
                 </MudForm>
             }
+            else if (_step == LoginStep.ForgotEmail)
+            {
+                <div class="login-lead">Informe o e-mail da sua conta. Se ele existir, enviaremos um código para redefinir sua senha.</div>
+                <MudForm @ref="_form" class="login-form">
+                    @if (!string.IsNullOrWhiteSpace(_error))
+                    {
+                        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.ErrorOutline" Dense="true">@_error</MudAlert>
+                    }
+                    <MudTextField @bind-Value="_forgotEmail"
+                                  Label="E-mail"
+                                  Placeholder="nome@empresa.com.br"
+                                  InputType="InputType.Email"
+                                  Required="true"
+                                  RequiredError="Informe o e-mail."
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Outlined.AlternateEmail"
+                                  AutoFocus="true" />
+                    <MudButton FullWidth="true"
+                               Size="Size.Large"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Class="login-submit"
+                               Disabled="_busy"
+                               OnClick="SubmitForgotEmailAsync">
+                        @if (_busy)
+                        {
+                            <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                        }
+                        @(_busy ? "Aguarde" : "Enviar código")
+                    </MudButton>
+                </MudForm>
+            }
+            else if (_step == LoginStep.ForgotReset)
+            {
+                <div class="login-lead">Enviamos um código para <strong>@_forgotEmail</strong>, caso ele exista. Cole o código abaixo e defina sua nova senha. O código vale por 30 minutos.</div>
+                <MudForm @ref="_form" class="login-form">
+                    @if (!string.IsNullOrWhiteSpace(_error))
+                    {
+                        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.ErrorOutline" Dense="true">@_error</MudAlert>
+                    }
+                    <MudTextField @bind-Value="_recoveryToken"
+                                  Label="Código de recuperação"
+                                  Placeholder="Cole aqui o código recebido por e-mail"
+                                  Lines="2"
+                                  Required="true"
+                                  RequiredError="Informe o código."
+                                  Variant="Variant.Outlined"
+                                  Class="login-code-field" />
+                    <MudTextField @bind-Value="_newPassword"
+                                  Label="Nova senha"
+                                  InputType="InputType.Password"
+                                  Required="true"
+                                  RequiredError="Informe a nova senha."
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Outlined.VpnKey" />
+                    <MudTextField @bind-Value="_confirmPassword"
+                                  Label="Confirmar senha"
+                                  InputType="InputType.Password"
+                                  Required="true"
+                                  RequiredError="Confirme a nova senha."
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Outlined.VpnKey" />
+                    <MudButton FullWidth="true"
+                               Size="Size.Large"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Class="login-submit"
+                               Disabled="_busy"
+                               OnClick="SubmitForgotResetAsync">
+                        @if (_busy)
+                        {
+                            <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                        }
+                        @(_busy ? "Aguarde" : "Redefinir senha")
+                    </MudButton>
+                </MudForm>
+            }
+            else if (_step == LoginStep.ForgotDone)
+            {
+                <div class="login-confirm">
+                    <div class="login-confirm-icon" aria-hidden="true"><MudIcon Icon="@Icons.Material.Outlined.Check" /></div>
+                    <MudText Typo="Typo.h1">Senha redefinida</MudText>
+                    <div class="login-lead">Sua senha foi alterada com sucesso. Entre com a nova senha para continuar.</div>
+                    <MudButton FullWidth="true"
+                               Size="Size.Large"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Class="login-submit"
+                               OnClick="GoToCredentialsFromConfirmation">
+                        Ir para o login
+                    </MudButton>
+                </div>
+            }
         </div>
     </div>
 </div>
@@ -143,12 +240,18 @@
     private string _error = string.Empty;
     private bool _showPassword;
     private bool _busy;
+    private string _forgotEmail = string.Empty;
+    private string _recoveryToken = string.Empty;
+    private string _newPassword = string.Empty;
+    private string _confirmPassword = string.Empty;
 
-    private enum LoginStep { Credentials, Mfa }
+    private enum LoginStep { Credentials, Mfa, ForgotEmail, ForgotReset, ForgotDone }
 
     private string StepTitle => _step switch
     {
         LoginStep.Mfa => "Confirme sua identidade",
+        LoginStep.ForgotEmail => "Recuperar senha",
+        LoginStep.ForgotReset => "Redefinir senha",
         _ => string.Empty
     };
 
@@ -169,9 +272,12 @@
     private void GoBack()
     {
         _error = string.Empty;
-        _step = LoginStep.Credentials;
-        _challenge = string.Empty;
-        _mfaCode = string.Empty;
+        _step = _step == LoginStep.ForgotReset ? LoginStep.ForgotEmail : LoginStep.Credentials;
+        if (_step == LoginStep.Credentials)
+        {
+            _challenge = string.Empty;
+            _mfaCode = string.Empty;
+        }
     }
 
     private async Task SubmitAsync()
@@ -215,5 +321,78 @@
         {
             _busy = false;
         }
+    }
+
+    private void OpenForgotPassword()
+    {
+        _error = string.Empty;
+        if (_principal == MobilePrincipalKind.Resident)
+            _step = LoginStep.ForgotEmail;
+    }
+
+    private async Task SubmitForgotEmailAsync()
+    {
+        await _form!.ValidateAsync();
+        if (!_form.IsValid || _busy) return;
+        _busy = true;
+        _error = string.Empty;
+        try
+        {
+            await Session.ForgotPasswordAsync(_forgotEmail);
+            _recoveryToken = string.Empty;
+            _newPassword = string.Empty;
+            _confirmPassword = string.Empty;
+            _step = LoginStep.ForgotReset;
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Sem conexao com a central. Verifique sua rede e tente novamente.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SubmitForgotResetAsync()
+    {
+        await _form!.ValidateAsync();
+        if (!_form.IsValid || _busy) return;
+        _error = string.Empty;
+        if (_newPassword != _confirmPassword)
+        {
+            _error = "As senhas nao coincidem.";
+            return;
+        }
+        _busy = true;
+        try
+        {
+            var result = await Session.ResetPasswordAsync(_recoveryToken, _newPassword);
+            if (!result.Success)
+            {
+                _error = result.Error;
+                return;
+            }
+            _step = LoginStep.ForgotDone;
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Sem conexao com a central. Verifique sua rede e tente novamente.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void GoToCredentialsFromConfirmation()
+    {
+        _email = string.Empty;
+        _password = string.Empty;
+        _forgotEmail = string.Empty;
+        _recoveryToken = string.Empty;
+        _newPassword = string.Empty;
+        _confirmPassword = string.Empty;
+        _step = LoginStep.Credentials;
     }
 }
