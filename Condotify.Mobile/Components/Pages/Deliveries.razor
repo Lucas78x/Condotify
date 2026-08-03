@@ -11,12 +11,22 @@
 </PageHeader>
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_rows.Count == 0)" EmptyTitle="Nenhuma encomenda" EmptyText="Recebimentos recentes aparecerão aqui." Retry="LoadAsync">
+    <div class="metric-grid">
+        <div class="metric warning"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.PendingActions" /></span><span class="metric-value">@_rows.Count(x => x.Status == "Pending")</span><span class="metric-label">Aguardando</span></div>
+        <div class="metric info"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><span class="metric-value">@_rows.Count(x => x.Status == "Received")</span><span class="metric-label">Na portaria</span></div>
+        <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.CheckCircleOutline" /></span><span class="metric-value">@_rows.Count(x => x.Status == "Delivered")</span><span class="metric-label">Entregues</span></div>
+        <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span><span class="metric-value">@_rows.Count</span><span class="metric-label">Total</span></div>
+    </div>
     <section class="content-panel">
         @foreach (var row in _rows)
         {
             <div class="list-row">
                 <MudAvatar Color="@StatusColor(row.Status)" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></MudAvatar>
-                <div class="list-main"><div class="list-title">@row.Name</div><div class="list-meta">@row.Type - @row.Status</div><div class="list-meta">@row.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm") @(!string.IsNullOrWhiteSpace(row.TrackingCode) ? $"- {row.TrackingCode}" : "")</div></div>
+                <div class="list-main">
+                    <div class="list-title">@row.Name</div>
+                    <div class="list-meta"><span class="row-status @StatusClass(row.Status)">@StatusLabel(row.Status)</span> · @TypeLabel(row.Type)</div>
+                    <div class="list-meta">@row.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm") @(!string.IsNullOrWhiteSpace(row.TrackingCode) ? $"- {row.TrackingCode}" : "")</div>
+                </div>
                 @if (Session.Current?.Principal == MobilePrincipalKind.Staff && row.StatusValue == 2)
                 {
                     <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" OnClick="() => DeliverAsync(row)">Entregar</MudButton>
@@ -56,4 +66,16 @@
         if (result.Success) await LoadAsync();
     }
     private static Color StatusColor(string status) => status switch { "Delivered" => Color.Success, "Canceled" => Color.Error, "Received" => Color.Info, _ => Color.Warning };
+    private static string StatusClass(string status) => status switch { "Delivered" => "success", "Canceled" => "error", "Received" => "info", _ => "warning" };
+    private static string StatusLabel(string status) => status switch { "Delivered" => "Entregue", "Canceled" => "Cancelada", "Received" => "Na portaria", "Pending" => "Aguardando", _ => status };
+    private static string TypeLabel(string type) => type switch
+    {
+        "Correios" => "Correios", "Sedex" => "SEDEX", "PAC" => "PAC",
+        "Jadlog" => "Jadlog", "TotalExpress" => "Total Express", "AzulCargo" => "Azul Cargo", "TNT" => "TNT", "DHL" => "DHL", "FedEx" => "FedEx", "UPS" => "UPS", "Loggi" => "Loggi",
+        "MercadoLivre" => "Mercado Livre", "Amazon" => "Amazon", "Shopee" => "Shopee", "AliExpress" => "AliExpress", "MagazineLuiza" => "Magazine Luiza", "CasasBahia" => "Casas Bahia", "PontoFrio" => "Ponto Frio", "Kabum" => "KaBuM!", "Americanas" => "Americanas", "Submarino" => "Submarino", "Extra" => "Extra", "Carrefour" => "Carrefour", "Havan" => "Havan", "Shein" => "Shein",
+        "Ifood" => "iFood", "Rappi" => "Rappi", "UberEats" => "Uber Eats", "ZeDelivery" => "Zé Delivery", "Aiqfome" => "AiQFome", "JamesDelivery" => "James Delivery", "NoventaNoveFood" => "99Food",
+        "Mercado" => "Mercado", "Farmacia" => "Farmácia", "Drogasil" => "Drogasil", "DrogaRaia" => "Droga Raia", "Panvel" => "Panvel", "PagueMenos" => "Pague Menos",
+        "Agua" => "Água", "Gas" => "Gás", "Documentos" => "Documentos", "EncomendaParticular" => "Encomenda particular",
+        _ => "Outros"
+    };
 }
