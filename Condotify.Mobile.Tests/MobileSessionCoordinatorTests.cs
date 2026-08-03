@@ -63,9 +63,32 @@ public sealed class MobileSessionCoordinatorTests
         var handler = new RecordingHandler(_ => Json(new { result = "Accepted" }, HttpStatusCode.Accepted));
         var service = Create(handler, new MemoryVault());
 
-        await service.ForgotPasswordAsync("lucas@example.com");
+        var ok = await service.ForgotPasswordAsync("lucas@example.com");
 
+        Assert.True(ok);
         Assert.Equal("/api/auth/resident/password/forgot", handler.Paths.Single());
+    }
+
+    [Fact]
+    public async Task ForgotPassword_ReturnsFalseWhenRateLimited()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.TooManyRequests));
+        var service = Create(handler, new MemoryVault());
+
+        var ok = await service.ForgotPasswordAsync("lucas@example.com");
+
+        Assert.False(ok);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_ReturnsTrueOnNonRateLimitedFailure()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        var service = Create(handler, new MemoryVault());
+
+        var ok = await service.ForgotPasswordAsync("lucas@example.com");
+
+        Assert.True(ok);
     }
 
     [Fact]
@@ -92,6 +115,16 @@ public sealed class MobileSessionCoordinatorTests
 
         Assert.False(result.Success);
         Assert.Equal("Codigo de recuperacao invalido ou expirado.", result.Error);
+    }
+
+    [Fact]
+    public async Task ResetPassword_ThrowsWhenNetworkFails()
+    {
+        var handler = new RecordingHandler(_ => throw new HttpRequestException("offline"));
+        var service = Create(handler, new MemoryVault());
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => service.ResetPasswordAsync("recovery-token", "NovaSenha123!"));
     }
 
     [Fact]

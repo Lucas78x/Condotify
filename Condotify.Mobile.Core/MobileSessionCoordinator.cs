@@ -65,13 +65,14 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
         return await CompleteLoginAsync(response, MobilePrincipalKind.Staff, cancellationToken);
     }
 
-    public async Task ForgotPasswordAsync(string email, CancellationToken cancellationToken = default)
+    public async Task<bool> ForgotPasswordAsync(string email, CancellationToken cancellationToken = default)
     {
         using var response = await SendAsync(
             HttpMethod.Post,
             "api/auth/resident/password/forgot",
             new { Email = email.Trim() },
             cancellationToken);
+        return response.StatusCode != System.Net.HttpStatusCode.TooManyRequests;
     }
 
     public async Task<MobilePasswordResetResult> ResetPasswordAsync(
@@ -88,7 +89,7 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
         {
             ResetPasswordResponse? payload = null;
             try { payload = await response.Content.ReadFromJsonAsync<ResetPasswordResponse>(JsonOptions, cancellationToken); }
-            catch (JsonException) { }
+            catch (Exception ex) when (ex is JsonException or NotSupportedException) { }
 
             return response.IsSuccessStatusCode && payload?.Result == "Success"
                 ? new MobilePasswordResetResult(true, string.Empty)

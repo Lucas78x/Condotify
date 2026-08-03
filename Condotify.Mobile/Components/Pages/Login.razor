@@ -1,4 +1,5 @@
 @page "/login"
+@using Microsoft.Maui.ApplicationModel
 @inject MobileSessionCoordinator Session
 @inject MobileDeviceContext Device
 @inject MobileAppState AppState
@@ -232,20 +233,20 @@
                     <MudText Typo="Typo.h1">Fale com o suporte</MudText>
                 </div>
                 <div class="login-lead">Por segurança, contas da equipe não redefinem a senha pelo aplicativo. Entre em contato para liberar o acesso.</div>
-                <a class="login-support-row" href="mailto:@SupportEmail">
+                <button type="button" class="login-support-row" @onclick="OpenSupportEmailAsync">
                     <MudIcon Icon="@Icons.Material.Outlined.AlternateEmail" />
                     <div>
                         <span class="login-support-label">E-mail</span>
                         <span class="login-support-value">@SupportEmail</span>
                     </div>
-                </a>
-                <a class="login-support-row" href="@SupportWhatsAppUrl" target="_blank" rel="noopener">
+                </button>
+                <button type="button" class="login-support-row" @onclick="OpenSupportWhatsAppAsync">
                     <MudIcon Icon="@Icons.Material.Outlined.Chat" />
                     <div>
                         <span class="login-support-label">WhatsApp</span>
                         <span class="login-support-value">@SupportPhoneDisplay</span>
                     </div>
-                </a>
+                </button>
             }
         </div>
     </div>
@@ -341,7 +342,7 @@
             await Push.RegisterAsync();
             Navigation.NavigateTo("/home", replace: true);
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
         {
             _error = "Sem conexao com a central. Verifique sua rede e tente novamente.";
         }
@@ -365,13 +366,18 @@
         _error = string.Empty;
         try
         {
-            await Session.ForgotPasswordAsync(_forgotEmail);
+            var ok = await Session.ForgotPasswordAsync(_forgotEmail);
+            if (!ok)
+            {
+                _error = "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
+                return;
+            }
             _recoveryToken = string.Empty;
             _newPassword = string.Empty;
             _confirmPassword = string.Empty;
             _step = LoginStep.ForgotReset;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
         {
             _error = "Sem conexao com a central. Verifique sua rede e tente novamente.";
         }
@@ -402,7 +408,7 @@
             }
             _step = LoginStep.ForgotDone;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
         {
             _error = "Sem conexao com a central. Verifique sua rede e tente novamente.";
         }
@@ -411,6 +417,12 @@
             _busy = false;
         }
     }
+
+    private static async Task OpenSupportEmailAsync() =>
+        await Launcher.OpenAsync(new Uri($"mailto:{SupportEmail}"));
+
+    private static async Task OpenSupportWhatsAppAsync() =>
+        await Launcher.OpenAsync(new Uri(SupportWhatsAppUrl));
 
     private void GoToCredentialsFromConfirmation()
     {
