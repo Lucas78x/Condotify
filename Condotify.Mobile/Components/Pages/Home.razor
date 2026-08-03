@@ -6,7 +6,7 @@
 @inject CondotifyApiClient Api
 
 <PageTitle>Inicio | Condotify</PageTitle>
-<PageHeader Title="@Greeting" Subtitle="@Subtitle">
+<PageHeader Title="@ContextTitle" Subtitle="@Greeting">
     <Actions>
         <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
     </Actions>
@@ -20,15 +20,6 @@
             <div class="metric success"><span class="metric-value">@(_resident?.IsResponsible == true ? "Sim" : "Não")</span><span class="metric-label">Responsável</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /></span></div>
             <div class="metric info"><span class="metric-value">Ativo</span><span class="metric-label">Vínculo</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Link" /></span></div>
             <div class="metric warning"><span class="metric-value">@(_notifications?.Unread ?? 0)</span><span class="metric-label">Novidades</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" /></span></div>
-        </div>
-        <div class="dashboard-section-title"><MudText Typo="Typo.h5">Acesso rápido</MudText></div>
-        <div class="action-grid staff-actions">
-            <a class="action-tile" href="/visitors"><MudIcon Icon="@Icons.Material.Outlined.PersonAdd" Color="Color.Primary" /><span>Visitantes</span></a>
-            <a class="action-tile" href="/bookings"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Color="Color.Tertiary" /><span>Reservas</span></a>
-            <a class="action-tile" href="/deliveries"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" Color="Color.Secondary" /><span>Encomendas</span></a>
-            <a class="action-tile" href="/cameras"><MudIcon Icon="@Icons.Material.Outlined.Videocam" Color="Color.Info" /><span>Câmeras</span></a>
-            <a class="action-tile" href="/notifications"><MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" Color="Color.Warning" /><span>Notificações</span></a>
-            <a class="action-tile" href="/profile"><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Color="Color.Info" /><span>Meu cadastro</span></a>
         </div>
         <section class="content-panel">
             <div class="panel-heading"><MudText Typo="Typo.h5">Minhas unidades</MudText></div>
@@ -50,17 +41,6 @@
             <div class="metric info"><span class="metric-value">@(_dashboard?.PendingBookingCount ?? 0)</span><span class="metric-label">Reservas pendentes</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" /></span></div>
             <div class="metric warning"><span class="metric-value">@(_dashboard?.Alerts.Count ?? 0)</span><span class="metric-label">Alertas recentes</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></span></div>
         </div>
-        <div class="dashboard-section-title"><MudText Typo="Typo.h5">Acesso rápido</MudText></div>
-        <div class="action-grid">
-            <a class="action-tile" href="/people"><MudIcon Icon="@Icons.Material.Outlined.Groups" Color="Color.Primary" /><span>Pessoas</span></a>
-            <a class="action-tile" href="/visitors"><MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" Color="Color.Info" /><span>Visitantes</span></a>
-            <a class="action-tile" href="/concierge"><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" Color="Color.Primary" /><span>Portaria</span></a>
-            <a class="action-tile" href="/devices"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" Color="Color.Tertiary" /><span>Acionamentos</span></a>
-            <a class="action-tile" href="/cameras"><MudIcon Icon="@Icons.Material.Outlined.Videocam" Color="Color.Info" /><span>Câmeras</span></a>
-            <a class="action-tile" href="/alerts"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Color="Color.Warning" /><span>Alertas</span></a>
-            <a class="action-tile" href="/deliveries"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" Color="Color.Secondary" /><span>Encomendas</span></a>
-            <a class="action-tile" href="/bookings"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Color="Color.Tertiary" /><span>Reservas</span></a>
-        </div>
         <section class="content-panel">
             <div class="panel-heading"><MudText Typo="Typo.h5">Atividade recente</MudText></div>
             @if (_dashboard?.RecentActivities.Count == 0)
@@ -74,6 +54,9 @@
         </section>
     }
 </PageState>
+<a class="home-fab" href="/visitors" aria-label="Registrar visitante">
+    <MudIcon Icon="@Icons.Material.Outlined.Add" />
+</a>
 
 @code {
     private bool _loading;
@@ -82,9 +65,9 @@
     private ResidentProfileViewModel? _resident;
     private MobileNotificationPageViewModel? _notifications;
     private CancellationTokenSource _loadCts = new();
+    private string ContextTitle => Session.Current?.Principal == MobilePrincipalKind.Resident ? Session.Current.LicenseName : AppState.SelectedLicense?.Nome ?? "Central operacional";
     private string Greeting => $"Olá, {FirstName}";
     private string FirstName => (Session.Current?.Name ?? "Usuário").Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "Usuário";
-    private string Subtitle => Session.Current?.Principal == MobilePrincipalKind.Resident ? Session.Current.LicenseName : AppState.SelectedLicense?.Nome ?? "Visão consolidada da operação";
 
     protected override async Task OnInitializedAsync()
     {
