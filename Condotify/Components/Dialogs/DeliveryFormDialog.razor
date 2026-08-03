@@ -10,6 +10,10 @@
         <EditForm Model="_form" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
             <div class="form-grid">
+                <MudAutocomplete T="GlobalResidentSearchViewModel" @bind-Value="_recipient" SearchFunc="SearchResidentsAsync"
+                                 ToStringFunc="@(x => x is null ? string.Empty : $"{x.Name} - {x.BlockName} / {x.UnitNumber}")"
+                                 Label="Morador e unidade de destino" Placeholder="Digite pelo menos 2 caracteres" Variant="Variant.Outlined"
+                                 Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Clearable="true" Class="full" />
                 <MudTextField T="string" @bind-Value="_form.Name" Label="Destinatario ou identificacao" Required Variant="Variant.Outlined" For="@(() => _form.Name)" Class="full" />
                 <MudSelect T="int" @bind-Value="_form.Type" Label="Origem" Variant="Variant.Outlined"><MudSelectItem Value="1">Correios</MudSelectItem><MudSelectItem Value="2">SEDEX</MudSelectItem><MudSelectItem Value="30">Mercado Livre</MudSelectItem><MudSelectItem Value="31">Amazon</MudSelectItem><MudSelectItem Value="32">Shopee</MudSelectItem><MudSelectItem Value="999">Outros</MudSelectItem></MudSelect>
                 <MudTextField T="string" @bind-Value="_form.TrackingCode" Label="Codigo de rastreio" Variant="Variant.Outlined" />
@@ -28,11 +32,22 @@
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
     private readonly DeliveryFormViewModel _form = new();
+    private GlobalResidentSearchViewModel? _recipient;
     private bool _saving;
     private string? _error;
     private void Cancel() => Dialog.Cancel();
+    private async Task<IEnumerable<GlobalResidentSearchViewModel>> SearchResidentsAsync(string value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Trim().Length < 2) return [];
+        var result = await Api.SearchResidentsAsync(value, null, null, null, null, LicenseId.ToString(), cancellationToken);
+        return result.Success ? (result.Value ?? []).Where(x => !x.Temporary).Take(15) : [];
+    }
     private async Task SaveAsync()
     {
+        if (_recipient is null) { _error = "Selecione o morador e a unidade de destino."; return; }
+        _form.RecipientResidentId = _recipient.Id;
+        _form.UnitId = _recipient.UnitId;
+        if (string.IsNullOrWhiteSpace(_form.Name)) _form.Name = _recipient.Name;
         _saving = true; _error = null;
         var result = await Api.CreateDeliveryAsync(LicenseId, _form);
         _saving = false;

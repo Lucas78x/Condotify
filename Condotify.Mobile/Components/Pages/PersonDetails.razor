@@ -19,9 +19,9 @@
     @if (_person is not null)
     {
         <section class="person-hero content-panel">
-            @if (!string.IsNullOrWhiteSpace(_person.ImageUrl))
+            @if (!string.IsNullOrWhiteSpace(_photoDataUrl))
             {
-                <MudAvatar Class="person-hero-avatar photo-avatar"><img src="@_person.ImageUrl" alt="" /></MudAvatar>
+                <MudAvatar Class="person-hero-avatar photo-avatar"><img src="@_photoDataUrl" alt="" /></MudAvatar>
             }
             else
             {
@@ -109,6 +109,7 @@
 @code {
     [Parameter] public Guid EntityId { get; set; }
     private PersonProfileViewModel? _person;
+    private string? _photoDataUrl;
     private CancellationTokenSource? _loadCts;
     private bool _loading;
     private string _error = string.Empty;
@@ -134,8 +135,19 @@
         var result = await Api.GetPersonProfileAsync(AppState.SelectedLicenseId.Value, EntityId, cancellationToken);
         if (cancellationToken.IsCancellationRequested) return;
         _person = result.Value;
+        _photoDataUrl = null;
         if (!result.Success) _error = result.Error ?? "Não foi possível carregar a pessoa.";
         _loading = false;
+        if (_person is not null) _ = LoadPhotoAsync(_person.ImageUrl, cancellationToken);
+    }
+
+    private async Task LoadPhotoAsync(string? reference, CancellationToken cancellationToken)
+    {
+        if (!CondotifyApiClient.TryParseMediaReference(reference, out var licenseId, out var mediaId)) return;
+        var result = await Api.GetPersonPhotoAsync(licenseId, mediaId, cancellationToken);
+        if (cancellationToken.IsCancellationRequested || !result.Success) return;
+        _photoDataUrl = result.Value;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void Back() => Navigation.NavigateTo(_person is null ? "/people" : $"/units/{_person.UnitId:D}");
@@ -144,10 +156,11 @@
     private void ShowVehicles() => _tab = "vehicles";
     private static string Value(string? value) => string.IsNullOrWhiteSpace(value) ? "Não informado" : value;
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
-    private static string CategoryLabel(string category) => category switch { "Resident" => "Morador", "Visitor" => "Visitante", "ServiceProvider" => "Prestador", "Employee" => "Funcionário", _ => category };
+    private static string CategoryLabel(string category) => category switch { "Responsible" => "Responsável", "NonResponsible" => "Morador", "Guest" => "Convidado", "ServiceProvider" => "Prestador", "Default" => "Morador", _ => category };
+    private static string RelationshipLabel(string relationship) => relationship switch { "OwnerResponsible" => "Proprietário responsável", "TenantResponsible" => "Locatário responsável", "Responsible" => "Responsável", "Dependent" => "Dependente", "Resident" => "Morador", _ => relationship };
     private static string PersonDescription(PersonSummaryViewModel person)
     {
-        var values = new[] { CategoryLabel(person.Category), person.Relationship }
+        var values = new[] { CategoryLabel(person.Category), RelationshipLabel(person.Relationship) }
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase);
         var description = string.Join(" · ", values);

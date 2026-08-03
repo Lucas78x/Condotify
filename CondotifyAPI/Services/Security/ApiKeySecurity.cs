@@ -7,7 +7,8 @@ internal static class ApiKeySecurity
 {
     internal static string? GetConfiguredKey() =>
         Environment.GetEnvironmentVariable("CONDOTIFY_API_KEY") ??
-        Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY");
+        Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY") ??
+        Environment.GetEnvironmentVariable("MY_API_KEY");
 
     internal static bool IsValid(string? configuredKey, string? suppliedKey)
     {

@@ -457,17 +457,17 @@ Sem esta task a web passa a deslogar de hora em hora. O `LoginController` guarda
 
 **Esta é a única task do SP-2 que toca o projeto `Condotify`.** Apresentar o desenho antes de implementar: guardar refresh em claim de cookie tem implicações — o cookie já é `HttpOnly` e cifrado por data protection, o que é aceitável, mas merece decisão explícita.
 
-- [ ] Build, suíte, smoke manual do login web.
+- [x] Build, suíte e smoke do login web. Concluído em 2026-08-01: o ticket protegido passou a guardar o refresh token, a renovação ocorre antes da expiração com deduplicação entre abas, o circuito é recarregado após a rotação e o logout revoga a sessão remota. Build sem avisos, 430 testes aprovados e `GET /Login` validado com HTTP 200; nenhum serviço permaneceu em execução.
 
 ---
 
 ## Task 10: Verificação integrada
 
-- [ ] `POST /api/auth/resident/login` com um morador real do banco, após definir senha por convite.
-- [ ] **Token de morador recusado em rota da equipe** — testar contra `GET /api/access/licenses`, esperar `403`.
-- [ ] Token da equipe recusado em rota de morador.
-- [ ] Rotação de refresh e detecção de reuso, ponta a ponta.
-- [ ] Vínculo de unidade revogado deixa de valer **sem** novo login.
-- [ ] Registrar o que não foi verificado.
+- [x] `POST /api/auth/resident/login` com um morador real do banco, após definir senha por convite.
+- [x] **Token de morador recusado em rota da equipe** — `GET /api/access/licenses` respondeu `403`.
+- [x] Token da equipe recusado em `GET /api/resident/me` com `403`.
+- [x] Rotação de refresh e detecção de reuso, ponta a ponta; o reuso recusou também o descendente da cadeia.
+- [x] Vínculo de unidade revogado deixou de aparecer em `GET /api/resident/me` **sem** novo login; estado original restaurado ao final.
+- [x] Verificação registrada em 2026-08-01 contra o PostgreSQL real `condotify-postgres`. A nova migração foi aplicada no startup, o cadastro por convite definiu a senha do morador demo e todos os nove checks passaram. Não foi verificado envio SMTP real, pois ele pertence à integração externa da recuperação e não aos critérios da Task 10. API encerrada ao final.
 
 O segundo item é o mais importante do sub-projeto inteiro.

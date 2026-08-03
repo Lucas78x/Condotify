@@ -24,6 +24,7 @@ public sealed class CftvStreamingController : ControllerBase
     private readonly ICftvStreamPathResolver _paths;
     private readonly IMediaAccessTokenService _tokens;
     private readonly IMediaGatewayClient _gateway;
+    private readonly ICftvSnapshotService _snapshots;
     private readonly ILogger<CftvStreamingController> _logger;
 
     public CftvStreamingController(
@@ -31,12 +32,14 @@ public sealed class CftvStreamingController : ControllerBase
         ICftvStreamPathResolver paths,
         IMediaAccessTokenService tokens,
         IMediaGatewayClient gateway,
+        ICftvSnapshotService snapshots,
         ILogger<CftvStreamingController> logger)
     {
         _context = context;
         _paths = paths;
         _tokens = tokens;
         _gateway = gateway;
+        _snapshots = snapshots;
         _logger = logger;
     }
 
@@ -119,6 +122,19 @@ public sealed class CftvStreamingController : ControllerBase
             .ToListAsync(cancellationToken);
 
         return Ok(devices);
+    }
+
+    [HttpGet("{deviceId:guid}/snapshot")]
+    public async Task<IActionResult> Snapshot(Guid licenseId, Guid deviceId, [FromQuery] int channel = 1, CancellationToken cancellationToken = default)
+    {
+        var device = await _context.CFTVDevices.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId, cancellationToken);
+        if (device is null) return NotFound();
+
+        var snapshot = await _snapshots.FetchAsync(device, channel, cancellationToken);
+        return snapshot is null
+            ? StatusCode(StatusCodes.Status503ServiceUnavailable, new { Result = "SnapshotUnavailable", Errors = "A miniatura da camera esta indisponivel." })
+            : File(snapshot.Content, snapshot.ContentType);
     }
 
     [HttpDelete("{deviceId:guid}/sessions/{channel:int}")]

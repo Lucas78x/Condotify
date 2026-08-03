@@ -50,9 +50,9 @@
         @foreach (var visit in FilteredRows)
         {
             <div class="list-row visitor-row">
-                @if (!string.IsNullOrWhiteSpace(visit.PhotoUrl))
+                @if (_photos.TryGetValue(visit.Id, out var photo))
                 {
-                    <MudAvatar Class="photo-avatar"><img src="@visit.PhotoUrl" alt="" /></MudAvatar>
+                    <MudAvatar Class="photo-avatar"><img src="@photo" alt="" /></MudAvatar>
                 }
                 else
                 {
@@ -82,6 +82,7 @@
 @code {
     [Parameter] public Guid? EntityId { get; set; }
     private List<ConciergeVisitViewModel> _rows = [];
+    private readonly Dictionary<Guid, string> _photos = new();
     private ResidentProfileViewModel? _profile;
     private CancellationTokenSource? _loadCts;
     private bool _loading;
@@ -129,7 +130,37 @@
             if (!profileResult.Success) _error = profileResult.Error ?? "Não foi possível carregar seu vínculo.";
             else if (!visitsResult.Success) _error = visitsResult.Error ?? "Não foi possível carregar os visitantes.";
         }
+        await LoadPhotosAsync(cancellationToken);
+        if (cancellationToken.IsCancellationRequested) return;
         _loading = false;
+    }
+
+    private async Task LoadPhotosAsync(CancellationToken cancellationToken)
+    {
+        _photos.Clear();
+        if (_rows.Count == 0) return;
+        using var concurrency = new SemaphoreSlim(3);
+        var requests = _rows.Select(async visit =>
+        {
+            if (!CondotifyApiClient.TryParseMediaReference(visit.PhotoUrl, out var licenseId, out var mediaId)) return;
+            await concurrency.WaitAsync(cancellationToken);
+            try
+            {
+                var result = await Api.GetPersonPhotoAsync(licenseId, mediaId, cancellationToken);
+                if (result.Success && !string.IsNullOrWhiteSpace(result.Value)) _photos[visit.Id] = result.Value;
+            }
+            finally
+            {
+                concurrency.Release();
+            }
+        });
+        try
+        {
+            await Task.WhenAll(requests);
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private async Task OpenCreateAsync()

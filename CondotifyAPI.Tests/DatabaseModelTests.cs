@@ -13,6 +13,7 @@ using CondotifyAPI.Domain.DTO.Amenities;
 using CondotifyAPI.Domain.DTO.RecycleBin;
 using CondotifyAPI.Domain.DTO.Backup;
 using CondotifyAPI.Domain.DTO.Observability;
+using CondotifyAPI.Domain.DTO.Mobile;
 using CondotifyAPI.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -112,6 +113,17 @@ namespace CondotifyAPI.Tests
         }
 
         [Fact]
+        public void ResidentPasswordRecoveryTokens_ShouldHaveUniqueTokenHashAndResidentLookupIndex()
+        {
+            using var context = CreateContext();
+            var entity = context.Model.FindEntityType(typeof(ResidentPasswordRecoveryTokenDTO));
+
+            Assert.NotNull(entity);
+            Assert.True(HasUniqueIndex(entity!, nameof(ResidentPasswordRecoveryTokenDTO.TokenHash)));
+            Assert.True(HasIndex(entity!, nameof(ResidentPasswordRecoveryTokenDTO.ResidentId), nameof(ResidentPasswordRecoveryTokenDTO.UsedAt)));
+        }
+
+        [Fact]
         public void RecycleBin_ShouldEncryptSnapshotsAndKeepRetentionIndexes()
         {
             using var context = CreateContext();
@@ -193,6 +205,24 @@ namespace CondotifyAPI.Tests
             Assert.NotNull(entity);
             Assert.True(HasIndex(entity!, nameof(DeliveryDTO.LicenseId), nameof(DeliveryDTO.Status), nameof(DeliveryDTO.CreatedAt)));
             Assert.True(HasIndex(entity!, nameof(DeliveryDTO.LicenseId), nameof(DeliveryDTO.TrackingCode)));
+            Assert.True(HasIndex(entity!, nameof(DeliveryDTO.RecipientResidentId), nameof(DeliveryDTO.Status), nameof(DeliveryDTO.CreatedAt)));
+
+            var residentForeignKey = entity.GetForeignKeys()
+                .Single(x => x.PrincipalEntityType.ClrType == typeof(ResidentAccessDTO));
+            var unitForeignKey = entity.GetForeignKeys()
+                .Single(x => x.PrincipalEntityType.ClrType == typeof(UnitDTO));
+            Assert.Equal(DeleteBehavior.SetNull, residentForeignKey.DeleteBehavior);
+            Assert.Equal(DeleteBehavior.SetNull, unitForeignKey.DeleteBehavior);
+        }
+
+        [Fact]
+        public void CftvResidentVisibility_ShouldDefaultToPrivate()
+        {
+            using var context = CreateContext();
+            var entity = context.Model.FindEntityType(typeof(CFTVDeviceDTO));
+
+            Assert.NotNull(entity);
+            Assert.Equal(false, entity!.FindProperty(nameof(CFTVDeviceDTO.ResidentVisible))!.GetDefaultValue());
         }
 
         [Fact]
@@ -398,6 +428,37 @@ namespace CondotifyAPI.Tests
                 nameof(AlertNotificationDeliveryDTO.Status),
                 nameof(AlertNotificationDeliveryDTO.NextAttemptAt),
                 nameof(AlertNotificationDeliveryDTO.LeaseExpiresAt)));
+        }
+
+        [Fact]
+        public void MobilePush_ShouldEncryptTokensAndDeduplicateInstallationsAndDeliveries()
+        {
+            using var context = CreateContext();
+            var installation = context.Model.FindEntityType(typeof(PushInstallationDTO));
+            var notification = context.Model.FindEntityType(typeof(PushNotificationDTO));
+            var delivery = context.Model.FindEntityType(typeof(PushDeliveryDTO));
+
+            Assert.NotNull(installation);
+            Assert.NotNull(notification);
+            Assert.NotNull(delivery);
+            Assert.True(HasUniqueIndex(installation!, nameof(PushInstallationDTO.InstallationId)));
+            Assert.True(HasUniqueIndex(installation!, nameof(PushInstallationDTO.TokenHash)));
+            Assert.True(HasUniqueIndex(
+                notification!,
+                nameof(PushNotificationDTO.SubjectType),
+                nameof(PushNotificationDTO.SubjectId),
+                nameof(PushNotificationDTO.DeduplicationKey)));
+            Assert.True(HasUniqueIndex(
+                delivery!,
+                nameof(PushDeliveryDTO.NotificationId),
+                nameof(PushDeliveryDTO.InstallationId)));
+
+            var converter = installation.FindProperty(nameof(PushInstallationDTO.PushToken))!.GetValueConverter();
+            Assert.NotNull(converter);
+            var encrypted = Assert.IsType<string>(converter!.ConvertToProvider("fcm-sensitive-token"));
+            Assert.StartsWith("enc:v1:", encrypted);
+            Assert.DoesNotContain("fcm-sensitive-token", encrypted);
+            Assert.Equal("fcm-sensitive-token", converter.ConvertFromProvider(encrypted));
         }
 
         private static DatabaseContext CreateContext()

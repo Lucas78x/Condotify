@@ -3,7 +3,9 @@ using Condotify.Out;
 using Condotify.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
@@ -16,44 +18,41 @@ namespace Condotify.Controllers
         private readonly ILogger<LoginController> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
+        private readonly WebSessionRefreshCoordinator _refreshCoordinator;
 
         public LoginController(
             ILogger<LoginController> logger,
             IHttpClientFactory httpClientFactory,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            WebSessionRefreshCoordinator refreshCoordinator)
         {
             _logger = logger;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
+            _refreshCoordinator = refreshCoordinator;
         }
 
 
         [HttpGet]
         public async Task<IActionResult> Login()
         {
-            var token = User.FindFirstValue(ClaimsSessionContextProvider.AccessTokenClaim);
-            if (User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(token))
+            if (User.Identity?.IsAuthenticated == true)
             {
-                var client = _httpClientFactory.CreateClient();
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
                 try
                 {
-                    var response = await client.GetAsync(BuildApiUrl("api/auth/validate"));
-
-                    if (response.IsSuccessStatusCode)
-                    {
+                    var token = User.FindFirstValue(ClaimsSessionContextProvider.AccessTokenClaim);
+                    if (!string.IsNullOrWhiteSpace(token) && await ValidateAccessTokenAsync(token, HttpContext.RequestAborted))
                         return Redirect("/");
-                    }
-                    else
-                    {
-                        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-                    }
+
+                    if (await RefreshCookieSessionAsync(HttpContext.RequestAborted) is not null)
+                        return Redirect("/");
                 }
-                catch
+                catch (Exception ex)
                 {
-                    await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                    _logger.LogWarning(ex, "Nao foi possivel validar ou renovar a sessao web");
                 }
+
+                await SignOutLocalAsync();
             }
 
             return View();
@@ -94,9 +93,10 @@ namespace Condotify.Controllers
                 if (response.IsSuccessStatusCode
                     && result != null
                     && result.Result == "Success"
-                    && !string.IsNullOrWhiteSpace(result.AccessToken))
+                    && !string.IsNullOrWhiteSpace(result.AccessToken)
+                    && !string.IsNullOrWhiteSpace(result.RefreshToken))
                 {
-                    var principal = CreatePrincipal(result.AccessToken, model.Email);
+                    var principal = CreatePrincipal(result.AccessToken, result.RefreshToken, model.Email);
                     await HttpContext.SignInAsync(
                         CookieAuthenticationDefaults.AuthenticationScheme,
                         principal,
@@ -139,9 +139,34 @@ namespace Condotify.Controllers
         [HttpGet]
         public async Task<IActionResult> Logout()
         {
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            Response.Cookies.Delete("AuthToken");
+            await RevokeRemoteSessionAsync(HttpContext.RequestAborted);
+            await SignOutLocalAsync();
             return RedirectToAction(nameof(Login));
+        }
+
+        [HttpGet]
+        [Authorize]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> KeepAlive(CancellationToken cancellationToken)
+        {
+            var remaining = GetRemainingAccessTokenLifetime(User, DateTimeOffset.UtcNow);
+            if (remaining is { } current && current > TimeSpan.FromMinutes(5))
+                return Ok(new { Refreshed = false, ExpiresInSeconds = Math.Max(1, (long)current.TotalSeconds) });
+
+            var refreshed = await RefreshCookieSessionAsync(cancellationToken);
+            if (refreshed is null)
+            {
+                await SignOutLocalAsync();
+                return Unauthorized(new { Result = "SessionExpired" });
+            }
+
+            var refreshedRemaining = GetRemainingAccessTokenLifetime(refreshed, DateTimeOffset.UtcNow)
+                ?? TimeSpan.FromMinutes(55);
+            return Ok(new
+            {
+                Refreshed = true,
+                ExpiresInSeconds = Math.Max(1, (long)refreshedRemaining.TotalSeconds)
+            });
         }
 
         private string BuildApiUrl(string path)
@@ -150,11 +175,124 @@ namespace Condotify.Controllers
             return $"{baseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
         }
 
-        private static ClaimsPrincipal CreatePrincipal(string accessToken, string fallbackEmail)
+        private async Task<bool> ValidateAccessTokenAsync(string accessToken, CancellationToken cancellationToken)
+        {
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            using var response = await client.GetAsync(BuildApiUrl("api/auth/validate"), cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+
+        private async Task<ClaimsPrincipal?> RefreshCookieSessionAsync(CancellationToken cancellationToken)
+        {
+            var refreshToken = User.FindFirstValue(ClaimsSessionContextProvider.RefreshTokenClaim);
+            if (string.IsNullOrWhiteSpace(refreshToken))
+                return null;
+
+            var result = await _refreshCoordinator.RefreshAsync(
+                refreshToken,
+                ct => RequestRefreshAsync(refreshToken, ct),
+                cancellationToken);
+            if (!IsSuccessfulRefresh(result))
+                return null;
+
+            var fallbackEmail = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty;
+            var principal = CreatePrincipal(result!.AccessToken!, result.RefreshToken!, fallbackEmail);
+            var authentication = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            var properties = authentication.Properties ?? new AuthenticationProperties
+            {
+                AllowRefresh = true
+            };
+
+            await HttpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                principal,
+                properties);
+
+            return principal;
+        }
+
+        private async Task<LoginOut?> RequestRefreshAsync(string refreshToken, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                using var response = await client.PostAsJsonAsync(
+                    BuildApiUrl("api/auth/refresh"),
+                    new { RefreshToken = refreshToken },
+                    cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                    return null;
+
+                return await response.Content.ReadFromJsonAsync<LoginOut>(cancellationToken: cancellationToken);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or JsonException or NotSupportedException)
+            {
+                _logger.LogWarning(ex, "A API nao renovou a sessao web");
+                return null;
+            }
+        }
+
+        private async Task RevokeRemoteSessionAsync(CancellationToken cancellationToken)
+        {
+            var accessToken = User.FindFirstValue(ClaimsSessionContextProvider.AccessTokenClaim);
+            var refreshToken = User.FindFirstValue(ClaimsSessionContextProvider.RefreshTokenClaim);
+            if (string.IsNullOrWhiteSpace(refreshToken))
+                return;
+
+            try
+            {
+                if (GetRemainingAccessTokenLifetime(User, DateTimeOffset.UtcNow) is not { } remaining
+                    || remaining <= TimeSpan.Zero)
+                {
+                    var refreshed = await _refreshCoordinator.RefreshAsync(
+                        refreshToken,
+                        ct => RequestRefreshAsync(refreshToken, ct),
+                        cancellationToken);
+                    if (IsSuccessfulRefresh(refreshed))
+                    {
+                        accessToken = refreshed!.AccessToken;
+                        refreshToken = refreshed.RefreshToken;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(accessToken))
+                    return;
+
+                var client = _httpClientFactory.CreateClient();
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                using var response = await client.PostAsJsonAsync(
+                    BuildApiUrl("api/auth/logout"),
+                    new { RefreshToken = refreshToken },
+                    cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                    _logger.LogWarning("A API recusou a revogacao da sessao web com HTTP {StatusCode}", response.StatusCode);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Nao foi possivel revogar a sessao remota durante o logout");
+            }
+        }
+
+        private async Task SignOutLocalAsync()
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            Response.Cookies.Delete("AuthToken");
+        }
+
+        private static bool IsSuccessfulRefresh(LoginOut? result) =>
+            result?.Result == "Success"
+            && !string.IsNullOrWhiteSpace(result.AccessToken)
+            && !string.IsNullOrWhiteSpace(result.RefreshToken);
+
+        private static ClaimsPrincipal CreatePrincipal(string accessToken, string refreshToken, string fallbackEmail)
         {
             var claims = new List<Claim>
             {
                 new(ClaimsSessionContextProvider.AccessTokenClaim, accessToken),
+                new(ClaimsSessionContextProvider.RefreshTokenClaim, refreshToken),
                 new(ClaimTypes.Email, fallbackEmail)
             };
 
@@ -171,6 +309,8 @@ namespace Condotify.Controllers
                     AddClaim(json.RootElement, claims, "name", ClaimTypes.Name);
                     AddClaim(json.RootElement, claims, "enterprise_id", ClaimsSessionContextProvider.EnterpriseIdClaim);
                     AddClaim(json.RootElement, claims, "access_type", "access_type");
+                    AddClaim(json.RootElement, claims, "principal_type", "principal_type");
+                    AddExpirationClaim(json.RootElement, claims);
                 }
             }
             catch
@@ -180,6 +320,38 @@ namespace Condotify.Controllers
 
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
             return new ClaimsPrincipal(identity);
+        }
+
+        private static TimeSpan? GetRemainingAccessTokenLifetime(ClaimsPrincipal principal, DateTimeOffset now)
+        {
+            var value = principal.FindFirstValue(ClaimsSessionContextProvider.AccessTokenExpiresAtClaim);
+            return long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var expiresAt)
+                ? DateTimeOffset.FromUnixTimeSeconds(expiresAt) - now
+                : null;
+        }
+
+        private static TimeSpan? GetRemainingAccessTokenLifetime(LoginOut result, DateTimeOffset now)
+        {
+            if (string.IsNullOrWhiteSpace(result.AccessToken))
+                return null;
+
+            try
+            {
+                var parts = result.AccessToken.Split('.');
+                if (parts.Length < 2)
+                    return null;
+
+                var payload = parts[1].Replace('-', '+').Replace('_', '/');
+                payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
+                using var json = JsonDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(payload)));
+                return json.RootElement.TryGetProperty("exp", out var exp) && exp.TryGetInt64(out var expiresAt)
+                    ? DateTimeOffset.FromUnixTimeSeconds(expiresAt) - now
+                    : null;
+            }
+            catch (Exception ex) when (ex is FormatException or JsonException)
+            {
+                return null;
+            }
         }
 
         private static string FriendlyLoginError(string? result) => result switch
@@ -193,9 +365,19 @@ namespace Condotify.Controllers
         {
             if (!payload.TryGetProperty(jsonName, out var value)) return;
 
-            var text = value.GetString();
+            var text = value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
             if (!string.IsNullOrWhiteSpace(text) && !claims.Any(x => x.Type == claimType))
                 claims.Add(new Claim(claimType, text));
+        }
+
+        private static void AddExpirationClaim(JsonElement payload, ICollection<Claim> claims)
+        {
+            if (payload.TryGetProperty("exp", out var value) && value.TryGetInt64(out var expiresAt))
+            {
+                claims.Add(new Claim(
+                    ClaimsSessionContextProvider.AccessTokenExpiresAtClaim,
+                    expiresAt.ToString(CultureInfo.InvariantCulture)));
+            }
         }
     }
 }

@@ -1,6 +1,8 @@
 ﻿
 
 using CondotifyAPI.Domain.DTO.License;
+using CondotifyAPI.Domain.DTO.Resident;
+using CondotifyAPI.Domain.DTO.Unit;
 
 namespace CondotifyAPI.Domain.DTO.Delivers
 {
@@ -32,6 +34,11 @@ namespace CondotifyAPI.Domain.DTO.Delivers
 
         public Guid LicenseId { get; set; }
         public LicenseDTO License { get; set; } = null!;
+
+        public Guid? RecipientResidentId { get; set; }
+        public ResidentAccessDTO? RecipientResident { get; set; }
+        public Guid? UnitId { get; set; }
+        public UnitDTO? Unit { get; set; }
 
     }
 

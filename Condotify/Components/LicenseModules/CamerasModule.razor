@@ -37,8 +37,8 @@
     else
     {
         <div class="table-wrap"><MudTable Items="_devices" Hover Dense Elevation="0">
-            <HeaderContent><MudTh>Dispositivo</MudTh><MudTh>Tipo</MudTh><MudTh>Rede</MudTh><MudTh>Canais</MudTh></HeaderContent>
-            <RowTemplate><MudTd DataLabel="Dispositivo"><div class="license-name-cell"><span class="device-type-icon"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><strong>@context.Name</strong></div></MudTd><MudTd DataLabel="Tipo">@context.DeviceType</MudTd><MudTd DataLabel="Rede">@context.IpAddress:@context.RTSPPort</MudTd><MudTd DataLabel="Canais">@context.MaxChannels</MudTd></RowTemplate>
+            <HeaderContent><MudTh>Dispositivo</MudTh><MudTh>Tipo</MudTh><MudTh>Rede</MudTh><MudTh>Canais</MudTh><MudTh>Aplicativo dos moradores</MudTh></HeaderContent>
+            <RowTemplate><MudTd DataLabel="Dispositivo"><div class="license-name-cell"><span class="device-type-icon"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><strong>@context.Name</strong></div></MudTd><MudTd DataLabel="Tipo">@context.DeviceType</MudTd><MudTd DataLabel="Rede">@context.IpAddress:@context.RTSPPort</MudTd><MudTd DataLabel="Canais">@context.MaxChannels</MudTd><MudTd DataLabel="Aplicativo dos moradores"><MudSwitch T="bool" Value="@context.ResidentVisible" ValueChanged="@(value => SetResidentVisibilityAsync(context, value))" Disabled="@(!CanManage || _updatingVisibility == context.Id)" Color="Color.Primary" aria-label="Compartilhar camera com moradores" /></MudTd></RowTemplate>
         </MudTable></div>
     }
 </MudPaper>
@@ -49,6 +49,7 @@
     private List<CftvDeviceRowViewModel> _devices = [];
     private string? _error;
     private bool _loading = true;
+    private Guid? _updatingVisibility;
 
     protected override Task OnInitializedAsync() => LoadAsync();
     private async Task LoadAsync()
@@ -66,5 +67,18 @@
         if (result?.Canceled != false) return;
         Snackbar.Add("Camera ou gravador cadastrado com sucesso.", Severity.Success);
         await LoadAsync();
+    }
+    private async Task SetResidentVisibilityAsync(CftvDeviceRowViewModel device, bool visible)
+    {
+        _updatingVisibility = device.Id;
+        var result = await Api.UpdateCftvResidentVisibilityAsync(LicenseId, device.Id, visible);
+        _updatingVisibility = null;
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Nao foi possivel alterar a visibilidade da camera.", Severity.Error);
+            return;
+        }
+        device.ResidentVisible = visible;
+        Snackbar.Add(visible ? "Camera disponibilizada aos moradores." : "Camera removida do aplicativo dos moradores.", Severity.Success);
     }
 }

@@ -17,6 +17,7 @@
         public CFTVDeviceTypeEnum DeviceType { get; set; }
 
         public int MaxChannels { get; set; }
+        public bool ResidentVisible { get; set; }
 
         public ICollection<CFTVChannel> Channels { get; set; } = [];
 
@@ -32,7 +33,8 @@
          MarkEnum mark,
          CFTVDeviceTypeEnum deviceType,
          int maxChannels,
-         ICollection<CFTVChannel> channels)
+         ICollection<CFTVChannel> channels,
+         bool residentVisible = false)
         {
             Id = Guid.NewGuid();
             Name = name;
@@ -47,6 +49,7 @@
             DeviceType = deviceType;
             MaxChannels = maxChannels;
             Channels = channels;
+            ResidentVisible = residentVisible;
         }
 
         public static CFTVDevice Create(
@@ -61,7 +64,8 @@
             MarkEnum mark,
             CFTVDeviceTypeEnum deviceType,
             int maxChannels,
-            ICollection<CFTVChannel> channels)
+            ICollection<CFTVChannel> channels,
+            bool residentVisible = false)
         {
             return new CFTVDevice(
                 name,
@@ -75,7 +79,8 @@
                 mark,
                 deviceType,
                 maxChannels,
-                channels);
+                channels,
+                residentVisible);
         }
 
         public void AddChannels(ICollection<int> channels)

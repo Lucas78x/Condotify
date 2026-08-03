@@ -60,7 +60,7 @@
         <div class="metric-grid">
             <div class="metric primary"><span class="metric-value">@(_dashboard?.ResidentCount ?? 0)</span><span class="metric-label">Pessoas</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span></div>
             <div class="metric success"><span class="metric-value">@(_dashboard?.OnlineDeviceCount ?? 0)/@(_dashboard?.DeviceCount ?? 0)</span><span class="metric-label">Equipamentos online</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Sensors" /></span></div>
-            <div class="metric info"><span class="metric-value">@(_dashboard?.PendingBookingCount ?? 0)</span><span class="metric-label">Reservas pendentes</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" /></span></div>
+            <div class="metric info"><span class="metric-value">@(_dashboard?.PendingBookingCount ?? 0)</span><span class="metric-label">Reservas pendentes</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" Style="width:24px;height:24px;font-size:24px" /></span></div>
             <div class="metric warning"><span class="metric-value">@(_dashboard?.Alerts.Count ?? 0)</span><span class="metric-label">Alertas recentes</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></span></div>
         </div>
         <div class="dashboard-section-title"><MudText Typo="Typo.h5">Acesso rápido</MudText></div>

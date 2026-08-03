@@ -29,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Condotify.Contracts\Condotify.Contracts.csproj" />
     <ProjectReference Include="..\CondotifyAPI.Infrastructure\CondotifyAPI.Infrastructure.csproj" />
   </ItemGroup>
 

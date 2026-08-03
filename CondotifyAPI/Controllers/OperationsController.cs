@@ -233,6 +233,7 @@ public sealed class OperationsController(
             {
                 Id = x.Id,
                 LicenseId = x.Unit.Block.LicenseId,
+                UnitId = x.UnitId,
                 LicenseName = x.Unit.Block.License.Name,
                 Name = x.Name,
                 BlockName = x.Unit.Block.Name,

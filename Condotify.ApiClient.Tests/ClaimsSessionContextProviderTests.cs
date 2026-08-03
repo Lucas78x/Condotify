@@ -81,6 +81,8 @@ public class ClaimsSessionContextProviderTests
     public void ClaimNames_KeepTheValuesTheCookieAlreadyStores()
     {
         Assert.Equal("condotify_access_token", ClaimsSessionContextProvider.AccessTokenClaim);
+        Assert.Equal("condotify_refresh_token", ClaimsSessionContextProvider.RefreshTokenClaim);
+        Assert.Equal("condotify_access_token_expires_at", ClaimsSessionContextProvider.AccessTokenExpiresAtClaim);
         Assert.Equal("enterprise_id", ClaimsSessionContextProvider.EnterpriseIdClaim);
     }
 

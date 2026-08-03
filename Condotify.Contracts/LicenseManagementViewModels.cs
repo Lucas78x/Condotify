@@ -99,6 +99,7 @@ namespace Condotify.Models
         public int Mark { get; set; }
         public int DeviceType { get; set; } = 1;
         public int MaxChannels { get; set; } = 1;
+        public bool ResidentVisible { get; set; }
     }
 
     public class BlocksPageViewModel : LicenseModuleViewModel
@@ -209,6 +210,8 @@ namespace Condotify.Models
         public string TrackingCode { get; set; } = string.Empty;
         public string PhotoUrl { get; set; } = string.Empty;
         public string ReceivedBy { get; set; } = string.Empty;
+        public Guid? RecipientResidentId { get; set; }
+        public Guid? UnitId { get; set; }
     }
 
     public class DeliveryStatusFormViewModel
@@ -237,6 +240,8 @@ namespace Condotify.Models
         public DateTime? DeliveredAt { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        public Guid? RecipientResidentId { get; set; }
+        public Guid? UnitId { get; set; }
     }
 
     public class AccessDeviceRowViewModel
@@ -518,6 +523,7 @@ namespace Condotify.Models
     {
         public Guid Id { get; set; }
         public Guid LicenseId { get; set; }
+        public Guid UnitId { get; set; }
         public string LicenseName { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string BlockName { get; set; } = string.Empty;
@@ -548,6 +554,7 @@ namespace Condotify.Models
         public string RTSPPort { get; set; } = string.Empty;
         public string DeviceType { get; set; } = string.Empty;
         public int MaxChannels { get; set; }
+        public bool ResidentVisible { get; set; }
     }
 
     public class LicenseStructureViewModel

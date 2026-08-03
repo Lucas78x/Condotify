@@ -41,6 +41,139 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<List<LicenseViewModel>>> GetLicensesAsync(CancellationToken cancellationToken = default) =>
         GetAsync<List<LicenseViewModel>>("api/access/licenses", cancellationToken);
 
+    public Task<ApiResult<MobileInstallationViewModel>> RegisterMobileInstallationAsync(
+        string installationId,
+        MobileInstallationUpsertViewModel input,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<MobileInstallationViewModel>(
+            HttpMethod.Put,
+            $"api/mobile/installations/{Uri.EscapeDataString(installationId)}",
+            input,
+            cancellationToken);
+
+    public Task<ApiResult<bool>> UnregisterMobileInstallationAsync(
+        string installationId,
+        CancellationToken cancellationToken = default) =>
+        DeleteAsync(
+            $"api/mobile/installations/{Uri.EscapeDataString(installationId)}",
+            cancellationToken);
+
+    public Task<ApiResult<List<MobileNotificationPreferenceViewModel>>> GetMobileNotificationPreferencesAsync(
+        CancellationToken cancellationToken = default) =>
+        GetAsync<List<MobileNotificationPreferenceViewModel>>("api/mobile/notification-preferences", cancellationToken);
+
+    public Task<ApiResult<List<MobileNotificationPreferenceViewModel>>> UpdateMobileNotificationPreferencesAsync(
+        MobileNotificationPreferencesUpdateViewModel input,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<List<MobileNotificationPreferenceViewModel>>(
+            HttpMethod.Put,
+            "api/mobile/notification-preferences",
+            input,
+            cancellationToken);
+
+    public Task<ApiResult<MobileNotificationPageViewModel>> GetMobileNotificationsAsync(
+        int page = 1,
+        int pageSize = 30,
+        CancellationToken cancellationToken = default) =>
+        GetAsync<MobileNotificationPageViewModel>(
+            $"api/mobile/notifications?page={Math.Max(1, page)}&pageSize={Math.Clamp(pageSize, 1, 100)}",
+            cancellationToken);
+
+    public Task<ApiResult<MobileNotificationViewModel>> MarkMobileNotificationReadAsync(
+        Guid notificationId,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<MobileNotificationViewModel>(
+            HttpMethod.Post,
+            $"api/mobile/notifications/{notificationId}/read",
+            new { },
+            cancellationToken);
+
+    public Task<ApiResult<MobileNotificationViewModel>> SendTestMobileNotificationAsync(
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<MobileNotificationViewModel>(
+            HttpMethod.Post,
+            "api/mobile/notifications/test",
+            new { },
+            cancellationToken);
+
+    public Task<ApiResult<ResidentProfileViewModel>> GetResidentProfileAsync(
+        CancellationToken cancellationToken = default) =>
+        GetAsync<ResidentProfileViewModel>("api/resident/me", cancellationToken);
+
+    public Task<ApiResult<List<ConciergeVisitViewModel>>> GetResidentVisitsAsync(
+        CancellationToken cancellationToken = default) =>
+        GetAsync<List<ConciergeVisitViewModel>>("api/resident/visits", cancellationToken);
+
+    public Task<ApiResult<List<AmenityBookingViewModel>>> GetResidentBookingsAsync(
+        CancellationToken cancellationToken = default) =>
+        GetAsync<List<AmenityBookingViewModel>>("api/resident/bookings", cancellationToken);
+
+    public Task<ApiResult<List<AmenityViewModel>>> GetResidentAmenitiesAsync(
+        CancellationToken cancellationToken = default) =>
+        GetAsync<List<AmenityViewModel>>("api/resident/amenities", cancellationToken);
+
+    public Task<ApiResult<ConciergeVisitViewModel>> CreateResidentVisitAsync(
+        ResidentVisitFormViewModel model,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<ConciergeVisitViewModel>(
+            HttpMethod.Post,
+            "api/resident/visits",
+            model,
+            cancellationToken);
+
+    public Task<ApiResult<List<AmenitySlotAvailabilityViewModel>>> GetResidentAmenityAvailabilityAsync(
+        Guid amenityId,
+        DateTime date,
+        CancellationToken cancellationToken = default) =>
+        GetAsync<List<AmenitySlotAvailabilityViewModel>>(
+            $"api/resident/amenities/{amenityId}/availability?date={date:yyyy-MM-dd}",
+            cancellationToken);
+
+    public Task<ApiResult<AmenityBookingViewModel>> CreateResidentBookingAsync(
+        Guid amenityId,
+        AmenityBookingFormViewModel model,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<AmenityBookingViewModel>(
+            HttpMethod.Post,
+            $"api/resident/amenities/{amenityId}/bookings",
+            model,
+            cancellationToken);
+
+    public Task<ApiResult<bool>> CancelResidentBookingAsync(
+        Guid bookingId,
+        string reason,
+        CancellationToken cancellationToken = default) =>
+        SendForBoolAsync(
+            HttpMethod.Delete,
+            $"api/resident/bookings/{bookingId}",
+            new { Reason = reason },
+            cancellationToken);
+
+    public Task<ApiResult<List<CftvStatusViewModel>>> GetCftvStatusAsync(
+        Guid licenseId,
+        CancellationToken cancellationToken = default) =>
+        GetAsync<List<CftvStatusViewModel>>($"api/access/licenses/{licenseId}/cftv/status", cancellationToken);
+
+    public Task<ApiResult<CftvStreamSessionViewModel>> OpenCftvStreamAsync(
+        Guid licenseId,
+        Guid deviceId,
+        int channel = 1,
+        string quality = "secondary",
+        string protocol = "hls",
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<CftvStreamSessionViewModel>(
+            HttpMethod.Post,
+            $"api/access/licenses/{licenseId}/cftv/{deviceId}/sessions",
+            new { Channel = channel, Quality = quality, Protocol = protocol },
+            cancellationToken);
+
+    public Task<ApiResult<bool>> CloseCftvStreamAsync(
+        Guid licenseId,
+        Guid deviceId,
+        int channel = 1,
+        CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/cftv/{deviceId}/sessions/{channel}", cancellationToken);
+
     public Task<ApiResult<OperationalDashboardViewModel>> GetOperationalDashboardAsync(CancellationToken cancellationToken = default) =>
         GetAsync<OperationalDashboardViewModel>("api/access/operations/dashboard", cancellationToken);
 
@@ -244,8 +377,41 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<List<CftvDeviceRowViewModel>>> GetCamerasAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
         GetAsync<List<CftvDeviceRowViewModel>>($"api/access/licenses/{licenseId}/cftv", cancellationToken);
 
+    public Task<ApiResult<string>> GetCftvSnapshotAsync(Guid licenseId, Guid deviceId, int channel = 1, CancellationToken cancellationToken = default) =>
+        GetMediaDataUrlAsync($"api/access/licenses/{licenseId}/cftv/{deviceId}/snapshot?channel={channel}", cancellationToken);
+
+    public Task<ApiResult<bool>> UpdateCftvResidentVisibilityAsync(Guid licenseId, Guid deviceId, bool residentVisible, CancellationToken cancellationToken = default) =>
+        PatchAsync($"api/access/licenses/{licenseId}/cftv/{deviceId}/resident-visibility", new { ResidentVisible = residentVisible }, cancellationToken);
+
     public Task<ApiResult<List<DeliveryRowViewModel>>> GetDeliveriesAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
         GetAsync<List<DeliveryRowViewModel>>($"api/access/licenses/{licenseId}/deliveries", cancellationToken);
+
+    public Task<ApiResult<List<DeliveryRowViewModel>>> GetResidentDeliveriesAsync(CancellationToken cancellationToken = default) =>
+        GetAsync<List<DeliveryRowViewModel>>("api/resident/deliveries", cancellationToken);
+
+    public Task<ApiResult<List<ResidentCameraViewModel>>> GetResidentCamerasAsync(CancellationToken cancellationToken = default) =>
+        GetAsync<List<ResidentCameraViewModel>>("api/resident/cameras", cancellationToken);
+
+    public Task<ApiResult<string>> GetResidentCftvSnapshotAsync(Guid deviceId, int channel = 1, CancellationToken cancellationToken = default) =>
+        GetMediaDataUrlAsync($"api/resident/cameras/{deviceId}/snapshot?channel={channel}", cancellationToken);
+
+    public Task<ApiResult<CftvStreamSessionViewModel>> OpenResidentCftvStreamAsync(
+        Guid deviceId,
+        int channel = 1,
+        string quality = "secondary",
+        string protocol = "hls",
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<CftvStreamSessionViewModel>(
+            HttpMethod.Post,
+            $"api/resident/cameras/{deviceId}/sessions",
+            new { Channel = channel, Quality = quality, Protocol = protocol },
+            cancellationToken);
+
+    public Task<ApiResult<bool>> CloseResidentCftvStreamAsync(
+        Guid deviceId,
+        int channel = 1,
+        CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/resident/cameras/{deviceId}/sessions/{channel}", cancellationToken);
 
     public Task<ApiResult<ConciergeDashboardViewModel>> GetConciergeDashboardAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
         GetAsync<ConciergeDashboardViewModel>($"api/access/licenses/{licenseId}/concierge", cancellationToken);
@@ -936,6 +1102,7 @@ public sealed class CondotifyApiClient
             model.Mark,
             model.DeviceType,
             model.MaxChannels,
+            model.ResidentVisible,
             Channels = Enumerable.Range(1, Math.Max(1, model.MaxChannels)).Select(channel => new
             {
                 ChannelNumber = channel,
@@ -953,7 +1120,9 @@ public sealed class CondotifyApiClient
             Description = model.Description.Trim(),
             TrackingCode = model.TrackingCode.Trim(),
             PhotoUrl = model.PhotoUrl.Trim(),
-            ReceivedBy = model.ReceivedBy.Trim()
+            ReceivedBy = model.ReceivedBy.Trim(),
+            model.RecipientResidentId,
+            model.UnitId
         }, false, cancellationToken);
 
     public Task<ApiResult<bool>> UpdateDeliveryStatusAsync(Guid licenseId, Guid deliveryId, int status, string personName, CancellationToken cancellationToken = default) =>
@@ -973,10 +1142,53 @@ public sealed class CondotifyApiClient
                 ? ApiResult<T>.Fail("A API retornou uma resposta vazia.", response.StatusCode)
                 : ApiResult<T>.Ok(value, response.StatusCode);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return ApiResult<T>.Fail("Operação cancelada.");
+        }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Tempo limite excedido ao consultar {ApiPath}", path);
+            return ApiResult<T>.Fail("A API demorou para responder. Tente novamente.");
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Falha ao consultar {ApiPath}", path);
-            return ApiResult<T>.Fail("A API esta indisponivel. Verifique se ela e o banco de dados estao em execucao.");
+            return ApiResult<T>.Fail("A API está indisponível. Verifique sua conexão e tente novamente.");
+        }
+    }
+
+    private async Task<ApiResult<string>> GetMediaDataUrlAsync(string path, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var client = await CreateClientAsync(cancellationToken);
+            using var response = await client.GetAsync(BuildApiUrl(path), cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return ApiResult<string>.Fail(await ReadErrorAsync(response, "A miniatura esta indisponivel."), response.StatusCode);
+
+            var mediaType = response.Content.Headers.ContentType?.MediaType;
+            if (string.IsNullOrWhiteSpace(mediaType) || !mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                return ApiResult<string>.Fail("A API retornou uma miniatura invalida.", response.StatusCode);
+
+            var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            return content.Length == 0
+                ? ApiResult<string>.Fail("A API retornou uma miniatura vazia.", response.StatusCode)
+                : ApiResult<string>.Ok($"data:{mediaType};base64,{Convert.ToBase64String(content)}", response.StatusCode);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return ApiResult<string>.Fail("Operação cancelada.");
+        }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Tempo limite excedido ao consultar miniatura em {ApiPath}", path);
+            return ApiResult<string>.Fail("A miniatura demorou para responder.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falha ao consultar miniatura em {ApiPath}", path);
+            return ApiResult<string>.Fail("Nao foi possivel carregar a miniatura.");
         }
     }
 
@@ -1081,6 +1293,15 @@ public sealed class CondotifyApiClient
             }
             return (true, document, null, response.StatusCode);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return (false, null, "Operação cancelada.", null);
+        }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Tempo limite excedido ao enviar dados para {ApiPath}", path);
+            return (false, null, "A API demorou para responder. Tente novamente.", null);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Falha ao enviar dados para {ApiPath}", path);
@@ -1090,7 +1311,7 @@ public sealed class CondotifyApiClient
 
     private async Task<HttpClient> CreateClientAsync(CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient();
+        var client = _httpClientFactory.CreateClient("CondotifyApi");
         var token = await _sessionContext.GetAccessTokenAsync(cancellationToken);
         if (!string.IsNullOrWhiteSpace(token))
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -1103,6 +1324,20 @@ public sealed class CondotifyApiClient
         return $"{baseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
     }
 
+    public Task<ApiResult<string>> GetPersonPhotoAsync(Guid licenseId, Guid mediaId, CancellationToken cancellationToken = default) =>
+        GetMediaDataUrlAsync($"api/access/licenses/{licenseId:D}/media/{mediaId:D}", cancellationToken);
+
+    public static bool TryParseMediaReference(string? reference, out Guid licenseId, out Guid mediaId)
+    {
+        licenseId = default;
+        mediaId = default;
+        if (string.IsNullOrWhiteSpace(reference)) return false;
+        var segments = reference.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length >= 2
+            && Guid.TryParse(segments[^2], out licenseId)
+            && Guid.TryParse(segments[^1], out mediaId);
+    }
+
     private string? GetApiKey()
     {
         var configured = _configuration["CondotifyApi:ApiKey"];
@@ -1110,7 +1345,8 @@ public sealed class CondotifyApiClient
             return configured;
 
         return Environment.GetEnvironmentVariable("CONDOTIFY_API_KEY")
-            ?? Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY");
+            ?? Environment.GetEnvironmentVariable("CT_UserAccess_API_KEY")
+            ?? Environment.GetEnvironmentVariable("MY_API_KEY");
     }
 
     private static async Task<string> ReadErrorAsync(HttpResponseMessage response, string fallback)

@@ -12,6 +12,14 @@ public sealed class EquipmentSecretConverter : ValueConverter<string, string>
     }
 }
 
+public sealed class PushTokenConverter : ValueConverter<string, string>
+{
+    public PushTokenConverter()
+        : base(value => EquipmentSecretCryptography.Protect(value), value => EquipmentSecretCryptography.Unprotect(value))
+    {
+    }
+}
+
 internal static class EquipmentSecretCryptography
 {
     private const string Prefix = "enc:v1:";

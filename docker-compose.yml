@@ -37,7 +37,7 @@ services:
       JWTCondotify_Audience: Condotify
       CONDOTIFY_API_KEY: ${CONDOTIFY_API_KEY:?Defina CONDOTIFY_API_KEY no arquivo .env}
       CONDOTIFY_EQUIPMENT_SECRET: ${EQUIPMENT_SECRET:-condotify-local-equipment-secret-change-before-production-2026}
-      CONDOTIFY_MEDIA_SECRET: ${MEDIA_SECRET:?Defina MEDIA_SECRET no arquivo .env: ele protege as imagens privadas e agora tambem o acesso ao video ao vivo de todas as cameras}
+      CONDOTIFY_MEDIA_SECRET: ${MEDIA_SECRET:?Defina MEDIA_SECRET no arquivo .env; ele protege as imagens privadas e agora tambem o acesso ao video ao vivo de todas as cameras}
       CONDOTIFY_PRIVATE_MEDIA_PATH: /app/data/private-media
       CONDOTIFY_BACKUP_EXPORT_SECRET: ${BACKUP_EXPORT_SECRET:?Defina BACKUP_EXPORT_SECRET no arquivo .env}
       CONDOTIFY_BACKUP_EXPORT_PATH: /app/data/backups
@@ -71,6 +71,9 @@ services:
     image: bluenviron/mediamtx:1.9.3
     container_name: condotify-mediamtx
     restart: unless-stopped
+    environment:
+      # IP ou DNS publico anunciado nos candidatos ICE do WebRTC.
+      MTX_WEBRTCADDITIONALHOSTS: ${CONDOTIFY_MEDIA_WEBRTC_HOSTS:-localhost}
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
     ports:

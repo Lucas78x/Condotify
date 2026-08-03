@@ -25,6 +25,7 @@ namespace CondotifyAPI.Commands.Equipments
         public CFTVDeviceTypeEnum DeviceType { get; set; }
 
         public int MaxChannels;
+        public bool ResidentVisible { get; set; }
 
         public ICollection<CFTVChannel> Channels { get; set; }
 
@@ -42,7 +43,8 @@ namespace CondotifyAPI.Commands.Equipments
 
             CFTVDeviceTypeEnum deviceType,
             int maxChannels,
-            ICollection<CFTVChannel> channels)
+            ICollection<CFTVChannel> channels,
+            bool residentVisible = false)
         {
             LicenseId = licenseId;
             Name = name;
@@ -57,6 +59,7 @@ namespace CondotifyAPI.Commands.Equipments
             DeviceType = deviceType;
             MaxChannels = maxChannels;
             Channels = channels;
+            ResidentVisible = residentVisible;
         }
 
         internal class Handler : IRequestHandler<CreateCftvDeviceByLicenseCommand, CFTVDevice?>
@@ -82,7 +85,8 @@ namespace CondotifyAPI.Commands.Equipments
                     request.Mark,
                     request.DeviceType,
                     request.MaxChannels,
-                    request.Channels
+                    request.Channels,
+                    request.ResidentVisible
 
                 );
 

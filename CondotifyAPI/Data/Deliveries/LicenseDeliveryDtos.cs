@@ -10,6 +10,8 @@ public class CreateDeliveryIn
     public string TrackingCode { get; set; } = string.Empty;
     public string PhotoUrl { get; set; } = string.Empty;
     public string ReceivedBy { get; set; } = string.Empty;
+    public Guid? RecipientResidentId { get; set; }
+    public Guid? UnitId { get; set; }
 }
 
 public class UpdateDeliveryStatusIn
@@ -38,4 +40,6 @@ public class DeliveryOut
     public DateTime? DeliveredAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public Guid? RecipientResidentId { get; set; }
+    public Guid? UnitId { get; set; }
 }

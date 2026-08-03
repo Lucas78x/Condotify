@@ -19,6 +19,7 @@ public sealed class ManagementCrudEndpointTests
         { typeof(LicenseStructureController), nameof(LicenseStructureController.DeleteUnit), typeof(HttpDeleteAttribute), "units/{unitId:guid}", LicensePermissionEnum.ManageStructure },
         { typeof(LicenseStructureController), nameof(LicenseStructureController.UpdateAccessDevice), typeof(HttpPatchAttribute), "devices/{deviceId:guid}", LicensePermissionEnum.ManageDevices },
         { typeof(LicenseStructureController), nameof(LicenseStructureController.DeleteAccessDevice), typeof(HttpDeleteAttribute), "devices/{deviceId:guid}", LicensePermissionEnum.ManageDevices },
+        { typeof(LicenseStructureController), nameof(LicenseStructureController.UpdateCftvResidentVisibility), typeof(HttpPatchAttribute), "cftv/{deviceId:guid}/resident-visibility", LicensePermissionEnum.ManageDevices },
         { typeof(PeopleManagementController), nameof(PeopleManagementController.UpdateVehicle), typeof(HttpPatchAttribute), "residents/{residentId:guid}/vehicles/{vehicleId:guid}", LicensePermissionEnum.ManagePeople },
         { typeof(PeopleManagementController), nameof(PeopleManagementController.DeleteVehicle), typeof(HttpDeleteAttribute), "residents/{residentId:guid}/vehicles/{vehicleId:guid}", LicensePermissionEnum.ManagePeople },
         { typeof(PeopleManagementController), nameof(PeopleManagementController.DeleteResident), typeof(HttpDeleteAttribute), "residents/{residentId:guid}", LicensePermissionEnum.ManagePeople }

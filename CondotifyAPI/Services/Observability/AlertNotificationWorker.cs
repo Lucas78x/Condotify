@@ -1,5 +1,7 @@
 using CondotifyAPI.Domain.DTO.Observability;
 using CondotifyAPI.Infrastructure;
+using CondotifyAPI.Services.Mobile;
+using CondotifyAPI.Domain.Enums.Mobile;
 using Microsoft.EntityFrameworkCore;
 
 namespace CondotifyAPI.Services.Observability;
@@ -31,6 +33,8 @@ public sealed class AlertNotificationWorker(
             await using var scope = scopes.CreateAsyncScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
             await ScheduleAsync(context, cancellationToken);
+            var push = scope.ServiceProvider.GetRequiredService<IPlatformPushNotifier>();
+            await SchedulePushAsync(context, push, cancellationToken);
             var delivery = await ClaimAsync(context, cancellationToken);
             if (delivery is null) return;
             var sender = scope.ServiceProvider.GetRequiredService<IAlertNotificationChannelSender>();
@@ -43,6 +47,43 @@ public sealed class AlertNotificationWorker(
         {
             logger.LogError(exception, "Falha no processamento de notificações de alerta");
         }
+    }
+
+    private static async Task SchedulePushAsync(
+        DatabaseContext context,
+        IPlatformPushNotifier push,
+        CancellationToken cancellationToken)
+    {
+        var recent = DateTime.UtcNow.AddDays(-14);
+        var alerts = await context.OperationalAlerts.AsNoTracking()
+            .Where(x => x.LicenseId != null &&
+                        x.Status != OperationalAlertStatus.Resolved &&
+                        x.UpdatedAt >= recent)
+            .OrderByDescending(x => x.Severity)
+            .ThenByDescending(x => x.UpdatedAt)
+            .Take(50)
+            .Select(x => new
+            {
+                x.Id,
+                LicenseId = x.LicenseId!.Value,
+                x.Severity,
+                x.Title,
+                x.Message,
+                x.OccurrenceCount
+            })
+            .ToListAsync(cancellationToken);
+
+        foreach (var alert in alerts)
+            await push.NotifyLicenseUsersAsync(
+                alert.LicenseId,
+                alert.Severity == OperationalAlertSeverity.Critical
+                    ? MobileNotificationCategory.Security
+                    : MobileNotificationCategory.Operational,
+                alert.Title,
+                alert.Message,
+                $"/alerts/{alert.Id:D}",
+                $"operational-alert:{alert.Id:N}:{alert.OccurrenceCount}",
+                cancellationToken);
     }
 
     private static async Task ScheduleAsync(DatabaseContext context, CancellationToken cancellationToken)

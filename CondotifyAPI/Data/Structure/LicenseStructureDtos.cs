@@ -134,5 +134,11 @@ namespace CondotifyAPI.Data.Structure
         public string RTSPPort { get; set; } = string.Empty;
         public string DeviceType { get; set; } = string.Empty;
         public int MaxChannels { get; set; }
+        public bool ResidentVisible { get; set; }
+    }
+
+    public class UpdateCftvResidentVisibilityIn
+    {
+        public bool ResidentVisible { get; set; }
     }
 }

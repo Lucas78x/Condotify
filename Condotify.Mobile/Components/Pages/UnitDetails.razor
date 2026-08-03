@@ -41,9 +41,9 @@
                 @foreach (var person in _unit.People)
                 {
                     <button type="button" class="list-row person-row" @onclick="() => OpenPerson(person.Id)">
-                        @if (!string.IsNullOrWhiteSpace(person.ImageUrl))
+                        @if (_photos.TryGetValue(person.Id, out var photo))
                         {
-                            <MudAvatar Class="photo-avatar"><img src="@person.ImageUrl" alt="" /></MudAvatar>
+                            <MudAvatar Class="photo-avatar"><img src="@photo" alt="" /></MudAvatar>
                         }
                         else
                         {
@@ -82,6 +82,7 @@
 @code {
     [Parameter] public Guid EntityId { get; set; }
     private UnitDetailViewModel? _unit;
+    private readonly Dictionary<Guid, string> _photos = new();
     private CancellationTokenSource? _loadCts;
     private bool _loading;
     private string _error = string.Empty;
@@ -108,7 +109,38 @@
         if (cancellationToken.IsCancellationRequested) return;
         _unit = result.Value;
         if (!result.Success) _error = result.Error ?? "Não foi possível carregar a unidade.";
+        await LoadPhotosAsync(cancellationToken);
+        if (cancellationToken.IsCancellationRequested) return;
         _loading = false;
+    }
+
+    private async Task LoadPhotosAsync(CancellationToken cancellationToken)
+    {
+        _photos.Clear();
+        var people = _unit?.People ?? [];
+        if (people.Count == 0) return;
+        using var concurrency = new SemaphoreSlim(3);
+        var requests = people.Select(async person =>
+        {
+            if (!CondotifyApiClient.TryParseMediaReference(person.ImageUrl, out var licenseId, out var mediaId)) return;
+            await concurrency.WaitAsync(cancellationToken);
+            try
+            {
+                var result = await Api.GetPersonPhotoAsync(licenseId, mediaId, cancellationToken);
+                if (result.Success && !string.IsNullOrWhiteSpace(result.Value)) _photos[person.Id] = result.Value;
+            }
+            finally
+            {
+                concurrency.Release();
+            }
+        });
+        try
+        {
+            await Task.WhenAll(requests);
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private void OpenPerson(Guid personId) => Navigation.NavigateTo($"/people/{personId:D}");
@@ -116,10 +148,11 @@
     private void ShowPeople() => _tab = "people";
     private void ShowVehicles() => _tab = "vehicles";
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
-    private static string CategoryLabel(string category) => category switch { "Resident" => "Morador", "Visitor" => "Visitante", "ServiceProvider" => "Prestador", "Employee" => "Funcionário", _ => category };
+    private static string CategoryLabel(string category) => category switch { "Responsible" => "Responsável", "NonResponsible" => "Morador", "Guest" => "Convidado", "ServiceProvider" => "Prestador", "Default" => "Morador", _ => category };
+    private static string RelationshipLabel(string relationship) => relationship switch { "OwnerResponsible" => "Proprietário responsável", "TenantResponsible" => "Locatário responsável", "Responsible" => "Responsável", "Dependent" => "Dependente", "Resident" => "Morador", _ => relationship };
     private static string PersonDescription(PersonSummaryViewModel person)
     {
-        var values = new[] { CategoryLabel(person.Category), person.Relationship }
+        var values = new[] { CategoryLabel(person.Category), RelationshipLabel(person.Relationship) }
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase);
         var description = string.Join(" · ", values);

@@ -1069,6 +1069,9 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Property<Guid?>("ReceivedId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("RecipientResidentId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -1080,6 +1083,9 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Property<int>("Type")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("UnitId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -1087,9 +1093,13 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("UnitId");
+
                     b.HasIndex("LicenseId", "TrackingCode");
 
                     b.HasIndex("LicenseId", "Status", "CreatedAt");
+
+                    b.HasIndex("RecipientResidentId", "Status", "CreatedAt");
 
                     b.ToTable("Deliveries", (string)null);
                 });
@@ -1439,6 +1449,11 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
+
+                    b.Property<bool>("ResidentVisible")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Username")
                         .IsRequired()
@@ -1949,6 +1964,259 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.HasIndex("UserId", "IsActive");
 
                     b.ToTable("LicenseUserAccesses", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Mobile.PushDeliveryDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("InstallationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LastError")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LeaseOwner")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<int>("MaxAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("NotificationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProviderMessageId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int?>("ResponseCode")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InstallationId");
+
+                    b.HasIndex("NotificationId", "InstallationId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "NextAttemptAt", "CreatedAt");
+
+                    b.ToTable("PushDeliveries", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Mobile.PushInstallationDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AppVersion")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("DeviceName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("InstallationId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Locale")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("Platform")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PushToken")
+                        .IsRequired()
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SubjectType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InstallationId")
+                        .IsUnique();
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("SubjectType", "SubjectId", "IsActive");
+
+                    b.ToTable("PushInstallations", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Mobile.PushNotificationDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("DataJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("{}");
+
+                    b.Property<string>("DeduplicationKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("DeepLink")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("FanoutCompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Route")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SubjectType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubjectType", "SubjectId", "CreatedAt");
+
+                    b.HasIndex("SubjectType", "SubjectId", "DeduplicationKey")
+                        .IsUnique();
+
+                    b.ToTable("PushNotifications", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Mobile.PushPreferenceDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SubjectType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubjectType", "SubjectId", "Category")
+                        .IsUnique();
+
+                    b.ToTable("PushPreferences", (string)null);
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Observability.AlertNotificationDeliveryDTO", b =>
@@ -2493,6 +2761,46 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasFilter("\"CPF\" <> ''");
 
                     b.ToTable("Resident", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentPasswordRecoveryTokenDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("CreatedIp")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ResidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("ResidentId", "UsedAt");
+
+                    b.ToTable("ResidentPasswordRecoveryTokens", (string)null);
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentUnitLinkDTO", b =>
@@ -3238,7 +3546,21 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("CondotifyAPI.Domain.DTO.Resident.ResidentAccessDTO", "RecipientResident")
+                        .WithMany()
+                        .HasForeignKey("RecipientResidentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Unit.UnitDTO", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("License");
+
+                    b.Navigation("RecipientResident");
+
+                    b.Navigation("Unit");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Equipments.AccessControlDeviceDTO", b =>
@@ -3443,6 +3765,25 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("License");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Mobile.PushDeliveryDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Mobile.PushInstallationDTO", "Installation")
+                        .WithMany("Deliveries")
+                        .HasForeignKey("InstallationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Mobile.PushNotificationDTO", "Notification")
+                        .WithMany("Deliveries")
+                        .HasForeignKey("NotificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Installation");
+
+                    b.Navigation("Notification");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Observability.AlertNotificationDeliveryDTO", b =>
@@ -3680,6 +4021,16 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("Tickets");
 
                     b.Navigation("UserAccesses");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Mobile.PushInstallationDTO", b =>
+                {
+                    b.Navigation("Deliveries");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Mobile.PushNotificationDTO", b =>
+                {
+                    b.Navigation("Deliveries");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentAccessCredentialDTO", b =>

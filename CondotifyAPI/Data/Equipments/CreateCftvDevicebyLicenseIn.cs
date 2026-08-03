@@ -22,6 +22,7 @@ namespace CondotifyAPI.Data.Equipments
         public CFTVDeviceTypeEnum DeviceType { get; set; }
 
         public int MaxChannels { get; set; }
+        public bool ResidentVisible { get; set; }
 
         public ICollection<CFTVChannel> Channels { get; set; } = [];
     }
@@ -43,7 +44,8 @@ namespace CondotifyAPI.Data.Equipments
                 device.Mark,
                 device.DeviceType,
                 device.MaxChannels,
-                device.Channels ?? []
+                device.Channels ?? [],
+                device.ResidentVisible
             );
         }
     }

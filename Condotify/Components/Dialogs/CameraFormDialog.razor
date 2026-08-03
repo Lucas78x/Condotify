@@ -22,6 +22,10 @@
                 <MudTextField T="string" @bind-Value="_form.RTSPPort" Label="Porta RTSP" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.UserName" Label="Usuario" Required Variant="Variant.Outlined" For="@(() => _form.UserName)" />
                 <MudTextField T="string" @bind-Value="_form.Password" Label="Senha" Required InputType="InputType.Password" Variant="Variant.Outlined" For="@(() => _form.Password)" />
+                <div class="full">
+                    <MudSwitch T="bool" @bind-Value="_form.ResidentVisible" Color="Color.Primary" Label="Disponibilizar no aplicativo dos moradores" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Moradores poderao visualizar esta camera sem receber IP ou credenciais do equipamento.</MudText>
+                </div>
             </div>
             <div class="form-actions dialog-form-actions">
                 <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>

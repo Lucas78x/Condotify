@@ -1,4 +1,5 @@
 using CondotifyAPI.Controllers;
+using CondotifyAPI.Services.CFTV;
 using Xunit;
 
 namespace CondotifyAPI.Tests;
@@ -60,5 +61,19 @@ public class CftvStreamingControllerTests
         // duas checagens de saude.
         var now = DateTime.UtcNow;
         Assert.False(CftvStreamingController.IsCameraOffline(isActive: false, lastSeenAt: now.AddMinutes(-9), utcNow: now));
+    }
+
+    [Theory]
+    [InlineData(MarkEnum.Hikvision, "/ISAPI/Streaming/channels/201/picture")]
+    [InlineData(MarkEnum.Hilook, "/ISAPI/Streaming/channels/201/picture")]
+    [InlineData(MarkEnum.Dahua, "/cgi-bin/snapshot.cgi?channel=2")]
+    [InlineData(MarkEnum.Intelbras, "/cgi-bin/snapshot.cgi?channel=2")]
+    [InlineData(MarkEnum.Axis, "/axis-cgi/jpg/image.cgi?camera=2")]
+    public void SnapshotCandidates_PrioritizeTheManufacturerPath(MarkEnum mark, string expected)
+    {
+        var paths = CftvSnapshotService.CandidatePaths(mark, 2);
+
+        Assert.Equal(expected, paths[0]);
+        Assert.Contains("/snapshot.jpg", paths);
     }
 }

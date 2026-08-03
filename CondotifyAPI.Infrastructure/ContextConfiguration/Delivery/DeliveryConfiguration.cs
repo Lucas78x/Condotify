@@ -66,8 +66,19 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Delivery
             builder.Property(d => d.DeliveredToId)
                 .IsRequired(false);
 
+            builder.HasOne(d => d.RecipientResident)
+                .WithMany()
+                .HasForeignKey(d => d.RecipientResidentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.HasOne(d => d.Unit)
+                .WithMany()
+                .HasForeignKey(d => d.UnitId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             builder.HasIndex(d => new { d.LicenseId, d.Status, d.CreatedAt });
             builder.HasIndex(d => new { d.LicenseId, d.TrackingCode });
+            builder.HasIndex(d => new { d.RecipientResidentId, d.Status, d.CreatedAt });
         }
     }
 }

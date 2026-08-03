@@ -13,13 +13,17 @@ namespace CondotifyAPI.Services.Security;
 public static class ResidentPasswordSetter
 {
     /// <summary>
-    /// Valida a senha com <see cref="PasswordPolicy"/> (usando "senha", nao "nova senha" —
-    /// este e o primeiro acesso do morador) e, se valida, devolve o hash gerado por
-    /// <paramref name="hasher"/>. A senha em si nunca aparece no resultado.
+    /// Valida a senha com <see cref="PasswordPolicy"/> e, se valida, devolve o hash gerado
+    /// por <paramref name="hasher"/>. A senha em si nunca aparece no resultado.
     /// </summary>
-    public static ResidentPasswordResult Resolve(string? password, IPasswordHasher<ResidentAccess> hasher)
+    /// <param name="subject">
+    /// Repassado a <see cref="PasswordPolicy.Validate"/> - "senha" (padrao) para o primeiro
+    /// acesso do morador (convite de cadastro); "nova senha" para os fluxos de troca/recuperacao
+    /// de senha (task 8), onde ja existe uma senha anterior sendo substituida.
+    /// </param>
+    public static ResidentPasswordResult Resolve(string? password, IPasswordHasher<ResidentAccess> hasher, string subject = "senha")
     {
-        var error = PasswordPolicy.Validate(password, "senha");
+        var error = PasswordPolicy.Validate(password, subject);
         if (error is not null)
             return ResidentPasswordResult.Failure(error);
 

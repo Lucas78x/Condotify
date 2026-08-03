@@ -19,6 +19,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.RecycleBin;
+using CondotifyAPI.Services.Mobile;
 
 namespace CondotifyAPI.Controllers;
 
@@ -31,17 +32,20 @@ public class LicenseStructureController : ControllerBase
     private readonly IAccessControlService _accessControlService;
     private readonly IMapper _mapper;
     private readonly IRecycleBinService _recycleBin;
+    private readonly IPlatformPushNotifier? _push;
 
     public LicenseStructureController(
         DatabaseContext context,
         IAccessControlService accessControlService,
         IMapper mapper,
-        IRecycleBinService recycleBin)
+        IRecycleBinService recycleBin,
+        IPlatformPushNotifier? push = null)
     {
         _context = context;
         _accessControlService = accessControlService;
         _mapper = mapper;
         _recycleBin = recycleBin;
+        _push = push;
     }
 
     [HttpGet("structure")]
@@ -542,11 +546,30 @@ public class LicenseStructureController : ControllerBase
                 HTTPPort = x.HTTPPort,
                 RTSPPort = x.RTSPPort,
                 DeviceType = x.DeviceType.ToString(),
-                MaxChannels = x.MaxChannels
+                MaxChannels = x.MaxChannels,
+                ResidentVisible = x.ResidentVisible
             })
             .ToListAsync();
 
         return Ok(devices);
+    }
+
+    [HttpPatch("cftv/{deviceId:guid}/resident-visibility")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageDevices)]
+    public async Task<IActionResult> UpdateCftvResidentVisibility(
+        Guid licenseId,
+        Guid deviceId,
+        [FromBody] UpdateCftvResidentVisibilityIn input)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+
+        var device = await _context.CFTVDevices
+            .FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId);
+        if (device is null) return NotFound();
+
+        device.ResidentVisible = input.ResidentVisible;
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpGet("deliveries")]
@@ -579,6 +602,20 @@ public class LicenseStructureController : ControllerBase
 
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
 
+        if (input.RecipientResidentId.HasValue != input.UnitId.HasValue)
+            return BadRequest(new { Result = "InvalidDestination", Errors = "Selecione o morador e a unidade de destino." });
+
+        if (input.RecipientResidentId.HasValue)
+        {
+            var validDestination = await _context.ResidentUnitLinks.AsNoTracking()
+                .AnyAsync(x => x.ResidentId == input.RecipientResidentId.Value &&
+                               x.UnitId == input.UnitId!.Value &&
+                               x.IsActive &&
+                               x.Unit.Block.LicenseId == licenseId);
+            if (!validDestination)
+                return BadRequest(new { Result = "InvalidDestination", Errors = "O destinatario nao possui vinculo ativo com a unidade selecionada." });
+        }
+
         var now = DateTime.UtcNow;
         var delivery = new DeliveryDTO
         {
@@ -593,6 +630,8 @@ public class LicenseStructureController : ControllerBase
             DeliveryProofUrl = string.Empty,
             ReceivedBy = input.ReceivedBy?.Trim() ?? string.Empty,
             ReceivedAt = now,
+            RecipientResidentId = input.RecipientResidentId,
+            UnitId = input.UnitId,
             DeliveredTo = string.Empty,
             CreatedAt = now,
             UpdatedAt = now
@@ -600,6 +639,12 @@ public class LicenseStructureController : ControllerBase
 
         _context.Deliveries.Add(delivery);
         await _context.SaveChangesAsync();
+
+        await NotifyDeliveryAsync(
+            delivery,
+            "Nova encomenda recebida",
+            $"{delivery.Name} foi registrada na portaria.",
+            $"delivery-created:{delivery.Id:N}");
 
         return Created("", ToDeliveryOut(delivery));
     }
@@ -638,7 +683,43 @@ public class LicenseStructureController : ControllerBase
         }
 
         await _context.SaveChangesAsync();
+        await NotifyDeliveryAsync(
+            delivery,
+            "Encomenda atualizada",
+            $"{delivery.Name}: {delivery.Status}.",
+            $"delivery-status:{delivery.Id:N}:{delivery.Status}");
         return Ok(ToDeliveryOut(delivery));
+    }
+
+    private async Task NotifyDeliveryAsync(DeliveryDTO delivery, string title, string body, string key)
+    {
+        if (_push is null) return;
+
+        var notifications = new List<Task>
+        {
+            _push.NotifyLicenseUsersAsync(
+                delivery.LicenseId,
+                Domain.Enums.Mobile.MobileNotificationCategory.Delivery,
+                title,
+                body,
+                $"/deliveries/{delivery.Id:D}",
+                key,
+                HttpContext.RequestAborted)
+        };
+
+        if (delivery.RecipientResidentId.HasValue)
+        {
+            notifications.Add(_push.NotifyResidentAsync(
+                delivery.RecipientResidentId.Value,
+                Domain.Enums.Mobile.MobileNotificationCategory.Delivery,
+                title,
+                body,
+                $"/deliveries/{delivery.Id:D}",
+                $"{key}:resident",
+                HttpContext.RequestAborted));
+        }
+
+        await Task.WhenAll(notifications);
     }
 
     private Task<bool> HasLicenseAccessAsync(Guid licenseId)
@@ -756,7 +837,9 @@ public class LicenseStructureController : ControllerBase
             DeliveredTo = delivery.DeliveredTo,
             DeliveredAt = delivery.DeliveredAt,
             CreatedAt = delivery.CreatedAt,
-            UpdatedAt = delivery.UpdatedAt
+            UpdatedAt = delivery.UpdatedAt,
+            RecipientResidentId = delivery.RecipientResidentId,
+            UnitId = delivery.UnitId
         };
     }
 

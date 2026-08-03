@@ -45,6 +45,7 @@ public partial class DatabaseContext : DbContext
         BackupsEntityConfiguration(modelBuilder);
         ObservabilityEntityConfiguration(modelBuilder);
         RefreshTokensEntityConfiguration(modelBuilder);
+        MobileEntityConfiguration(modelBuilder);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {

@@ -1,0 +1,1150 @@
+Quero criar uma versão mobile completa do projeto Condotify utilizando .NET MAUI Blazor Hybrid, aproveitando ao máximo a arquitetura, os serviços, os modelos, as regras de negócio, os componentes Razor e as APIs que já existem no projeto atual.
+
+O aplicativo deve utilizar MudBlazor e manter a mesma identidade visual da plataforma web, porém com uma experiência adaptada para celulares e tablets.
+
+## Objetivo do aplicativo
+
+O aplicativo será voltado principalmente aos usuários finais e operacionais da plataforma, incluindo:
+
+* Moradores;
+* Porteiros;
+* Síndicos;
+* Administradores;
+* Funcionários do condomínio;
+* Zeladores;
+* Prestadores de serviço;
+* Equipes de segurança;
+* Operadores de monitoramento;
+* Outros usuários cadastrados na plataforma.
+
+O aplicativo não deve ser apenas uma versão reduzida do painel administrativo.
+
+Ele deve disponibilizar todas as funcionalidades da plataforma que sejam úteis e permitidas para o usuário autenticado, sempre respeitando:
+
+* Perfil;
+* Função;
+* Condomínio;
+* Unidade;
+* Permissões;
+* Dispositivos disponíveis;
+* Regras configuradas na plataforma;
+* Limitações da API;
+* Políticas de segurança.
+
+O usuário deve visualizar apenas os módulos, condomínios, unidades, câmeras, dispositivos e ações para os quais possui autorização.
+
+## Análise obrigatória antes do desenvolvimento
+
+Antes de implementar ou alterar qualquer código, analise toda a solução existente.
+
+Identifique:
+
+* Projetos da solution;
+* Versão atual do .NET;
+* Arquitetura utilizada;
+* Entidades;
+* Models;
+* DTOs;
+* ViewModels;
+* Serviços;
+* Interfaces;
+* Repositórios;
+* Controllers;
+* Endpoints;
+* Componentes Razor;
+* Layouts;
+* Tema MudBlazor;
+* Autenticação;
+* Autorização;
+* Perfis;
+* Claims;
+* Políticas;
+* Permissões;
+* Integrações externas;
+* Integrações com dispositivos;
+* Sistema de notificações;
+* Sistema de câmeras;
+* Sistema de acionamentos;
+* Sistema de agendamentos;
+* Sistema de visitantes;
+* Sistema de controle de acesso;
+* Armazenamento de arquivos e imagens;
+* Recursos que podem ser compartilhados entre web e mobile.
+
+Crie um inventário das funcionalidades já existentes na plataforma.
+
+Para cada funcionalidade, informe:
+
+1. Em qual projeto ela está implementada;
+2. Quais serviços utiliza;
+3. Quais endpoints utiliza;
+4. Quais componentes podem ser reutilizados;
+5. Quais dependências possui;
+6. Quais perfis podem utilizá-la;
+7. Se está pronta para uso no aplicativo;
+8. Se precisa de alguma adaptação;
+9. Se precisa de um novo endpoint;
+10. Se precisa de integração nativa do MAUI.
+
+Não crie funcionalidades duplicadas sem antes verificar se já existe uma implementação equivalente.
+
+## Arquitetura esperada
+
+Utilize .NET MAUI com Blazor Hybrid para permitir o reaproveitamento de componentes Razor e a utilização do MudBlazor.
+
+Sempre que fizer sentido, organize a solução em projetos como:
+
+* Condotify.Domain;
+* Condotify.Application;
+* Condotify.Contracts;
+* Condotify.Shared;
+* Condotify.ApiClient;
+* Condotify.Infrastructure;
+* Condotify.Web;
+* Condotify.Mobile.
+
+O projeto mobile não deve acessar diretamente:
+
+* Banco de dados;
+* Entity Framework;
+* Repositórios de infraestrutura;
+* Credenciais de dispositivos;
+* Senhas de câmeras;
+* Serviços internos não expostos;
+* Configurações sensíveis.
+
+Toda comunicação deve acontecer por meio de APIs autenticadas ou serviços compartilhados apropriados.
+
+Não mova regras críticas de segurança para o aplicativo.
+
+As permissões devem continuar sendo validadas no servidor, mesmo quando o aplicativo ocultar visualmente uma função.
+
+## Compatibilidade com a plataforma atual
+
+A versão mobile deve ser compatível com a estrutura já existente.
+
+Antes de criar qualquer classe, serviço ou componente:
+
+1. Procure uma implementação semelhante;
+2. Reutilize os contratos existentes;
+3. Reutilize DTOs compatíveis;
+4. Reutilize validações;
+5. Reutilize os serviços de autenticação;
+6. Reutilize as permissões;
+7. Reutilize os componentes Razor responsivos;
+8. Reutilize o tema MudBlazor;
+9. Reutilize os clientes HTTP existentes;
+10. Preserve integralmente o funcionamento da versão web.
+
+Evite grandes refatorações sem necessidade.
+
+Caso alguma mudança estrutural seja necessária, apresente antes:
+
+* Motivo;
+* Arquivos afetados;
+* Riscos;
+* Impactos;
+* Estratégia de migração;
+* Compatibilidade com o sistema atual.
+
+## Identidade visual com MudBlazor
+
+Mantenha a temática visual existente do Condotify utilizando MudBlazor.
+
+Reutilize:
+
+* Paleta de cores;
+* Tema claro;
+* Tema escuro;
+* Tipografia;
+* Logotipo;
+* Ícones;
+* Cards;
+* Diálogos;
+* Alertas;
+* Botões;
+* Campos de formulário;
+* Menus;
+* Tabelas;
+* Chips;
+* Badges;
+* Skeletons;
+* Loaders;
+* Padrões de espaçamento;
+* Arredondamentos;
+* Estados visuais.
+
+Crie um tema centralizado.
+
+Não espalhe cores, tamanhos e estilos fixos pelos componentes.
+
+Adapte a experiência para telas pequenas, priorizando:
+
+* Botões adequados para toque;
+* Boa legibilidade;
+* Navegação inferior;
+* Cards responsivos;
+* Ações rápidas;
+* Menus contextuais;
+* Gestos;
+* Atualização ao arrastar;
+* Skeleton loading;
+* Feedback háptico;
+* Confirmação de ações críticas;
+* Indicadores de conexão;
+* Estados vazios;
+* Mensagens de erro amigáveis;
+* Acessibilidade.
+
+Não copie diretamente telas desktop para o aplicativo.
+
+## Navegação principal
+
+Implemente uma navegação dinâmica baseada no perfil e nas permissões.
+
+Uma estrutura possível para moradores:
+
+* Início;
+* Acessos;
+* Visitantes;
+* Condomínio;
+* Perfil.
+
+Uma estrutura possível para portaria:
+
+* Portaria;
+* Visitantes;
+* Acionamentos;
+* Câmeras;
+* Mais.
+
+Uma estrutura possível para síndicos e administradores:
+
+* Resumo;
+* Operação;
+* Ocorrências;
+* Dispositivos;
+* Mais.
+
+Os menus não devem ser fixos para todos os usuários.
+
+A aplicação deve montar a navegação de acordo com:
+
+* Perfil;
+* Claims;
+* Condomínio selecionado;
+* Unidade selecionada;
+* Módulos contratados;
+* Permissões individuais;
+* Funcionalidades habilitadas;
+* Disponibilidade dos dispositivos.
+
+## Funcionalidades da plataforma
+
+O aplicativo deve oferecer todas as funcionalidades existentes na plataforma que possam ser utilizadas de forma segura e útil pelo perfil autenticado.
+
+Isso inclui, mas não se limita aos módulos abaixo.
+
+# 1. Autenticação e sessão
+
+Implementar:
+
+* Login;
+* Logout;
+* Recuperação de senha;
+* Alteração de senha;
+* Manter usuário conectado;
+* Renovação automática do token;
+* Tratamento de sessão expirada;
+* Seleção de condomínio;
+* Seleção de unidade;
+* Troca de perfil;
+* Biometria para reentrada;
+* Bloqueio após inatividade;
+* Armazenamento de token no SecureStorage;
+* Validação de dispositivo, quando aplicável;
+* Termos de uso;
+* Política de privacidade.
+
+Nunca armazene senha em texto simples.
+
+# 2. Tela inicial
+
+Criar uma dashboard personalizada de acordo com o perfil.
+
+Ela pode exibir:
+
+* Saudação;
+* Condomínio atual;
+* Unidade atual;
+* Ações rápidas;
+* Visitantes esperados;
+* Agendamentos próximos;
+* Correspondências pendentes;
+* Ocorrências em andamento;
+* Comunicados recentes;
+* Últimos acessos;
+* Dispositivos importantes;
+* Alertas;
+* Câmeras favoritas;
+* Botões de acionamento rápido;
+* Quantidade de notificações não lidas.
+
+# 3. Visualização de câmeras
+
+Implementar o módulo de câmeras existente na plataforma.
+
+O usuário deve conseguir visualizar somente as câmeras para as quais possui autorização.
+
+Recursos desejados:
+
+* Lista de câmeras;
+* Separação por condomínio;
+* Separação por área;
+* Separação por grupo;
+* Busca por nome;
+* Câmeras favoritas;
+* Visualização individual;
+* Visualização em grade;
+* Tela cheia;
+* Orientação horizontal;
+* Atualização da conexão;
+* Indicador online e offline;
+* Indicador de carregamento;
+* Captura de imagem, quando permitida;
+* Compartilhamento de captura, quando permitido;
+* Áudio, quando disponível;
+* Controle PTZ, quando disponível e autorizado;
+* Seleção de stream principal ou secundário;
+* Exibição da última imagem quando o stream estiver indisponível;
+* Histórico de gravações, quando a plataforma possuir esse recurso;
+* Seleção de data e horário;
+* Reprodução de gravação;
+* Linha do tempo;
+* Download de gravação, somente quando autorizado;
+* Favoritar câmera;
+* Relatar câmera com problema.
+
+Antes de implementar o player, identifique como a plataforma atual entrega as imagens:
+
+* RTSP;
+* HLS;
+* WebRTC;
+* MJPEG;
+* Snapshot;
+* Proxy interno;
+* SDK do fabricante;
+* Outro protocolo.
+
+Não exponha diretamente no aplicativo:
+
+* Usuário da câmera;
+* Senha da câmera;
+* Endereço RTSP privado;
+* Tokens permanentes;
+* Dados sensíveis do equipamento.
+
+Quando necessário, utilize um serviço intermediário seguro para entregar o stream ao aplicativo.
+
+Implemente tratamento para:
+
+* Câmera offline;
+* Stream indisponível;
+* Timeout;
+* Falha de autenticação;
+* Rede móvel lenta;
+* Troca entre Wi-Fi e dados móveis;
+* Aplicativo em segundo plano;
+* Retorno do aplicativo;
+* Limite de visualizações simultâneas.
+
+Garanta o encerramento correto do stream ao sair da tela para evitar consumo de bateria, memória e banda.
+
+# 4. Acionamentos remotos
+
+Implemente os acionamentos já disponíveis na plataforma.
+
+Exemplos:
+
+* Abrir portão;
+* Abrir cancela;
+* Abrir porta;
+* Acionar fechadura;
+* Acionar relé;
+* Liberar acesso;
+* Acionar saída;
+* Acionar entrada;
+* Acionar portão social;
+* Acionar portão de veículos;
+* Acionar dispositivo autorizado;
+* Acionar alarme;
+* Desativar alarme, quando permitido;
+* Executar comandos configurados na plataforma.
+
+Os acionamentos devem respeitar rigorosamente as permissões.
+
+Para cada acionamento, exiba:
+
+* Nome do dispositivo;
+* Local;
+* Condomínio;
+* Tipo;
+* Estado atual, quando disponível;
+* Disponibilidade;
+* Última comunicação;
+* Confirmação antes do comando;
+* Resultado do acionamento;
+* Horário da operação;
+* Usuário responsável.
+
+Implemente proteção contra:
+
+* Toques duplicados;
+* Reenvio do comando;
+* Acionamento acidental;
+* Falha de rede;
+* Timeout;
+* Dispositivo offline;
+* Resposta tardia;
+* Execução duplicada.
+
+Utilize identificador idempotente para operações críticas sempre que possível.
+
+Para ações de alto risco, considere:
+
+* Biometria;
+* PIN;
+* Confirmação deslizante;
+* Confirmação em duas etapas;
+* Limite de tentativas;
+* Registro obrigatório de motivo.
+
+Todo acionamento deve gerar auditoria no servidor contendo, quando disponível:
+
+* Usuário;
+* Perfil;
+* Condomínio;
+* Unidade;
+* Dispositivo;
+* Data e horário;
+* Resultado;
+* Endereço IP;
+* Identificação do aparelho;
+* Origem mobile;
+* Motivo;
+* Erro retornado.
+
+# 5. Agendamentos
+
+Implemente todos os tipos de agendamento disponíveis na plataforma.
+
+Exemplos:
+
+* Agendamento de visitante;
+* Agendamento de prestador;
+* Agendamento de mudança;
+* Agendamento de área comum;
+* Agendamento de serviço;
+* Agendamento de acesso;
+* Agendamento de entrega;
+* Agendamento de veículo;
+* Agendamento de manutenção;
+* Agendamento de evento;
+* Agendamentos personalizados já existentes.
+
+Recursos:
+
+* Criar;
+* Editar;
+* Cancelar;
+* Duplicar;
+* Consultar;
+* Filtrar;
+* Visualizar calendário;
+* Visualizar lista;
+* Consultar disponibilidade;
+* Escolher data;
+* Escolher horário;
+* Escolher duração;
+* Selecionar unidade;
+* Selecionar área;
+* Selecionar participantes;
+* Adicionar observação;
+* Adicionar anexos;
+* Aceitar regras;
+* Consultar status;
+* Consultar aprovação;
+* Receber lembrete;
+* Compartilhar agendamento;
+* Gerar QR Code ou convite, quando aplicável.
+
+O sistema deve respeitar:
+
+* Horários permitidos;
+* Limite de reservas;
+* Antecedência mínima;
+* Intervalo entre reservas;
+* Capacidade;
+* Bloqueios;
+* Feriados;
+* Aprovação;
+* Regras do condomínio;
+* Restrições da unidade;
+* Conflitos de horário;
+* Permissões do usuário.
+
+# 6. Visitantes e convites
+
+Implementar:
+
+* Lista de visitantes;
+* Novo visitante;
+* Edição;
+* Exclusão, quando permitida;
+* Autorização temporária;
+* Autorização recorrente;
+* Data inicial;
+* Data final;
+* Horário permitido;
+* Documento;
+* Telefone;
+* Foto;
+* Placa;
+* Veículo;
+* Observações;
+* Unidade de destino;
+* Responsável;
+* Prestador vinculado;
+* Geração de convite;
+* QR Code;
+* Link de convite;
+* Compartilhamento pelo sistema nativo;
+* Cancelamento;
+* Histórico;
+* Situação do convite;
+* Registro de entrada;
+* Registro de saída;
+* Visitantes presentes no condomínio.
+
+# 7. Controle de acesso
+
+Implementar os recursos permitidos da plataforma:
+
+* Histórico de entradas e saídas;
+* Eventos em tempo real;
+* Consulta por pessoa;
+* Consulta por veículo;
+* Consulta por placa;
+* Consulta por dispositivo;
+* Consulta por portal;
+* Consulta por data;
+* Direção do acesso;
+* Foto do evento;
+* Motivo de recusa;
+* Credencial utilizada;
+* Situação do dispositivo;
+* Unidade relacionada;
+* Detalhes do evento;
+* Atualização por gesto;
+* Exportação simplificada, quando autorizada.
+
+Também considerar:
+
+* Credenciais faciais;
+* Cartões;
+* TAGs;
+* QR Codes;
+* Biometria;
+* Senhas;
+* Controle veicular;
+* Reconhecimento de placas;
+* Credenciais temporárias.
+
+# 8. Portaria
+
+Criar uma experiência operacional específica para porteiros.
+
+Funcionalidades possíveis:
+
+* Visitantes aguardando;
+* Visitantes autorizados;
+* Registro de entrada;
+* Registro de saída;
+* Pesquisa por morador;
+* Pesquisa por unidade;
+* Pesquisa por documento;
+* Pesquisa por placa;
+* Validação de QR Code;
+* Cadastro rápido;
+* Autorização por telefone;
+* Registro de prestador;
+* Registro de entrega;
+* Registro de correspondência;
+* Acionamento de portões;
+* Visualização de câmeras;
+* Consulta de alertas;
+* Consulta de veículos;
+* Ocorrências;
+* Livro de registros;
+* Passagem de turno;
+* Contatos de emergência;
+* Ações rápidas.
+
+As telas da portaria devem ser otimizadas também para tablets.
+
+# 9. Moradores e unidades
+
+Implementar:
+
+* Dados da unidade;
+* Moradores vinculados;
+* Dependentes;
+* Funcionários;
+* Prestadores recorrentes;
+* Proprietários;
+* Inquilinos;
+* Responsáveis;
+* Telefones;
+* Veículos;
+* Credenciais;
+* Permissões;
+* Documentos, quando permitidos;
+* Convites;
+* Histórico de acessos;
+* Alteração de dados;
+* Solicitação de atualização cadastral.
+
+# 10. Veículos
+
+Implementar:
+
+* Cadastro;
+* Edição;
+* Exclusão;
+* Placa;
+* Modelo;
+* Marca;
+* Cor;
+* Tipo;
+* Proprietário;
+* Unidade;
+* TAG;
+* Credencial;
+* Situação;
+* Foto;
+* Autorização temporária;
+* Histórico de acessos;
+* Alertas;
+* Veículos de visitantes;
+* Veículos de prestadores.
+
+# 11. Ocorrências
+
+Implementar:
+
+* Criar ocorrência;
+* Selecionar categoria;
+* Informar local;
+* Descrição;
+* Fotos;
+* Vídeos, quando permitido;
+* Áudio, quando permitido;
+* Anexos;
+* Prioridade;
+* Acompanhamento;
+* Comentários;
+* Mudança de status;
+* Responsável;
+* Histórico;
+* Notificações;
+* Reabertura;
+* Avaliação do atendimento.
+
+# 12. Correspondências e entregas
+
+Implementar:
+
+* Lista;
+* Cadastro;
+* Foto;
+* Tipo;
+* Unidade;
+* Morador;
+* Data e horário;
+* Porteiro responsável;
+* Código;
+* Observação;
+* Notificação ao morador;
+* Confirmação de retirada;
+* Assinatura;
+* Foto da entrega;
+* Histórico;
+* Correspondências pendentes;
+* Filtro por período.
+
+# 13. Comunicados e avisos
+
+Implementar:
+
+* Lista de comunicados;
+* Destaques;
+* Comunicados urgentes;
+* Confirmação de leitura;
+* Anexos;
+* Imagens;
+* Links;
+* Compartilhamento;
+* Pesquisa;
+* Filtros;
+* Comunicados por unidade;
+* Comunicados por grupo;
+* Comunicados por perfil;
+* Histórico.
+
+# 14. Notificações
+
+Preparar suporte para notificações push.
+
+Exemplos:
+
+* Visitante aguardando;
+* Visitante entrou;
+* Visitante saiu;
+* Novo convite;
+* Convite cancelado;
+* Correspondência recebida;
+* Entrega disponível;
+* Agendamento aprovado;
+* Agendamento recusado;
+* Lembrete de agendamento;
+* Ocorrência atualizada;
+* Comunicado publicado;
+* Alerta de segurança;
+* Acionamento realizado;
+* Dispositivo offline;
+* Câmera offline;
+* Credencial utilizada;
+* Acesso recusado.
+
+As notificações devem considerar:
+
+* Perfil;
+* Condomínio;
+* Unidade;
+* Preferências;
+* Permissões;
+* Tipo de evento;
+* Nível de prioridade.
+
+Ao tocar na notificação, abrir diretamente a tela correspondente utilizando deep link.
+
+# 15. Dispositivos e status operacional
+
+Quando permitido, disponibilizar:
+
+* Lista de dispositivos;
+* Estado online ou offline;
+* Última comunicação;
+* Local;
+* Tipo;
+* Modelo;
+* Status;
+* Alertas;
+* Falhas recentes;
+* Eventos;
+* Ações disponíveis;
+* Atualização manual;
+* Visualização por área.
+
+Não exponha configurações técnicas sensíveis aos moradores.
+
+# 16. Perfil e configurações
+
+Implementar:
+
+* Dados pessoais;
+* Foto;
+* Telefone;
+* E-mail;
+* CPF, com proteção adequada;
+* Condomínios;
+* Unidades;
+* Perfis;
+* Veículos;
+* Credenciais;
+* Preferências;
+* Tema claro e escuro;
+* Notificações;
+* Biometria;
+* Privacidade;
+* Alteração de senha;
+* Dispositivos conectados;
+* Encerramento de sessões;
+* Logout.
+
+# 17. Recursos adicionais existentes
+
+Durante a análise, procure outros recursos já presentes na plataforma, como:
+
+* Enquetes;
+* Assembleias;
+* Documentos;
+* Boletos;
+* Financeiro;
+* Segunda via;
+* Manutenções;
+* Chamados;
+* Reservas;
+* Áreas comuns;
+* Achados e perdidos;
+* Classificados;
+* Lista de contatos;
+* Botão de emergência;
+* Pânico;
+* Interfonia;
+* Chat;
+* Mensagens;
+* Controle de entregas;
+* Controle de chaves;
+* Controle de prestadores;
+* Controle de mudanças;
+* Relatórios simplificados;
+* Termos e autorizações;
+* Assinaturas digitais.
+
+Se algum desses módulos existir no Condotify, adapte-o para o aplicativo conforme as permissões.
+
+Não invente integrações que a plataforma ainda não possui sem identificar claramente que se trata de uma nova funcionalidade.
+
+## Recursos nativos do MAUI
+
+Utilize recursos nativos quando agregarem valor:
+
+* Câmera;
+* Galeria;
+* Leitor de QR Code;
+* Biometria;
+* SecureStorage;
+* Compartilhamento;
+* Notificações push;
+* Deep links;
+* Permissões;
+* Geolocalização;
+* Mapas;
+* Telefone;
+* E-mail;
+* WhatsApp;
+* Vibração;
+* Feedback háptico;
+* Orientação da tela;
+* Modo tela cheia;
+* Seleção de arquivos;
+* Captura de assinatura.
+
+Crie abstrações para recursos nativos.
+
+Não coloque código específico de Android ou iOS diretamente nos componentes Razor.
+
+Exemplos:
+
+* IBiometricService;
+* IQrCodeScannerService;
+* ICameraCaptureService;
+* INotificationService;
+* IShareService;
+* IDeviceInfoService;
+* ISecureStorageService;
+* IConnectivityService.
+
+## Cliente de API
+
+Centralize toda comunicação com a API.
+
+Utilize:
+
+* HttpClientFactory;
+* BaseAddress por ambiente;
+* Bearer token;
+* Renovação de token;
+* DelegatingHandler;
+* CancellationToken;
+* Timeout;
+* Retry somente em operações seguras;
+* Logs estruturados;
+* Resultados tipados;
+* Tratamento centralizado de erros;
+* Serialização consistente;
+* Idempotência em operações críticas.
+
+Crie serviços específicos, como:
+
+* IAuthApiService;
+* ICameraApiService;
+* IDeviceApiService;
+* ITriggerApiService;
+* ISchedulingApiService;
+* IVisitorApiService;
+* IAccessApiService;
+* IResidentApiService;
+* IVehicleApiService;
+* IOccurrenceApiService;
+* ICorrespondenceApiService;
+* INotificationApiService;
+* ICondominiumApiService;
+* ICommunicationApiService.
+
+Não faça chamadas HTTP diretamente nos componentes Razor.
+
+Trate adequadamente:
+
+* HTTP 400;
+* HTTP 401;
+* HTTP 403;
+* HTTP 404;
+* HTTP 409;
+* HTTP 422;
+* HTTP 429;
+* HTTP 500;
+* Timeout;
+* Falha de DNS;
+* Ausência de internet;
+* Certificado inválido;
+* Resposta malformada.
+
+## Estado da aplicação
+
+Centralize o estado da aplicação.
+
+O estado deve contemplar:
+
+* Usuário;
+* Token;
+* Condomínio atual;
+* Unidade atual;
+* Perfil;
+* Permissões;
+* Módulos habilitados;
+* Preferências;
+* Conectividade;
+* Notificações não lidas;
+* Câmeras favoritas;
+* Últimos acionamentos;
+* Agendamentos próximos;
+* Dados temporários de formulários.
+
+Evite estado global excessivo e difícil de manter.
+
+## Funcionamento offline e rede instável
+
+Considere que o aplicativo será utilizado em redes móveis e Wi-Fi instáveis.
+
+Implemente:
+
+* Indicador de conectividade;
+* Cache de dados essenciais;
+* Mensagens amigáveis;
+* Retry controlado;
+* Cancelamento de requisições;
+* Timeout;
+* Persistência temporária;
+* Sincronização posterior, quando segura;
+* Prevenção de cadastros duplicados;
+* Prevenção de acionamentos duplicados;
+* Recarregamento de telas;
+* Tratamento de troca de rede;
+* Tratamento de retomada do aplicativo.
+
+Não permita acionamentos remotos offline.
+
+Não informe que um comando foi executado sem confirmação do servidor ou do dispositivo.
+
+## Segurança
+
+Adote:
+
+* SecureStorage;
+* HTTPS;
+* Tokens de curta duração;
+* Refresh token;
+* Validação de permissões no servidor;
+* Proteção de dados sensíveis;
+* Logs sem tokens;
+* Auditoria;
+* Expiração de sessão;
+* Biometria para ações críticas;
+* Confirmação de acionamentos;
+* Rate limiting;
+* Idempotência;
+* Controle de dispositivo;
+* Proteção contra captura indevida, quando necessário;
+* Ofuscação de informações sensíveis;
+* Tratamento de aparelhos comprometidos, se aplicável.
+
+Para câmeras e acionamentos, a segurança deve ser prioridade.
+
+## Desempenho
+
+Otimize:
+
+* Inicialização;
+* Uso de memória;
+* Consumo de bateria;
+* Consumo de dados;
+* Renderização de listas;
+* Carregamento de imagens;
+* Streams de câmeras;
+* Paginação;
+* Cache;
+* Navegação;
+* Tempo de resposta.
+
+Utilize:
+
+* Lazy loading;
+* Virtualização;
+* Paginação;
+* Cache de imagens;
+* Cancelamento de requisições;
+* Dispose correto;
+* Redução da qualidade do stream em rede móvel;
+* Carregamento sob demanda.
+
+## Etapas de implementação
+
+Não tente implementar tudo de uma vez.
+
+Siga esta sequência:
+
+### Etapa 1 — Diagnóstico
+
+* Analisar a solution;
+* Mapear arquitetura;
+* Mapear módulos;
+* Mapear endpoints;
+* Mapear permissões;
+* Mapear componentes reutilizáveis;
+* Mapear tema;
+* Mapear integrações;
+* Identificar riscos.
+
+### Etapa 2 — Fundação mobile
+
+* Criar o projeto MAUI Blazor Hybrid;
+* Integrar MudBlazor;
+* Configurar tema;
+* Configurar navegação;
+* Configurar injeção de dependência;
+* Configurar ambientes;
+* Criar cliente da API;
+* Implementar autenticação;
+* Implementar estado da sessão;
+* Implementar tratamento de erros.
+
+### Etapa 3 — MVP operacional
+
+Implementar inicialmente:
+
+* Login;
+* Seleção de condomínio;
+* Dashboard;
+* Perfil;
+* Visitantes;
+* Agendamentos;
+* Histórico de acessos;
+* Notificações;
+* Câmeras;
+* Acionamentos autorizados.
+
+### Etapa 4 — Módulos complementares
+
+* Portaria;
+* Correspondências;
+* Ocorrências;
+* Veículos;
+* Comunicados;
+* Dispositivos;
+* Áreas comuns;
+* Outros módulos existentes.
+
+### Etapa 5 — Recursos nativos
+
+* Biometria;
+* QR Code;
+* Push;
+* Compartilhamento;
+* Câmera;
+* Deep links;
+* Assinatura;
+* Feedback háptico.
+
+### Etapa 6 — Qualidade
+
+* Testes;
+* Segurança;
+* Desempenho;
+* Acessibilidade;
+* Tratamento offline;
+* Logs;
+* Auditoria;
+* Validação Android;
+* Validação iOS;
+* Validação em tablets.
+
+## Forma de trabalho
+
+Antes de escrever código, apresente:
+
+1. Diagnóstico da solução atual;
+2. Arquitetura recomendada;
+3. Projetos que serão criados ou modificados;
+4. Funcionalidades encontradas;
+5. Componentes que serão reutilizados;
+6. Endpoints disponíveis;
+7. Endpoints ausentes;
+8. Riscos técnicos;
+9. Plano de implementação por etapas.
+
+Depois, implemente uma etapa por vez.
+
+Para cada etapa:
+
+* Liste os arquivos alterados;
+* Explique brevemente a alteração;
+* Mostre o código completo quando necessário;
+* Preserve padrões do projeto;
+* Não use pseudocódigo;
+* Não deixe métodos vazios;
+* Não crie dados fictícios como solução definitiva;
+* Não quebre a versão web;
+* Execute build;
+* Corrija erros;
+* Verifique warnings relevantes;
+* Informe pendências reais.
+
+## Resultado esperado
+
+Ao final, o Condotify deve possuir um aplicativo mobile moderno, completo e integrado à plataforma existente.
+
+O aplicativo deve permitir que moradores, porteiros, síndicos, administradores e demais usuários utilizem, conforme suas permissões:
+
+* Câmeras;
+* Acionamentos;
+* Portões;
+* Cancelas;
+* Portas;
+* Agendamentos;
+* Visitantes;
+* Convites;
+* QR Codes;
+* Acessos;
+* Veículos;
+* Correspondências;
+* Ocorrências;
+* Comunicados;
+* Notificações;
+* Dispositivos;
+* Perfil;
+* Unidades;
+* Demais funcionalidades já existentes na plataforma.
+
+Comece analisando a solution atual. Não inicie criando telas ou estruturas genéricas antes de entender o que já existe e o que pode ser reutilizado.

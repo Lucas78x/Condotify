@@ -1,0 +1,98 @@
+using CondotifyAPI.Controllers;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
+
+namespace CondotifyAPI.Tests;
+
+public sealed class ResidentProfileControllerTests
+{
+    [Fact]
+    public void Controller_RequiresTheResidentPolicy()
+    {
+        var authorize = Assert.Single(typeof(ResidentProfileController)
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Cast<AuthorizeAttribute>());
+
+        Assert.Equal("Resident", authorize.Policy);
+        Assert.Empty(typeof(ResidentProfileController)
+            .GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+    }
+
+    [Fact]
+    public void Me_DoesNotOverrideAuthorizationWithAllowAnonymous()
+    {
+        var action = typeof(ResidentProfileController).GetMethod(nameof(ResidentProfileController.Me));
+
+        Assert.NotNull(action);
+        Assert.Empty(action!.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+    }
+
+    [Theory]
+    [InlineData(nameof(ResidentProfileController.CreateVisit))]
+    [InlineData(nameof(ResidentProfileController.AmenityAvailability))]
+    [InlineData(nameof(ResidentProfileController.CreateBooking))]
+    [InlineData(nameof(ResidentProfileController.CancelBooking))]
+    public void ResidentCommands_DoNotOverrideTheResidentPolicy(string actionName)
+    {
+        var action = typeof(ResidentProfileController).GetMethods()
+            .Single(x => x.Name == actionName);
+
+        Assert.Empty(action.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+        Assert.Empty(action.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true));
+    }
+
+    [Fact]
+    public void ResidentCommandRoutes_UseTheExpectedHttpVerbs()
+    {
+        var createVisit = typeof(ResidentProfileController).GetMethod(nameof(ResidentProfileController.CreateVisit));
+        var availability = typeof(ResidentProfileController).GetMethod(nameof(ResidentProfileController.AmenityAvailability));
+        var createBooking = typeof(ResidentProfileController).GetMethod(nameof(ResidentProfileController.CreateBooking));
+        var cancelBooking = typeof(ResidentProfileController).GetMethod(nameof(ResidentProfileController.CancelBooking));
+
+        Assert.Equal("visits", Assert.Single(createVisit!.GetCustomAttributes(typeof(HttpPostAttribute), false).Cast<HttpPostAttribute>()).Template);
+        Assert.Equal("amenities/{amenityId:guid}/availability", Assert.Single(availability!.GetCustomAttributes(typeof(HttpGetAttribute), false).Cast<HttpGetAttribute>()).Template);
+        Assert.Equal("amenities/{amenityId:guid}/bookings", Assert.Single(createBooking!.GetCustomAttributes(typeof(HttpPostAttribute), false).Cast<HttpPostAttribute>()).Template);
+        Assert.Equal("bookings/{bookingId:guid}", Assert.Single(cancelBooking!.GetCustomAttributes(typeof(HttpDeleteAttribute), false).Cast<HttpDeleteAttribute>()).Template);
+    }
+
+    [Fact]
+    public void Deliveries_UsesResidentPolicyAndResidentRoute()
+    {
+        var action = typeof(ResidentProfileController).GetMethod(nameof(ResidentProfileController.Deliveries));
+
+        Assert.NotNull(action);
+        Assert.Equal("deliveries", Assert.Single(action!.GetCustomAttributes(typeof(HttpGetAttribute), false).Cast<HttpGetAttribute>()).Template);
+        Assert.Empty(action.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+    }
+
+    [Fact]
+    public void ResidentCftvController_RequiresResidentPolicy()
+    {
+        var authorize = Assert.Single(typeof(ResidentCftvController)
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Cast<AuthorizeAttribute>());
+        var route = Assert.Single(typeof(ResidentCftvController)
+            .GetCustomAttributes(typeof(RouteAttribute), inherit: true)
+            .Cast<RouteAttribute>());
+
+        Assert.Equal("Resident", authorize.Policy);
+        Assert.Equal("api/resident/cameras", route.Template);
+        Assert.Empty(typeof(ResidentCftvController)
+            .GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+    }
+
+    [Theory]
+    [InlineData(nameof(ResidentCftvController.GetCameras), typeof(HttpGetAttribute), null)]
+    [InlineData(nameof(ResidentCftvController.Snapshot), typeof(HttpGetAttribute), "{deviceId:guid}/snapshot")]
+    [InlineData(nameof(ResidentCftvController.OpenSession), typeof(HttpPostAttribute), "{deviceId:guid}/sessions")]
+    [InlineData(nameof(ResidentCftvController.CloseSession), typeof(HttpDeleteAttribute), "{deviceId:guid}/sessions/{channel:int}")]
+    public void ResidentCftvRoutes_UseExpectedVerbs(string actionName, Type attributeType, string? template)
+    {
+        var action = typeof(ResidentCftvController).GetMethod(actionName);
+        var attribute = Assert.Single(action!.GetCustomAttributes(attributeType, false).Cast<HttpMethodAttribute>());
+
+        Assert.Equal(template, attribute.Template);
+        Assert.Empty(action.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+    }
+}

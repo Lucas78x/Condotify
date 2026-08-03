@@ -5,6 +5,7 @@ using CondotifyAPI.Domain.DTO.Location;
 using CondotifyAPI.Domain.DTO.Resident;
 using CondotifyAPI.Domain.DTO.Unit;
 using CondotifyAPI.Domain.DTO.Users;
+using CondotifyAPI.Domain.Enums.Resident;
 using CondotifyAPI.Domain.Models.Users;
 using CondotifyAPI.Infrastructure;
 using Microsoft.AspNetCore.Identity;
@@ -23,6 +24,7 @@ public static class DevelopmentDataSeeder
     private static readonly Guid BlockId = Guid.Parse("44444444-4444-4444-4444-444444444444");
     private static readonly Guid UnitId = Guid.Parse("55555555-5555-5555-5555-555555555555");
     private static readonly Guid ResidentId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+    private static readonly Guid ResidentUnitLinkId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
     public static async Task SeedAsync(IServiceProvider services)
     {
@@ -167,6 +169,23 @@ public static class DevelopmentDataSeeder
                 Expire = now.AddYears(10),
                 LastAccess = now,
                 CreatedAt = now
+            });
+        }
+
+        if (!await context.ResidentUnitLinks.AnyAsync(x => x.ResidentId == ResidentId && x.UnitId == UnitId))
+        {
+            context.ResidentUnitLinks.Add(new ResidentUnitLinkDTO
+            {
+                Id = ResidentUnitLinkId,
+                ResidentId = ResidentId,
+                UnitId = UnitId,
+                Relationship = ResidentUnitRelationshipEnum.Responsible,
+                Description = "Unidade principal do morador de demonstracao",
+                IsPrimary = true,
+                IsActive = true,
+                StartsAt = now.AddDays(-1),
+                CreatedAt = now,
+                UpdatedAt = now
             });
         }
 

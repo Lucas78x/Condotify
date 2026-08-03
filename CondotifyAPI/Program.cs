@@ -14,6 +14,7 @@ using CondotifyAPI.Services.Imports;
 using CondotifyAPI.Services.RecycleBin;
 using CondotifyAPI.Services.Backups;
 using CondotifyAPI.Services.Observability;
+using CondotifyAPI.Services.Mobile;
 using MediatR;
 using CondotifyAPI.Domain.Models.Users;
 using CondotifyAPI.Domain.Models.Resident;
@@ -66,6 +67,10 @@ builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IPasswordHasher<UserAccess>, PasswordHasher<UserAccess>>();
 builder.Services.AddScoped<IPasswordHasher<ResidentAccess>, PasswordHasher<ResidentAccess>>();
 builder.Services.AddSingleton<ITotpService, TotpService>();
+builder.Services.AddSingleton<FcmAccessTokenProvider>();
+builder.Services.AddSingleton<IPushTransport, FcmPushTransport>();
+builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
+builder.Services.AddScoped<IPlatformPushNotifier, PlatformPushNotifier>();
 builder.Services.AddSingleton<IPrivateMediaStore, PrivateMediaStore>();
 builder.Services.AddSingleton<StructureImportCsvParser>();
 builder.Services.AddScoped<IRecycleBinService, RecycleBinService>();
@@ -76,7 +81,10 @@ builder.Services.AddScoped<IOperationalAlertEvaluationService, OperationalAlertE
 builder.Services.AddScoped<IAlertNotificationChannelSender, AlertNotificationChannelSender>();
 builder.Services.AddSingleton<ICftvStreamPathResolver, CftvStreamPathResolver>();
 builder.Services.AddSingleton<IMediaAccessTokenService, MediaAccessTokenService>();
+builder.Services.AddScoped<ICftvSnapshotService, CftvSnapshotService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+builder.Services.AddScoped<IResidentPasswordRecoveryService, ResidentPasswordRecoveryService>();
+builder.Services.AddScoped<IResidentPasswordRecoveryMailer, ResidentPasswordRecoveryMailer>();
 
 builder.Services.AddAuthentication(options =>
 {
@@ -164,6 +172,12 @@ builder.Services.AddHttpClient("AlertNotifications", client =>
     client.Timeout = TimeSpan.FromSeconds(15);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("Condotify-Notifications/1.0");
 });
+builder.Services.AddHttpClient("FcmPush", client =>
+{
+    client.BaseAddress = new Uri("https://fcm.googleapis.com/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddHttpClient("FcmOAuth", client => client.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient<IMediaGatewayClient, MediaGatewayClient>(client =>
 {
     client.BaseAddress = new Uri(
@@ -196,6 +210,7 @@ builder.Services.AddHostedService<RecycleBinCleanupService>();
 builder.Services.AddHostedService<AutomaticBackupWorker>();
 builder.Services.AddHostedService<OperationalAlertWorker>();
 builder.Services.AddHostedService<AlertNotificationWorker>();
+builder.Services.AddHostedService<PushNotificationWorker>();
 
 builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();
 builder.Services.AddScoped<IAccessControlDriverFactory, AccessControlDriverFactory>();
@@ -262,7 +277,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseWhen(
+        context => context.Connection.LocalPort != internalPort,
+        publicPipeline => publicPipeline.UseHttpsRedirection());
+}
 app.Use(async (context, next) =>
 {
     context.Response.Headers.XContentTypeOptions = "nosniff";

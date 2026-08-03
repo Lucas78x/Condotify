@@ -12,6 +12,7 @@ using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Services.AccessControl;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.Security;
+using CondotifyAPI.Services.Mobile;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +22,10 @@ namespace CondotifyAPI.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/access/licenses/{licenseId:guid}/concierge")]
-public sealed class ConciergeController(DatabaseContext context, IPrivateMediaStore media) : ControllerBase
+public sealed class ConciergeController(
+    DatabaseContext context,
+    IPrivateMediaStore media,
+    IPlatformPushNotifier? push = null) : ControllerBase
 {
     [HttpGet]
     [RequireLicensePermission(LicensePermissionEnum.ViewEvents)]
@@ -192,6 +196,11 @@ public sealed class ConciergeController(DatabaseContext context, IPrivateMediaSt
         Audit(licenseId, visit.Id, "VisitCreated", "Queued", $"Visita de {visit.VisitorName} para {host.Name} agendada.",
             new { input.HostResidentId, input.VisitorName, input.CredentialType, validFrom, validTo, input.MaxUses, input.RouteIds, HasPhoto = !string.IsNullOrWhiteSpace(input.ImageBase64) });
         await context.SaveChangesAsync();
+        await NotifyVisitAsync(
+            visit,
+            input.RequireApproval ? "Visitante aguardando aprovacao" : "Visita agendada",
+            $"{visit.VisitorName} foi registrado para o seu endereco.",
+            $"visitor-created:{visit.Id:N}");
         return Created("", ToOut(visit, host, credential));
     }
 
@@ -211,6 +220,11 @@ public sealed class ConciergeController(DatabaseContext context, IPrivateMediaSt
         if (input.Approved) Queue(licenseId, visit.CredentialId, $"approval:{visit.Id:N}", CurrentUser());
         Audit(licenseId, visit.Id, input.Approved ? "VisitApproved" : "VisitRejected", "Success", input.Approved ? "Visita aprovada." : "Visita recusada.", input);
         await context.SaveChangesAsync();
+        await NotifyVisitAsync(
+            visit,
+            input.Approved ? "Visita aprovada" : "Visita recusada",
+            $"A autorizacao de {visit.VisitorName} foi {(input.Approved ? "aprovada" : "recusada")}.",
+            $"visitor-approval:{visit.Id:N}:{input.Approved}");
         return Ok(ToOut(visit));
     }
 
@@ -275,8 +289,23 @@ public sealed class ConciergeController(DatabaseContext context, IPrivateMediaSt
         }
         Audit(licenseId, visit.Id, "VisitStatus", "Success", $"Visita alterada para {input.Status}. {input.Reason}", input);
         await context.SaveChangesAsync();
+        await NotifyVisitAsync(
+            visit,
+            "Atualizacao da visita",
+            $"{visit.VisitorName}: {input.Status}.",
+            $"visitor-status:{visit.Id:N}:{input.Status}");
         return Ok(ToOut(visit));
     }
+
+    private Task NotifyVisitAsync(AccessVisitDTO visit, string title, string body, string key) =>
+        push?.NotifyResidentAsync(
+            visit.HostResidentId,
+            Domain.Enums.Mobile.MobileNotificationCategory.Visitor,
+            title,
+            body,
+            $"/visitors/{visit.Id:D}",
+            key,
+            HttpContext.RequestAborted) ?? Task.CompletedTask;
 
     private IQueryable<AccessVisitDTO> VisitQuery(Guid licenseId) => context.AccessVisits
         .Include(x => x.HostResident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)

@@ -5,6 +5,7 @@ using CondotifyAPI.Domain.Enums.Amenities;
 using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Services.Amenities;
 using CondotifyAPI.Services.Authorization;
+using CondotifyAPI.Services.Mobile;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,10 +19,12 @@ namespace CondotifyAPI.Controllers;
 public sealed class AmenityBookingsController : ControllerBase
 {
     private readonly DatabaseContext _context;
+    private readonly IPlatformPushNotifier? _push;
 
-    public AmenityBookingsController(DatabaseContext context)
+    public AmenityBookingsController(DatabaseContext context, IPlatformPushNotifier? push = null)
     {
         _context = context;
+        _push = push;
     }
 
     [HttpGet]
@@ -233,6 +236,11 @@ public sealed class AmenityBookingsController : ControllerBase
         }
 
         var created = await BookingQuery(licenseId, amenityId).AsNoTracking().FirstAsync(x => x.Id == booking.Id);
+        await NotifyBookingAsync(
+            created,
+            created.Status == AmenityBookingStatusEnum.Pending ? "Reserva aguardando aprovacao" : "Reserva confirmada",
+            $"{created.Amenity.Name} em {created.Date:dd/MM/yyyy}.",
+            $"booking-created:{created.Id:N}");
         return Created(string.Empty, ToOut(created));
     }
 
@@ -327,6 +335,7 @@ public sealed class AmenityBookingsController : ControllerBase
         }
 
         var updated = await BookingQuery(licenseId, amenityId).AsNoTracking().FirstAsync(x => x.Id == bookingId);
+        await NotifyBookingAsync(updated, "Reserva atualizada", $"{updated.Amenity.Name} em {updated.Date:dd/MM/yyyy}.", $"booking-updated:{updated.Id:N}:{updated.Date:yyyyMMdd}:{updated.SlotId:N}");
         return Ok(ToOut(updated));
     }
 
@@ -350,6 +359,7 @@ public sealed class AmenityBookingsController : ControllerBase
         await _context.SaveChangesAsync();
 
         var updated = await BookingQuery(licenseId, amenityId).AsNoTracking().FirstAsync(x => x.Id == bookingId);
+        await NotifyBookingAsync(updated, "Reserva aprovada", $"Sua reserva de {updated.Amenity.Name} foi aprovada.", $"booking-approved:{updated.Id:N}");
         return Ok(ToOut(updated));
     }
 
@@ -375,6 +385,7 @@ public sealed class AmenityBookingsController : ControllerBase
         await _context.SaveChangesAsync();
 
         var updated = await BookingQuery(licenseId, amenityId).AsNoTracking().FirstAsync(x => x.Id == bookingId);
+        await NotifyBookingAsync(updated, "Reserva recusada", $"Sua reserva de {updated.Amenity.Name} foi recusada.", $"booking-rejected:{updated.Id:N}");
         return Ok(ToOut(updated));
     }
 
@@ -410,7 +421,22 @@ public sealed class AmenityBookingsController : ControllerBase
         booking.CancelReason = input.Reason?.Trim() ?? string.Empty;
         await _context.SaveChangesAsync();
 
+        await NotifyBookingAsync(booking, "Reserva cancelada", $"A reserva de {booking.Amenity.Name} foi cancelada.", $"booking-cancelled:{booking.Id:N}");
+
         return NoContent();
+    }
+
+    private Task NotifyBookingAsync(AmenityBookingDTO booking, string title, string body, string key)
+    {
+        if (!booking.ResidentId.HasValue || _push is null) return Task.CompletedTask;
+        return _push.NotifyResidentAsync(
+            booking.ResidentId.Value,
+            Domain.Enums.Mobile.MobileNotificationCategory.Booking,
+            title,
+            body,
+            $"/bookings/{booking.Id:D}",
+            key,
+            HttpContext.RequestAborted);
     }
 
     private IQueryable<AmenityBookingDTO> BookingQuery(Guid licenseId, Guid? amenityId = null)

@@ -32,17 +32,23 @@ public sealed class ResidentAuthController : ControllerBase
     private readonly IJwtTokenService _jwt;
     private readonly IPasswordHasher<ResidentAccess> _passwordHasher;
     private readonly IRefreshTokenService _refreshTokens;
+    private readonly IResidentPasswordRecoveryService _passwordRecovery;
+    private readonly IResidentPasswordRecoveryMailer _passwordRecoveryMailer;
 
     public ResidentAuthController(
         DatabaseContext context,
         IJwtTokenService jwt,
         IPasswordHasher<ResidentAccess> passwordHasher,
-        IRefreshTokenService refreshTokens)
+        IRefreshTokenService refreshTokens,
+        IResidentPasswordRecoveryService passwordRecovery,
+        IResidentPasswordRecoveryMailer passwordRecoveryMailer)
     {
         _context = context;
         _jwt = jwt;
         _passwordHasher = passwordHasher;
         _refreshTokens = refreshTokens;
+        _passwordRecovery = passwordRecovery;
+        _passwordRecoveryMailer = passwordRecoveryMailer;
     }
 
     [HttpPost("login")]
@@ -101,6 +107,206 @@ public sealed class ResidentAuthController : ControllerBase
     private static readonly ResidentLoginOut FailureResponse = new() { Result = "InvalidCredentials" };
 
     private static IActionResult InvalidCredentials() => new UnauthorizedObjectResult(FailureResponse);
+
+    // --- Password recovery (task 8) -----------------------------------------------------
+
+    /// <summary>
+    /// The one response body this endpoint ever returns. There is exactly one <c>return</c>
+    /// statement in <see cref="ForgotPassword"/> and it is always this constant - not a value
+    /// chosen after checking whether the e-mail matched a resident. That is what makes "202
+    /// whether or not the e-mail exists, whether or not SMTP is configured, whether or not
+    /// sending succeeded" true by construction rather than by discipline: there is no branch
+    /// in this action that could return anything else, so nothing downstream of it (a lookup
+    /// throwing, a resident not being found, SMTP being unreachable) can change the response.
+    /// </summary>
+    internal static readonly ForgotPasswordOut ForgotPasswordAcceptedBody = new() { Result = "Accepted" };
+
+    /// <summary>
+    /// POST /api/auth/resident/password/forgot. Always answers 202 (see
+    /// <see cref="ForgotPasswordAcceptedBody"/>) - whether the e-mail belongs to a resident,
+    /// whether that resident is eligible to sign in, whether a token was actually issued
+    /// (<see cref="IResidentPasswordRecoveryService.IssueAsync"/> also silently declines when a
+    /// token for the same resident was issued too recently - see
+    /// <see cref="ResidentPasswordRecoveryService.ShouldThrottle"/>), and whether the e-mail
+    /// send itself succeeded. All of that work happens inside <see cref="TryRunAsync"/>, which
+    /// swallows every exception, so there is no path from a lookup/DB/SMTP failure back out to
+    /// this method's single return statement.
+    /// </summary>
+    [HttpPost("password/forgot")]
+    [AllowAnonymous]
+    [EnableRateLimiting("login")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordIn? input, CancellationToken cancellationToken)
+    {
+        await TryRunAsync(() => IssueAndSendRecoveryAsync(input?.Email, cancellationToken));
+
+        return Accepted(ForgotPasswordAcceptedBody);
+    }
+
+    private async Task IssueAndSendRecoveryAsync(string? email, CancellationToken cancellationToken)
+    {
+        var normalizedEmail = (email ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalizedEmail)) return;
+
+        var resident = await _context.Residents.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Email.ToLower() == normalizedEmail, cancellationToken);
+        if (resident is null || !ResidentAuthorizationService.ResidentCanSignIn(resident, DateTime.UtcNow)) return;
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconhecido";
+        var issued = await _passwordRecovery.IssueAsync(resident.Id, ip, cancellationToken);
+        if (issued is null) return; // throttled - a token for this resident was issued moments ago
+
+        await _passwordRecoveryMailer.SendAsync(resident.Email, resident.Name, issued.Token, cancellationToken);
+    }
+
+    /// <summary>
+    /// POST /api/auth/resident/password/reset. Validates the new password against
+    /// <see cref="PasswordPolicy"/> FIRST - before the recovery token
+    /// <see cref="ForgotPassword"/> emailed out is even looked up, let alone consumed - so a
+    /// caller who mistypes a password that fails policy does not burn their one-time code.
+    /// Only once that succeeds does it consume the token and apply the same "write the hash,
+    /// revoke every refresh token" primitive (<see cref="ApplyPasswordAsync"/>) that
+    /// <see cref="ChangePassword"/> also ends in (via <see cref="ApplyNewPasswordAsync"/>).
+    /// </summary>
+    [HttpPost("password/reset")]
+    [AllowAnonymous]
+    [EnableRateLimiting("login")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResidentResetPasswordIn? input, CancellationToken cancellationToken)
+    {
+        // Validated BEFORE the token is looked up (let alone consumed): a caller who mistypes
+        // a password that fails PasswordPolicy must not burn their one-time recovery code just
+        // to find that out - they would otherwise have to request a whole new "forgot" e-mail.
+        var passwordResult = ResidentPasswordSetter.Resolve(input?.NewPassword, _passwordHasher, "nova senha");
+        if (!passwordResult.Succeeded)
+            return BadRequest(new ResidentPasswordOperationOut { Result = "InvalidPassword", Error = passwordResult.Error });
+
+        if (string.IsNullOrWhiteSpace(input?.Token))
+            return InvalidRecoveryToken();
+
+        var residentId = await _passwordRecovery.ConsumeAsync(input.Token, cancellationToken);
+        if (residentId is null)
+            return InvalidRecoveryToken();
+
+        var resident = await _context.Residents.FirstOrDefaultAsync(x => x.Id == residentId.Value, cancellationToken);
+        if (resident is null)
+            return InvalidRecoveryToken();
+
+        await ApplyPasswordAsync(
+            resident,
+            passwordResult.Hash!,
+            () => _refreshTokens.RevokeAllAsync(resident.Id, PrincipalTypes.Resident, cancellationToken));
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(new ResidentPasswordOperationOut { Result = "Success" });
+    }
+
+    /// <summary>
+    /// POST /api/auth/resident/password/change - requires an authenticated resident (policy
+    /// "Resident", see Program.cs) and their current password, then the same "validate, hash,
+    /// revoke every refresh token" tail as <see cref="ResetPassword"/>. A password change is
+    /// what a resident does when they believe they may be compromised, so every existing
+    /// session for them - including the one making this very request - is ended; the caller
+    /// must sign in again with the new password afterwards.
+    /// </summary>
+    [HttpPost("password/change")]
+    [Authorize(Policy = "Resident")]
+    public async Task<IActionResult> ChangePassword([FromBody] ResidentChangePasswordIn? input, CancellationToken cancellationToken)
+    {
+        if (!ResidentAuthorizationService.TryResident(User, out var residentId, out _))
+            return Unauthorized();
+
+        var resident = await _context.Residents.FirstOrDefaultAsync(x => x.Id == residentId, cancellationToken);
+        if (resident is null)
+            return Unauthorized();
+
+        if (!VerifyCurrentPassword(resident.Password, input?.CurrentPassword ?? string.Empty, _passwordHasher))
+            return BadRequest(new ResidentPasswordOperationOut { Result = "WrongCurrentPassword", Error = "Senha atual incorreta." });
+
+        var result = await ApplyNewPasswordAsync(
+            resident,
+            input?.NewPassword ?? string.Empty,
+            _passwordHasher,
+            () => _refreshTokens.RevokeAllAsync(resident.Id, PrincipalTypes.Resident, cancellationToken));
+
+        if (!result.Succeeded)
+            return BadRequest(new ResidentPasswordOperationOut { Result = "InvalidPassword", Error = result.Error });
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(new ResidentPasswordOperationOut { Result = "Success" });
+    }
+
+    private static IActionResult InvalidRecoveryToken() =>
+        new BadRequestObjectResult(new ResidentPasswordOperationOut { Result = "InvalidToken", Error = "Código de recuperação inválido ou expirado." });
+
+    // --- Pure, tested decision logic (password recovery) --------------------------------
+
+    /// <summary>
+    /// Runs <paramref name="action"/>, swallowing any exception it throws. Backs
+    /// <see cref="ForgotPassword"/>'s "always 202" guarantee: a DB lookup failing, the
+    /// recovery-token table being unreachable, or the SMTP send throwing must never surface as
+    /// anything other than silence to the caller.
+    /// </summary>
+    internal static async Task TryRunAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch
+        {
+            // Deliberately swallowed - see ForgotPassword's remarks.
+        }
+    }
+
+    /// <summary>
+    /// Verifies <paramref name="presented"/> against <paramref name="storedHash"/>, using
+    /// <see cref="DummyPasswordHash"/> when there is no real stored hash to compare against -
+    /// same timing-safety precedent as <see cref="Decide"/>, though here the resident is
+    /// already known to exist (this backs <see cref="ChangePassword"/>, which requires
+    /// authentication first).
+    /// </summary>
+    internal static bool VerifyCurrentPassword(string storedHash, string presented, IPasswordHasher<ResidentAccess> hasher)
+    {
+        var hashToCompare = string.IsNullOrEmpty(storedHash) ? DummyPasswordHash : storedHash;
+        return hasher.VerifyHashedPassword(null!, hashToCompare, presented ?? string.Empty) != PasswordVerificationResult.Failed;
+    }
+
+    /// <summary>
+    /// The shared tail of both /reset and /change: validate <paramref name="newPassword"/>
+    /// against <see cref="PasswordPolicy"/> (via <see cref="ResidentPasswordSetter"/>, "nova
+    /// senha" wording - the resident already had a password), and only when that succeeds,
+    /// write the new hash onto <paramref name="resident"/> and invoke
+    /// <paramref name="revokeAllTokens"/>. The revoke delegate is called exactly once, and only
+    /// on success - never for a password that fails policy - which is the property
+    /// ResidentAuthControllerPasswordTests checks directly with a counting fake, since there is
+    /// no EF InMemory/SQLite provider to exercise the real
+    /// <see cref="IRefreshTokenService.RevokeAllAsync"/> call this delegate wraps in production.
+    /// </summary>
+    internal static async Task<ResidentPasswordResult> ApplyNewPasswordAsync(
+        ResidentAccessDTO resident,
+        string newPassword,
+        IPasswordHasher<ResidentAccess> hasher,
+        Func<Task> revokeAllTokens)
+    {
+        var result = ResidentPasswordSetter.Resolve(newPassword, hasher, "nova senha");
+        if (!result.Succeeded) return result;
+
+        await ApplyPasswordAsync(resident, result.Hash!, revokeAllTokens);
+        return result;
+    }
+
+    /// <summary>
+    /// The lowest-level primitive both <see cref="ApplyNewPasswordAsync"/> (used by
+    /// <see cref="ChangePassword"/>) and <see cref="ResetPassword"/> end in: write the new
+    /// hash, then revoke every refresh token for this resident. <see cref="ResetPassword"/>
+    /// calls this directly (rather than <see cref="ApplyNewPasswordAsync"/>) because it must
+    /// validate the new password and only THEN consume the recovery token - by the time this
+    /// runs, the password has already been validated and the token already consumed.
+    /// </summary>
+    internal static async Task ApplyPasswordAsync(ResidentAccessDTO resident, string passwordHash, Func<Task> revokeAllTokens)
+    {
+        resident.Password = passwordHash;
+        await revokeAllTokens();
+    }
 
     // --- Pure, tested decision logic ----------------------------------------------------
 

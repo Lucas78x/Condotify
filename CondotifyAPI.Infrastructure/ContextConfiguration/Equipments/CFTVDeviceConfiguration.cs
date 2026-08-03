@@ -68,6 +68,9 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
             builder.Property(x => x.IsActive)
                 .HasDefaultValue(false);
 
+            builder.Property(x => x.ResidentVisible)
+                .HasDefaultValue(false);
+
             builder.Property(x => x.HealthMessage)
                 .HasMaxLength(300)
                 .HasDefaultValue(string.Empty);

@@ -19,6 +19,7 @@ public partial class DatabaseContext
     public DbSet<RegistrationInviteDTO> RegistrationInvites { get; set; }
     public DbSet<AccessVisitDTO> AccessVisits { get; set; }
     public DbSet<AccessWatchlistEntryDTO> AccessWatchlistEntries { get; set; }
+    public DbSet<ResidentPasswordRecoveryTokenDTO> ResidentPasswordRecoveryTokens { get; set; }
 
     internal static void ResidentsEntityConfiguration(ModelBuilder builder)
     {
@@ -28,5 +29,6 @@ public partial class DatabaseContext
         builder.ApplyConfiguration(new RegistrationInviteConfiguration());
         builder.ApplyConfiguration(new AccessVisitConfiguration());
         builder.ApplyConfiguration(new AccessWatchlistEntryConfiguration());
+        builder.ApplyConfiguration(new ResidentPasswordRecoveryTokenConfiguration());
     }
 }
