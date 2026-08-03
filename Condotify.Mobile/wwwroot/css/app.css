@@ -117,6 +117,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .row-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; }
 .device-open-button { flex: 0 0 auto; min-width: 118px; }
 .device-health { display: -webkit-box; margin-top: 6px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.device-list { display: grid; gap: 14px; }
 .directory-toolbar { margin-bottom: 14px; }
 .directory-toolbar .mud-input-control { margin: 0; }
 .directory-list { display: grid; gap: 14px; }
@@ -285,9 +286,9 @@ button.list-row:last-child { border-bottom: 0; }
     .metric-grid { grid-template-columns: 1fr 1fr; }
     .skeleton-metrics { grid-template-columns: 1fr 1fr; }
     .list-row { padding-inline: 12px; }
-    .list-row.device-row, .list-row.alert-row { align-items: stretch; flex-wrap: wrap; }
+    .list-row.device-row, .list-row.alert-row { align-items: stretch; flex-wrap: wrap; padding-block: 18px; }
     .device-row .list-main, .alert-row .list-main { flex-basis: calc(100% - 56px); }
-    .device-open-button { width: 100%; min-height: 42px; margin-left: 21px; }
+    .device-open-button { width: 100%; min-height: 42px; margin-top: 12px; margin-left: 21px; }
     .alert-row .row-actions { width: 100%; justify-content: flex-end; margin-left: 52px; }
     .person-hero { align-items: flex-start; flex-wrap: wrap; padding: 14px; }
     .person-hero-avatar { width: 54px !important; height: 54px !important; flex-basis: 54px; }

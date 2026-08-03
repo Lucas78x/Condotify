@@ -14,34 +14,35 @@
     <div class="metric-grid">
         <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" /></span><span class="metric-value">@_devices.Count(x => x.IsActive)</span><span class="metric-label">Disponíveis</span></div>
         <div class="metric danger"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.SensorsOff" /></span><span class="metric-value">@_devices.Count(x => !x.IsActive)</span><span class="metric-label">Indisponíveis</span></div>
-        <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><span class="metric-value">@_devices.Count</span><span class="metric-label">Total</span></div>
     </div>
-    <section class="content-panel">
+    <div class="device-list">
         @foreach (var device in _devices)
         {
-            <div class="list-row device-row">
-                <span class="status-dot @(device.IsActive ? "online" : "")"></span>
-                <div class="list-main">
-                    <div class="list-title">@device.Name</div>
-                    <div class="list-meta">@device.Model · @device.IPAddress:@device.Port</div>
-                    <span class="row-status @(device.IsActive ? "success" : "neutral")">@(device.IsActive ? "Disponível" : "Indisponível")</span>
-                    @if (!device.IsActive && !string.IsNullOrWhiteSpace(device.HealthMessage))
-                    {
-                        <div class="list-meta device-health" title="@device.HealthMessage">@device.HealthMessage</div>
-                    }
+            <section class="content-panel">
+                <div class="list-row device-row">
+                    <span class="status-dot @(device.IsActive ? "online" : "")"></span>
+                    <div class="list-main">
+                        <div class="list-title">@device.Name</div>
+                        <div class="list-meta">@device.Model · @device.IPAddress:@device.Port</div>
+                        <span class="row-status @(device.IsActive ? "success" : "neutral")">@(device.IsActive ? "Disponível" : "Indisponível")</span>
+                        @if (!device.IsActive && !string.IsNullOrWhiteSpace(device.HealthMessage))
+                        {
+                            <div class="list-meta device-health" title="@device.HealthMessage">@device.HealthMessage</div>
+                        }
+                    </div>
+                    <MudButton Class="device-open-button"
+                               Size="Size.Small"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Outlined.LockOpen"
+                               Disabled="@(!device.IsActive || _opening == device.Id)"
+                               OnClick="() => OpenDoorAsync(device)">
+                        @(_opening == device.Id ? "Acionando..." : "Abrir porta")
+                    </MudButton>
                 </div>
-                <MudButton Class="device-open-button"
-                           Size="Size.Small"
-                           Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Outlined.LockOpen"
-                           Disabled="@(!device.IsActive || _opening == device.Id)"
-                           OnClick="() => OpenDoorAsync(device)">
-                    @(_opening == device.Id ? "Acionando..." : "Abrir porta")
-                </MudButton>
-            </div>
+            </section>
         }
-    </section>
+    </div>
 </PageState>
 
 @code {
