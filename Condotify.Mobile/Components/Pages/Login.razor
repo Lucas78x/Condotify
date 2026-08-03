@@ -1,0 +1,219 @@
+@page "/login"
+@inject MobileSessionCoordinator Session
+@inject MobileDeviceContext Device
+@inject MobileAppState AppState
+@inject MobilePushLifecycle Push
+@inject NavigationManager Navigation
+
+<PageTitle>Entrar | Condotify</PageTitle>
+<div class="login-page">
+    <div class="login-card">
+        @if (_step == LoginStep.Credentials)
+        {
+            <div class="login-hero">
+                <div class="login-hero-mark" aria-hidden="true">C</div>
+                <MudText Typo="Typo.h5">Condotify</MudText>
+                <MudText Typo="Typo.caption">Controle de acesso inteligente</MudText>
+            </div>
+        }
+        else
+        {
+            <div class="login-navbar">
+                <MudIconButton Icon="@Icons.Material.Outlined.ArrowBack"
+                               Size="Size.Small"
+                               OnClick="GoBack"
+                               aria-label="Voltar" />
+                <MudText Typo="Typo.subtitle1">@StepTitle</MudText>
+            </div>
+        }
+
+        <div class="login-body">
+            @if (_step == LoginStep.Credentials)
+            {
+                <div class="principal-switch" role="group" aria-label="Tipo de acesso">
+                    <button type="button"
+                            class="@PrincipalClass(MobilePrincipalKind.Staff)"
+                            aria-pressed="@(_principal == MobilePrincipalKind.Staff)"
+                            @onclick="() => ChangePrincipal(MobilePrincipalKind.Staff)">
+                        <MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" />
+                        <span>Equipe</span>
+                    </button>
+                    <button type="button"
+                            class="@PrincipalClass(MobilePrincipalKind.Resident)"
+                            aria-pressed="@(_principal == MobilePrincipalKind.Resident)"
+                            @onclick="() => ChangePrincipal(MobilePrincipalKind.Resident)">
+                        <MudIcon Icon="@Icons.Material.Outlined.Home" Size="Size.Small" />
+                        <span>Morador</span>
+                    </button>
+                </div>
+
+                <MudForm @ref="_form" class="login-form">
+                    @if (!string.IsNullOrWhiteSpace(_error))
+                    {
+                        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.ErrorOutline" Dense="true">@_error</MudAlert>
+                    }
+                    <MudTextField @bind-Value="_email"
+                                  Label="E-mail"
+                                  Placeholder="nome@empresa.com.br"
+                                  InputType="InputType.Email"
+                                  Required="true"
+                                  RequiredError="Informe o e-mail."
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Outlined.AlternateEmail"
+                                  AutoFocus="true" />
+                    <MudTextField @bind-Value="_password"
+                                  Label="Senha"
+                                  Placeholder="Digite sua senha"
+                                  InputType="@(_showPassword ? InputType.Text : InputType.Password)"
+                                  Required="true"
+                                  RequiredError="Informe a senha."
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@(_showPassword ? Icons.Material.Outlined.VisibilityOff : Icons.Material.Outlined.Visibility)"
+                                  AdornmentAriaLabel="Exibir ou ocultar senha"
+                                  OnAdornmentClick="TogglePassword" />
+                    <MudButton FullWidth="true"
+                               Size="Size.Large"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Class="login-submit"
+                               EndIcon="@(_busy ? null : Icons.Material.Outlined.ArrowForward)"
+                               Disabled="_busy"
+                               OnClick="SubmitAsync">
+                        @if (_busy)
+                        {
+                            <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                        }
+                        @(_busy ? "Aguarde" : "Entrar")
+                    </MudButton>
+                </MudForm>
+
+                <div class="login-footnote">
+                    <MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" />
+                    <span>Conexão protegida</span>
+                </div>
+            }
+            else if (_step == LoginStep.Mfa)
+            {
+                <div class="login-lead">Informe o código exibido no seu aplicativo autenticador.</div>
+                <MudForm @ref="_form" class="login-form">
+                    @if (!string.IsNullOrWhiteSpace(_error))
+                    {
+                        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.ErrorOutline" Dense="true">@_error</MudAlert>
+                    }
+                    <MudTextField @bind-Value="_mfaCode"
+                                  Label="Código de segurança"
+                                  Placeholder="000000"
+                                  Required="true"
+                                  RequiredError="Informe o código."
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Outlined.Password"
+                                  Class="mfa-field"
+                                  AutoFocus="true" />
+                    <MudButton FullWidth="true"
+                               Size="Size.Large"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Class="login-submit"
+                               EndIcon="@(_busy ? null : Icons.Material.Outlined.ArrowForward)"
+                               Disabled="_busy"
+                               OnClick="SubmitAsync">
+                        @if (_busy)
+                        {
+                            <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                        }
+                        @(_busy ? "Aguarde" : "Confirmar acesso")
+                    </MudButton>
+                </MudForm>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private MudForm? _form;
+    private LoginStep _step = LoginStep.Credentials;
+    private MobilePrincipalKind _principal = MobilePrincipalKind.Staff;
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private string _mfaCode = string.Empty;
+    private string _challenge = string.Empty;
+    private string _error = string.Empty;
+    private bool _showPassword;
+    private bool _busy;
+
+    private enum LoginStep { Credentials, Mfa }
+
+    private string StepTitle => _step switch
+    {
+        LoginStep.Mfa => "Confirme sua identidade",
+        _ => string.Empty
+    };
+
+    private string PrincipalClass(MobilePrincipalKind principal) =>
+        _principal == principal ? "active" : string.Empty;
+
+    private void ChangePrincipal(MobilePrincipalKind principal)
+    {
+        _principal = principal;
+        _step = LoginStep.Credentials;
+        _challenge = string.Empty;
+        _mfaCode = string.Empty;
+        _error = string.Empty;
+    }
+
+    private void TogglePassword() => _showPassword = !_showPassword;
+
+    private void GoBack()
+    {
+        _error = string.Empty;
+        _step = LoginStep.Credentials;
+        _challenge = string.Empty;
+        _mfaCode = string.Empty;
+    }
+
+    private async Task SubmitAsync()
+    {
+        await _form!.ValidateAsync();
+        if (!_form.IsValid || _busy) return;
+        _busy = true;
+        _error = string.Empty;
+        try
+        {
+            MobileLoginResult result;
+            if (_step == LoginStep.Mfa)
+                result = await Session.VerifyStaffMfaAsync(_challenge, _mfaCode, Device.DeviceLabel);
+            else if (_principal == MobilePrincipalKind.Resident)
+                result = await Session.LoginResidentAsync(_email, _password, Device.DeviceLabel);
+            else
+                result = await Session.LoginStaffAsync(_email, _password, Device.DeviceLabel);
+
+            if (result.MfaRequired)
+            {
+                _challenge = result.ChallengeToken;
+                _step = LoginStep.Mfa;
+                return;
+            }
+            if (!result.Success)
+            {
+                _error = result.Error;
+                return;
+            }
+
+            if (Session.Current?.Principal == MobilePrincipalKind.Staff)
+                await AppState.LoadLicensesAsync();
+            await Push.RegisterAsync();
+            Navigation.NavigateTo("/home", replace: true);
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Sem conexao com a central. Verifique sua rede e tente novamente.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
