@@ -225,6 +225,28 @@
                     </MudButton>
                 </div>
             }
+            else if (_step == LoginStep.StaffSupport)
+            {
+                <div class="login-confirm">
+                    <div class="login-support-icon" aria-hidden="true"><MudIcon Icon="@Icons.Material.Outlined.SupportAgent" /></div>
+                    <MudText Typo="Typo.h1">Fale com o suporte</MudText>
+                </div>
+                <div class="login-lead">Por segurança, contas da equipe não redefinem a senha pelo aplicativo. Entre em contato para liberar o acesso.</div>
+                <a class="login-support-row" href="mailto:@SupportEmail">
+                    <MudIcon Icon="@Icons.Material.Outlined.AlternateEmail" />
+                    <div>
+                        <span class="login-support-label">E-mail</span>
+                        <span class="login-support-value">@SupportEmail</span>
+                    </div>
+                </a>
+                <a class="login-support-row" href="@SupportWhatsAppUrl" target="_blank" rel="noopener">
+                    <MudIcon Icon="@Icons.Material.Outlined.Chat" />
+                    <div>
+                        <span class="login-support-label">WhatsApp</span>
+                        <span class="login-support-value">@SupportPhoneDisplay</span>
+                    </div>
+                </a>
+            }
         </div>
     </div>
 </div>
@@ -245,13 +267,19 @@
     private string _newPassword = string.Empty;
     private string _confirmPassword = string.Empty;
 
-    private enum LoginStep { Credentials, Mfa, ForgotEmail, ForgotReset, ForgotDone }
+    // Placeholder contact channel until a real support desk is wired up.
+    private const string SupportEmail = "suporte@condotify.com.br";
+    private const string SupportPhoneDisplay = "(11) 90000-0000";
+    private const string SupportWhatsAppUrl = "https://wa.me/5511900000000";
+
+    private enum LoginStep { Credentials, Mfa, ForgotEmail, ForgotReset, ForgotDone, StaffSupport }
 
     private string StepTitle => _step switch
     {
         LoginStep.Mfa => "Confirme sua identidade",
         LoginStep.ForgotEmail => "Recuperar senha",
         LoginStep.ForgotReset => "Redefinir senha",
+        LoginStep.StaffSupport => "Esqueci minha senha",
         _ => string.Empty
     };
 
@@ -326,8 +354,7 @@
     private void OpenForgotPassword()
     {
         _error = string.Empty;
-        if (_principal == MobilePrincipalKind.Resident)
-            _step = LoginStep.ForgotEmail;
+        _step = _principal == MobilePrincipalKind.Resident ? LoginStep.ForgotEmail : LoginStep.StaffSupport;
     }
 
     private async Task SubmitForgotEmailAsync()

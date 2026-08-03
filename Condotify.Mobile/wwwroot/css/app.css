@@ -184,6 +184,11 @@ button.list-row:last-child { border-bottom: 0; }
 .login-confirm { padding: 14px 2px 4px; text-align: center; }
 .login-confirm-icon { width: 52px; height: 52px; display: grid; place-items: center; margin: 0 auto 14px; border-radius: 50%; background: #e9f7f2; color: #12805a; font-size: 1.4rem; }
 .login-confirm .mud-typography-h1 { margin-bottom: 8px; color: #182234; font-size: 1.25rem; font-weight: 750; }
+.login-support-icon { width: 52px; height: 52px; display: grid; place-items: center; margin: 4px auto 14px; border-radius: 14px; background: #eef1fb; color: #3156d3; font-size: 1.3rem; }
+.login-support-row { display: flex; align-items: center; gap: 12px; padding: 13px 14px; margin-bottom: 10px; border: 1px solid #dce3ed; border-radius: 12px; text-decoration: none; color: inherit; }
+.login-support-row .mud-icon-root { flex: 0 0 auto; width: 32px; height: 32px; padding: 7px; border-radius: 9px; background: #eef1fb; color: #3156d3; }
+.login-support-label { display: block; color: #647188; font-size: .66rem; font-weight: 650; text-transform: uppercase; letter-spacing: .02em; }
+.login-support-value { display: block; color: #182234; font-size: .86rem; font-weight: 700; }
 .mfa-field input { text-align: center; font-size: 1.12rem; font-weight: 700; letter-spacing: 2px; }
 
 @media (prefers-reduced-motion: no-preference) {
