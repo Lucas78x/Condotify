@@ -6,12 +6,13 @@
 @inject CondotifyApiClient Api
 
 <PageTitle>Inicio | Condotify</PageTitle>
-<PageHeader Title="@ContextTitle" Subtitle="@Greeting">
+<PageHeader Title="@Greeting">
     <Actions>
         <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
     </Actions>
 </PageHeader>
 
+<div class="home-content">
 <PageState Loading="_loading" Error="@_error" Retry="LoadAsync">
     @if (Session.Current?.Principal == MobilePrincipalKind.Resident)
     {
@@ -54,6 +55,7 @@
         </section>
     }
 </PageState>
+</div>
 <a class="home-fab" href="/visitors" aria-label="Registrar visitante">
     <MudIcon Icon="@Icons.Material.Outlined.Add" />
 </a>
@@ -65,7 +67,6 @@
     private ResidentProfileViewModel? _resident;
     private MobileNotificationPageViewModel? _notifications;
     private CancellationTokenSource _loadCts = new();
-    private string ContextTitle => Session.Current?.Principal == MobilePrincipalKind.Resident ? Session.Current.LicenseName : AppState.SelectedLicense?.Nome ?? "Central operacional";
     private string Greeting => $"Olá, {FirstName}";
     private string FirstName => (Session.Current?.Name ?? "Usuário").Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "Usuário";
 

@@ -154,6 +154,7 @@ button.list-row:last-child { border-bottom: 0; }
 .visitor-details .list-meta { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; }
 .visitor-details .mud-icon-root { width: 15px; height: 15px; font-size: 15px; }
 .status-dot.warning { background: #a96300; }
+.home-content { padding-bottom: 76px; }
 .home-fab { position: fixed; z-index: 1150; right: max(20px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; background: var(--mud-palette-primary); color: #ffffff; box-shadow: 0 10px 20px rgba(49, 86, 211, .35); text-decoration: none; }
 .home-fab .mud-icon-root { width: 24px; height: 24px; font-size: 24px; }
 .settings-panel { max-width: 820px; }
