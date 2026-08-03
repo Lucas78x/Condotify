@@ -42,10 +42,11 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .desktop-rail .mud-nav-link { min-height: 44px; margin: 3px 0; border-radius: 6px; color: var(--mud-palette-drawer-text); }
 .desktop-rail .mud-nav-link:hover { background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent); }
 .desktop-rail .mud-nav-link.active { background: color-mix(in srgb, var(--mud-palette-primary) 10%, transparent); color: var(--mud-palette-primary); font-weight: 700; }
-.rail-footer { position: absolute; right: 12px; bottom: 16px; left: 12px; min-height: 58px; display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid #bfe0d6; border-radius: 7px; background: #edf8f4; color: #007c69; }
-.rail-footer > div { min-width: 0; display: grid; }
-.rail-footer strong { font-size: .72rem; }
-.rail-footer span { color: #4d756d; font-size: .65rem; }
+.rail-footer { position: absolute; right: 12px; bottom: 16px; left: 12px; min-height: 58px; display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--mud-palette-lines-default); border-radius: 10px; background: var(--mud-palette-surface); color: inherit; font: inherit; text-align: left; cursor: pointer; -webkit-appearance: none; appearance: none; transition: background-color 140ms ease; }
+.rail-footer:hover { background: color-mix(in srgb, var(--mud-palette-primary) 6%, var(--mud-palette-surface)); }
+.rail-footer > div { min-width: 0; display: grid; overflow: hidden; }
+.rail-footer strong { overflow: hidden; font-size: .78rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.rail-footer span { color: var(--mud-palette-text-secondary); font-size: .68rem; }
 .connectivity-banner { position: fixed; z-index: 1190; top: 68px; right: 0; left: var(--mobile-desktop-rail-width); min-height: 36px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 7px 16px; border-bottom: 1px solid #efd19e; background: #fff7e8; color: #855300; font-size: .76rem; font-weight: 650; text-align: center; }
 .app-content { min-height: 100vh; background: var(--mud-palette-background); }
 .mobile-shell .mud-main-content { margin-left: var(--mobile-desktop-rail-width) !important; }
@@ -205,8 +206,6 @@ button.list-row:last-child { border-bottom: 0; }
 .login-submit .mud-button-label { text-transform: none; font-size: .92rem; }
 .login-submit .mud-button-icon-root { transition: transform 160ms ease; }
 .login-submit:not(:disabled):hover .mud-button-icon-root { transform: translateX(3px); }
-.login-footnote { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 16px; color: #647188; font-size: .72rem; text-align: center; }
-.login-footnote .mud-icon-root { width: 14px; height: 14px; font-size: 14px; color: #12805a; }
 .login-fp { display: block; width: 100%; text-align: right; margin: -6px 0 4px; padding: 0; border: 0; background: none; color: #3156d3; font-size: .76rem; font-weight: 700; cursor: pointer; }
 .login-fp:hover { text-decoration: underline; }
 .login-lead { margin-bottom: 16px; color: #647188; font-size: .8rem; line-height: 1.55; }

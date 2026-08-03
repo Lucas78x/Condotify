@@ -55,10 +55,10 @@ else
                     <MudNavLink Href="@item.Route" Match="NavLinkMatch.Prefix" Icon="@Icon(item.IconKey)">@item.Label</MudNavLink>
                 }
             </MudNavMenu>
-            <div class="rail-footer">
-                <MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" Size="Size.Small" />
-                <div><strong>Ambiente protegido</strong><span>Sessão monitorada</span></div>
-            </div>
+            <button type="button" class="rail-footer" @onclick="OpenProfile">
+                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">@Initials(Session.Current?.Name)</MudAvatar>
+                <div><strong>@(Session.Current?.Name ?? "Usuário")</strong><span>@PrincipalLabel</span></div>
+            </button>
         </MudDrawer>
 
         @if (!NetworkState.IsOnline)
@@ -96,6 +96,11 @@ else
         ? Session.Current.LicenseName
         : AppState.SelectedLicense?.Nome ?? "Central operacional";
     private bool IsLoginRoute => Navigation.Uri.EndsWith("/login", StringComparison.OrdinalIgnoreCase);
+    private string PrincipalLabel => Session.Current?.Principal == MobilePrincipalKind.Resident ? "Morador" : "Operação";
+    private static string Initials(string? name) =>
+        string.IsNullOrWhiteSpace(name)
+            ? "?"
+            : string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
 
     protected override void OnInitialized()
     {
