@@ -70,7 +70,11 @@ else
         }
 
         <MudMainContent Class="app-content">
-            <div class="page-frame">@Body</div>
+            <div class="page-frame">
+                <div class="page-transition" @key="@Navigation.Uri">
+                    @Body
+                </div>
+            </div>
         </MudMainContent>
 
         <nav class="mobile-bottom-nav" aria-label="Navegação principal">

@@ -63,6 +63,13 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .skeleton-heading { width: 180px; height: 18px; margin: 20px; border-radius: 4px; }
 .skeleton-row { height: 68px; border-top: 1px solid var(--mud-palette-lines-default); border-radius: 0; }
 .mobile-bottom-nav { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+    .page-transition { animation: page-fade-in 220ms ease-out both; }
+    @keyframes page-fade-in {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+}
 
 .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--mud-palette-lines-default); border-radius: 7px; overflow: hidden; background: var(--mud-palette-surface); margin-bottom: 20px; }
 .metric { position: relative; min-width: 0; min-height: 88px; display: grid; align-content: center; gap: 3px; padding: 17px 20px; border-right: 1px solid var(--mud-palette-lines-default); }
