@@ -1,0 +1,182 @@
+@page "/cameras"
+@page "/cameras/{EntityId:guid}"
+@implements IAsyncDisposable
+@inject MobileAppState AppState
+@inject MobileSessionCoordinator Session
+@inject CondotifyApiClient Api
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<PageTitle>Câmeras | Condotify</PageTitle>
+<PageHeader Title="Câmeras" Subtitle="Visualização ao vivo sem expor credenciais dos equipamentos.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+@if (_session is not null)
+{
+    <section class="content-panel mb-4">
+        <div class="panel-heading"><div><MudText Typo="Typo.h5">@_activeCamera?.Name</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Sessão protegida até @_session.ExpiresAt.ToLocalTime().ToString("HH:mm")</MudText></div><MudIconButton Icon="@Icons.Material.Outlined.Close" OnClick="CloseStreamAsync" aria-label="Fechar vídeo" /></div>
+        <div class="video-stage"><video id="condotify-live-video" autoplay muted playsinline controls></video></div>
+    </section>
+}
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_cameras.Count == 0)" EmptyTitle="Nenhuma câmera" EmptyText="As câmeras configuradas no portal aparecerão aqui." Retry="LoadAsync">
+    <section class="content-panel">
+        @foreach (var camera in _cameras)
+        {
+            <div class="list-row">
+                @if (!string.IsNullOrWhiteSpace(camera.SnapshotUrl))
+                {
+                    <img class="camera-snapshot" src="@camera.SnapshotUrl" alt="Miniatura de @camera.Name" />
+                }
+                else
+                {
+                    <div class="camera-snapshot-placeholder"><MudIcon Icon="@Icons.Material.Outlined.VideocamOff" /></div>
+                }
+                <span class="status-dot @(camera.Online ? "online" : "")"></span>
+                <div class="list-main"><div class="list-title">@camera.Name</div><div class="list-meta">@camera.DeviceType - @camera.MaxChannels canal(is)</div><div class="list-meta">@(camera.Online ? "Online" : string.IsNullOrWhiteSpace(camera.HealthMessage) ? "Sem telemetria" : camera.HealthMessage)</div></div>
+                <MudIconButton Icon="@Icons.Material.Outlined.PlayCircle" Color="Color.Primary" Disabled="@(!camera.Online || _opening == camera.Id)" OnClick="() => OpenStreamAsync(camera)" aria-label="Assistir" />
+            </div>
+        }
+    </section>
+</PageState>
+
+@code {
+    [Parameter] public Guid? EntityId { get; set; }
+    private List<CameraItem> _cameras = [];
+    private CameraItem? _activeCamera;
+    private CftvStreamSessionViewModel? _session;
+    private bool _loading;
+    private Guid? _opening;
+    private string _error = string.Empty;
+    private CancellationTokenSource _loadCts = new();
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loadCts.Cancel();
+        _loadCts.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var cancellationToken = _loadCts.Token;
+        _loading = true; _error = string.Empty;
+        if (Session.Current?.Principal == MobilePrincipalKind.Resident)
+        {
+            var result = await Api.GetResidentCamerasAsync(cancellationToken);
+            if (cancellationToken.IsCancellationRequested) return;
+            _cameras = (result.Value ?? []).Select(x => new CameraItem(x.Id, x.Name, x.DeviceType, x.MaxChannels, x.Online, x.HealthMessage)).ToList();
+            if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar as cameras.";
+        }
+        else
+        {
+            if (!AppState.SelectedLicenseId.HasValue) { _error = "Selecione um condominio."; _loading = false; return; }
+            var camerasTask = Api.GetCamerasAsync(AppState.SelectedLicenseId.Value, cancellationToken);
+            var statusTask = Api.GetCftvStatusAsync(AppState.SelectedLicenseId.Value, cancellationToken);
+            await Task.WhenAll(camerasTask, statusTask);
+            if (cancellationToken.IsCancellationRequested) return;
+            var cameras = await camerasTask;
+            var status = await statusTask;
+            _cameras = (cameras.Value ?? []).Select(camera =>
+            {
+                var state = status.Value?.FirstOrDefault(x => x.DeviceId == camera.Id);
+                return new CameraItem(camera.Id, camera.Name, camera.DeviceType, camera.MaxChannels, state?.Online == true, state?.HealthMessage ?? string.Empty);
+            }).ToList();
+            if (!cameras.Success) _error = cameras.Error ?? "Nao foi possivel carregar as cameras.";
+            else if (!status.Success) _error = status.Error ?? "Nao foi possivel consultar o estado das cameras.";
+        }
+        await LoadSnapshotsAsync(cancellationToken);
+        if (cancellationToken.IsCancellationRequested) return;
+        _loading = false;
+    }
+
+    private async Task LoadSnapshotsAsync(CancellationToken cancellationToken)
+    {
+        if (_cameras.Count == 0) return;
+        using var concurrency = new SemaphoreSlim(3);
+        var requests = _cameras.Select(async camera =>
+        {
+            if (!camera.Online) return camera;
+            await concurrency.WaitAsync(cancellationToken);
+            try
+            {
+                var result = Session.Current?.Principal == MobilePrincipalKind.Resident
+                    ? await Api.GetResidentCftvSnapshotAsync(camera.Id, cancellationToken: cancellationToken)
+                    : await Api.GetCftvSnapshotAsync(AppState.SelectedLicenseId!.Value, camera.Id, cancellationToken: cancellationToken);
+                return result.Success && !string.IsNullOrWhiteSpace(result.Value)
+                    ? camera with { SnapshotUrl = result.Value }
+                    : camera;
+            }
+            finally
+            {
+                concurrency.Release();
+            }
+        });
+        try
+        {
+            _cameras = (await Task.WhenAll(requests)).ToList();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task OpenStreamAsync(CameraItem camera)
+    {
+        await CloseStreamAsync();
+        _opening = camera.Id;
+        var result = Session.Current?.Principal == MobilePrincipalKind.Resident
+            ? await Api.OpenResidentCftvStreamAsync(camera.Id, 1, "secondary", "webrtc")
+            : await Api.OpenCftvStreamAsync(AppState.SelectedLicenseId!.Value, camera.Id, 1, "secondary", "webrtc");
+        _opening = null;
+        if (!result.Success || result.Value is null) { Snackbar.Add(result.Error ?? "Video indisponivel.", Severity.Error); return; }
+        _activeCamera = camera;
+        _session = result.Value;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            await JS.InvokeVoidAsync("condotifyCftv.start", "condotify-live-video", _session.PlaybackUrl);
+        }
+        catch (JSException exception)
+        {
+            await CloseStreamAsync();
+            Snackbar.Add(GetPlayerError(exception.Message), Severity.Error);
+        }
+    }
+
+    private static string GetPlayerError(string technicalMessage)
+    {
+        if (technicalMessage.Contains("Failed to fetch", StringComparison.OrdinalIgnoreCase) ||
+            technicalMessage.Contains("NetworkError", StringComparison.OrdinalIgnoreCase) ||
+            technicalMessage.Contains("insecure", StringComparison.OrdinalIgnoreCase))
+            return "Nao foi possivel alcancar o gateway de video nesta rede.";
+
+        if (technicalMessage.Contains("Tempo limite", StringComparison.OrdinalIgnoreCase) ||
+            technicalMessage.Contains("demorou", StringComparison.OrdinalIgnoreCase))
+            return "A camera demorou para iniciar. Verifique a rede do equipamento.";
+
+        if (technicalMessage.Contains("HTTP", StringComparison.OrdinalIgnoreCase))
+            return "O gateway recusou a reproducao deste video.";
+
+        return "Nao foi possivel reproduzir o video desta camera.";
+    }
+
+    private async Task CloseStreamAsync()
+    {
+        try { await JS.InvokeVoidAsync("condotifyCftv.stop", "condotify-live-video"); } catch { }
+        if (_activeCamera is not null)
+        {
+            if (Session.Current?.Principal == MobilePrincipalKind.Resident)
+                await Api.CloseResidentCftvStreamAsync(_activeCamera.Id);
+            else if (AppState.SelectedLicenseId.HasValue)
+                await Api.CloseCftvStreamAsync(AppState.SelectedLicenseId.Value, _activeCamera.Id);
+        }
+        _activeCamera = null; _session = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _loadCts.Cancel();
+        _loadCts.Dispose();
+        await CloseStreamAsync();
+    }
+    private sealed record CameraItem(Guid Id, string Name, string DeviceType, int MaxChannels, bool Online, string HealthMessage, string SnapshotUrl = "");
+}

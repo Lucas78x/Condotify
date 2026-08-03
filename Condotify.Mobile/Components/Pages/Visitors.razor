@@ -1,0 +1,164 @@
+@page "/visitors"
+@page "/visitors/{EntityId:guid}"
+@implements IDisposable
+@inject MobileAppState AppState
+@inject CondotifyApiClient Api
+@inject MobileSessionCoordinator Session
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>Visitantes | Condotify</PageTitle>
+<PageHeader Title="Visitantes" Subtitle="@Subtitle">
+    <Actions>
+        <div class="page-actions">
+            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
+            @if (!IsStaff)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAddAlt1"
+                           Disabled="@(_profile is null)" OnClick="OpenCreateAsync">Novo visitante</MudButton>
+            }
+        </div>
+    </Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_rows.Count == 0)" EmptyTitle="Nenhum visitante" EmptyText="As autorizações aparecerão aqui." Retry="LoadAsync">
+    <div class="metric-grid">
+        <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><span class="metric-value">@_rows.Count</span><span class="metric-label">Autorizações</span></div>
+        <div class="metric warning"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.PendingActions" /></span><span class="metric-value">@_rows.Count(x => x.Status == "PendingApproval")</span><span class="metric-label">Aguardando aprovação</span></div>
+        <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Login" /></span><span class="metric-value">@_rows.Count(x => x.Status == "CheckedIn")</span><span class="metric-label">Dentro agora</span></div>
+        <div class="metric info"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.QrCode2" /></span><span class="metric-value">@_rows.Count(x => !string.IsNullOrWhiteSpace(x.CredentialCode))</span><span class="metric-label">Com credencial</span></div>
+    </div>
+
+    <div class="directory-toolbar">
+        <MudTextField @bind-Value="_search"
+                      Immediate="true"
+                      Clearable="true"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Outlined.Search"
+                      Placeholder="Buscar visitante, anfitrião, unidade ou placa"
+                      aria-label="Buscar visitante" />
+    </div>
+
+    <section class="content-panel">
+        <div class="panel-heading"><div><MudText Typo="Typo.h5">@ListTitle</MudText><span class="panel-subtitle">@FilteredRows.Count() registro(s) encontrado(s)</span></div></div>
+        @if (!FilteredRows.Any())
+        {
+            <div class="page-state compact-state"><MudIcon Icon="@Icons.Material.Outlined.SearchOff" Color="Color.Secondary" Size="Size.Large" /><MudText>Nenhum resultado para esta busca.</MudText></div>
+        }
+        @foreach (var visit in FilteredRows)
+        {
+            <div class="list-row visitor-row">
+                @if (!string.IsNullOrWhiteSpace(visit.PhotoUrl))
+                {
+                    <MudAvatar Class="photo-avatar"><img src="@visit.PhotoUrl" alt="" /></MudAvatar>
+                }
+                else
+                {
+                    <MudAvatar Color="@StatusColor(visit.Status)" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.Person" /></MudAvatar>
+                }
+                <div class="list-main">
+                    <div class="list-title">@visit.VisitorName</div>
+                    <div class="list-meta">@visit.ValidFrom.ToLocalTime().ToString("dd/MM HH:mm") até @visit.ValidTo.ToLocalTime().ToString("dd/MM HH:mm")</div>
+                    <div class="visitor-details">
+                        <span class="row-status @StatusClass(visit.Status)">@StatusLabel(visit.Status)</span>
+                        @if (IsStaff) { <span class="list-meta"><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Size="Size.Small" /> @visit.HostName · @visit.BlockName/@visit.UnitNumber</span> }
+                        @if (!string.IsNullOrWhiteSpace(visit.VehiclePlate)) { <span class="list-meta"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" Size="Size.Small" /> @visit.VehiclePlate</span> }
+                    </div>
+                </div>
+                @if (IsStaff && visit.Status == "PendingApproval")
+                {
+                    <div class="row-actions">
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="() => DecideAsync(visit, false)">Recusar</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="() => DecideAsync(visit, true)">Aprovar</MudButton>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</PageState>
+
+@code {
+    [Parameter] public Guid? EntityId { get; set; }
+    private List<ConciergeVisitViewModel> _rows = [];
+    private ResidentProfileViewModel? _profile;
+    private CancellationTokenSource? _loadCts;
+    private bool _loading;
+    private string _error = string.Empty;
+    private string _search = string.Empty;
+    private bool IsStaff => Session.Current?.Principal == MobilePrincipalKind.Staff;
+    private string Subtitle => IsStaff ? "Autorizações e movimentações de visitantes do condomínio." : "Autorizações vinculadas ao seu cadastro.";
+    private string ListTitle => IsStaff ? "Movimentação de visitantes" : "Minhas autorizações";
+    private IEnumerable<ConciergeVisitViewModel> FilteredRows => _rows.Where(MatchesSearch).OrderByDescending(x => x.ValidFrom);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var cancellationToken = _loadCts.Token;
+        _loading = true;
+        _error = string.Empty;
+
+        if (IsStaff)
+        {
+            if (!AppState.SelectedLicenseId.HasValue)
+            {
+                _error = "Selecione um condomínio.";
+                _loading = false;
+                return;
+            }
+            var result = await Api.GetConciergeDashboardAsync(AppState.SelectedLicenseId.Value, cancellationToken);
+            if (cancellationToken.IsCancellationRequested) return;
+            _rows = result.Value?.Visits ?? [];
+            if (!result.Success) _error = result.Error ?? "Não foi possível carregar os visitantes.";
+        }
+        else
+        {
+            var profileTask = Api.GetResidentProfileAsync(cancellationToken);
+            var visitsTask = Api.GetResidentVisitsAsync(cancellationToken);
+            await Task.WhenAll(profileTask, visitsTask);
+            if (cancellationToken.IsCancellationRequested) return;
+            var profileResult = await profileTask;
+            var visitsResult = await visitsTask;
+            _profile = profileResult.Value;
+            _rows = visitsResult.Value ?? [];
+            if (!profileResult.Success) _error = profileResult.Error ?? "Não foi possível carregar seu vínculo.";
+            else if (!visitsResult.Success) _error = visitsResult.Error ?? "Não foi possível carregar os visitantes.";
+        }
+        _loading = false;
+    }
+
+    private async Task OpenCreateAsync()
+    {
+        if (_profile is null) return;
+        var parameters = new DialogParameters { [nameof(ResidentVisitorDialog.Profile)] = _profile };
+        var dialog = await Dialogs.ShowAsync<ResidentVisitorDialog>(string.Empty, parameters, new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        Snackbar.Add("Visitante autorizado. O QR Code está pronto para sincronização.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DecideAsync(ConciergeVisitViewModel visit, bool approved)
+    {
+        if (!AppState.SelectedLicenseId.HasValue) return;
+        var result = await Api.DecideConciergeVisitAsync(AppState.SelectedLicenseId.Value, visit.Id, approved, string.Empty);
+        Snackbar.Add(result.Success ? (approved ? "Visita aprovada." : "Visita recusada.") : result.Error ?? "Falha na operação.", result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) await LoadAsync();
+    }
+
+    private bool MatchesSearch(ConciergeVisitViewModel visit) => string.IsNullOrWhiteSpace(_search) || new[] { visit.VisitorName, visit.HostName, visit.BlockName, visit.UnitNumber, visit.VehiclePlate, visit.Document }.Any(x => x?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) == true);
+    private static Color StatusColor(string status) => status switch { "CheckedIn" => Color.Success, "PendingApproval" => Color.Warning, "Denied" or "Canceled" => Color.Error, _ => Color.Primary };
+    private static string StatusClass(string status) => status switch { "CheckedIn" => "success", "PendingApproval" => "warning", "Denied" or "Canceled" => "error", _ => "info" };
+    private static string StatusLabel(string status) => status switch { "CheckedIn" => "No condomínio", "PendingApproval" => "Aguardando aprovação", "Denied" => "Recusada", "Canceled" => "Cancelada", "Expected" => "Prevista", "CheckedOut" => "Finalizada", _ => status };
+
+    public void Dispose()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+    }
+}

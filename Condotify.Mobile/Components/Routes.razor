@@ -1,0 +1,42 @@
+@inject MobileSessionCoordinator Session
+@inject NavigationManager Navigation
+@inject MobileDeepLinkState DeepLinks
+@implements IDisposable
+
+<Router AppAssembly="@typeof(MauiProgram).Assembly" OnNavigateAsync="OnNavigateAsync">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+</Router>
+
+@code {
+    private bool _restored;
+
+    protected override void OnInitialized() => DeepLinks.Received += NavigateDeepLink;
+
+    private async Task OnNavigateAsync(Microsoft.AspNetCore.Components.Routing.NavigationContext context)
+    {
+        if (!_restored)
+        {
+            _restored = true;
+            await Session.RestoreAsync();
+        }
+
+        var loginRoute = context.Path.Equals("login", StringComparison.OrdinalIgnoreCase);
+        if (!Session.IsAuthenticated && !loginRoute)
+            Navigation.NavigateTo("/login", replace: true);
+        else if (Session.IsAuthenticated && loginRoute)
+            Navigation.NavigateTo("/home", replace: true);
+
+        if (Session.IsAuthenticated && DeepLinks.Consume() is { } pending)
+            Navigation.NavigateTo(pending);
+    }
+
+    private void NavigateDeepLink(string route)
+    {
+        if (Session.IsAuthenticated) InvokeAsync(() => Navigation.NavigateTo(route));
+    }
+
+    public void Dispose() => DeepLinks.Received -= NavigateDeepLink;
+}

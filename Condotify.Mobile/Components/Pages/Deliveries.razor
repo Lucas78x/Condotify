@@ -1,0 +1,59 @@
+@page "/deliveries"
+@page "/deliveries/{EntityId:guid}"
+@inject MobileAppState AppState
+@inject MobileSessionCoordinator Session
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Encomendas | Condotify</PageTitle>
+<PageHeader Title="Encomendas" Subtitle="Recebimentos registrados na portaria.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_rows.Count == 0)" EmptyTitle="Nenhuma encomenda" EmptyText="Recebimentos recentes aparecerão aqui." Retry="LoadAsync">
+    <section class="content-panel">
+        @foreach (var row in _rows)
+        {
+            <div class="list-row">
+                <MudAvatar Color="@StatusColor(row.Status)" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></MudAvatar>
+                <div class="list-main"><div class="list-title">@row.Name</div><div class="list-meta">@row.Type - @row.Status</div><div class="list-meta">@row.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm") @(!string.IsNullOrWhiteSpace(row.TrackingCode) ? $"- {row.TrackingCode}" : "")</div></div>
+                @if (Session.Current?.Principal == MobilePrincipalKind.Staff && row.StatusValue == 2)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" OnClick="() => DeliverAsync(row)">Entregar</MudButton>
+                }
+            </div>
+        }
+    </section>
+</PageState>
+
+@code {
+    [Parameter] public Guid? EntityId { get; set; }
+    private List<DeliveryRowViewModel> _rows = [];
+    private bool _loading;
+    private string _error = string.Empty;
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = string.Empty;
+        if (Session.Current?.Principal == MobilePrincipalKind.Staff && !AppState.SelectedLicenseId.HasValue)
+        {
+            _error = "Selecione um condominio.";
+            _loading = false;
+            return;
+        }
+        var result = Session.Current?.Principal == MobilePrincipalKind.Resident
+            ? await Api.GetResidentDeliveriesAsync()
+            : await Api.GetDeliveriesAsync(AppState.SelectedLicenseId!.Value);
+        _rows = result.Value ?? [];
+        if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar as encomendas.";
+        _loading = false;
+    }
+    private async Task DeliverAsync(DeliveryRowViewModel row)
+    {
+        if (Session.Current?.Principal != MobilePrincipalKind.Staff) return;
+        var result = await Api.UpdateDeliveryStatusAsync(AppState.SelectedLicenseId!.Value, row.Id, 3, "Entrega registrada pelo aplicativo");
+        Snackbar.Add(result.Success ? "Entrega registrada." : result.Error ?? "Falha ao atualizar.", result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) await LoadAsync();
+    }
+    private static Color StatusColor(string status) => status switch { "Delivered" => Color.Success, "Canceled" => Color.Error, "Received" => Color.Info, _ => Color.Warning };
+}

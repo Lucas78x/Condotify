@@ -1,0 +1,103 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="mobile-dialog">
+    <TitleContent>
+        <div class="mobile-dialog-title">
+            <MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" Color="Color.Primary" />
+            <div>
+                <MudText Typo="Typo.h6">Autorizar visitante</MudText>
+                <MudText Typo="Typo.caption">Crie um QR Code temporario para a portaria.</MudText>
+            </div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">@_error</MudAlert>
+        }
+
+        <div class="mobile-form-grid">
+            <MudSelect T="Guid" @bind-Value="_form.UnitId" Label="Unidade" Variant="Variant.Outlined" Required="true">
+                @foreach (var unit in Profile.Units)
+                {
+                    <MudSelectItem T="Guid" Value="unit.UnitId">@unit.BlockName / @unit.Number</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField T="string" @bind-Value="_form.VisitorName" Label="Nome completo" Variant="Variant.Outlined" Required="true" />
+            <MudTextField T="string" @bind-Value="_form.Document" Label="CPF, RG ou documento" Variant="Variant.Outlined" />
+            <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Telefone" Variant="Variant.Outlined" InputType="InputType.Telephone" />
+            <MudTextField T="string" @bind-Value="_form.VehiclePlate" Label="Placa do veiculo" Variant="Variant.Outlined" />
+            <MudTextField T="string" @bind-Value="_form.Purpose" Label="Motivo da visita" Variant="Variant.Outlined" />
+        </div>
+
+        <MudText Typo="Typo.subtitle2" Class="mobile-section-label">Validade do acesso</MudText>
+        <div class="mobile-date-grid">
+            <MudDatePicker @bind-Date="_fromDate" Label="Data inicial" Variant="Variant.Outlined" MinDate="DateTime.Today" />
+            <MudTimePicker @bind-Time="_fromTime" Label="Hora inicial" Variant="Variant.Outlined" />
+            <MudDatePicker @bind-Date="_toDate" Label="Data final" Variant="Variant.Outlined" MinDate="DateTime.Today" />
+            <MudTimePicker @bind-Time="_toTime" Label="Hora final" Variant="Variant.Outlined" />
+        </div>
+        <MudNumericField T="int?" @bind-Value="_form.MaxUses" Label="Limite de acessos" Variant="Variant.Outlined" Min="1" Max="100" Class="mt-3" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.QrCode2"
+                   Disabled="_saving" OnClick="SaveAsync">@(_saving ? "Autorizando..." : "Gerar acesso")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public ResidentProfileViewModel Profile { get; set; } = null!;
+
+    private readonly ResidentVisitFormViewModel _form = new();
+    private DateTime? _fromDate = DateTime.Today;
+    private TimeSpan? _fromTime = DateTime.Now.AddMinutes(5).TimeOfDay;
+    private DateTime? _toDate = DateTime.Today;
+    private TimeSpan? _toTime = DateTime.Now.AddHours(4).TimeOfDay;
+    private bool _saving;
+    private string _error = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        _form.UnitId = Profile.Units.FirstOrDefault(x => x.IsPrimary)?.UnitId
+            ?? Profile.Units.FirstOrDefault()?.UnitId
+            ?? Guid.Empty;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+        _error = Validate();
+        if (!string.IsNullOrWhiteSpace(_error)) return;
+
+        _form.ValidFrom = _fromDate!.Value.Date.Add(_fromTime ?? TimeSpan.Zero);
+        _form.ValidTo = _toDate!.Value.Date.Add(_toTime ?? TimeSpan.Zero);
+        _saving = true;
+        var result = await Api.CreateResidentVisitAsync(_form);
+        _saving = false;
+        if (!result.Success)
+        {
+            _error = result.Error ?? "Nao foi possivel autorizar o visitante.";
+            return;
+        }
+
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+
+    private string Validate()
+    {
+        if (_form.UnitId == Guid.Empty) return "Selecione a unidade que recebera a visita.";
+        if (string.IsNullOrWhiteSpace(_form.VisitorName)) return "Informe o nome do visitante.";
+        if (!_fromDate.HasValue || !_toDate.HasValue) return "Informe o inicio e o fim da autorizacao.";
+        var from = _fromDate.Value.Date.Add(_fromTime ?? TimeSpan.Zero);
+        var to = _toDate.Value.Date.Add(_toTime ?? TimeSpan.Zero);
+        if (to <= from) return "O termino deve ser posterior ao inicio.";
+        if (to <= DateTime.Now) return "A autorizacao precisa terminar no futuro.";
+        if (to > from.AddDays(30)) return "A validade maxima de uma visita e de 30 dias.";
+        if (_form.MaxUses is <= 0 or > 100) return "O limite deve ficar entre 1 e 100 acessos.";
+        return string.Empty;
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

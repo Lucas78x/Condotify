@@ -1,0 +1,51 @@
+@page "/licenses"
+@inject MobileAppState AppState
+@inject NavigationManager Navigation
+
+<PageTitle>Condomínios | Condotify</PageTitle>
+<PageHeader Title="Condomínios" Subtitle="Escolha o ambiente que deseja operar.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(AppState.Licenses.Count == 0)" EmptyTitle="Nenhum condomínio disponível" EmptyText="Sua conta ainda não possui acesso a um ambiente." Retry="LoadAsync">
+    <section class="content-panel">
+        @foreach (var license in AppState.Licenses)
+        {
+            var id = Guid.TryParse(license.Id, out var parsed) ? parsed : Guid.Empty;
+            <button type="button" class="list-row license-row" @onclick="() => Select(id)">
+                <MudAvatar Color="@(AppState.SelectedLicenseId == id ? Color.Primary : Color.Default)" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></MudAvatar>
+                <div class="list-main"><div class="list-title">@license.Nome</div><div class="list-meta">@license.Codigo @Location(license)</div></div>
+                @if (AppState.SelectedLicenseId == id) { <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Color="Color.Success" /> }
+                else { <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Color="Color.Secondary" /> }
+            </button>
+        }
+    </section>
+</PageState>
+
+@code {
+    private bool _loading;
+    private string _error = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AppState.Licenses.Count == 0) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = string.Empty;
+        var result = await AppState.LoadLicensesAsync();
+        if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar os condominios.";
+        _loading = false;
+    }
+
+    private void Select(Guid id)
+    {
+        if (id == Guid.Empty) return;
+        AppState.SelectLicense(id);
+        Navigation.NavigateTo("/home");
+    }
+
+    private static string Location(LicenseViewModel license) =>
+        string.IsNullOrWhiteSpace(license.Cidade) ? string.Empty : $"- {license.Cidade}/{license.Estado}";
+}

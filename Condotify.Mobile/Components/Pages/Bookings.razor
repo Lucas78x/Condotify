@@ -1,0 +1,114 @@
+@page "/bookings"
+@page "/bookings/{EntityId:guid}"
+@inject MobileSessionCoordinator Session
+@inject MobileAppState AppState
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+
+<PageTitle>Reservas | Condotify</PageTitle>
+<PageHeader Title="Reservas" Subtitle="Agenda das áreas comuns.">
+    <Actions>
+        <div class="page-actions">
+            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
+            @if (Session.Current?.Principal == MobilePrincipalKind.Resident)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add"
+                           Disabled="@(_profile is null)" OnClick="OpenCreateAsync">Nova reserva</MudButton>
+            }
+        </div>
+    </Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_rows.Count == 0)" EmptyTitle="Nenhuma reserva" EmptyText="Os próximos agendamentos aparecerão aqui." Retry="LoadAsync">
+    <section class="content-panel">
+        @foreach (var row in _rows)
+        {
+            <div class="list-row">
+                <MudAvatar Color="@StatusColor(row.Status)" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></MudAvatar>
+                <div class="list-main"><div class="list-title">@row.AmenityName</div><div class="list-meta">@row.Date.ToString("dd/MM/yyyy") - @FormatTime(row.SlotStartTime) as @FormatTime(row.SlotEndTime)</div><div class="list-meta">@row.BlockName / @row.UnitNumber - @row.Status</div></div>
+                @if (Session.Current?.Principal == MobilePrincipalKind.Staff && row.Status == "Pending")
+                {
+                    <MudIconButton Icon="@Icons.Material.Outlined.Close" Color="Color.Error" OnClick="() => DecideAsync(row, false)" aria-label="Recusar" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.Check" Color="Color.Success" OnClick="() => DecideAsync(row, true)" aria-label="Aprovar" />
+                }
+                else if (Session.Current?.Principal == MobilePrincipalKind.Resident && IsCancelable(row))
+                {
+                    <MudIconButton Icon="@Icons.Material.Outlined.EventBusy" Color="Color.Error" Disabled="@(_cancelling == row.Id)"
+                                   OnClick="() => CancelAsync(row)" aria-label="Cancelar reserva" />
+                }
+            </div>
+        }
+    </section>
+</PageState>
+
+@code {
+    [Parameter] public Guid? EntityId { get; set; }
+    private List<AmenityBookingViewModel> _rows = [];
+    private ResidentProfileViewModel? _profile;
+    private bool _loading;
+    private Guid? _cancelling;
+    private string _error = string.Empty;
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = string.Empty;
+        ApiResult<List<AmenityBookingViewModel>> result;
+        if (Session.Current?.Principal == MobilePrincipalKind.Resident)
+        {
+            var profileResult = await Api.GetResidentProfileAsync();
+            _profile = profileResult.Value;
+            if (!profileResult.Success)
+            {
+                _error = profileResult.Error ?? "Nao foi possivel carregar seu vinculo.";
+                _loading = false;
+                return;
+            }
+            result = await Api.GetResidentBookingsAsync();
+        }
+        else if (AppState.SelectedLicenseId.HasValue)
+            result = await Api.GetLicenseAmenityBookingsAsync(AppState.SelectedLicenseId.Value, DateTime.Today.AddMonths(-1), DateTime.Today.AddMonths(3));
+        else { _error = "Selecione um condominio."; _loading = false; return; }
+        _rows = result.Value ?? [];
+        if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar as reservas.";
+        _loading = false;
+    }
+    private async Task DecideAsync(AmenityBookingViewModel row, bool approved)
+    {
+        var result = approved
+            ? await Api.ApproveAmenityBookingAsync(AppState.SelectedLicenseId!.Value, row.AmenityId, row.Id)
+            : await Api.RejectAmenityBookingAsync(AppState.SelectedLicenseId!.Value, row.AmenityId, row.Id, "Recusada pelo aplicativo");
+        Snackbar.Add(result.Success ? (approved ? "Reserva aprovada." : "Reserva recusada.") : result.Error ?? "Falha na operacao.", result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) await LoadAsync();
+    }
+    private async Task OpenCreateAsync()
+    {
+        if (_profile is null) return;
+        var parameters = new DialogParameters { [nameof(ResidentBookingDialog.Profile)] = _profile };
+        var dialog = await Dialogs.ShowAsync<ResidentBookingDialog>(
+            string.Empty,
+            parameters,
+            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        Snackbar.Add("Reserva registrada com sucesso.", Severity.Success);
+        await LoadAsync();
+    }
+    private async Task CancelAsync(AmenityBookingViewModel row)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Cancelar reserva",
+            $"Cancelar a reserva de {row.AmenityName} em {row.Date:dd/MM/yyyy}?",
+            yesText: "Cancelar reserva",
+            cancelText: "Voltar");
+        if (confirmed != true) return;
+        _cancelling = row.Id;
+        var result = await Api.CancelResidentBookingAsync(row.Id, "Cancelada pelo morador no aplicativo");
+        _cancelling = null;
+        Snackbar.Add(result.Success ? "Reserva cancelada." : result.Error ?? "Nao foi possivel cancelar a reserva.", result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) await LoadAsync();
+    }
+    private static bool IsCancelable(AmenityBookingViewModel row) => row.Status is "Pending" or "Confirmed";
+    private static Color StatusColor(string status) => status switch { "Confirmed" => Color.Success, "Pending" => Color.Warning, "Rejected" or "Cancelled" => Color.Error, _ => Color.Default };
+    private static string FormatTime(TimeSpan value) => $"{value.Hours:00}:{value.Minutes:00}";
+}

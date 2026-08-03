@@ -1,0 +1,179 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="mobile-dialog">
+    <TitleContent>
+        <div class="mobile-dialog-title">
+            <MudIcon Icon="@Icons.Material.Outlined.EventAvailable" Color="Color.Primary" />
+            <div>
+                <MudText Typo="Typo.h6">Nova reserva</MudText>
+                <MudText Typo="Typo.caption">Consulte a agenda antes de confirmar.</MudText>
+            </div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">@_error</MudAlert>
+        }
+
+        @if (_loadingAmenities)
+        {
+            <div class="dialog-loading"><MudProgressCircular Indeterminate="true" Color="Color.Primary" /></div>
+        }
+        else
+        {
+            <div class="mobile-form-grid">
+                <MudSelect T="Guid" Value="_amenityId" ValueChanged="AmenityChangedAsync" Label="Area comum" Variant="Variant.Outlined" Required="true">
+                    @foreach (var amenity in _amenities)
+                    {
+                        <MudSelectItem T="Guid" Value="amenity.Id">@amenity.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="Guid" @bind-Value="_form.UnitId" Label="Unidade" Variant="Variant.Outlined" Required="true">
+                    @foreach (var unit in Profile.Units)
+                    {
+                        <MudSelectItem T="Guid" Value="unit.UnitId">@unit.BlockName / @unit.Number</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudDatePicker Date="_date" DateChanged="DateChangedAsync" Label="Data" Variant="Variant.Outlined" MinDate="DateTime.Today" />
+            </div>
+
+            @if (_amenityId != Guid.Empty)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mobile-section-label">Horarios disponiveis</MudText>
+                @if (_loadingSlots)
+                {
+                    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+                }
+                else if (_slots.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">Nao ha horarios para esta data.</MudAlert>
+                }
+                else
+                {
+                    <div class="slot-grid">
+                        @foreach (var slot in _slots)
+                        {
+                            <button type="button" class="@SlotClass(slot)" disabled="@(!slot.Available)" @onclick="() => SelectSlot(slot)">
+                                <strong>@FormatTime(slot.StartTime)</strong>
+                                <span>@FormatTime(slot.EndTime)</span>
+                            </button>
+                        }
+                    </div>
+                }
+
+                @if (SelectedAmenity?.RequiresTermsAcceptance == true)
+                {
+                    <MudCheckBox T="bool" @bind-Value="_form.TermsAccepted" Color="Color.Primary"
+                                 Label="Li e aceito o regulamento desta area." Class="mt-4" />
+                    @if (!string.IsNullOrWhiteSpace(SelectedAmenity.TermsText))
+                    {
+                        <MudText Typo="Typo.caption" Class="terms-copy">@SelectedAmenity.TermsText</MudText>
+                    }
+                }
+                <MudTextField T="string" @bind-Value="_form.Notes" Label="Observacao" Variant="Variant.Outlined" Lines="2" Class="mt-3" />
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Check"
+                   Disabled="@(_saving || _loadingAmenities)" OnClick="SaveAsync">@(_saving ? "Reservando..." : "Confirmar reserva")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public ResidentProfileViewModel Profile { get; set; } = null!;
+
+    private readonly AmenityBookingFormViewModel _form = new();
+    private List<AmenityViewModel> _amenities = [];
+    private List<AmenitySlotAvailabilityViewModel> _slots = [];
+    private Guid _amenityId;
+    private DateTime? _date = DateTime.Today.AddDays(1);
+    private bool _loadingAmenities;
+    private bool _loadingSlots;
+    private bool _saving;
+    private string _error = string.Empty;
+    private AmenityViewModel? SelectedAmenity => _amenities.FirstOrDefault(x => x.Id == _amenityId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _form.UnitId = Profile.Units.FirstOrDefault(x => x.IsPrimary)?.UnitId
+            ?? Profile.Units.FirstOrDefault()?.UnitId
+            ?? Guid.Empty;
+        _loadingAmenities = true;
+        var result = await Api.GetResidentAmenitiesAsync();
+        _loadingAmenities = false;
+        _amenities = result.Value ?? [];
+        if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar as areas comuns.";
+    }
+
+    private async Task AmenityChangedAsync(Guid value)
+    {
+        _amenityId = value;
+        _form.SlotId = Guid.Empty;
+        _form.TermsAccepted = false;
+        await LoadSlotsAsync();
+    }
+
+    private async Task DateChangedAsync(DateTime? value)
+    {
+        _date = value;
+        _form.SlotId = Guid.Empty;
+        await LoadSlotsAsync();
+    }
+
+    private async Task LoadSlotsAsync()
+    {
+        if (_amenityId == Guid.Empty || !_date.HasValue) return;
+        _loadingSlots = true;
+        _error = string.Empty;
+        var result = await Api.GetResidentAmenityAvailabilityAsync(_amenityId, _date.Value);
+        _loadingSlots = false;
+        _slots = result.Value ?? [];
+        if (!result.Success) _error = result.Error ?? "Nao foi possivel consultar os horarios.";
+    }
+
+    private void SelectSlot(AmenitySlotAvailabilityViewModel slot)
+    {
+        if (slot.Available) _form.SlotId = slot.SlotId;
+    }
+
+    private string SlotClass(AmenitySlotAvailabilityViewModel slot) =>
+        _form.SlotId == slot.SlotId ? "slot-option selected" : "slot-option";
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+        _error = Validate();
+        if (!string.IsNullOrWhiteSpace(_error)) return;
+
+        _form.Date = _date!.Value;
+        _form.ResidentId = Profile.ResidentId;
+        _saving = true;
+        var result = await Api.CreateResidentBookingAsync(_amenityId, _form);
+        _saving = false;
+        if (!result.Success)
+        {
+            _error = result.Error ?? "Nao foi possivel concluir a reserva.";
+            await LoadSlotsAsync();
+            return;
+        }
+
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+
+    private string Validate()
+    {
+        if (_amenityId == Guid.Empty) return "Selecione uma area comum.";
+        if (_form.UnitId == Guid.Empty) return "Selecione a unidade responsavel pela reserva.";
+        if (!_date.HasValue) return "Selecione a data da reserva.";
+        if (_form.SlotId == Guid.Empty) return "Selecione um horario disponivel.";
+        if (SelectedAmenity?.RequiresTermsAcceptance == true && !_form.TermsAccepted) return "Aceite o regulamento para continuar.";
+        return string.Empty;
+    }
+
+    private static string FormatTime(TimeSpan value) => $"{value.Hours:00}:{value.Minutes:00}";
+    private void Cancel() => Dialog.Cancel();
+}

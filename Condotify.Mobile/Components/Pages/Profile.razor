@@ -1,0 +1,52 @@
+@page "/profile"
+@inject MobileSessionCoordinator Session
+@inject CondotifyApiClient Api
+
+<PageTitle>Minha conta | Condotify</PageTitle>
+<PageHeader Title="Minha conta" Subtitle="Dados do perfil e escopo da sessão." />
+
+<PageState Loading="_loading" Error="@_error" Retry="LoadAsync">
+    <section class="content-panel profile-panel">
+        <div class="profile-hero">
+            <MudAvatar Size="Size.Large" Color="Color.Primary">@Initials</MudAvatar>
+            <div><MudText Typo="Typo.h5">@Session.Current?.Name</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@Session.Current?.Email</MudText></div>
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success">Ativo</MudChip>
+        </div>
+        @if (_resident is not null)
+        {
+            <div class="profile-fields">
+                <div><span>Telefone</span><strong>@Value(_resident.PhoneNumber)</strong></div>
+                <div><span>Perfil</span><strong>@_resident.AccessType</strong></div>
+                <div><span>Condomínio</span><strong>@_resident.LicenseName</strong></div>
+                <div><span>Unidades</span><strong>@_resident.Units.Count</strong></div>
+            </div>
+        }
+        else
+        {
+            <div class="profile-fields">
+                <div><span>Tipo de conta</span><strong>Equipe operacional</strong></div>
+                <div><span>Empresa</span><strong>@(Session.Current?.EnterpriseId?.ToString("D") ?? "Nao informada")</strong></div>
+            </div>
+        }
+    </section>
+</PageState>
+
+@code {
+    private ResidentProfileViewModel? _resident;
+    private bool _loading;
+    private string _error = string.Empty;
+    private string Initials => string.Concat((Session.Current?.Name ?? "U").Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => x[0])).ToUpperInvariant();
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        if (Session.Current?.Principal != MobilePrincipalKind.Resident) return;
+        _loading = true; _error = string.Empty;
+        var result = await Api.GetResidentProfileAsync();
+        _resident = result.Value;
+        if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar seu perfil.";
+        _loading = false;
+    }
+
+    private static string Value(string value) => string.IsNullOrWhiteSpace(value) ? "Nao informado" : value;
+}

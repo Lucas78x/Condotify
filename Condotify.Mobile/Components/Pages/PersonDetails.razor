@@ -1,0 +1,169 @@
+@page "/people/{EntityId:guid}"
+@implements IDisposable
+@inject MobileSessionCoordinator Session
+@inject MobileAppState AppState
+@inject CondotifyApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>@(_person?.Name ?? "Cadastro da pessoa") | Condotify</PageTitle>
+<PageHeader Title="@(_person?.Name ?? "Cadastro da pessoa")" Subtitle="@PersonSubtitle">
+    <Actions>
+        <div class="page-actions">
+            <MudIconButton Icon="@Icons.Material.Outlined.ArrowBack" OnClick="Back" aria-label="Voltar" />
+            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
+        </div>
+    </Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Retry="LoadAsync">
+    @if (_person is not null)
+    {
+        <section class="person-hero content-panel">
+            @if (!string.IsNullOrWhiteSpace(_person.ImageUrl))
+            {
+                <MudAvatar Class="person-hero-avatar photo-avatar"><img src="@_person.ImageUrl" alt="" /></MudAvatar>
+            }
+            else
+            {
+                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Class="person-hero-avatar">@Initials(_person.Name)</MudAvatar>
+            }
+            <div class="person-hero-main">
+                <div class="person-hero-title">@_person.Name</div>
+                <div class="list-meta">@PersonDescription(_person)</div>
+                <div class="person-hero-contact">
+                    @if (!string.IsNullOrWhiteSpace(_person.PhoneNumber)) { <a href="tel:@_person.PhoneNumber"><MudIcon Icon="@Icons.Material.Outlined.Phone" Size="Size.Small" />@_person.PhoneNumber</a> }
+                    @if (!string.IsNullOrWhiteSpace(_person.Email)) { <a href="mailto:@_person.Email"><MudIcon Icon="@Icons.Material.Outlined.Email" Size="Size.Small" />@_person.Email</a> }
+                </div>
+            </div>
+            <span class="row-status @(_person.IsActive ? "success" : "neutral")">@(_person.IsActive ? "Cadastro ativo" : "Cadastro inativo")</span>
+        </section>
+
+        <div class="metric-grid person-metrics">
+            <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Badge" /></span><span class="metric-value">@_person.Credentials.Count</span><span class="metric-label">Credenciais</span></div>
+            <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Sync" /></span><span class="metric-value">@_person.Credentials.Sum(x => x.SyncedDeviceCount)/@_person.Credentials.Sum(x => x.DeviceCount)</span><span class="metric-label">Terminais sincronizados</span></div>
+            <div class="metric warning"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></span><span class="metric-value">@_person.Vehicles.Count</span><span class="metric-label">Veículos</span></div>
+            <div class="metric info"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Face" /></span><span class="metric-value">@(_person.HasActiveFaceCredential ? "Ativa" : "Não")</span><span class="metric-label">Credencial facial</span></div>
+        </div>
+
+        <div class="section-tabs" role="tablist" aria-label="Cadastro da pessoa">
+            <button type="button" class="@(_tab == "data" ? "active" : "")" @onclick="ShowData"><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Size="Size.Small" />Dados</button>
+            <button type="button" class="@(_tab == "credentials" ? "active" : "")" @onclick="ShowCredentials"><MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" />Credenciais</button>
+            <button type="button" class="@(_tab == "vehicles" ? "active" : "")" @onclick="ShowVehicles"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" Size="Size.Small" />Veículos</button>
+        </div>
+
+        <section class="content-panel">
+            @if (_tab == "data")
+            {
+                <div class="panel-heading"><div><MudText Typo="Typo.h5">Informações cadastrais</MudText><span class="panel-subtitle">Dados pessoais e preferências operacionais</span></div></div>
+                <div class="detail-grid">
+                    <div><span>CPF</span><strong>@Value(_person.CPF)</strong></div>
+                    <div><span>RG</span><strong>@Value(_person.RG)</strong></div>
+                    <div><span>Nascimento</span><strong>@FormatBirthDate(_person.BirthDate)</strong></div>
+                    <div><span>Telefone comercial</span><strong>@Value(_person.CommercialPhone)</strong></div>
+                    <div><span>Localização</span><strong>@_person.BlockName / Unidade @_person.UnitNumber</strong></div>
+                    <div><span>Notificações de acesso</span><strong>@(_person.NotifyAccess ? "Ativadas" : "Desativadas")</strong></div>
+                    <div class="detail-wide"><span>Observações</span><strong>@Value(_person.Description)</strong></div>
+                </div>
+            }
+            else if (_tab == "credentials")
+            {
+                <div class="panel-heading"><div><MudText Typo="Typo.h5">Credenciais de acesso</MudText><span class="panel-subtitle">Validade e presença nos equipamentos</span></div></div>
+                @if (_person.Credentials.Count == 0)
+                {
+                    <div class="page-state compact-state"><MudIcon Icon="@Icons.Material.Outlined.Badge" Color="Color.Secondary" Size="Size.Large" /><MudText>Nenhuma credencial vinculada.</MudText></div>
+                }
+                @foreach (var credential in _person.Credentials)
+                {
+                    <div class="list-row credential-row">
+                        <MudAvatar Color="@CredentialColor(credential.Type)" Variant="Variant.Filled"><MudIcon Icon="@CredentialIcon(credential.Type)" /></MudAvatar>
+                        <div class="list-main">
+                            <div class="list-title">@CredentialLabel(credential.Type)</div>
+                            <div class="list-meta">@Value(credential.Identifier) · válida até @FormatDate(credential.ValidTo)</div>
+                            <div class="sync-progress"><span style="width: @SyncPercent(credential)%"></span></div>
+                            <div class="list-meta">@credential.SyncedDeviceCount de @credential.DeviceCount terminal(is) sincronizado(s)</div>
+                        </div>
+                        <span class="row-status @(credential.IsActive ? "success" : "warning")">@(credential.IsActive ? "Ativa" : "Pausada")</span>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="panel-heading"><div><MudText Typo="Typo.h5">Veículos</MudText><span class="panel-subtitle">Veículos, placas e TAGs vinculadas</span></div></div>
+                @if (_person.Vehicles.Count == 0)
+                {
+                    <div class="page-state compact-state"><MudIcon Icon="@Icons.Material.Outlined.NoCrash" Color="Color.Secondary" Size="Size.Large" /><MudText>Nenhum veículo cadastrado.</MudText></div>
+                }
+                @foreach (var vehicle in _person.Vehicles)
+                {
+                    <div class="list-row">
+                        <MudAvatar Color="Color.Warning" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></MudAvatar>
+                        <div class="list-main"><div class="list-title">@vehicle.Plate</div><div class="list-meta">@VehicleDescription(vehicle)</div><div class="list-meta">@(!string.IsNullOrWhiteSpace(vehicle.TagIdentifier) ? $"TAG {vehicle.TagIdentifier}" : "Sem TAG vinculada")</div></div>
+                        <span class="row-status @(vehicle.IsActive ? "success" : "neutral")">@(vehicle.IsActive ? "Ativo" : "Inativo")</span>
+                    </div>
+                }
+            }
+        </section>
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid EntityId { get; set; }
+    private PersonProfileViewModel? _person;
+    private CancellationTokenSource? _loadCts;
+    private bool _loading;
+    private string _error = string.Empty;
+    private string _tab = "data";
+    private string PersonSubtitle => _person is null ? "Carregando cadastro..." : $"{_person.BlockName} · Unidade {_person.UnitNumber}";
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var cancellationToken = _loadCts.Token;
+        _loading = true;
+        _error = string.Empty;
+        if (Session.Current?.Principal != MobilePrincipalKind.Staff || !AppState.SelectedLicenseId.HasValue)
+        {
+            _error = "Não foi possível acessar este cadastro.";
+            _loading = false;
+            return;
+        }
+        var result = await Api.GetPersonProfileAsync(AppState.SelectedLicenseId.Value, EntityId, cancellationToken);
+        if (cancellationToken.IsCancellationRequested) return;
+        _person = result.Value;
+        if (!result.Success) _error = result.Error ?? "Não foi possível carregar a pessoa.";
+        _loading = false;
+    }
+
+    private void Back() => Navigation.NavigateTo(_person is null ? "/people" : $"/units/{_person.UnitId:D}");
+    private void ShowData() => _tab = "data";
+    private void ShowCredentials() => _tab = "credentials";
+    private void ShowVehicles() => _tab = "vehicles";
+    private static string Value(string? value) => string.IsNullOrWhiteSpace(value) ? "Não informado" : value;
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+    private static string CategoryLabel(string category) => category switch { "Resident" => "Morador", "Visitor" => "Visitante", "ServiceProvider" => "Prestador", "Employee" => "Funcionário", _ => category };
+    private static string PersonDescription(PersonSummaryViewModel person)
+    {
+        var values = new[] { CategoryLabel(person.Category), person.Relationship }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        var description = string.Join(" · ", values);
+        return string.IsNullOrWhiteSpace(description) ? "Pessoa vinculada" : description;
+    }
+    private static string FormatBirthDate(string? value) => DateOnly.TryParse(value, out var date) ? date.ToString("dd/MM/yyyy") : Value(value);
+    private static string CredentialLabel(string type) => type switch { "Facial" or "Face" => "Reconhecimento facial", "QRCode" or "QrCode" => "QR Code", "Card" => "Cartão", "Tag" => "TAG veicular", _ => type };
+    private static string CredentialIcon(string type) => type.Contains("Face", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Face : type.Contains("Qr", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.QrCode2 : Icons.Material.Outlined.Badge;
+    private static Color CredentialColor(string type) => type.Contains("Face", StringComparison.OrdinalIgnoreCase) ? Color.Info : Color.Primary;
+    private static string FormatDate(DateTime value) => value.Year < 2000 ? "sem vencimento" : value.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+    private static int SyncPercent(PersonCredentialViewModel credential) => credential.DeviceCount <= 0 ? 0 : Math.Clamp((int)Math.Round(credential.SyncedDeviceCount * 100d / credential.DeviceCount), 0, 100);
+    private static string VehicleDescription(VehicleViewModel vehicle) => string.Join(" · ", new[] { vehicle.Brand, vehicle.Model, vehicle.Color }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    public void Dispose()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+    }
+}

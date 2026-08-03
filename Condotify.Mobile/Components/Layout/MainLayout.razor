@@ -1,0 +1,132 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject MobileSessionCoordinator Session
+@inject MobileAppState AppState
+@inject MobilePushLifecycle Push
+@inject MobileConnectivityState NetworkState
+@inject NavigationManager Navigation
+
+<MudThemeProvider Theme="@Condotify.UI.CondotifyTheme.Default" IsDarkMode="false" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@if (!Session.IsAuthenticated)
+{
+    <main class="public-shell">@Body</main>
+}
+else
+{
+    <MudLayout Class="mobile-shell">
+        <MudAppBar Class="mobile-appbar" Elevation="0" Dense="true">
+            <div class="appbar-mobile-brand brand-mark" aria-hidden="true">C</div>
+            <div class="appbar-context">
+                <MudText Typo="Typo.subtitle2">@TopbarTitle</MudText>
+                <MudText Typo="Typo.caption">@ContextLabel</MudText>
+            </div>
+            <MudSpacer />
+            @if (Session.Current?.Principal == MobilePrincipalKind.Staff)
+            {
+                <MudTooltip Text="Trocar condomínio">
+                    <MudIconButton Icon="@Icons.Material.Outlined.Apartment" Color="Color.Inherit" OnClick="OpenLicenses" aria-label="Trocar condomínio" />
+                </MudTooltip>
+            }
+            <MudTooltip Text="Notificações">
+                <MudIconButton Icon="@Icons.Material.Outlined.NotificationsNone" Color="Color.Inherit" OnClick="OpenNotifications" aria-label="Notificações" />
+            </MudTooltip>
+            <MudMenu Icon="@Icons.Material.Outlined.AccountCircle" Class="account-menu" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" aria-label="Conta">
+                <MudMenuItem OnClick="OpenProfile" Icon="@Icons.Material.Outlined.PersonOutline">Minha conta</MudMenuItem>
+                <MudMenuItem OnClick="LogoutAsync" Icon="@Icons.Material.Outlined.Logout">Sair</MudMenuItem>
+            </MudMenu>
+        </MudAppBar>
+
+        <MudDrawer Class="desktop-rail" Open="true" Variant="DrawerVariant.Persistent" Elevation="0">
+            <div class="desktop-brand">
+                <div class="brand-mark" aria-hidden="true">C</div>
+                <div>
+                    <MudText Typo="Typo.subtitle1">Condotify</MudText>
+                    <MudText Typo="Typo.caption">Controle de acesso</MudText>
+                </div>
+            </div>
+            <MudText Typo="Typo.overline" Class="rail-label">Operação</MudText>
+            <MudNavMenu>
+                @foreach (var item in NavigationItems)
+                {
+                    <MudNavLink Href="@item.Route" Match="NavLinkMatch.Prefix" Icon="@Icon(item.IconKey)">@item.Label</MudNavLink>
+                }
+            </MudNavMenu>
+            <div class="rail-footer">
+                <MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" Size="Size.Small" />
+                <div><strong>Ambiente protegido</strong><span>Sessão monitorada</span></div>
+            </div>
+        </MudDrawer>
+
+        @if (!NetworkState.IsOnline)
+        {
+            <div class="connectivity-banner" role="status">
+                <MudIcon Icon="@Icons.Material.Outlined.WifiOff" Size="Size.Small" />
+                <span>Sem conexão. Alguns dados podem estar desatualizados.</span>
+            </div>
+        }
+
+        <MudMainContent Class="app-content">
+            <div class="page-frame">@Body</div>
+        </MudMainContent>
+
+        <nav class="mobile-bottom-nav" aria-label="Navegação principal">
+            @foreach (var item in NavigationItems)
+            {
+                <NavLink href="@item.Route" class="bottom-nav-link" Match="NavLinkMatch.Prefix">
+                    <MudIcon Icon="@Icon(item.IconKey)" Size="Size.Medium" />
+                    <span>@item.Label</span>
+                </NavLink>
+            }
+        </nav>
+    </MudLayout>
+}
+
+@code {
+    private IReadOnlyList<MobileNavigationItem> NavigationItems => MobileNavigation.For(Session.Current?.Principal ?? MobilePrincipalKind.Staff);
+    private string TopbarTitle => Session.Current?.Principal == MobilePrincipalKind.Resident ? "Meu condomínio" : "Central operacional";
+    private string ContextLabel => Session.Current?.Principal == MobilePrincipalKind.Resident
+        ? Session.Current.LicenseName
+        : AppState.SelectedLicense?.Nome ?? "Central operacional";
+
+    protected override void OnInitialized()
+    {
+        Preferences.Default.Remove("condotify.dark-mode");
+        Session.Changed += Refresh;
+        AppState.Changed += Refresh;
+        NetworkState.Changed += Refresh;
+    }
+
+    private async Task LogoutAsync()
+    {
+        try { await Push.UnregisterAsync(); } catch { }
+        await Session.LogoutAsync();
+        AppState.Clear();
+        Navigation.NavigateTo("/login", replace: true);
+    }
+
+    private void OpenLicenses() => Navigation.NavigateTo("/licenses");
+    private void OpenNotifications() => Navigation.NavigateTo("/notifications");
+    private void OpenProfile() => Navigation.NavigateTo("/profile");
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    private static string Icon(string key) => key switch
+    {
+        "home" => Icons.Material.Outlined.Home,
+        "concierge" => Icons.Material.Outlined.SensorDoor,
+        "camera" => Icons.Material.Outlined.Videocam,
+        "visitors" => Icons.Material.Outlined.Group,
+        "calendar" => Icons.Material.Outlined.CalendarMonth,
+        _ => Icons.Material.Outlined.GridView
+    };
+
+    public void Dispose()
+    {
+        Session.Changed -= Refresh;
+        AppState.Changed -= Refresh;
+        NetworkState.Changed -= Refresh;
+    }
+}

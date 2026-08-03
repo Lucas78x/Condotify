@@ -1,0 +1,50 @@
+@if (Loading)
+{
+    <div class="page-skeleton" role="status" aria-label="Carregando conteúdo">
+        <span class="sr-only">Carregando conteúdo</span>
+        <div class="skeleton-metrics" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="skeleton-panel" aria-hidden="true">
+            <span class="skeleton-heading"></span>
+            <span class="skeleton-row"></span>
+            <span class="skeleton-row"></span>
+            <span class="skeleton-row"></span>
+        </div>
+    </div>
+}
+else if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="page-state" role="alert">
+        <MudIcon Icon="@Icons.Material.Outlined.CloudOff" Color="Color.Error" Size="Size.Large" />
+        <MudText Typo="Typo.subtitle1">Não foi possível carregar</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">@Error</MudText>
+        @if (Retry.HasDelegate)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Refresh" OnClick="Retry">Tentar novamente</MudButton>
+        }
+    </div>
+}
+else if (Empty)
+{
+    <div class="page-state">
+        <MudIcon Icon="@EmptyIcon" Color="Color.Secondary" Size="Size.Large" />
+        <MudText Typo="Typo.subtitle1">@EmptyTitle</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">@EmptyText</MudText>
+    </div>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public string Error { get; set; } = string.Empty;
+    [Parameter] public bool Empty { get; set; }
+    [Parameter] public string EmptyTitle { get; set; } = "Nada por aqui";
+    [Parameter] public string EmptyText { get; set; } = string.Empty;
+    [Parameter] public string EmptyIcon { get; set; } = Icons.Material.Outlined.Inbox;
+    [Parameter] public EventCallback Retry { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

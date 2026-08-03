@@ -1,0 +1,135 @@
+@page "/units/{EntityId:guid}"
+@implements IDisposable
+@inject MobileSessionCoordinator Session
+@inject MobileAppState AppState
+@inject CondotifyApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>@(_unit is null ? "Unidade" : $"Unidade {_unit.Number}") | Condotify</PageTitle>
+<PageHeader Title="@(_unit is null ? "Unidade" : $"Unidade {_unit.Number}")" Subtitle="@UnitSubtitle">
+    <Actions>
+        <div class="page-actions">
+            <MudIconButton Icon="@Icons.Material.Outlined.ArrowBack" OnClick="Back" aria-label="Voltar" />
+            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
+        </div>
+    </Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Retry="LoadAsync">
+    @if (_unit is not null)
+    {
+        <div class="metric-grid">
+            <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><span class="metric-value">@_unit.People.Count</span><span class="metric-label">Pessoas</span></div>
+            <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Badge" /></span><span class="metric-value">@_unit.People.Sum(x => x.CredentialCount)</span><span class="metric-label">Credenciais</span></div>
+            <div class="metric warning"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></span><span class="metric-value">@_unit.Vehicles.Count</span><span class="metric-label">Veículos</span></div>
+            <div class="metric info"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Face" /></span><span class="metric-value">@_unit.People.Count(x => x.HasActiveFaceCredential)</span><span class="metric-label">Faces ativas</span></div>
+        </div>
+
+        <div class="section-tabs" role="tablist" aria-label="Conteúdo da unidade">
+            <button type="button" class="@(_tab == "people" ? "active" : "")" @onclick="ShowPeople"><MudIcon Icon="@Icons.Material.Outlined.Groups" Size="Size.Small" />Pessoas</button>
+            <button type="button" class="@(_tab == "vehicles" ? "active" : "")" @onclick="ShowVehicles"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" Size="Size.Small" />Veículos</button>
+        </div>
+
+        <section class="content-panel">
+            @if (_tab == "people")
+            {
+                <div class="panel-heading"><div><MudText Typo="Typo.h5">Pessoas vinculadas</MudText><span class="panel-subtitle">Moradores, visitantes permanentes e prestadores</span></div></div>
+                @if (_unit.People.Count == 0)
+                {
+                    <div class="page-state compact-state"><MudIcon Icon="@Icons.Material.Outlined.GroupOff" Color="Color.Secondary" Size="Size.Large" /><MudText>Nenhuma pessoa vinculada.</MudText></div>
+                }
+                @foreach (var person in _unit.People)
+                {
+                    <button type="button" class="list-row person-row" @onclick="() => OpenPerson(person.Id)">
+                        @if (!string.IsNullOrWhiteSpace(person.ImageUrl))
+                        {
+                            <MudAvatar Class="photo-avatar"><img src="@person.ImageUrl" alt="" /></MudAvatar>
+                        }
+                        else
+                        {
+                            <MudAvatar Color="Color.Primary" Variant="Variant.Filled">@Initials(person.Name)</MudAvatar>
+                        }
+                        <div class="list-main">
+                            <div class="list-title">@person.Name</div>
+                            <div class="list-meta">@PersonDescription(person)</div>
+                            <div class="person-indicators"><span><MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" /> @person.CredentialCount</span><span><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" Size="Size.Small" /> @person.VehicleCount</span>@if (person.HasActiveFaceCredential) { <span class="face-ready"><MudIcon Icon="@Icons.Material.Outlined.Face" Size="Size.Small" /> Facial</span> }</div>
+                        </div>
+                        <span class="row-status @(person.IsActive ? "success" : "neutral")">@(person.IsActive ? "Ativo" : "Inativo")</span>
+                        <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Color="Color.Secondary" />
+                    </button>
+                }
+            }
+            else
+            {
+                <div class="panel-heading"><div><MudText Typo="Typo.h5">Veículos da unidade</MudText><span class="panel-subtitle">Veículos e identificadores de acesso</span></div></div>
+                @if (_unit.Vehicles.Count == 0)
+                {
+                    <div class="page-state compact-state"><MudIcon Icon="@Icons.Material.Outlined.NoCrash" Color="Color.Secondary" Size="Size.Large" /><MudText>Nenhum veículo cadastrado.</MudText></div>
+                }
+                @foreach (var vehicle in _unit.Vehicles)
+                {
+                    <div class="list-row">
+                        <MudAvatar Color="Color.Warning" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></MudAvatar>
+                        <div class="list-main"><div class="list-title">@vehicle.Plate</div><div class="list-meta">@VehicleDescription(vehicle)</div><div class="list-meta">@vehicle.OwnerName @(!string.IsNullOrWhiteSpace(vehicle.TagIdentifier) ? $"· TAG {vehicle.TagIdentifier}" : "")</div></div>
+                        <span class="row-status @(vehicle.IsActive ? "success" : "neutral")">@(vehicle.IsActive ? "Ativo" : "Inativo")</span>
+                    </div>
+                }
+            }
+        </section>
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid EntityId { get; set; }
+    private UnitDetailViewModel? _unit;
+    private CancellationTokenSource? _loadCts;
+    private bool _loading;
+    private string _error = string.Empty;
+    private string _tab = "people";
+    private string UnitSubtitle => _unit is null ? "Carregando cadastro..." : $"{_unit.BlockName}{(!string.IsNullOrWhiteSpace(_unit.Floor) ? $" · {_unit.Floor}º andar" : "")}";
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var cancellationToken = _loadCts.Token;
+        _loading = true;
+        _error = string.Empty;
+        if (Session.Current?.Principal != MobilePrincipalKind.Staff || !AppState.SelectedLicenseId.HasValue)
+        {
+            _error = "Não foi possível acessar esta unidade.";
+            _loading = false;
+            return;
+        }
+        var result = await Api.GetUnitDetailsAsync(AppState.SelectedLicenseId.Value, EntityId, cancellationToken);
+        if (cancellationToken.IsCancellationRequested) return;
+        _unit = result.Value;
+        if (!result.Success) _error = result.Error ?? "Não foi possível carregar a unidade.";
+        _loading = false;
+    }
+
+    private void OpenPerson(Guid personId) => Navigation.NavigateTo($"/people/{personId:D}");
+    private void Back() => Navigation.NavigateTo("/people");
+    private void ShowPeople() => _tab = "people";
+    private void ShowVehicles() => _tab = "vehicles";
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+    private static string CategoryLabel(string category) => category switch { "Resident" => "Morador", "Visitor" => "Visitante", "ServiceProvider" => "Prestador", "Employee" => "Funcionário", _ => category };
+    private static string PersonDescription(PersonSummaryViewModel person)
+    {
+        var values = new[] { CategoryLabel(person.Category), person.Relationship }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        var description = string.Join(" · ", values);
+        return string.IsNullOrWhiteSpace(description) ? "Pessoa vinculada" : description;
+    }
+    private static string VehicleDescription(VehicleViewModel vehicle) => string.Join(" · ", new[] { vehicle.Brand, vehicle.Model, vehicle.Color }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    public void Dispose()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+    }
+}

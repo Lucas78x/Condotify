@@ -1,0 +1,143 @@
+@page "/people"
+@implements IDisposable
+@inject MobileSessionCoordinator Session
+@inject MobileAppState AppState
+@inject CondotifyApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Pessoas e unidades | Condotify</PageTitle>
+<PageHeader Title="Pessoas e unidades" Subtitle="Navegue pela estrutura do condomínio até cada cadastro.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_structure?.Blocks.Count == 0)" EmptyTitle="Estrutura vazia" EmptyText="Nenhum bloco ou unidade foi cadastrado neste condomínio." Retry="LoadAsync">
+    @if (_structure is not null)
+    {
+        <div class="metric-grid">
+            <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Domain" /></span><span class="metric-value">@_structure.Blocks.Count</span><span class="metric-label">@_structure.GroupLabelPlural</span></div>
+            <div class="metric info"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.MeetingRoom" /></span><span class="metric-value">@TotalUnits</span><span class="metric-label">@_structure.UnitLabelPlural</span></div>
+            <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><span class="metric-value">@TotalPeople</span><span class="metric-label">Pessoas vinculadas</span></div>
+            <div class="metric warning"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Badge" /></span><span class="metric-value">@TemporaryPeople</span><span class="metric-label">Acessos temporários</span></div>
+        </div>
+
+        <div class="directory-toolbar">
+            <MudTextField @bind-Value="_search"
+                          Immediate="true"
+                          Clearable="true"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Outlined.Search"
+                          Placeholder="Buscar pessoa, bloco ou unidade"
+                          aria-label="Buscar pessoa, bloco ou unidade" />
+        </div>
+
+        @if (!FilteredBlocks.Any())
+        {
+            <div class="content-panel page-state compact-state">
+                <MudIcon Icon="@Icons.Material.Outlined.SearchOff" Color="Color.Secondary" Size="Size.Large" />
+                <MudText Typo="Typo.h6">Nenhum resultado</MudText>
+                <MudText Color="Color.Secondary">Revise o termo pesquisado.</MudText>
+            </div>
+        }
+        else
+        {
+            <div class="directory-list">
+                @foreach (var block in FilteredBlocks)
+                {
+                    <section class="content-panel directory-block">
+                        <div class="panel-heading">
+                            <div>
+                                <MudText Typo="Typo.h5">@block.Name</MudText>
+                                <span class="panel-subtitle">@block.TotalUnits @_structure.UnitLabelPlural.ToLowerInvariant() · @block.TotalResidents pessoa(s)</span>
+                            </div>
+                            <MudIcon Icon="@Icons.Material.Outlined.Domain" Color="Color.Primary" />
+                        </div>
+                        @foreach (var unit in FilterUnits(block))
+                        {
+                            <button type="button" class="list-row directory-unit" @onclick="() => OpenUnit(unit.Id)">
+                                <MudAvatar Color="Color.Tertiary" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.MeetingRoom" /></MudAvatar>
+                                <div class="list-main">
+                                    <div class="list-title">@_structure.UnitLabelSingular @unit.Number</div>
+                                    <div class="list-meta">@block.Name @(!string.IsNullOrWhiteSpace(unit.Floor) ? $"· {unit.Floor}º andar" : "")</div>
+                                </div>
+                                <span class="directory-count"><strong>@unit.TotalResidents</strong><small>pessoa(s)</small></span>
+                                <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Color="Color.Secondary" />
+                            </button>
+                        }
+                    </section>
+                }
+            </div>
+        }
+    }
+</PageState>
+
+@code {
+    private LicenseStructureViewModel? _structure;
+    private CancellationTokenSource? _loadCts;
+    private bool _loading;
+    private string _error = string.Empty;
+    private string _search = string.Empty;
+
+    private int TotalUnits => _structure?.Blocks.Sum(x => x.Units.Count) ?? 0;
+    private int TotalPeople => _structure?.Blocks.Sum(x => x.Units.Sum(y => y.Residents.Count)) ?? 0;
+    private int TemporaryPeople => _structure?.Blocks.Sum(x => x.Units.Sum(y => y.Residents.Count(z => z.Temporary))) ?? 0;
+    private IEnumerable<BlockRowViewModel> FilteredBlocks => (_structure?.Blocks ?? []).Where(BlockMatches);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var cancellationToken = _loadCts.Token;
+        _loading = true;
+        _error = string.Empty;
+
+        if (Session.Current?.Principal != MobilePrincipalKind.Staff)
+        {
+            _error = "Esta área é exclusiva para a equipe do condomínio.";
+            _loading = false;
+            return;
+        }
+        if (!AppState.SelectedLicenseId.HasValue)
+        {
+            _error = "Selecione um condomínio.";
+            _loading = false;
+            return;
+        }
+
+        var result = await Api.GetStructureAsync(AppState.SelectedLicenseId.Value, cancellationToken);
+        if (cancellationToken.IsCancellationRequested) return;
+        _structure = result.Value;
+        if (!result.Success) _error = result.Error ?? "Não foi possível carregar a estrutura.";
+        _loading = false;
+    }
+
+    private bool BlockMatches(BlockRowViewModel block) =>
+        string.IsNullOrWhiteSpace(_search) ||
+        Contains(block.Name, _search) ||
+        block.Units.Any(UnitMatches);
+
+    private IEnumerable<UnitRowViewModel> FilterUnits(BlockRowViewModel block) =>
+        string.IsNullOrWhiteSpace(_search) || Contains(block.Name, _search)
+            ? block.Units
+            : block.Units.Where(UnitMatches);
+
+    private bool UnitMatches(UnitRowViewModel unit) =>
+        Contains(unit.Number, _search) ||
+        Contains(unit.Floor, _search) ||
+        unit.Residents.Any(person => Contains(person.Name, _search) || Contains(person.Email, _search) || Contains(person.CPF, _search));
+
+    private static bool Contains(string? value, string term) =>
+        value?.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase) == true;
+
+    private void OpenUnit(Guid unitId) => Navigation.NavigateTo($"/units/{unitId:D}");
+
+    public void Dispose()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+    }
+}

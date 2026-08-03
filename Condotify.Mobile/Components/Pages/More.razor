@@ -1,0 +1,38 @@
+@page "/more"
+@inject MobileSessionCoordinator Session
+@inject MobileAppState AppState
+@inject MobilePushLifecycle Push
+@inject NavigationManager Navigation
+
+<PageTitle>Mais | Condotify</PageTitle>
+<PageHeader Title="Mais" Subtitle="Recursos e configurações da sua conta." />
+
+<section class="content-panel settings-panel">
+    @if (Session.Current?.Principal == MobilePrincipalKind.Staff)
+    {
+        <a class="list-row" href="/people"><MudIcon Icon="@Icons.Material.Outlined.Groups" Color="Color.Primary" /><div class="list-main"><div class="list-title">Pessoas e unidades</div><div class="list-meta">Moradores, prestadores, veículos e credenciais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+        <a class="list-row" href="/visitors"><MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" Color="Color.Info" /><div class="list-main"><div class="list-title">Visitantes</div><div class="list-meta">Autorizações e movimentações do condomínio</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+        <a class="list-row" href="/deliveries"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" Color="Color.Primary" /><div class="list-main"><div class="list-title">Encomendas</div><div class="list-meta">Recebimentos e entregas</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+        <a class="list-row" href="/devices"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" Color="Color.Tertiary" /><div class="list-main"><div class="list-title">Equipamentos</div><div class="list-meta">Status e acionamentos</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+        <a class="list-row" href="/alerts"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Color="Color.Warning" /><div class="list-main"><div class="list-title">Alertas operacionais</div><div class="list-meta">Ocorrências que exigem atenção</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+        <a class="list-row" href="/licenses"><MudIcon Icon="@Icons.Material.Outlined.Apartment" Color="Color.Secondary" /><div class="list-main"><div class="list-title">Trocar condomínio</div><div class="list-meta">Selecionar ambiente de trabalho</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+    }
+    else
+    {
+        <a class="list-row" href="/deliveries"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" Color="Color.Secondary" /><div class="list-main"><div class="list-title">Minhas encomendas</div><div class="list-meta">Volumes destinados as suas unidades</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+        <a class="list-row" href="/cameras"><MudIcon Icon="@Icons.Material.Outlined.Videocam" Color="Color.Info" /><div class="list-main"><div class="list-title">Câmeras compartilhadas</div><div class="list-meta">Visualização autorizada pelo condomínio</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+    }
+    <a class="list-row" href="/notifications"><MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" Color="Color.Info" /><div class="list-main"><div class="list-title">Notificações</div><div class="list-meta">Caixa de entrada e preferências</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+    <a class="list-row" href="/profile"><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Color="Color.Secondary" /><div class="list-main"><div class="list-title">Minha conta</div><div class="list-meta">Perfil, sessão e segurança</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+    <button type="button" class="list-row danger-row" @onclick="LogoutAsync"><MudIcon Icon="@Icons.Material.Outlined.Logout" /><div class="list-main"><div class="list-title">Sair</div><div class="list-meta">Encerrar esta sessão com segurança</div></div></button>
+</section>
+
+@code {
+    private async Task LogoutAsync()
+    {
+        try { await Push.UnregisterAsync(); } catch { }
+        await Session.LogoutAsync();
+        AppState.Clear();
+        Navigation.NavigateTo("/login", replace: true);
+    }
+}

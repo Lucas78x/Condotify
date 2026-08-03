@@ -1,0 +1,91 @@
+@page "/devices"
+@implements IDisposable
+@inject MobileAppState AppState
+@inject CondotifyApiClient Api
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>Equipamentos | Condotify</PageTitle>
+<PageHeader Title="Equipamentos" Subtitle="Estado dos controladores e acionamentos manuais.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_devices.Count == 0)" EmptyTitle="Nenhum equipamento" EmptyText="Cadastre equipamentos pelo portal administrativo." Retry="LoadAsync">
+    <section class="content-panel">
+        @foreach (var device in _devices)
+        {
+            <div class="list-row device-row">
+                <span class="status-dot @(device.IsActive ? "online" : "")"></span>
+                <div class="list-main">
+                    <div class="list-title">@device.Name</div>
+                    <div class="list-meta">@device.Model · @device.IPAddress:@device.Port</div>
+                    <span class="row-status @(device.IsActive ? "success" : "neutral")">@(device.IsActive ? "Disponível" : "Indisponível")</span>
+                    @if (!device.IsActive && !string.IsNullOrWhiteSpace(device.HealthMessage))
+                    {
+                        <div class="list-meta device-health" title="@device.HealthMessage">@device.HealthMessage</div>
+                    }
+                </div>
+                <MudButton Class="device-open-button"
+                           Size="Size.Small"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Outlined.LockOpen"
+                           Disabled="@(!device.IsActive || _opening == device.Id)"
+                           OnClick="() => OpenDoorAsync(device)">
+                    @(_opening == device.Id ? "Acionando..." : "Abrir porta")
+                </MudButton>
+            </div>
+        }
+    </section>
+</PageState>
+
+@code {
+    private List<AccessDeviceRowViewModel> _devices = [];
+    private bool _loading;
+    private Guid? _opening;
+    private string _error = string.Empty;
+    private CancellationTokenSource? _loadCts;
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var cancellationToken = _loadCts.Token;
+
+        if (!AppState.SelectedLicenseId.HasValue) { _error = "Selecione um condomínio."; return; }
+        _loading = true; _error = string.Empty;
+        var result = await Api.GetDevicesAsync(AppState.SelectedLicenseId.Value, cancellationToken);
+        if (cancellationToken.IsCancellationRequested) return;
+        _devices = result.Value ?? [];
+        if (!result.Success) _error = result.Error ?? "Não foi possível carregar os equipamentos.";
+        _loading = false;
+    }
+
+    private async Task OpenDoorAsync(AccessDeviceRowViewModel device)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Confirmar acionamento",
+            $"Abrir a porta principal de {device.Name}? A operação será auditada.",
+            yesText: "Abrir porta",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+        try
+        {
+            _opening = device.Id;
+            var result = await Api.OpenDoorAsync(AppState.SelectedLicenseId!.Value, device.Id, 1, "Acionamento pelo aplicativo mobile");
+            Snackbar.Add(result.Success ? "Porta acionada com sucesso." : result.Error ?? "O equipamento não confirmou o acionamento.", result.Success ? Severity.Success : Severity.Error);
+        }
+        finally
+        {
+            _opening = null;
+        }
+    }
+
+    public void Dispose()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+    }
+}

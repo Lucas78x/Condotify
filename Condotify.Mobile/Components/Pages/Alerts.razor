@@ -1,0 +1,92 @@
+@page "/alerts"
+@page "/alerts/{EntityId:guid}"
+@implements IDisposable
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Alertas | Condotify</PageTitle>
+<PageHeader Title="Alertas operacionais" Subtitle="Ocorrências priorizadas para a equipe.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_page?.Items.Count == 0)" EmptyTitle="Operação normal" EmptyText="Não há alertas ativos no momento." Retry="LoadAsync">
+    <div class="metric-grid">
+        <div class="metric warning"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.NotificationsActive" /></span><span class="metric-value">@(_page?.Open ?? 0)</span><span class="metric-label">Abertos</span></div>
+        <div class="metric info"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Visibility" /></span><span class="metric-value">@(_page?.Acknowledged ?? 0)</span><span class="metric-label">Reconhecidos</span></div>
+        <div class="metric danger"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.ReportProblem" /></span><span class="metric-value">@(_page?.Critical ?? 0)</span><span class="metric-label">Críticos</span></div>
+        <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span><span class="metric-value">@(_page?.Total ?? 0)</span><span class="metric-label">Total</span></div>
+    </div>
+    <section class="content-panel">
+        @foreach (var alert in _page?.Items ?? [])
+        {
+            <div class="list-row alert-row">
+                <MudAvatar Color="@(alert.Severity == "Critical" ? Color.Error : Color.Warning)" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></MudAvatar>
+                <div class="list-main">
+                    <div class="list-title">@alert.Title</div>
+                    <div class="alert-tags"><span class="row-status @SeverityClass(alert.Severity)">@SeverityLabel(alert.Severity)</span><span class="row-status @StatusClass(alert.Status)">@StatusLabel(alert.Status)</span></div>
+                    <div class="list-meta">@alert.LicenseName · @alert.Message</div>
+                </div>
+                @if (alert.CanManage && alert.Status != "Resolved")
+                {
+                    <div class="row-actions">
+                        @if (alert.Status == "Open")
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Visibility" OnClick="() => AcknowledgeAsync(alert)">Assumir</MudButton>
+                        }
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Outlined.CheckCircle" OnClick="() => ResolveAsync(alert)">Resolver</MudButton>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</PageState>
+
+@code {
+    [Parameter] public Guid? EntityId { get; set; }
+    private OperationalAlertPageViewModel? _page;
+    private bool _loading;
+    private string _error = string.Empty;
+    private CancellationTokenSource? _loadCts;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var cancellationToken = _loadCts.Token;
+        _loading = true;
+        _error = string.Empty;
+        var result = await Api.GetOperationalAlertsAsync("active", string.Empty, cancellationToken);
+        if (cancellationToken.IsCancellationRequested) return;
+        _page = result.Value;
+        if (!result.Success) _error = result.Error ?? "Não foi possível carregar os alertas.";
+        _loading = false;
+    }
+
+    private async Task AcknowledgeAsync(OperationalAlertViewModel alert)
+    {
+        var result = await Api.AcknowledgeOperationalAlertAsync(alert.Id, "Reconhecido no aplicativo mobile");
+        Snackbar.Add(result.Success ? "Alerta assumido." : result.Error ?? "Falha na operação.", result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) await LoadAsync();
+    }
+
+    private async Task ResolveAsync(OperationalAlertViewModel alert)
+    {
+        var result = await Api.ResolveOperationalAlertAsync(alert.Id, "Resolvido no aplicativo mobile");
+        Snackbar.Add(result.Success ? "Alerta resolvido." : result.Error ?? "Falha na operação.", result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) await LoadAsync();
+    }
+
+    private static string SeverityClass(string severity) => severity switch { "Critical" => "error", "High" => "warning", _ => "info" };
+    private static string SeverityLabel(string severity) => severity switch { "Critical" => "Crítico", "High" => "Alta prioridade", "Medium" => "Média prioridade", "Low" => "Baixa prioridade", _ => severity };
+    private static string StatusClass(string status) => status switch { "Resolved" => "success", "Acknowledged" => "info", _ => "warning" };
+    private static string StatusLabel(string status) => status switch { "Resolved" => "Resolvido", "Acknowledged" => "Em atendimento", "Open" => "Aberto", _ => status };
+
+    public void Dispose()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+    }
+}
