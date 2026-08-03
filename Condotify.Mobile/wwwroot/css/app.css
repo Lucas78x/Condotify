@@ -46,9 +46,9 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .app-content { min-height: 100vh; background: var(--mud-palette-background); }
 .mobile-shell .mud-main-content { margin-left: var(--mobile-desktop-rail-width) !important; }
 .page-frame { width: min(1400px, 100%); margin: 0 auto; padding: 32px 32px 44px; }
-.page-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 24px; }
+.page-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 28px; }
 .page-header > div:first-child { min-width: 0; }
-.page-header h1 { overflow-wrap: anywhere; font-size: 1.65rem; }
+.page-header h1 { overflow-wrap: anywhere; font-size: 1.65rem; letter-spacing: -.3px; }
 .page-header h1:focus { outline: 0; }
 .page-header .mud-typography-body2 { margin-top: 3px; }
 .page-header .mud-icon-button { border: 1px solid var(--mud-palette-lines-default); border-radius: 6px; background: var(--mud-palette-surface); }
@@ -71,9 +71,8 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
     }
 }
 
-.metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--mud-palette-lines-default); border-radius: 7px; overflow: hidden; background: var(--mud-palette-surface); margin-bottom: 20px; }
-.metric { position: relative; min-width: 0; min-height: 88px; display: grid; align-content: center; gap: 3px; padding: 17px 20px; border-right: 1px solid var(--mud-palette-lines-default); }
-.metric:last-child { border-right: 0; }
+.metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px; }
+.metric { position: relative; min-width: 0; min-height: 88px; display: grid; align-content: center; gap: 3px; padding: 17px 20px; border-radius: 14px; background: #f6f8fb; }
 .metric-value { display: block; font-size: 1.42rem; font-weight: 750; line-height: 1.15; }
 .metric-label { color: var(--mud-palette-text-secondary); font-size: .78rem; }
 .metric-icon { position: absolute; top: 18px; right: 18px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 7px; background: color-mix(in srgb, var(--metric-color, var(--mud-palette-primary)) 10%, transparent); color: var(--metric-color, var(--mud-palette-primary)); }
@@ -83,7 +82,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .metric.warning { --metric-color: #a96300; }
 .metric.info { --metric-color: #176d91; }
 .metric.danger { --metric-color: #c43a4d; }
-.content-panel { background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 7px; overflow: hidden; }
+.content-panel { background: var(--mud-palette-surface); border: 1px solid #eef1f5; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 14px rgba(31, 48, 78, .05); }
 .panel-heading { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--mud-palette-lines-default); }
 .panel-heading .mud-typography-h5 { font-size: 1rem; }
 .panel-subtitle { display: block; margin-top: 2px; color: var(--mud-palette-text-secondary); font-size: .72rem; }
@@ -151,7 +150,7 @@ button.list-row:last-child { border-bottom: 0; }
 .visitor-details .mud-icon-root { width: 15px; height: 15px; font-size: 15px; }
 .status-dot.warning { background: #a96300; }
 .action-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
-.action-tile { min-width: 0; min-height: 88px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 9px; padding: 13px 14px; color: inherit; text-decoration: none; background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 7px; transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease; }
+.action-tile { min-width: 0; min-height: 88px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 9px; padding: 13px 14px; color: inherit; text-decoration: none; background: var(--mud-palette-surface); border: 1px solid #eef1f5; border-radius: 14px; box-shadow: 0 4px 14px rgba(31, 48, 78, .05); transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease; }
 .action-tile:hover { border-color: color-mix(in srgb, var(--mud-palette-primary) 55%, var(--mud-palette-lines-default)); transform: translateY(-2px); box-shadow: 0 8px 18px rgba(31, 48, 78, .07); }
 .action-tile .mud-icon-root { width: 32px; height: 32px; padding: 6px; border-radius: 6px; background: color-mix(in srgb, currentColor 9%, transparent); }
 .action-tile span { max-width: 100%; font-size: .79rem; font-weight: 700; overflow-wrap: anywhere; }
