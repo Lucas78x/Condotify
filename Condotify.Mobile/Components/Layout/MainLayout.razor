@@ -11,7 +11,7 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-@if (!Session.IsAuthenticated)
+@if (!Session.IsAuthenticated || IsLoginRoute)
 {
     <main class="public-shell">@Body</main>
 }
@@ -95,6 +95,7 @@ else
     private string ContextLabel => Session.Current?.Principal == MobilePrincipalKind.Resident
         ? Session.Current.LicenseName
         : AppState.SelectedLicense?.Nome ?? "Central operacional";
+    private bool IsLoginRoute => Navigation.Uri.EndsWith("/login", StringComparison.OrdinalIgnoreCase);
 
     protected override void OnInitialized()
     {
