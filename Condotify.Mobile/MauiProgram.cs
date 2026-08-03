@@ -46,6 +46,11 @@ public static class MauiProgram
             client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
         });
         builder.Services.AddHttpClient("CondotifyAuth", client => client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"));
+        builder.Services.AddHttpClient("OpenMeteo", client =>
+        {
+            client.BaseAddress = new Uri("https://api.open-meteo.com/");
+            client.Timeout = TimeSpan.FromSeconds(8);
+        });
         builder.Services.AddMudServices(options =>
             options.SnackbarConfiguration.PositionClass = MudBlazor.Defaults.Classes.Position.BottomCenter);
         builder.Services.AddSingleton<IMobileSessionVault, MauiSessionVault>();
@@ -54,6 +59,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<CondotifyApiClient>();
         builder.Services.AddSingleton<MobileAppState>();
         builder.Services.AddSingleton<MobileDeviceContext>();
+        builder.Services.AddSingleton<MobileWeatherService>();
 #if FIREBASE_CONFIGURED
         builder.Services.AddSingleton<IMobilePushTokenProvider, FirebasePushTokenProvider>();
 #else
