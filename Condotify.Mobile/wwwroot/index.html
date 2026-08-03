@@ -12,7 +12,12 @@
 </head>
 <body>
     <div class="status-bar-safe-area"></div>
-    <div id="app">Carregando...</div>
+    <div id="app">
+        <div class="boot-screen">
+            <div class="boot-mark" aria-hidden="true">C</div>
+            <div class="boot-spinner" role="status" aria-label="Carregando"></div>
+        </div>
+    </div>
     <div id="blazor-error-ui">
         O aplicativo encontrou um erro inesperado.
         <a href="" class="reload">Recarregar</a>
