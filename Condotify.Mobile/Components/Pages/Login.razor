@@ -28,7 +28,7 @@
             </div>
         }
 
-        <div class="login-body">
+        <div class="@BodyClass">
             @if (_step == LoginStep.Credentials)
             {
                 <div class="principal-switch" role="group" aria-label="Tipo de acesso">
@@ -283,6 +283,9 @@
         LoginStep.StaffSupport => "Esqueci minha senha",
         _ => string.Empty
     };
+
+    private string BodyClass =>
+        _step == LoginStep.Credentials ? "login-body login-sheet" : "login-body";
 
     private string PrincipalClass(MobilePrincipalKind principal) =>
         _principal == principal ? "active" : string.Empty;

@@ -161,6 +161,7 @@ button.list-row:last-child { border-bottom: 0; }
 .login-navbar { display: flex; align-items: center; gap: 6px; min-height: 56px; flex: 0 0 auto; padding: env(safe-area-inset-top) 10px 0; border-bottom: 1px solid #dce3ed; }
 .login-navbar .mud-typography-subtitle1 { color: #182234; font-size: .95rem; font-weight: 750; }
 .login-body { flex: 1; padding: 24px 22px max(26px, env(safe-area-inset-bottom)); }
+.login-sheet { position: relative; z-index: 2; margin-top: -20px; border-radius: 20px 20px 0 0; background: #ffffff; }
 .principal-switch { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px; padding: 4px; margin-bottom: 20px; border: 1px solid #dce3ed; border-radius: 10px; background: #f4f7fb; }
 .principal-switch button { min-width: 0; min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 7px; background: transparent; color: #647188; font: inherit; font-weight: 650; cursor: pointer; transition: color 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
 .principal-switch button:hover { color: #182234; }
@@ -177,7 +178,7 @@ button.list-row:last-child { border-bottom: 0; }
 .login-submit:not(:disabled):hover .mud-button-icon-root { transform: translateX(3px); }
 .login-footnote { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 16px; color: #647188; font-size: .72rem; text-align: center; }
 .login-footnote .mud-icon-root { width: 14px; height: 14px; font-size: 14px; color: #12805a; }
-.login-fp { justify-self: end; margin: -6px 0 4px; padding: 0; border: 0; background: none; color: #3156d3; font-size: .76rem; font-weight: 700; cursor: pointer; }
+.login-fp { display: block; width: 100%; text-align: right; margin: -6px 0 4px; padding: 0; border: 0; background: none; color: #3156d3; font-size: .76rem; font-weight: 700; cursor: pointer; }
 .login-fp:hover { text-decoration: underline; }
 .login-lead { margin-bottom: 16px; color: #647188; font-size: .8rem; line-height: 1.55; }
 .login-code-field textarea { font-family: Inter, monospace; overflow-wrap: anywhere; }
