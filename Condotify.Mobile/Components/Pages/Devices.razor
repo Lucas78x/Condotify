@@ -11,6 +11,11 @@
 </PageHeader>
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_devices.Count == 0)" EmptyTitle="Nenhum equipamento" EmptyText="Cadastre equipamentos pelo portal administrativo." Retry="LoadAsync">
+    <div class="metric-grid">
+        <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" /></span><span class="metric-value">@_devices.Count(x => x.IsActive)</span><span class="metric-label">Disponíveis</span></div>
+        <div class="metric danger"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.SensorsOff" /></span><span class="metric-value">@_devices.Count(x => !x.IsActive)</span><span class="metric-label">Indisponíveis</span></div>
+        <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><span class="metric-value">@_devices.Count</span><span class="metric-label">Total</span></div>
+    </div>
     <section class="content-panel">
         @foreach (var device in _devices)
         {
