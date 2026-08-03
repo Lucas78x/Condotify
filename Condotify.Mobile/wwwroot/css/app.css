@@ -55,13 +55,19 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .page-state { min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 11px; text-align: center; padding: 34px 20px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .page-skeleton { display: grid; gap: 18px; }
-.skeleton-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--mud-palette-lines-default); border-radius: 7px; background: var(--mud-palette-surface); }
-.skeleton-metrics span { min-height: 86px; border-right: 1px solid var(--mud-palette-lines-default); background: #f0f3f7; }
-.skeleton-metrics span:last-child { border-right: 0; }
-.skeleton-panel { min-height: 268px; display: grid; align-content: start; gap: 0; overflow: hidden; border: 1px solid var(--mud-palette-lines-default); border-radius: 7px; background: var(--mud-palette-surface); }
-.skeleton-heading, .skeleton-row { display: block; background: #edf1f6; }
-.skeleton-heading { width: 180px; height: 18px; margin: 20px; border-radius: 4px; }
-.skeleton-row { height: 68px; border-top: 1px solid var(--mud-palette-lines-default); border-radius: 0; }
+.skeleton-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.skeleton-metrics span { min-height: 86px; border-radius: 14px; }
+.skeleton-panel { min-height: 268px; display: grid; align-content: start; gap: 10px; padding: 20px; border-radius: 14px; background: #ffffff; border: 1px solid #eef1f5; overflow: hidden; }
+.skeleton-heading, .skeleton-row { display: block; border-radius: 8px; }
+.skeleton-heading { width: 180px; height: 18px; }
+.skeleton-row { height: 56px; }
+.skeleton-metrics span, .skeleton-heading, .skeleton-row { background: linear-gradient(100deg, #eef1f5 30%, #f8f9fb 50%, #eef1f5 70%); background-size: 200% 100%; }
+@media (prefers-reduced-motion: no-preference) {
+    .skeleton-metrics span, .skeleton-heading, .skeleton-row { animation: skeleton-shimmer 1400ms ease-in-out infinite; }
+    @keyframes skeleton-shimmer {
+        to { background-position: -200% 0; }
+    }
+}
 .mobile-bottom-nav { display: none; }
 @media (prefers-reduced-motion: no-preference) {
     .page-transition { animation: page-fade-in 220ms ease-out both; }
@@ -209,15 +215,10 @@ button.list-row:last-child { border-bottom: 0; }
 .mfa-field input { text-align: center; font-size: 1.12rem; font-weight: 700; letter-spacing: 2px; }
 
 @media (prefers-reduced-motion: no-preference) {
-    .skeleton-metrics span, .skeleton-heading, .skeleton-row { animation: skeleton-pulse 1100ms ease-in-out infinite alternate; }
     .login-card { animation: login-enter 240ms ease-out both; }
     @keyframes login-enter {
         from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes skeleton-pulse {
-        from { opacity: .52; }
-        to { opacity: 1; }
     }
 }
 
