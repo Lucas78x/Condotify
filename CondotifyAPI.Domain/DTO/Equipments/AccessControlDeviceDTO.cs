@@ -33,6 +33,7 @@ namespace CondotifyAPI.Domain.DTO.Equipments
         public string DiscoveredPortalsJson { get; set; } = "[]";
         public Guid? LprCameraId { get; set; }
         public int? LprCameraChannel { get; set; }
+        public int? LprDoorChannel { get; set; }
         public LprModeEnum? LprMode { get; set; }
 
 

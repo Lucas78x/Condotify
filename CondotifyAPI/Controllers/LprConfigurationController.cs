@@ -49,6 +49,7 @@ public sealed class LprConfigurationController(DatabaseContext context) : Contro
 
         device.LprCameraId = input.LprMode.HasValue ? input.LprCameraId : null;
         device.LprCameraChannel = input.LprMode.HasValue ? input.LprCameraChannel : null;
+        device.LprDoorChannel = input.LprMode.HasValue ? input.LprDoorChannel : null;
         device.LprMode = input.LprMode;
         device.LastUpdatedAt = DateTime.UtcNow;
 
@@ -61,6 +62,7 @@ public sealed class LprConfigurationController(DatabaseContext context) : Contro
     {
         LprCameraId = device.LprCameraId,
         LprCameraChannel = device.LprCameraChannel,
+        LprDoorChannel = device.LprDoorChannel,
         LprMode = device.LprMode
     };
 

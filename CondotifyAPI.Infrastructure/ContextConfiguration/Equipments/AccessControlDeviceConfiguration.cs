@@ -63,6 +63,7 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
             builder.Property(d => d.DiscoveredPortalsJson).HasColumnType("jsonb").HasDefaultValue("[]");
 
             builder.Property(d => d.LprMode);
+            builder.Property(d => d.LprDoorChannel);
 
             builder.HasOne<CFTVDeviceDTO>()
                 .WithMany()
