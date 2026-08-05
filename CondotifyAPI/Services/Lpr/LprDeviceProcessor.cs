@@ -96,8 +96,12 @@ public sealed class LprDeviceProcessor(
             matchedVehicleId.HasValue,
             device.LprMode.Value);
 
-        if (action != LprAction.NoRead)
-            debounceStore.MarkTriggered(device.Id, normalizedPlate);
+        // Mark this plate as handled regardless of outcome - including a
+        // NoRead caused by confidence below threshold. Otherwise a vehicle
+        // idling at the barrier with a plate that keeps reading just under
+        // the threshold would never trip the early debounce check above,
+        // and would get a fresh audit row every poll indefinitely.
+        debounceStore.MarkTriggered(device.Id, normalizedPlate);
 
         var audit = new VehicleAccessAuditDTO
         {
