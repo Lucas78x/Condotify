@@ -1050,6 +1050,18 @@ git add CondotifyAPI/Services/Lpr/LprDebounceStore.cs CondotifyAPI/Services/Lpr/
 git commit -m "feat: orchestrate LPR polling, decisioning, gate opening and alerting"
 ```
 
+#### Amendment — applied during Task 8's fix round, after task review
+
+Task review of the first implementation found a Critical defect this plan itself caused: `LprCameraChannel` (the CFTV camera's channel, used to fetch a snapshot) was reused as the *door/relay* channel argument to `OpenDoorAsync`. Those are different things — on a multi-door/multi-relay controller, a camera on NVR channel 3 would command relay 3, a door the decision engine never evaluated. `AccessControlDeviceDTO` had no field for "which door channel does this LPR configuration open."
+
+**Fix, decided with the human partner:** add a dedicated `LprDoorChannel` (`int?`) column to `AccessControlDeviceDTO`, distinct from `LprCameraChannel`. This required touching two already-completed tasks:
+
+- **Task 1 (retroactively):** a follow-up migration adds `LprDoorChannel` (nullable int) to `AccessControlDevices`, alongside the Task 1 columns.
+- **Task 3 (retroactively):** `LprConfigurationIn`/`LprConfigurationOut` gain `LprDoorChannel`; `Configure` persists it the same way as `LprCameraChannel` (both null when LPR is off).
+- **Task 8:** `LprDeviceProcessor.cs`'s `OpenDoorAsync` call uses `device.LprDoorChannel ?? 1`, never `LprCameraChannel`.
+
+Task review also found: `OpenDoorAsync`'s `bool` result and exceptions were discarded, so a failed physical open was still recorded as `Action = Opened` in the audit trail; five failure paths (camera missing, snapshot exception/null, OCR exception, debounce hit) wrote no audit row at all, while at the same time a genuine "no plate visible" state — polled every 2s with no debounce — would have written thousands of `NoRead` rows a day once the other gap was fixed; the audit was persisted *after* the physical open command, so a `SaveChangesAsync` failure could leave a physically-open gate with no record; and one persistently-failing device could throw uncaught out of `ProcessAsync` and abort the whole polling cycle, silently disabling LPR for every other gate. All of these were fixed in the same round — see the implementer's fix report for the exact diff.
+
 ---
 
 ### Task 9: Self-hosted OCR microservice (`lpr-ocr`)
