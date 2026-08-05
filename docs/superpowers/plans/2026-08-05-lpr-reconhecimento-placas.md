@@ -35,7 +35,7 @@
 - Create (generated): `CondotifyAPI.Infrastructure/Migrations/<timestamp>_AddLprSupport.cs`
 
 **Interfaces:**
-- Produces: `LicensePermissionEnum.ViewVehicles`, `LicensePermissionEnum.ManageVehicles` (used by Task 2); `LprModeEnum { DetectionOnly = 0, AutoOpen = 1 }` (used by Tasks 3, 5, 8); `AccessControlDeviceDTO.LprCameraId (Guid?)`, `.LprCameraChannel (int?)`, `.LprMode (LprModeEnum?)` (used by Tasks 3, 8); `VehicleAccessAuditDTO` with `VehicleAccessAuditAction { NoRead, Opened, DetectedOnly, AlertRaised }` and `DatabaseContext.VehicleAccessAudits` (used by Task 8).
+- Produces: `LicensePermissionEnum.ViewVehicles`, `LicensePermissionEnum.ManageVehicles` (unused — Task 2 that would have consumed these was skipped, see its section); `LprModeEnum { DetectionOnly = 0, AutoOpen = 1 }` (used by Tasks 3, 5, 8); `AccessControlDeviceDTO.LprCameraId (Guid?)`, `.LprCameraChannel (int?)`, `.LprMode (LprModeEnum?)` (used by Tasks 3, 8); `VehicleAccessAuditDTO` with `VehicleAccessAuditAction { NoRead, Opened, DetectedOnly, AlertRaised }` and `DatabaseContext.VehicleAccessAudits` (used by Task 8).
 
 - [ ] **Step 1: Add the two new permission bits**
 
@@ -180,220 +180,13 @@ git commit -m "feat: add LPR schema (device fields, vehicle audit, permissions)"
 
 ---
 
-### Task 2: Vehicle CRUD (`VehicleController`)
+### Task 2: ~~Vehicle CRUD~~ — SKIPPED, superseded by existing code
 
-**Files:**
-- Create: `CondotifyAPI/Data/Vehicles/VehicleDtos.cs`
-- Create: `CondotifyAPI/Controllers/VehicleController.cs`
+**Struck out during execution (2026-08-05), after the Task 2 implementer built it and task review flagged the conflict.** This task assumed no vehicle CRUD existed. It does: `PeopleManagementController.cs:156-302` already implements `POST/PATCH/DELETE api/access/licenses/{licenseId}/residents/{residentId}/vehicles` against the same `Vehicles` table, and it does substantially more than this task specified — it links `TagIdentifier` to a `ResidentAccessCredentialDTO` (`CredentialType = VehicleTag`, the thing that actually makes a registered tag open a gate), blocks edits/removal while the tag is linked to a device, writes to the management audit trail, and soft-deletes via the recycle bin. The `VehicleController` this task described would have been a second, inferior write path to the same table — no credential linking, no audit, no recycle bin — gated by new `ManageVehicles`/`ViewVehicles` permissions nobody else checks, alongside the existing `ManagePeople`-gated path. Shipping both would mean a vehicle registered through the new controller's `TagIdentifier` never actually grants device access, silently.
 
-**Interfaces:**
-- Consumes: `LicensePermissionEnum.ViewVehicles`/`ManageVehicles` (Task 1), `VehicleDTO` (existing, `CondotifyAPI.Domain.DTO.Vehicle`), `RequireLicensePermissionAttribute` (existing, `CondotifyAPI.Services.Authorization`).
-- Produces: `POST/GET api/access/licenses/{licenseId}/units/{unitId}/vehicles`, `PATCH/DELETE api/access/licenses/{licenseId}/vehicles/{vehicleId}` — used later only by the mobile/web consumer (out of scope here), and by Task 8's `IVehicleLookupService` indirectly via the same `Vehicles` table.
+**Resolution:** the implementer's commit was reverted (`git revert`) in the executing branch. Vehicle registration continues through `PeopleManagementController`'s existing resident-scoped endpoints — no new controller needed. Tasks 7 and 8 are unaffected: `IVehicleLookupService` (Task 7) only reads the `Vehicles` table by plate, and rows land there via the existing endpoint regardless of which controller wrote them.
 
-- [ ] **Step 1: Add the request/response DTOs**
-
-Create `CondotifyAPI/Data/Vehicles/VehicleDtos.cs`:
-
-```csharp
-namespace CondotifyAPI.Data.Vehicles;
-
-public sealed class VehicleCreateIn
-{
-    public string Plate { get; set; } = string.Empty;
-    public string Brand { get; set; } = string.Empty;
-    public string Model { get; set; } = string.Empty;
-    public string Color { get; set; } = string.Empty;
-    public string Type { get; set; } = "Carro";
-    public string TagIdentifier { get; set; } = string.Empty;
-    public Guid? ResidentId { get; set; }
-}
-
-public sealed class VehicleUpdateIn
-{
-    public string Brand { get; set; } = string.Empty;
-    public string Model { get; set; } = string.Empty;
-    public string Color { get; set; } = string.Empty;
-    public string Type { get; set; } = "Carro";
-    public string TagIdentifier { get; set; } = string.Empty;
-    public Guid? ResidentId { get; set; }
-    public bool IsActive { get; set; } = true;
-}
-
-public sealed class VehicleOut
-{
-    public Guid Id { get; set; }
-    public Guid UnitId { get; set; }
-    public Guid? ResidentId { get; set; }
-    public string Plate { get; set; } = string.Empty;
-    public string Brand { get; set; } = string.Empty;
-    public string Model { get; set; } = string.Empty;
-    public string Color { get; set; } = string.Empty;
-    public string Type { get; set; } = string.Empty;
-    public string TagIdentifier { get; set; } = string.Empty;
-    public bool IsActive { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-}
-```
-
-- [ ] **Step 2: Write the controller**
-
-Create `CondotifyAPI/Controllers/VehicleController.cs`:
-
-```csharp
-using System.Security.Claims;
-using CondotifyAPI.Data.Vehicles;
-using CondotifyAPI.Domain.DTO.Vehicle;
-using CondotifyAPI.Infrastructure;
-using CondotifyAPI.Services.Authorization;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-
-namespace CondotifyAPI.Controllers;
-
-[ApiController]
-[Authorize]
-[Route("api/access/licenses/{licenseId:guid}")]
-public sealed class VehicleController(DatabaseContext context) : ControllerBase
-{
-    [HttpGet("units/{unitId:guid}/vehicles")]
-    [RequireLicensePermission(LicensePermissionEnum.ViewVehicles)]
-    public async Task<IActionResult> ListByUnit(Guid licenseId, Guid unitId)
-    {
-        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
-        if (!await UnitBelongsAsync(licenseId, unitId)) return NotFound();
-
-        var vehicles = await context.Vehicles
-            .AsNoTracking()
-            .Where(v => v.UnitId == unitId)
-            .OrderBy(v => v.Plate)
-            .ToListAsync();
-
-        return Ok(vehicles.Select(ToOut));
-    }
-
-    [HttpPost("units/{unitId:guid}/vehicles")]
-    [RequireLicensePermission(LicensePermissionEnum.ManageVehicles)]
-    public async Task<IActionResult> Create(Guid licenseId, Guid unitId, [FromBody] VehicleCreateIn input)
-    {
-        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
-        if (!await UnitBelongsAsync(licenseId, unitId)) return NotFound();
-
-        var plate = (input.Plate ?? string.Empty).Trim().ToUpperInvariant();
-        if (string.IsNullOrWhiteSpace(plate))
-            return BadRequest(new { Result = "InvalidPlate", Errors = "Informe a placa do veiculo." });
-
-        var alreadyExists = await context.Vehicles.AsNoTracking()
-            .AnyAsync(v => v.UnitId == unitId && v.Plate == plate);
-        if (alreadyExists)
-            return Conflict(new { Result = "DuplicatePlate", Errors = "Esta unidade ja possui um veiculo com essa placa." });
-
-        var now = DateTime.UtcNow;
-        var vehicle = new VehicleDTO
-        {
-            Id = Guid.NewGuid(),
-            UnitId = unitId,
-            ResidentId = input.ResidentId,
-            Plate = plate,
-            Brand = input.Brand ?? string.Empty,
-            Model = input.Model ?? string.Empty,
-            Color = input.Color ?? string.Empty,
-            Type = string.IsNullOrWhiteSpace(input.Type) ? "Carro" : input.Type,
-            TagIdentifier = input.TagIdentifier ?? string.Empty,
-            IsActive = true,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
-
-        context.Vehicles.Add(vehicle);
-        await context.SaveChangesAsync();
-
-        return Created($"api/access/licenses/{licenseId}/vehicles/{vehicle.Id}", ToOut(vehicle));
-    }
-
-    [HttpPatch("vehicles/{vehicleId:guid}")]
-    [RequireLicensePermission(LicensePermissionEnum.ManageVehicles)]
-    public async Task<IActionResult> Update(Guid licenseId, Guid vehicleId, [FromBody] VehicleUpdateIn input)
-    {
-        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
-
-        var vehicle = await context.Vehicles.FirstOrDefaultAsync(v => v.Id == vehicleId && v.Unit.Block.LicenseId == licenseId);
-        if (vehicle == null) return NotFound();
-
-        vehicle.Brand = input.Brand ?? string.Empty;
-        vehicle.Model = input.Model ?? string.Empty;
-        vehicle.Color = input.Color ?? string.Empty;
-        vehicle.Type = string.IsNullOrWhiteSpace(input.Type) ? "Carro" : input.Type;
-        vehicle.TagIdentifier = input.TagIdentifier ?? string.Empty;
-        vehicle.ResidentId = input.ResidentId;
-        vehicle.IsActive = input.IsActive;
-        vehicle.UpdatedAt = DateTime.UtcNow;
-
-        await context.SaveChangesAsync();
-
-        return Ok(ToOut(vehicle));
-    }
-
-    [HttpDelete("vehicles/{vehicleId:guid}")]
-    [RequireLicensePermission(LicensePermissionEnum.ManageVehicles)]
-    public async Task<IActionResult> Deactivate(Guid licenseId, Guid vehicleId)
-    {
-        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
-
-        var vehicle = await context.Vehicles.FirstOrDefaultAsync(v => v.Id == vehicleId && v.Unit.Block.LicenseId == licenseId);
-        if (vehicle == null) return NotFound();
-
-        vehicle.IsActive = false;
-        vehicle.UpdatedAt = DateTime.UtcNow;
-        await context.SaveChangesAsync();
-
-        return NoContent();
-    }
-
-    private static VehicleOut ToOut(VehicleDTO v) => new()
-    {
-        Id = v.Id,
-        UnitId = v.UnitId,
-        ResidentId = v.ResidentId,
-        Plate = v.Plate,
-        Brand = v.Brand,
-        Model = v.Model,
-        Color = v.Color,
-        Type = v.Type,
-        TagIdentifier = v.TagIdentifier,
-        IsActive = v.IsActive,
-        CreatedAt = v.CreatedAt,
-        UpdatedAt = v.UpdatedAt
-    };
-
-    private async Task<bool> UnitBelongsAsync(Guid licenseId, Guid unitId) =>
-        await context.Units.AsNoTracking().AnyAsync(u => u.Id == unitId && u.Block.LicenseId == licenseId);
-
-    private async Task<bool> HasLicenseAccessAsync(Guid licenseId)
-    {
-        var enterpriseClaim = User.FindFirstValue("enterprise_id");
-        return Guid.TryParse(enterpriseClaim, out var enterpriseId) &&
-               await context.Licenses.AsNoTracking().AnyAsync(x => x.Id == licenseId && x.EnterpriseId == enterpriseId);
-    }
-}
-```
-
-- [ ] **Step 3: Build**
-
-Run: `dotnet build Condotify.sln`
-Expected: 0 errors.
-
-- [ ] **Step 4: Manual harness note**
-
-This codebase has no controller-level test harness (see Global Constraints) — the existing convention is manual verification via HTTP client against a running `docker-compose up api`. Record in the task notes: `POST /api/access/licenses/{licenseId}/units/{unitId}/vehicles` with a valid JWT should return `201` with the vehicle; a duplicate plate on the same unit should return `409`.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add CondotifyAPI/Data/Vehicles/VehicleDtos.cs CondotifyAPI/Controllers/VehicleController.cs
-git commit -m "feat: add Vehicle CRUD endpoints"
-```
+**Left in place from Task 1, now unused:** `LicensePermissionEnum.ViewVehicles`/`.ManageVehicles` (added for this task, harmless dead enum values — not worth unwinding an already-reviewed, merged task over).
 
 ---
 
@@ -912,7 +705,7 @@ Expected: 0 errors.
 
 - [ ] **Step 3: Manual harness note**
 
-Once Task 2's `VehicleController` is deployed, register a vehicle with plate `ABC1D23` on a unit, then confirm `FindActiveVehicleIdAsync(licenseId, "ABC1D23")` returns that vehicle's `Id` and returns `null` for a plate that isn't registered or belongs to a different license — exercised end-to-end once Task 8 wires it into the polling loop.
+Register a vehicle with plate `ABC1D23` on a unit via `PeopleManagementController`'s existing `POST .../residents/{residentId}/vehicles` endpoint, then confirm `FindActiveVehicleIdAsync(licenseId, "ABC1D23")` returns that vehicle's `Id` and returns `null` for a plate that isn't registered or belongs to a different license — exercised end-to-end once Task 8 wires it into the polling loop.
 
 - [ ] **Step 4: Commit**
 
@@ -1506,6 +1299,6 @@ git commit -m "feat: add self-hosted LPR OCR microservice"
 
 ## Self-Review Notes
 
-- **Spec coverage:** camera↔gate link (Task 1/3), self-hosted OCR (Task 9), per-device mode toggle (Task 1/3), polling trigger (Task 8), plate normalization (Task 4), debounce (Task 8), vehicle CRUD prerequisite (Task 2), decision matrix incl. gate-never-opens-blind (Task 5/8), alert integration reusing `OperationalAlerts` (Task 8), LGPD note about the OCR service never persisting images (Task 9 docstring + Global Constraints) — all covered.
+- **Spec coverage:** camera↔gate link (Task 1/3), self-hosted OCR (Task 9), per-device mode toggle (Task 1/3), polling trigger (Task 8), plate normalization (Task 4), debounce (Task 8), vehicle CRUD prerequisite (turned out to already exist in `PeopleManagementController`; Task 2 skipped, see its section), decision matrix incl. gate-never-opens-blind (Task 5/8), alert integration reusing `OperationalAlerts` (Task 8), LGPD note about the OCR service never persisting images (Task 9 docstring + Global Constraints) — all covered.
 - **Placeholder scan:** no TBD/TODO left; the one open item (retention policy for `VehicleAccessAudit`/snapshots) was already flagged as an explicit product-team pendency in the design spec, not silently dropped here — it's out of scope for this plan and not needed for the code to work.
 - **Type consistency:** `LprModeEnum`, `PlateRecognitionResult`, `LprAction`, `VehicleAccessAuditAction` are defined once (Tasks 1, 5, 6) and referenced with the same names/signatures in every later task.
