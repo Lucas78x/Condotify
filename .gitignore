@@ -368,6 +368,9 @@ FodyWeavers.xsd
 # superpowers scratch (progress ledger, task briefs/reports)
 .superpowers/
 
+# superpowers isolated worktrees
+.worktrees/
+
 # Local secrets and mobile provider credentials
 .env
 !.env.example
