@@ -16,6 +16,7 @@ public partial class DatabaseContext
     public DbSet<ResidentAccessDeviceDTO> ResidentAccessDevices { get; set; }
     public DbSet<ResidentUnitLinkDTO> ResidentUnitLinks { get; set; }
     public DbSet<VehicleDTO> Vehicles { get; set; }
+    public DbSet<VehicleAccessAuditDTO> VehicleAccessAudits { get; set; }
     public DbSet<RegistrationInviteDTO> RegistrationInvites { get; set; }
     public DbSet<AccessVisitDTO> AccessVisits { get; set; }
     public DbSet<AccessWatchlistEntryDTO> AccessWatchlistEntries { get; set; }
@@ -26,6 +27,7 @@ public partial class DatabaseContext
         builder.ApplyConfiguration(new ResidentAccessConfiguration());
         builder.ApplyConfiguration(new ResidentUnitLinkConfiguration());
         builder.ApplyConfiguration(new VehicleConfiguration());
+        builder.ApplyConfiguration(new VehicleAccessAuditConfiguration());
         builder.ApplyConfiguration(new RegistrationInviteConfiguration());
         builder.ApplyConfiguration(new AccessVisitConfiguration());
         builder.ApplyConfiguration(new AccessWatchlistEntryConfiguration());

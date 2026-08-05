@@ -2,6 +2,7 @@
 using CondotifyAPI.Domain.DTO.License;
 using CondotifyAPI.Domain.DTO.Location;
 using CondotifyAPI.Domain.DTO.AccessControl;
+using CondotifyAPI.Domain.Enums.Equipments;
 
 namespace CondotifyAPI.Domain.DTO.Equipments
 {
@@ -30,8 +31,11 @@ namespace CondotifyAPI.Domain.DTO.Equipments
         public string HealthMessage { get; set; } = string.Empty;
         public string CapacityJson { get; set; } = "{}";
         public string DiscoveredPortalsJson { get; set; } = "[]";
+        public Guid? LprCameraId { get; set; }
+        public int? LprCameraChannel { get; set; }
+        public LprModeEnum? LprMode { get; set; }
 
-        
+
         public Guid LicenseId { get; set; }
         public LicenseDTO License { get; set; } = null!;
     }

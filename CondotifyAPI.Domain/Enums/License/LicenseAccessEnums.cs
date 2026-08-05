@@ -31,7 +31,9 @@ public enum LicensePermissionEnum : long
     ManageAutomations = 1L << 26,
     ViewEmergency = 1L << 27,
     ManageEmergency = 1L << 28,
-    All = (1L << 29) - 1
+    ViewVehicles = 1L << 29,
+    ManageVehicles = 1L << 30,
+    All = (1L << 31) - 1
 }
 
 public enum LicenseAccessRoleEnum

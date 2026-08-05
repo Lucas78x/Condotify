@@ -62,6 +62,13 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
             builder.Property(d => d.CapacityJson).HasColumnType("jsonb").HasDefaultValue("{}");
             builder.Property(d => d.DiscoveredPortalsJson).HasColumnType("jsonb").HasDefaultValue("[]");
 
+            builder.Property(d => d.LprMode);
+
+            builder.HasOne<CFTVDeviceDTO>()
+                .WithMany()
+                .HasForeignKey(d => d.LprCameraId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             builder.OwnsOne(l => l.Location, loc =>
             {
                 loc.Property(p => p.X).HasColumnName("LocationX");
