@@ -75,6 +75,24 @@ public sealed class ConciergeController(
         });
     }
 
+    [HttpGet("visits")]
+    [RequireLicensePermission(LicensePermissionEnum.ViewEvents)]
+    public async Task<IActionResult> Visits(Guid licenseId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        if (!await HasAccessAsync(licenseId)) return NotFound();
+        var start = (from ?? DateTime.UtcNow.Date.AddDays(-90)).Date;
+        var end = (to ?? DateTime.UtcNow.Date.AddDays(91)).Date;
+        if (end <= start || end > start.AddYears(1))
+            return BadRequest(new { Errors = "Informe um periodo valido de ate um ano." });
+
+        var visits = await VisitQuery(licenseId)
+            .Where(visit => visit.ValidTo >= start && visit.ValidFrom < end)
+            .OrderByDescending(visit => visit.ValidFrom)
+            .Take(500)
+            .ToListAsync();
+        return Ok(visits.Select(ToOut));
+    }
+
     [HttpPost("visits")]
     [RequireLicensePermission(LicensePermissionEnum.ManagePeople)]
     public async Task<IActionResult> CreateVisit(Guid licenseId, [FromBody] CreateConciergeVisitIn input)
@@ -297,6 +315,40 @@ public sealed class ConciergeController(
         return Ok(ToOut(visit));
     }
 
+    [HttpPost("visits/scan")]
+    [RequireLicensePermission(LicensePermissionEnum.ManagePeople)]
+    public async Task<IActionResult> ScanVisit(Guid licenseId, [FromBody] ScanConciergeVisitIn input)
+    {
+        if (!await HasAccessAsync(licenseId)) return NotFound();
+        var code = NormalizeScannedCode(input.Code);
+        if (string.IsNullOrWhiteSpace(code))
+            return BadRequest(new { Errors = "Leia um QR Code valido." });
+
+        var visit = await VisitQuery(licenseId)
+            .FirstOrDefaultAsync(x => x.Credential.Identifier.ToUpper() == code);
+        if (visit is null) return NotFound(new { Errors = "Este convite nao foi encontrado neste condominio." });
+        if (visit.Status == AccessVisitStatusEnum.CheckedIn)
+            return Conflict(new { Errors = "A entrada deste visitante ja foi registrada." });
+        if (visit.Status != AccessVisitStatusEnum.Scheduled)
+            return Conflict(new { Errors = $"Este convite esta {visit.Status} e nao pode ser utilizado." });
+
+        var now = DateTime.UtcNow;
+        if (!visit.Credential.IsActive || now < visit.ValidFrom || now > visit.ValidTo)
+            return Conflict(new { Errors = "O convite esta fora da janela de acesso autorizada." });
+        if (visit.Credential.MaxUses.HasValue && visit.Credential.UseCount >= visit.Credential.MaxUses.Value)
+            return Conflict(new { Errors = "O limite de acessos deste convite foi atingido." });
+
+        visit.Status = AccessVisitStatusEnum.CheckedIn;
+        visit.CheckedInAt = now;
+        visit.UpdatedAt = now;
+        visit.Credential.UseCount++;
+        visit.Credential.UpdatedAt = now;
+        Audit(licenseId, visit.Id, "VisitQrScanned", "Success", $"Entrada de {visit.VisitorName} validada por QR Code.", new { Code = code });
+        await context.SaveChangesAsync();
+        await NotifyVisitAsync(visit, "Visitante na portaria", $"A entrada de {visit.VisitorName} foi registrada.", $"visitor-scan:{visit.Id:N}");
+        return Ok(ToOut(visit));
+    }
+
     private Task NotifyVisitAsync(AccessVisitDTO visit, string title, string body, string key) =>
         push?.NotifyResidentAsync(
             visit.HostResidentId,
@@ -365,7 +417,7 @@ public sealed class ConciergeController(
     private static ConciergeVisitOut ToOut(AccessVisitDTO x) => ToOut(x, x.HostResident, x.Credential);
     private static ConciergeVisitOut ToOut(AccessVisitDTO x, ResidentAccessDTO host, ResidentAccessCredentialDTO credential) => new()
     {
-        Id = x.Id, HostResidentId = x.HostResidentId, HostName = host.Name, BlockName = host.Unit.Block.Name, UnitNumber = host.Unit.Number,
+        Id = x.Id, LicenseId = x.LicenseId, HostResidentId = x.HostResidentId, HostName = host.Name, BlockName = host.Unit.Block.Name, UnitNumber = host.Unit.Number,
         VisitorName = x.VisitorName, Document = x.Document, PhoneNumber = x.PhoneNumber, Company = x.Company, Purpose = x.Purpose,
         VehiclePlate = x.VehiclePlate, PhotoUrl = x.PhotoUrl, Status = x.Status.ToString(), CredentialType = credential.CredentialType.ToString(),
         CredentialCode = credential.Identifier, UseCount = credential.UseCount, MaxUses = credential.MaxUses,
@@ -377,6 +429,17 @@ public sealed class ConciergeController(
     private static string Token() => Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
     private static string NormalizePlate(string value) => new(value.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
     private static string NormalizeDocument(string value) => new(value.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+    private static string NormalizeScannedCode(string? value)
+    {
+        var raw = value?.Trim() ?? string.Empty;
+        if (Uri.TryCreate(raw, UriKind.Absolute, out var uri))
+        {
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+            if (query.TryGetValue("code", out var code)) raw = code.ToString();
+            else raw = uri.Segments.LastOrDefault()?.Trim('/') ?? raw;
+        }
+        return raw.Trim().ToUpperInvariant();
+    }
     private static AccessWatchlistEntryOut ToWatchlistOut(AccessWatchlistEntryDTO x) => new() { Id = x.Id, Name = x.Name, Document = x.Document, VehiclePlate = x.VehiclePlate, Reason = x.Reason, Severity = x.Severity, ExpiresAt = x.ExpiresAt };
     private static DateTime Utc(DateTime value) => value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime();
     private static bool IsValidTransition(AccessVisitStatusEnum current, AccessVisitStatusEnum next) =>

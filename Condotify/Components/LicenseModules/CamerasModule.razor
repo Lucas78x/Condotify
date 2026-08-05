@@ -1,20 +1,63 @@
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IJSRuntime Js
+@implements IAsyncDisposable
 
 <section class="module-intro">
     <div>
-        <MudText Typo="Typo.h5">Cameras e gravadores</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Secondary">Gerencie os dispositivos de video e a capacidade de canais do condominio.</MudText>
+        <MudText Typo="Typo.h5">Câmeras e gravadores</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Gerencie os dispositivos de vídeo e a capacidade de canais do condomínio.</MudText>
     </div>
     @if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateDialogAsync">Novo dispositivo</MudButton> }
 </section>
 
 <div class="module-kpis">
     <div class="mini-kpi"><span class="mini-kpi-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><div><strong>@_devices.Count</strong><span>Dispositivos</span></div></div>
-    <div class="mini-kpi"><span class="mini-kpi-icon green"><MudIcon Icon="@Icons.Material.Outlined.PhotoCamera" /></span><div><strong>@_devices.Count(x => x.DeviceType.Contains("Camera", StringComparison.OrdinalIgnoreCase))</strong><span>Cameras IP</span></div></div>
+    <div class="mini-kpi"><span class="mini-kpi-icon green"><MudIcon Icon="@Icons.Material.Outlined.PhotoCamera" /></span><div><strong>@_devices.Count(x => x.DeviceType.Contains("Camera", StringComparison.OrdinalIgnoreCase))</strong><span>Câmeras IP</span></div></div>
     <div class="mini-kpi"><span class="mini-kpi-icon amber"><MudIcon Icon="@Icons.Material.Outlined.VideoSettings" /></span><div><strong>@_devices.Sum(x => x.MaxChannels)</strong><span>Canais configurados</span></div></div>
 </div>
+
+@if (_devices.Count > 0)
+{
+    <MudPaper Class="cftv-monitor" Elevation="0">
+        <div class="cftv-stage">
+            <video id="condotify-web-cftv-player" autoplay muted playsinline></video>
+            @if (!_streaming)
+            {
+                <div class="cftv-placeholder">
+                    @if (!string.IsNullOrWhiteSpace(_snapshot)) { <img src="@_snapshot" alt="Miniatura da câmera selecionada" /> }
+                    else { <MudIcon Icon="@Icons.Material.Outlined.Videocam" /><strong>Monitor CFTV</strong><span>Selecione uma câmera para visualizar ao vivo.</span> }
+                </div>
+            }
+            <div class="cftv-stage-badge"><i class="@(_streaming ? "live" : "")"></i>@(_streaming ? "AO VIVO" : "PRONTO")</div>
+            @if (_selectedDevice is not null) { <div class="cftv-stage-label"><strong>@_selectedDevice.Name</strong><span>Canal @_channel · @StatusText(_selectedDevice.Id)</span></div> }
+        </div>
+        <aside class="cftv-controls">
+            <div><MudText Typo="Typo.h6">Monitoramento ao vivo</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">O endereço e as credenciais da câmera nunca são expostos ao navegador.</MudText></div>
+            <MudSelect T="Guid?" Value="_selectedDevice?.Id" ValueChanged="SelectDeviceAsync" Label="Câmera ou gravador" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var device in _devices) { <MudSelectItem T="Guid?" Value="@((Guid?)device.Id)">@device.Name · @StatusText(device.Id)</MudSelectItem> }
+            </MudSelect>
+            @if (_selectedDevice is not null && _selectedDevice.MaxChannels > 1)
+            {
+                <MudSelect T="int" Value="_channel" ValueChanged="ChangeChannelAsync" Label="Canal" Variant="Variant.Outlined" Margin="Margin.Dense">@for (var channel = 1; channel <= _selectedDevice.MaxChannels; channel++) { var number = channel; <MudSelectItem T="int" Value="@number">Canal @number</MudSelectItem> }</MudSelect>
+            }
+            <div class="cftv-primary-actions">
+                <MudButton Variant="Variant.Filled" Color="@(_streaming ? Color.Error : Color.Primary)" StartIcon="@(_streaming ? Icons.Material.Outlined.Stop : Icons.Material.Outlined.PlayArrow)" Disabled="_opening" OnClick="ToggleStreamAsync">@(_opening ? "Conectando..." : _streaming ? "Encerrar transmissão" : "Visualizar ao vivo")</MudButton>
+                <MudTooltip Text="Atualizar miniatura"><MudIconButton Icon="@Icons.Material.Outlined.PhotoCamera" Color="Color.Primary" Disabled="@(_selectedDevice is null || _opening)" OnClick="LoadSnapshotAsync" /></MudTooltip>
+            </div>
+            <div class="cftv-evidence-box">
+                <div><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /><span><strong>Correlacionar evidência</strong><small>Registre câmera, canal e horário na linha do tempo.</small></span></div>
+                @if (_activeIncidents.Count > 0)
+                {
+                    <MudSelect T="Guid?" @bind-Value="_incidentId" Label="Ocorrência ativa" Variant="Variant.Outlined" Margin="Margin.Dense">@foreach (var incident in _activeIncidents) { <MudSelectItem T="Guid?" Value="@((Guid?)incident.Id)">@incident.Code · @incident.Title</MudSelectItem> }</MudSelect>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddPhotoAlternate" Disabled="@(!_incidentId.HasValue || _selectedDevice is null)" OnClick="AttachEvidenceAsync">Adicionar à ocorrência</MudButton>
+                }
+                else { <MudButton Href="@($"/licencas/{LicenseId}/ocorrencias")" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.AddAlert">Abrir uma ocorrência</MudButton> }
+            </div>
+        </aside>
+    </MudPaper>
+}
 
 @if (!string.IsNullOrWhiteSpace(_error))
 {
@@ -23,7 +66,7 @@
 
 <MudPaper Class="content-panel" Elevation="0">
     <div class="panel-toolbar">
-        <div><MudText Typo="Typo.h6" Class="panel-title">Dispositivos instalados</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">@_devices.Count camera(s) ou gravador(es) configurado(s)</MudText></div>
+        <div><MudText Typo="Typo.h6" Class="panel-title">Dispositivos instalados</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">@_devices.Count câmera(s) ou gravador(es) configurado(s)</MudText></div>
         <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" />
     </div>
     @if (_loading)
@@ -32,13 +75,13 @@
     }
     else if (_devices.Count == 0)
     {
-        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.VideocamOff" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum dispositivo de video</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Adicione a primeira camera ou gravador para iniciar o monitoramento.</MudText>@if (CanManage) { <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateDialogAsync">Adicionar dispositivo</MudButton> }</div>
+        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.VideocamOff" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum dispositivo de vídeo</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Adicione a primeira câmera ou gravador para iniciar o monitoramento.</MudText>@if (CanManage) { <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateDialogAsync">Adicionar dispositivo</MudButton> }</div>
     }
     else
     {
         <div class="table-wrap"><MudTable Items="_devices" Hover Dense Elevation="0">
             <HeaderContent><MudTh>Dispositivo</MudTh><MudTh>Tipo</MudTh><MudTh>Rede</MudTh><MudTh>Canais</MudTh><MudTh>Aplicativo dos moradores</MudTh></HeaderContent>
-            <RowTemplate><MudTd DataLabel="Dispositivo"><div class="license-name-cell"><span class="device-type-icon"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><strong>@context.Name</strong></div></MudTd><MudTd DataLabel="Tipo">@context.DeviceType</MudTd><MudTd DataLabel="Rede">@context.IpAddress:@context.RTSPPort</MudTd><MudTd DataLabel="Canais">@context.MaxChannels</MudTd><MudTd DataLabel="Aplicativo dos moradores"><MudSwitch T="bool" Value="@context.ResidentVisible" ValueChanged="@(value => SetResidentVisibilityAsync(context, value))" Disabled="@(!CanManage || _updatingVisibility == context.Id)" Color="Color.Primary" aria-label="Compartilhar camera com moradores" /></MudTd></RowTemplate>
+            <RowTemplate><MudTd DataLabel="Dispositivo"><div class="license-name-cell"><span class="device-type-icon"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><strong>@context.Name</strong></div></MudTd><MudTd DataLabel="Tipo">@context.DeviceType</MudTd><MudTd DataLabel="Rede">@context.IpAddress:@context.RTSPPort</MudTd><MudTd DataLabel="Canais">@context.MaxChannels</MudTd><MudTd DataLabel="Aplicativo dos moradores"><MudSwitch T="bool" Value="@context.ResidentVisible" ValueChanged="@(value => SetResidentVisibilityAsync(context, value))" Disabled="@(!CanManage || _updatingVisibility == context.Id)" Color="Color.Primary" aria-label="Compartilhar câmera com moradores" /></MudTd></RowTemplate>
         </MudTable></div>
     }
 </MudPaper>
@@ -50,22 +93,37 @@
     private string? _error;
     private bool _loading = true;
     private Guid? _updatingVisibility;
+    private List<CftvStatusViewModel> _statuses = [];
+    private List<IncidentViewModel> _activeIncidents = [];
+    private CftvDeviceRowViewModel? _selectedDevice;
+    private Guid? _incidentId;
+    private int _channel = 1;
+    private bool _streaming;
+    private bool _opening;
+    private string _snapshot = string.Empty;
+    private Guid _loadedLicenseId;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnParametersSetAsync() { if (_loadedLicenseId == LicenseId) return; if (_loadedLicenseId != Guid.Empty) await StopStreamAsync(); _loadedLicenseId = LicenseId; _selectedDevice = null; _devices = []; _snapshot = string.Empty; await LoadAsync(); }
     private async Task LoadAsync()
     {
         _loading = true; _error = null;
-        var result = await Api.GetCamerasAsync(LicenseId);
+        var devicesTask = Api.GetCamerasAsync(LicenseId);
+        var statusTask = Api.GetCftvStatusAsync(LicenseId);
+        var incidentsTask = Api.GetIncidentsAsync(LicenseId, "active");
+        await Task.WhenAll(devicesTask, statusTask, incidentsTask);
+        var result = await devicesTask;
         _loading = false;
-        if (result.Success) _devices = result.Value ?? []; else _error = result.Error;
+        if (result.Success) { _devices = result.Value ?? []; _selectedDevice ??= _devices.FirstOrDefault(); } else _error = result.Error;
+        var statuses = await statusTask; if (statuses.Success) _statuses = statuses.Value ?? [];
+        var incidents = await incidentsTask; if (incidents.Success) { _activeIncidents = incidents.Value?.Items ?? []; _incidentId ??= _activeIncidents.FirstOrDefault()?.Id; }
     }
     private async Task OpenCreateDialogAsync()
     {
         var parameters = new DialogParameters { [nameof(CameraFormDialog.LicenseId)] = LicenseId };
-        var dialog = await DialogService.ShowAsync<CameraFormDialog>("Nova camera ou gravador", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium });
+        var dialog = await DialogService.ShowAsync<CameraFormDialog>("Nova câmera ou gravador", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        Snackbar.Add("Camera ou gravador cadastrado com sucesso.", Severity.Success);
+        Snackbar.Add("Câmera ou gravador cadastrado com sucesso.", Severity.Success);
         await LoadAsync();
     }
     private async Task SetResidentVisibilityAsync(CftvDeviceRowViewModel device, bool visible)
@@ -75,10 +133,37 @@
         _updatingVisibility = null;
         if (!result.Success)
         {
-            Snackbar.Add(result.Error ?? "Nao foi possivel alterar a visibilidade da camera.", Severity.Error);
+            Snackbar.Add(result.Error ?? "Não foi possível alterar a visibilidade da câmera.", Severity.Error);
             return;
         }
         device.ResidentVisible = visible;
-        Snackbar.Add(visible ? "Camera disponibilizada aos moradores." : "Camera removida do aplicativo dos moradores.", Severity.Success);
+        Snackbar.Add(visible ? "Câmera disponibilizada aos moradores." : "Câmera removida do aplicativo dos moradores.", Severity.Success);
     }
+    private async Task SelectDeviceAsync(Guid? id) { await StopStreamAsync(); _selectedDevice = _devices.FirstOrDefault(x => x.Id == id); _channel = 1; _snapshot = string.Empty; if (_selectedDevice is not null) await LoadSnapshotAsync(); }
+    private async Task ChangeChannelAsync(int value) { await StopStreamAsync(); _channel = value; _snapshot = string.Empty; await LoadSnapshotAsync(); }
+    private async Task ToggleStreamAsync() { if (_streaming) await StopStreamAsync(); else await StartStreamAsync(); }
+    private async Task StartStreamAsync()
+    {
+        if (_selectedDevice is null) return; _opening = true;
+        var result = await Api.OpenCftvStreamAsync(LicenseId, _selectedDevice.Id, _channel, "secondary", "webrtc");
+        if (!result.Success || result.Value is null) { _opening = false; Snackbar.Add(result.Error ?? "Não foi possível abrir a câmera.", Severity.Error); return; }
+        try { await Js.InvokeVoidAsync("condotifyCftv.start", "condotify-web-cftv-player", result.Value.PlaybackUrl); _streaming = true; }
+        catch (JSException exception) { Snackbar.Add(exception.Message, Severity.Error); await Api.CloseCftvStreamAsync(LicenseId, _selectedDevice.Id, _channel); }
+        finally { _opening = false; }
+    }
+    private async Task StopStreamAsync()
+    {
+        try { await Js.InvokeVoidAsync("condotifyCftv.stop", "condotify-web-cftv-player"); } catch (JSDisconnectedException) { }
+        if (_streaming && _selectedDevice is not null) await Api.CloseCftvStreamAsync(LicenseId, _selectedDevice.Id, _channel);
+        _streaming = false;
+    }
+    private async Task LoadSnapshotAsync() { if (_selectedDevice is null) return; var result = await Api.GetCftvSnapshotAsync(LicenseId, _selectedDevice.Id, _channel); if (result.Success) _snapshot = result.Value ?? string.Empty; else Snackbar.Add(result.Error ?? "Miniatura indisponível.", Severity.Warning); }
+    private async Task AttachEvidenceAsync()
+    {
+        if (!_incidentId.HasValue || _selectedDevice is null) return;
+        var result = await Api.AddIncidentCommentAsync(_incidentId.Value, new IncidentCommentViewModel { Message = $"Evidência CFTV registrada em {_selectedDevice.Name}, canal {_channel}, às {DateTime.Now:dd/MM/yyyy HH:mm:ss}.", ReferenceType = "Camera", ReferenceId = _selectedDevice.Id });
+        Snackbar.Add(result.Success ? "Momento da câmera adicionado à linha do tempo." : result.Error ?? "Falha ao registrar evidência.", result.Success ? Severity.Success : Severity.Error);
+    }
+    private string StatusText(Guid deviceId) { var status = _statuses.FirstOrDefault(x => x.DeviceId == deviceId); return status?.Online == true ? "Online" : "Offline"; }
+    public async ValueTask DisposeAsync() { await StopStreamAsync(); }
 }

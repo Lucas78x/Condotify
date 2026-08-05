@@ -12,7 +12,7 @@
         {
             <MudForm @ref="_form" @bind-IsValid="_isValid">
                 <MudTextField T="string" @bind-Value="_block.Name" Label="Nome do bloco" Placeholder="Ex.: Bloco A" Required RequiredError="Informe o nome do bloco." Immediate Variant="Variant.Outlined" FullWidth />
-                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveBlockAsync">@(_saving ? "Salvando..." : IsEditing ? "Salvar alteracoes" : "Cadastrar bloco")</MudButton></div>
+                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveBlockAsync">@(_saving ? "Salvando..." : IsEditing ? "Salvar alterações" : "Cadastrar bloco")</MudButton></div>
             </MudForm>
         }
         else if (ActiveSection == "unidades")
@@ -22,10 +22,10 @@
                     <MudSelect T="Guid" @bind-Value="_unit.BlockId" Label="@GroupLabelSingular" Required RequiredError="Selecione o agrupamento da unidade." Variant="Variant.Outlined" Class="full">
                         @foreach (var block in Blocks) { <MudSelectItem T="Guid" Value="@block.Id">@block.Name</MudSelectItem> }
                     </MudSelect>
-                    <MudTextField T="string" @bind-Value="_unit.Number" Label="Numero da unidade" Placeholder="Ex.: 101" Required RequiredError="Informe o numero da unidade." Immediate Variant="Variant.Outlined" />
+                    <MudTextField T="string" @bind-Value="_unit.Number" Label="Número da unidade" Placeholder="Ex.: 101" Required RequiredError="Informe o número da unidade." Immediate Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_unit.Floor" Label="Andar (opcional)" Variant="Variant.Outlined" />
                 </div>
-                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveUnitAsync">@(_saving ? "Salvando..." : IsEditing ? "Salvar alteracoes" : "Cadastrar unidade")</MudButton></div>
+                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveUnitAsync">@(_saving ? "Salvando..." : IsEditing ? "Salvar alterações" : "Cadastrar unidade")</MudButton></div>
             </MudForm>
         }
         else
@@ -42,15 +42,15 @@
                     <MudTextField T="string" @bind-Value="_resident.Email" Label="E-mail" InputType="InputType.Email" Variant="Variant.Outlined" For="@(() => _resident.Email)" />
                     <MudTextField T="string" @bind-Value="_resident.PhoneNumber" Label="Telefone" Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_resident.CommercialPhone" Label="Telefone comercial" Variant="Variant.Outlined" />
-                    <MudSelect T="int" @bind-Value="_resident.AccessType" Label="Categoria" Variant="Variant.Outlined"><MudSelectItem Value="1">Morador responsavel</MudSelectItem><MudSelectItem Value="2">Morador dependente</MudSelectItem><MudSelectItem Value="3">Visitante</MudSelectItem><MudSelectItem Value="4">Prestador de servico</MudSelectItem></MudSelect>
+                    <MudSelect T="int" @bind-Value="_resident.AccessType" Label="Categoria" Variant="Variant.Outlined"><MudSelectItem Value="1">Morador responsável</MudSelectItem><MudSelectItem Value="2">Morador dependente</MudSelectItem><MudSelectItem Value="3">Visitante</MudSelectItem><MudSelectItem Value="4">Prestador de serviço</MudSelectItem></MudSelect>
                     @if (_resident.AccessType is 1 or 2)
                     {
-                        <MudSelect T="int" @bind-Value="_resident.Relationship" Label="Vinculo com a unidade" Variant="Variant.Outlined"><MudSelectItem Value="1">Proprietario responsavel</MudSelectItem><MudSelectItem Value="2">Locatario responsavel</MudSelectItem><MudSelectItem Value="3">Apenas responsavel</MudSelectItem><MudSelectItem Value="0">Morador</MudSelectItem><MudSelectItem Value="4">Dependente</MudSelectItem></MudSelect>
+                        <MudSelect T="int" @bind-Value="_resident.Relationship" Label="Vínculo com a unidade" Variant="Variant.Outlined"><MudSelectItem Value="1">Proprietário responsável</MudSelectItem><MudSelectItem Value="2">Locatário responsável</MudSelectItem><MudSelectItem Value="3">Apenas responsável</MudSelectItem><MudSelectItem Value="0">Morador</MudSelectItem><MudSelectItem Value="4">Dependente</MudSelectItem></MudSelect>
                     }
-                    <MudTextField T="string" @bind-Value="_resident.Description" Label="Observacoes" Lines="2" Variant="Variant.Outlined" Class="full" />
+                    <MudTextField T="string" @bind-Value="_resident.Description" Label="Observações" Lines="2" Variant="Variant.Outlined" Class="full" />
                     <MudSwitch T="bool" @bind-Value="_resident.NotifyAccess" Label="Notificar acessos" Color="Color.Primary" />
-                    <MudSwitch T="bool" @bind-Value="_resident.Temporary" Label="Acesso temporario" Color="Color.Warning" />
-                    @if (_resident.Temporary) { <MudDatePicker @bind-Date="_resident.Expire" Label="Valido ate" Variant="Variant.Outlined" Class="full" /> }
+                    <MudSwitch T="bool" @bind-Value="_resident.Temporary" Label="Acesso temporário" Color="Color.Warning" />
+                    @if (_resident.Temporary) { <MudDatePicker @bind-Date="_resident.Expire" Label="Válido até" Variant="Variant.Outlined" Class="full" /> }
                 </div>
                 <div class="form-actions dialog-form-actions"><MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" Disabled="_saving">@(_saving ? "Salvando..." : "Cadastrar morador")</MudButton></div>
             </EditForm>
@@ -80,7 +80,7 @@
     private bool IsEditing => ExistingBlock is not null || ExistingUnit is not null;
     private string DialogIcon => ActiveSection switch { "unidades" => Icons.Material.Outlined.Apartment, "moradores" => Icons.Material.Outlined.PersonAdd, _ => Icons.Material.Outlined.DomainAdd };
     private string DescriptionTitle => ActiveSection switch { "unidades" => IsEditing ? "Editar unidade" : "Nova unidade", "moradores" => "Novo morador", _ => IsEditing ? "Editar bloco" : "Novo bloco" };
-    private string Description => ActiveSection switch { "unidades" => "Vincule a unidade ao bloco correspondente.", "moradores" => "Associe o morador a uma unidade e defina seu tipo de acesso.", _ => "Organize a estrutura fisica do condominio." };
+    private string Description => ActiveSection switch { "unidades" => "Vincule a unidade ao bloco correspondente.", "moradores" => "Associe o morador a uma unidade e defina seu tipo de acesso.", _ => "Organize a estrutura física do condomínio." };
 
     protected override void OnInitialized()
     {
@@ -104,7 +104,7 @@
         () => ExistingUnit is null ? Api.CreateUnitAsync(LicenseId, _unit) : Api.UpdateUnitAsync(LicenseId, ExistingUnit.Id, _unit),
         _unit.BlockId == Guid.Empty
             ? "Selecione o bloco da unidade."
-            : string.IsNullOrWhiteSpace(_unit.Number) ? "Informe o numero da unidade." : null);
+            : string.IsNullOrWhiteSpace(_unit.Number) ? "Informe o número da unidade." : null);
 
     private Task SaveResidentAsync() => SaveAsync(() => Api.CreateResidentAsync(LicenseId, _resident));
 

@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:Condotify.Mobile"
              xmlns:components="clr-namespace:Condotify.Mobile.Components"
-             x:Class="Condotify.Mobile.MainPage">
+             x:Class="Condotify.Mobile.MainPage"
+             BackgroundColor="#F5F7FB">
 
     <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
         <BlazorWebView.RootComponents>

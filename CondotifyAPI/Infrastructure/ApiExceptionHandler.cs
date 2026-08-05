@@ -11,7 +11,7 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         CancellationToken cancellationToken)
     {
         var traceId = httpContext.TraceIdentifier;
-        logger.LogError(exception, "Erro nao tratado na API. TraceId: {TraceId}", traceId);
+        logger.LogError(exception, "Erro não tratado na API. TraceId: {TraceId}", traceId);
 
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
         httpContext.Response.Headers.CacheControl = "no-store";
@@ -19,8 +19,8 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         var problem = new ProblemDetails
         {
             Status = StatusCodes.Status500InternalServerError,
-            Title = "Nao foi possivel concluir a operacao.",
-            Detail = "Ocorreu um erro interno. Tente novamente e informe o codigo de rastreamento se o problema continuar.",
+            Title = "Não foi possível concluir a operação.",
+            Detail = "Ocorreu um erro interno. Tente novamente e informe o código de rastreamento se o problema continuar.",
             Instance = httpContext.Request.Path
         };
         problem.Extensions["traceId"] = traceId;

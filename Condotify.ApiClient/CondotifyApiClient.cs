@@ -41,6 +41,12 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<List<LicenseViewModel>>> GetLicensesAsync(CancellationToken cancellationToken = default) =>
         GetAsync<List<LicenseViewModel>>("api/access/licenses", cancellationToken);
 
+    public Task<ApiResult<List<AuthSessionViewModel>>> GetAuthSessionsAsync(CancellationToken cancellationToken = default) =>
+        GetAsync<List<AuthSessionViewModel>>("api/auth/sessions", cancellationToken);
+
+    public Task<ApiResult<bool>> LogoutAllAuthSessionsAsync(CancellationToken cancellationToken = default) =>
+        PostAsync("api/auth/logout/all", new { }, false, cancellationToken);
+
     public Task<ApiResult<MobileInstallationViewModel>> RegisterMobileInstallationAsync(
         string installationId,
         MobileInstallationUpsertViewModel input,
@@ -416,6 +422,15 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<ConciergeDashboardViewModel>> GetConciergeDashboardAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
         GetAsync<ConciergeDashboardViewModel>($"api/access/licenses/{licenseId}/concierge", cancellationToken);
 
+    public Task<ApiResult<List<ConciergeVisitViewModel>>> GetConciergeVisitsAsync(
+        Guid licenseId,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default) =>
+        GetAsync<List<ConciergeVisitViewModel>>(
+            $"api/access/licenses/{licenseId}/concierge/visits?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}",
+            cancellationToken);
+
     public Task<ApiResult<ConciergeVisitViewModel>> CreateConciergeVisitAsync(Guid licenseId, ConciergeVisitFormViewModel model, CancellationToken cancellationToken = default) =>
         SendForAsync<ConciergeVisitViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/concierge/visits", new
         {
@@ -440,6 +455,9 @@ public sealed class CondotifyApiClient
 
     public Task<ApiResult<ConciergeVisitViewModel>> UpdateConciergeVisitStatusAsync(Guid licenseId, Guid visitId, int status, string reason, CancellationToken cancellationToken = default) =>
         SendForAsync<ConciergeVisitViewModel>(HttpMethod.Patch, $"api/access/licenses/{licenseId}/concierge/visits/{visitId}/status", new { Status = status, Reason = reason }, cancellationToken);
+
+    public Task<ApiResult<ConciergeVisitViewModel>> ScanConciergeVisitAsync(Guid licenseId, string code, CancellationToken cancellationToken = default) =>
+        SendForAsync<ConciergeVisitViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/concierge/visits/scan", new { Code = code }, cancellationToken);
 
     public Task<ApiResult<ConciergeVisitViewModel>> DecideConciergeVisitAsync(Guid licenseId, Guid visitId, bool approved, string notes, CancellationToken cancellationToken = default) =>
         SendForAsync<ConciergeVisitViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/concierge/visits/{visitId}/approval", new { Approved = approved, Notes = notes }, cancellationToken);
@@ -1127,6 +1145,71 @@ public sealed class CondotifyApiClient
 
     public Task<ApiResult<bool>> UpdateDeliveryStatusAsync(Guid licenseId, Guid deliveryId, int status, string personName, CancellationToken cancellationToken = default) =>
         PatchAsync($"api/access/licenses/{licenseId}/deliveries/{deliveryId}/status", new { Status = status, PersonName = personName }, cancellationToken);
+
+    public Task<ApiResult<IncidentPageViewModel>> GetIncidentsAsync(
+        Guid? licenseId = null,
+        string status = "active",
+        string severity = "",
+        string search = "",
+        CancellationToken cancellationToken = default)
+    {
+        var query = new List<string>
+        {
+            $"status={Uri.EscapeDataString(status)}",
+            $"severity={Uri.EscapeDataString(severity)}",
+            $"search={Uri.EscapeDataString(search.Trim())}",
+            "pageSize=100"
+        };
+        if (licenseId.HasValue) query.Add($"licenseId={licenseId}");
+        return GetAsync<IncidentPageViewModel>($"api/access/operations/incidents?{string.Join("&", query)}", cancellationToken);
+    }
+
+    public Task<ApiResult<IncidentViewModel>> GetIncidentAsync(Guid incidentId, CancellationToken cancellationToken = default) =>
+        GetAsync<IncidentViewModel>($"api/access/operations/incidents/{incidentId}", cancellationToken);
+
+    public Task<ApiResult<IncidentViewModel>> CreateIncidentAsync(Guid licenseId, IncidentCreateViewModel input, CancellationToken cancellationToken = default) =>
+        SendForAsync<IncidentViewModel>(HttpMethod.Post, $"api/access/operations/incidents/{licenseId}", input, cancellationToken);
+
+    public Task<ApiResult<IncidentViewModel>> AddIncidentCommentAsync(Guid incidentId, IncidentCommentViewModel input, CancellationToken cancellationToken = default) =>
+        SendForAsync<IncidentViewModel>(HttpMethod.Post, $"api/access/operations/incidents/{incidentId}/comments", input, cancellationToken);
+
+    public Task<ApiResult<IncidentViewModel>> UpdateIncidentStatusAsync(Guid incidentId, int status, string note, CancellationToken cancellationToken = default) =>
+        SendForAsync<IncidentViewModel>(HttpMethod.Patch, $"api/access/operations/incidents/{incidentId}/status", new { Status = status, Note = note }, cancellationToken);
+
+    public Task<ApiResult<IncidentViewModel>> AssignIncidentAsync(Guid incidentId, Guid? userId, string name, CancellationToken cancellationToken = default) =>
+        SendForAsync<IncidentViewModel>(HttpMethod.Patch, $"api/access/operations/incidents/{incidentId}/assignment", new { UserId = userId, Name = name }, cancellationToken);
+
+    public Task<ApiResult<List<AutomationRuleViewModel>>> GetAutomationRulesAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AutomationRuleViewModel>>($"api/access/licenses/{licenseId}/automation-rules", cancellationToken);
+
+    public Task<ApiResult<AutomationRuleViewModel>> SaveAutomationRuleAsync(Guid licenseId, Guid? ruleId, AutomationRuleFormViewModel input, CancellationToken cancellationToken = default) =>
+        SendForAsync<AutomationRuleViewModel>(ruleId.HasValue ? HttpMethod.Put : HttpMethod.Post,
+            ruleId.HasValue ? $"api/access/licenses/{licenseId}/automation-rules/{ruleId}" : $"api/access/licenses/{licenseId}/automation-rules",
+            input, cancellationToken);
+
+    public Task<ApiResult<bool>> DeleteAutomationRuleAsync(Guid licenseId, Guid ruleId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/automation-rules/{ruleId}", cancellationToken);
+
+    public Task<ApiResult<bool>> EvaluateAutomationRuleAsync(Guid licenseId, Guid ruleId, CancellationToken cancellationToken = default) =>
+        PostAsync($"api/access/licenses/{licenseId}/automation-rules/{ruleId}/evaluate", new { }, false, cancellationToken);
+
+    public Task<ApiResult<List<EmergencySessionViewModel>>> GetEmergencySessionsAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<EmergencySessionViewModel>>($"api/access/licenses/{licenseId}/emergency", cancellationToken);
+
+    public Task<ApiResult<EmergencySessionViewModel>> ActivateEmergencyAsync(Guid licenseId, EmergencyActivationViewModel input, CancellationToken cancellationToken = default) =>
+        SendForAsync<EmergencySessionViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/emergency/activate", input, cancellationToken);
+
+    public Task<ApiResult<EmergencySessionViewModel>> ResolveEmergencyAsync(Guid licenseId, Guid sessionId, EmergencyResolveViewModel input, CancellationToken cancellationToken = default) =>
+        SendForAsync<EmergencySessionViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/emergency/{sessionId}/resolve", input, cancellationToken);
+
+    public Task<ApiResult<DigitalPassViewModel>> IssueDigitalPassAsync(Guid licenseId, Guid visitId, CancellationToken cancellationToken = default) =>
+        SendForAsync<DigitalPassViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/visits/{visitId}/pass", new { }, cancellationToken);
+
+    public Task<ApiResult<bool>> RevokeDigitalPassAsync(Guid licenseId, Guid visitId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/visits/{visitId}/pass", cancellationToken);
+
+    public Task<ApiResult<DigitalPassViewModel>> GetPublicDigitalPassAsync(string token, CancellationToken cancellationToken = default) =>
+        GetAsync<DigitalPassViewModel>($"api/public/passes/{Uri.EscapeDataString(token)}", cancellationToken);
 
     private async Task<ApiResult<T>> GetAsync<T>(string path, CancellationToken cancellationToken)
     {

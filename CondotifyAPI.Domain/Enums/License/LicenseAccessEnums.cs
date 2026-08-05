@@ -25,7 +25,13 @@ public enum LicensePermissionEnum : long
     ManageBackups = 1L << 20,
     ViewAlerts = 1L << 21,
     ManageAlerts = 1L << 22,
-    All = (1L << 23) - 1
+    ViewIncidents = 1L << 23,
+    ManageIncidents = 1L << 24,
+    ViewAutomations = 1L << 25,
+    ManageAutomations = 1L << 26,
+    ViewEmergency = 1L << 27,
+    ManageEmergency = 1L << 28,
+    All = (1L << 29) - 1
 }
 
 public enum LicenseAccessRoleEnum
@@ -50,18 +56,24 @@ public static class LicenseAccessDefaults
             LicensePermissionEnum.OperateDevices | LicensePermissionEnum.ViewEvents |
             LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ManageDeliveries |
             LicensePermissionEnum.ViewBookings | LicensePermissionEnum.ManageBookings |
-            LicensePermissionEnum.ViewAlerts | LicensePermissionEnum.ManageAlerts,
+            LicensePermissionEnum.ViewAlerts | LicensePermissionEnum.ManageAlerts |
+            LicensePermissionEnum.ViewIncidents | LicensePermissionEnum.ManageIncidents |
+            LicensePermissionEnum.ViewAutomations | LicensePermissionEnum.ViewEmergency |
+            LicensePermissionEnum.ManageEmergency,
         LicenseAccessRoleEnum.Operator => LicensePermissionEnum.ViewDashboard |
             LicensePermissionEnum.ViewStructure | LicensePermissionEnum.ViewPeople |
             LicensePermissionEnum.ViewCredentials | LicensePermissionEnum.ViewDevices |
             LicensePermissionEnum.OperateDevices | LicensePermissionEnum.ViewEvents |
             LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ViewBookings |
-            LicensePermissionEnum.ViewAlerts,
+            LicensePermissionEnum.ViewAlerts | LicensePermissionEnum.ViewIncidents |
+            LicensePermissionEnum.ManageIncidents | LicensePermissionEnum.ViewAutomations |
+            LicensePermissionEnum.ViewEmergency,
         _ => LicensePermissionEnum.ViewDashboard | LicensePermissionEnum.ViewStructure |
             LicensePermissionEnum.ViewPeople | LicensePermissionEnum.ViewCredentials |
             LicensePermissionEnum.ViewDevices | LicensePermissionEnum.ViewEvents |
             LicensePermissionEnum.ViewDeliveries | LicensePermissionEnum.ViewBookings |
-            LicensePermissionEnum.ViewAlerts
+            LicensePermissionEnum.ViewAlerts | LicensePermissionEnum.ViewIncidents |
+            LicensePermissionEnum.ViewAutomations | LicensePermissionEnum.ViewEmergency
     };
 
     public static LicensePermissionEnum Normalize(LicensePermissionEnum permissions)
@@ -77,6 +89,9 @@ public static class LicenseAccessDefaults
         if (permissions.HasFlag(LicensePermissionEnum.ManageBookings)) permissions |= LicensePermissionEnum.ViewBookings;
         if (permissions.HasFlag(LicensePermissionEnum.ManageBackups)) permissions |= LicensePermissionEnum.ViewBackups;
         if (permissions.HasFlag(LicensePermissionEnum.ManageAlerts)) permissions |= LicensePermissionEnum.ViewAlerts;
+        if (permissions.HasFlag(LicensePermissionEnum.ManageIncidents)) permissions |= LicensePermissionEnum.ViewIncidents;
+        if (permissions.HasFlag(LicensePermissionEnum.ManageAutomations)) permissions |= LicensePermissionEnum.ViewAutomations;
+        if (permissions.HasFlag(LicensePermissionEnum.ManageEmergency)) permissions |= LicensePermissionEnum.ViewEmergency | LicensePermissionEnum.ViewIncidents;
         return permissions;
     }
 }

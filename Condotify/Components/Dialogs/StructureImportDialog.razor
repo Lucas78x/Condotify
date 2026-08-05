@@ -8,7 +8,7 @@
             <MudIcon Icon="@Icons.Material.Outlined.UploadFile" />
             <div>
                 <strong>Importar estrutura e pessoas</strong>
-                <span>Valide todos os registros antes de criar agrupamentos, unidades, pessoas, veiculos e TAGs.</span>
+                <span>Valide todos os registros antes de criar agrupamentos, unidades, pessoas, veículos e TAGs.</span>
             </div>
         </div>
 
@@ -22,7 +22,7 @@
                 <MudIcon Icon="@Icons.Material.Outlined.TableView" />
                 <div>
                     <strong>@(string.IsNullOrWhiteSpace(_fileName) ? "Selecione um arquivo CSV" : _fileName)</strong>
-                    <span>Limite de 2 MB e 1.000 registros. Separadores `;` e `,` sao aceitos.</span>
+                    <span>Limite de 2 MB e 1.000 registros. Separadores `;` e `,` são aceitos.</span>
                 </div>
             </div>
             <div class="import-source-actions">
@@ -48,7 +48,7 @@
                 <div><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span><span><strong>@_preview.NewBlocks</strong><small>Agrupamentos novos</small></span></div>
                 <div><span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><span><strong>@_preview.NewUnits</strong><small>Unidades novas</small></span></div>
                 <div><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><span><strong>@_preview.NewPeople</strong><small>Pessoas novas</small></span></div>
-                <div><span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></span><span><strong>@_preview.NewVehicles</strong><small>Veiculos novos</small></span></div>
+                <div><span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></span><span><strong>@_preview.NewVehicles</strong><small>Veículos novos</small></span></div>
             </div>
 
             @if (_preview.Errors.Count > 0)
@@ -61,8 +61,8 @@
             {
                 <div class="import-validation-head">
                     <div>
-                        <strong>Pre-validacao</strong>
-                        <span>@_preview.ValidRows validos de @_preview.TotalRows registros</span>
+                        <strong>Pré-validação</strong>
+                        <span>@_preview.ValidRows válidos de @_preview.TotalRows registros</span>
                     </div>
                     <MudChip T="string" Color="@(_preview.CanExecute ? Color.Success : Color.Error)" Variant="Variant.Outlined" Icon="@(_preview.CanExecute ? Icons.Material.Outlined.CheckCircle : Icons.Material.Outlined.ErrorOutline)">
                         @(_preview.CanExecute ? "Pronto para importar" : $"{_preview.InvalidRows} com erro")
@@ -74,18 +74,18 @@
                         <MudTh>Linha</MudTh>
                         <MudTh>Agrupamento / unidade</MudTh>
                         <MudTh>Pessoa</MudTh>
-                        <MudTh>Veiculo</MudTh>
-                        <MudTh>Validacao</MudTh>
+                        <MudTh>Veículo</MudTh>
+                        <MudTh>Validação</MudTh>
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd DataLabel="Linha">@context.RowNumber</MudTd>
                         <MudTd DataLabel="Estrutura"><strong>@context.Block</strong><small class="audit-summary">@context.Unit</small></MudTd>
                         <MudTd DataLabel="Pessoa">@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : "-")</MudTd>
-                        <MudTd DataLabel="Veiculo">@(!string.IsNullOrWhiteSpace(context.VehiclePlate) ? context.VehiclePlate : "-")</MudTd>
-                        <MudTd DataLabel="Validacao">
+                        <MudTd DataLabel="Veículo">@(!string.IsNullOrWhiteSpace(context.VehiclePlate) ? context.VehiclePlate : "-")</MudTd>
+                        <MudTd DataLabel="Validação">
                             @if (context.IsValid)
                             {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Valido</MudChip>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Válido</MudChip>
                             }
                             else
                             {
@@ -103,7 +103,7 @@
     <DialogActions>
         <MudButton Variant="Variant.Text" Disabled="_executing" OnClick="Cancel">Cancelar</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PlaylistAddCheck" Disabled="@(_preview?.CanExecute != true || _executing)" OnClick="ExecuteAsync">
-            @(_executing ? "Importando..." : "Confirmar importacao")
+            @(_executing ? "Importando..." : "Confirmar importação")
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -145,14 +145,14 @@
             var result = await Api.PreviewStructureImportAsync(LicenseId, _fileName, _content, _idempotencyKey);
             if (!result.Success || result.Value is null)
             {
-                _error = result.Error ?? "Nao foi possivel validar o arquivo.";
+                _error = result.Error ?? "Não foi possível validar o arquivo.";
                 return;
             }
             _preview = result.Value;
         }
         catch (IOException)
         {
-            _error = "Nao foi possivel ler o arquivo selecionado.";
+            _error = "Não foi possível ler o arquivo selecionado.";
         }
         finally
         {
@@ -170,7 +170,7 @@
             var result = await Api.ExecuteStructureImportAsync(LicenseId, _fileName, _content, _idempotencyKey);
             if (!result.Success || result.Value is null)
             {
-                _error = result.Error ?? "Nao foi possivel concluir a importacao.";
+                _error = result.Error ?? "Não foi possível concluir a importação.";
                 return;
             }
             Dialog.Close(DialogResult.Ok(result.Value));

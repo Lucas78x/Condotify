@@ -6,7 +6,7 @@
             <MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" Color="Color.Primary" />
             <div>
                 <MudText Typo="Typo.h6">Autorizar visitante</MudText>
-                <MudText Typo="Typo.caption">Crie um QR Code temporario para a portaria.</MudText>
+                <MudText Typo="Typo.caption">Crie um QR Code temporário para a portaria.</MudText>
             </div>
         </div>
     </TitleContent>
@@ -26,7 +26,7 @@
             <MudTextField T="string" @bind-Value="_form.VisitorName" Label="Nome completo" Variant="Variant.Outlined" Required="true" />
             <MudTextField T="string" @bind-Value="_form.Document" Label="CPF, RG ou documento" Variant="Variant.Outlined" />
             <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Telefone" Variant="Variant.Outlined" InputType="InputType.Telephone" />
-            <MudTextField T="string" @bind-Value="_form.VehiclePlate" Label="Placa do veiculo" Variant="Variant.Outlined" />
+            <MudTextField T="string" @bind-Value="_form.VehiclePlate" Label="Placa do veículo" Variant="Variant.Outlined" />
             <MudTextField T="string" @bind-Value="_form.Purpose" Label="Motivo da visita" Variant="Variant.Outlined" />
         </div>
 
@@ -49,6 +49,7 @@
 @code {
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public ResidentProfileViewModel Profile { get; set; } = null!;
+    [Parameter] public ConciergeVisitViewModel? Template { get; set; }
 
     private readonly ResidentVisitFormViewModel _form = new();
     private DateTime? _fromDate = DateTime.Today;
@@ -60,9 +61,24 @@
 
     protected override void OnInitialized()
     {
-        _form.UnitId = Profile.Units.FirstOrDefault(x => x.IsPrimary)?.UnitId
-            ?? Profile.Units.FirstOrDefault()?.UnitId
-            ?? Guid.Empty;
+        var templateUnit = Template is null ? null : Profile.Units.FirstOrDefault(unit =>
+            unit.Number.Equals(Template.UnitNumber, StringComparison.OrdinalIgnoreCase) &&
+            unit.BlockName.Equals(Template.BlockName, StringComparison.OrdinalIgnoreCase));
+        _form.UnitId = templateUnit?.UnitId ?? Profile.Units.FirstOrDefault(x => x.IsPrimary)?.UnitId ?? Profile.Units.FirstOrDefault()?.UnitId ?? Guid.Empty;
+        if (Template is null) return;
+        _form.VisitorName = Template.VisitorName;
+        _form.Document = Template.Document;
+        _form.PhoneNumber = Template.PhoneNumber;
+        _form.Company = Template.Company;
+        _form.Purpose = Template.Purpose;
+        _form.VehiclePlate = Template.VehiclePlate;
+        _form.MaxUses = Template.MaxUses ?? 1;
+        var start = DateTime.Now.AddMinutes(15);
+        var duration = Template.ValidTo - Template.ValidFrom;
+        if (duration <= TimeSpan.Zero || duration > TimeSpan.FromDays(1)) duration = TimeSpan.FromHours(4);
+        var end = start.Add(duration);
+        _fromDate = start.Date; _fromTime = start.TimeOfDay;
+        _toDate = end.Date; _toTime = end.TimeOfDay;
     }
 
     private async Task SaveAsync()
@@ -78,7 +94,7 @@
         _saving = false;
         if (!result.Success)
         {
-            _error = result.Error ?? "Nao foi possivel autorizar o visitante.";
+            _error = result.Error ?? "Não foi possível autorizar o visitante.";
             return;
         }
 
@@ -87,14 +103,14 @@
 
     private string Validate()
     {
-        if (_form.UnitId == Guid.Empty) return "Selecione a unidade que recebera a visita.";
+        if (_form.UnitId == Guid.Empty) return "Selecione a unidade que receberá a visita.";
         if (string.IsNullOrWhiteSpace(_form.VisitorName)) return "Informe o nome do visitante.";
-        if (!_fromDate.HasValue || !_toDate.HasValue) return "Informe o inicio e o fim da autorizacao.";
+        if (!_fromDate.HasValue || !_toDate.HasValue) return "Informe o início e o fim da autorização.";
         var from = _fromDate.Value.Date.Add(_fromTime ?? TimeSpan.Zero);
         var to = _toDate.Value.Date.Add(_toTime ?? TimeSpan.Zero);
-        if (to <= from) return "O termino deve ser posterior ao inicio.";
-        if (to <= DateTime.Now) return "A autorizacao precisa terminar no futuro.";
-        if (to > from.AddDays(30)) return "A validade maxima de uma visita e de 30 dias.";
+        if (to <= from) return "O término deve ser posterior ao início.";
+        if (to <= DateTime.Now) return "A autorização precisa terminar no futuro.";
+        if (to > from.AddDays(30)) return "A validade máxima de uma visita é de 30 dias.";
         if (_form.MaxUses is <= 0 or > 100) return "O limite deve ficar entre 1 e 100 acessos.";
         return string.Empty;
     }

@@ -6,7 +6,7 @@
 <MudDialog Class="entity-dialog access-operations-dialog">
     <DialogContent>
         <div class="operations-command-bar">
-            <div><strong>Sincronizacao e recuperacao</strong><span>Revise o impacto antes de distribuir credenciais para os terminais.</span></div>
+            <div><strong>Sincronização e recuperação</strong><span>Revise o impacto antes de distribuir credenciais para os terminais.</span></div>
             <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Visibility" Disabled="_busy" OnClick="PreviewAsync">Previa</MudButton>
             <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.AltRoute" Disabled="_busy" OnClick="OpenSimulatorAsync">Simular rota</MudButton>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Sync" Disabled="_busy" OnClick="QueueAsync">Reconciliar base</MudButton>
@@ -22,7 +22,7 @@
                 <div><strong>@_preview.CredentialCount</strong><span>Credenciais</span></div>
                 <div><strong>@_preview.ResidentCount</strong><span>Pessoas</span></div>
                 <div><strong>@_preview.TargetCount</strong><span>Destinos</span></div>
-                <div><strong>@_preview.PendingCount</strong><span>Pendencias atuais</span></div>
+                <div><strong>@_preview.PendingCount</strong><span>Pendências atuais</span></div>
             </div>
             @if (_preview.Warnings.Count > 0)
             {
@@ -56,7 +56,7 @@
                                 }
                                 else if (batch.Status is "DeadLetter" or "Failed" or "CompletedWithErrors")
                                 {
-                                    <MudTooltip Text="Reprocessar pendencias"><MudIconButton Icon="@Icons.Material.Outlined.Replay" Color="Color.Primary" OnClick="@(() => RetryBatchAsync(batch))" /></MudTooltip>
+                                    <MudTooltip Text="Reprocessar pendências"><MudIconButton Icon="@Icons.Material.Outlined.Replay" Color="Color.Primary" OnClick="@(() => RetryBatchAsync(batch))" /></MudTooltip>
                                 }
                             </div>
                             @if (batch.Items.Count > 0)
@@ -80,7 +80,7 @@
             </MudTabPanel>
             <MudTabPanel Text="Auditoria" Icon="@Icons.Material.Outlined.History">
                 <div class="unit-toolbar mb-4">
-                    <MudTextField T="string" @bind-Value="_auditSearch" Immediate Placeholder="Buscar alteracao ou responsavel" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <MudTextField T="string" @bind-Value="_auditSearch" Immediate Placeholder="Buscar alteração ou responsável" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Variant="Variant.Outlined" Margin="Margin.Dense" />
                     <MudSelect T="string" @bind-Value="_auditEntity" Label="Entidade" Variant="Variant.Outlined" Margin="Margin.Dense">
                         <MudSelectItem Value="@("all")">Todas</MudSelectItem>
                         @foreach (var entity in _audits.Select(x => x.EntityType).Distinct().OrderBy(x => x))
@@ -91,18 +91,18 @@
                 </div>
                 @if (_audits.Count == 0)
                 {
-                    <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.History" /><span>Nenhuma alteracao registrada.</span></div>
+                    <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.History" /><span>Nenhuma alteração registrada.</span></div>
                 }
                 else
                 {
                     <MudTable Items="FilteredAudits" Hover Dense Elevation="0">
-                        <HeaderContent><MudTh>Quando</MudTh><MudTh>Entidade</MudTh><MudTh>Operacao</MudTh><MudTh>Resultado</MudTh><MudTh>Responsavel</MudTh></HeaderContent>
+                        <HeaderContent><MudTh>Quando</MudTh><MudTh>Entidade</MudTh><MudTh>Operação</MudTh><MudTh>Resultado</MudTh><MudTh>Responsável</MudTh></HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="Quando">@context.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
                             <MudTd DataLabel="Entidade">@EntityLabel(context.EntityType)</MudTd>
-                            <MudTd DataLabel="Operacao"><strong>@AuditActionLabel(context.Action)</strong><small class="audit-summary">@context.Summary</small>@if (AuditDetails(context) is { Length: > 0 } details) { <small class="audit-summary">@details</small> }</MudTd>
+                            <MudTd DataLabel="Operação"><strong>@AuditActionLabel(context.Action)</strong><small class="audit-summary">@context.Summary</small>@if (AuditDetails(context) is { Length: > 0 } details) { <small class="audit-summary">@details</small> }</MudTd>
                             <MudTd DataLabel="Resultado"><MudChip T="string" Size="Size.Small" Color="@AuditColor(context.Status)" Variant="Variant.Outlined">@AuditLabel(context.Status)</MudChip></MudTd>
-                            <MudTd DataLabel="Responsavel">@context.UserName</MudTd>
+                            <MudTd DataLabel="Responsável">@context.UserName</MudTd>
                         </RowTemplate>
                     </MudTable>
                 }
@@ -157,7 +157,7 @@
         var result = await Api.QueueReconciliationAsync(LicenseId);
         _busy = false;
         if (!result.Success) { _error = result.Error; return; }
-        Snackbar.Add("Reconciliacao adicionada a fila.", Severity.Success);
+        Snackbar.Add("Reconciliação adicionada à fila.", Severity.Success);
         await LoadAsync();
     }
 
@@ -181,7 +181,7 @@
         var result = await Api.RetryReconciliationBatchAsync(LicenseId, batch.Id);
         _busy = false;
         if (!result.Success) { _error = result.Error; return; }
-        Snackbar.Add("Pendencias reenviadas para processamento.", Severity.Success);
+        Snackbar.Add("Pendências reenviadas para processamento.", Severity.Success);
         await LoadAsync();
     }
 
@@ -203,10 +203,10 @@
         {
             await using var stream = args.File.OpenReadStream(5_000_000);
             var backup = await System.Text.Json.JsonSerializer.DeserializeAsync<CredentialBackupViewModel>(stream, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
-            if (backup is null) { _error = "O arquivo nao possui um backup valido."; return; }
+            if (backup is null) { _error = "O arquivo não possui um backup válido."; return; }
             var result = await Api.RestoreCredentialBackupAsync(LicenseId, backup);
             if (!result.Success) { _error = result.Error; return; }
-            Snackbar.Add("Backup restaurado e enviado para reconciliacao.", Severity.Success);
+            Snackbar.Add("Backup restaurado e enviado para reconciliação.", Severity.Success);
             await LoadAsync();
         }
         catch (Exception exception) { _error = exception.Message; }
@@ -216,10 +216,10 @@
     private void Close() => Dialog.Close(DialogResult.Ok(true));
     private static double BatchProgress(AccessBatchOperationViewModel x) => x.TotalItems <= 0 ? 0 : x.ProcessedItems * 100d / x.TotalItems;
     private static string BatchIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.CheckCircle, "CompletedWithErrors" => Icons.Material.Outlined.WarningAmber, "Failed" or "DeadLetter" => Icons.Material.Outlined.ReportProblem, "Running" => Icons.Material.Outlined.Sync, "Canceled" => Icons.Material.Outlined.Cancel, _ => Icons.Material.Outlined.Schedule };
-    private static string BatchLabel(string status) => status switch { "Completed" => "Concluido", "CompletedWithErrors" => "Concluido com pendencias", "Failed" => "Falhou", "DeadLetter" => "Requer intervencao", "Running" => "Em processamento", "Canceled" => "Cancelado", _ => "Na fila" };
+    private static string BatchLabel(string status) => status switch { "Completed" => "Concluído", "CompletedWithErrors" => "Concluído com pendências", "Failed" => "Falhou", "DeadLetter" => "Requer intervenção", "Running" => "Em processamento", "Canceled" => "Cancelado", _ => "Na fila" };
     private static Color BatchColor(string status) => status switch { "Completed" => Color.Success, "CompletedWithErrors" => Color.Warning, "Failed" or "DeadLetter" => Color.Error, "Running" => Color.Info, _ => Color.Default };
     private static string AttemptLabel(AccessBatchOperationViewModel batch) => batch.NextAttemptAt.HasValue ? $"Nova tentativa {batch.NextAttemptAt.Value.ToLocalTime():dd/MM HH:mm}" : $"Tentativa {batch.AttemptCount} de {batch.MaxAttempts}";
-    private static string AuditLabel(string status) => status switch { "Success" => "Sucesso", "Pending" or "Queued" => "Pendente", "NoRoute" => "Sem rota", _ => status };
+    private static string AuditLabel(string status) => status switch { "Success" => "Sucesso", "Pending" or "Queued" => "Pendente", "Failed" or "Error" => "Falha", "Completed" => "Concluído", "NoRoute" => "Sem rota", _ => "Registrado" };
     private static Color AuditColor(string status) => status switch { "Success" => Color.Success, "Pending" or "Queued" => Color.Warning, "NoRoute" => Color.Error, _ => Color.Default };
     private static string AuditActionLabel(string action) => action switch
     {
@@ -229,26 +229,52 @@
         "Deactivated" => "Desativado",
         "Trashed" => "Movido para a lixeira",
         "Restored" => "Restaurado",
-        "Purged" => "Excluido definitivamente",
+        "Purged" => "Excluído definitivamente",
         "Imported" => "Importado",
         "Exported" => "Exportado",
-        "ExportFailed" => "Falha na exportacao",
+        "ExportFailed" => "Falha na exportação",
         "ArchiveGenerated" => "Arquivo gerado",
-        "Completed" => "Concluido",
-        _ => action
+        "Completed" => "Concluído",
+        "Deleted" => "Excluído",
+        "Resolved" => "Resolvido",
+        "Closed" => "Encerrado",
+        "Commented" => "Comentário adicionado",
+        "Assigned" => "Responsável atualizado",
+        "Acknowledged" => "Reconhecido",
+        "Reopened" or "Open" => "Reaberto",
+        "Snoozed" => "Silenciado",
+        "Unsnoozed" => "Silêncio removido",
+        "Inspect" => "Verificação do equipamento",
+        "RouteSimulation" => "Simulação de rotas",
+        "Retry" => "Reprocessamento",
+        "Restore" => "Restauração",
+        "RouteOverride" => "Exceção de rota",
+        "NotificationPolicyUpdated" => "Notificações atualizadas",
+        "SmtpSettingsUpdated" => "E-mail atualizado",
+        "SmtpSettingsRemoved" => "E-mail removido",
+        "OpenDoor" => "Porta acionada",
+        "ProvisionCredential" => "Credencial enviada",
+        "ActivateCredential" => "Credencial ativada",
+        "DeactivateCredential" => "Credencial suspensa",
+        "RestoreCredential" => "Credencial restaurada",
+        "RemoveCredential" => "Credencial removida",
+        "FaceEnrollment" => "Cadastro facial",
+        "ReadAccessLogs" => "Consulta de acessos",
+        "RenewCredential" => "Credencial renovada",
+        _ => "Atividade registrada"
     };
     private static string EntityLabel(string entity) => entity switch
     {
         "Block" => "Agrupamento",
         "Unit" => "Unidade",
         "Resident" => "Pessoa",
-        "Vehicle" => "Veiculo",
+        "Vehicle" => "Veículo",
         "Device" => "Equipamento",
         "Credential" => "Credencial",
         "AccessRoute" => "Rota",
-        "ConfigurationBackup" => "Backup de configuracao",
+        "ConfigurationBackup" => "Backup de configuração",
         "BackupAutomation" => "Agendamento de backup",
-        _ => entity
+        _ => "Registro"
     };
     private static string AuditDetails(AccessAuditViewModel audit)
     {
@@ -276,14 +302,14 @@
         "CPF" => "CPF",
         "RG" => "RG",
         "BirthDate" => "data de nascimento",
-        "Description" => "observacoes",
-        "NotifyAccess" => "notificacoes",
+        "Description" => "observações",
+        "NotifyAccess" => "notificações",
         "IsActive" => "estado",
         "HasPhoto" => "foto",
-        "Relationship" => "vinculo",
-        _ => field
+        "Relationship" => "vínculo",
+        _ => string.Empty
     };
-    private static string ItemLabel(string status) => status switch { "Completed" => "Concluido", "Running" => "Executando", "WaitingDevice" => "Aguardando terminal", "Failed" => "Falhou", "DeadLetter" => "Intervencao", "Canceled" => "Cancelado", _ => "Na fila" };
+    private static string ItemLabel(string status) => status switch { "Completed" => "Concluído", "Running" => "Executando", "WaitingDevice" => "Aguardando terminal", "Failed" => "Falhou", "DeadLetter" => "Intervenção", "Canceled" => "Cancelado", _ => "Na fila" };
     private static string ItemIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.CheckCircle, "Running" => Icons.Material.Outlined.Sync, "WaitingDevice" => Icons.Material.Outlined.CloudOff, "Failed" or "DeadLetter" => Icons.Material.Outlined.Error, _ => Icons.Material.Outlined.Schedule };
     private static Color ItemColor(string status) => status switch { "Completed" => Color.Success, "Running" => Color.Info, "WaitingDevice" => Color.Warning, "Failed" or "DeadLetter" => Color.Error, _ => Color.Default };
 }

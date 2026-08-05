@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @inject CondotifyApiClient Api
 @inject NavigationManager Navigation
+@inject IJSRuntime Js
 
 <PageTitle>@(_license?.Name ?? "Condomínio") | Condotify</PageTitle>
 
@@ -23,7 +24,9 @@ else
         </Actions>
     </PageHeader>
 
-    <nav class="workspace-nav" aria-label="Módulos do condomínio">
+    <div class="workspace-nav-shell">
+        <MudIconButton Icon="@Icons.Material.Outlined.ChevronLeft" Class="workspace-nav-control" OnClick="@(() => ScrollWorkspaceNavAsync(-1))" aria-label="Ver módulos anteriores" />
+        <nav @ref="_workspaceNav" class="workspace-nav" aria-label="Módulos do condomínio">
         @if (Has(LicensePermission.ViewDashboard)) { @NavButton("visao-geral", "Visão geral", Icons.Material.Outlined.Dashboard) }
         @if (Has(LicensePermission.ViewDevices))
         {
@@ -34,10 +37,15 @@ else
         @if (Has(LicensePermission.ViewStructure)) { @NavButton("estrutura", "Estrutura", Icons.Material.Outlined.AccountTree) }
         @if (Has(LicensePermission.ViewCredentials)) { @NavButton("credenciais", "Credenciais", Icons.Material.Outlined.Badge) }
         @if (Has(LicensePermission.ViewEvents)) { @NavButton("acessos", "Acessos", Icons.Material.Outlined.FactCheck) }
+        @if (Has(LicensePermission.ViewIncidents)) { @NavButton("ocorrencias", "Ocorrências", Icons.Material.Outlined.AssignmentLate) }
+        @if (Has(LicensePermission.ViewAutomations)) { @NavButton("automacoes", "Automações", Icons.Material.Outlined.AutoAwesome) }
+        @if (Has(LicensePermission.ViewEmergency)) { @NavButton("emergencia", "Emergência", Icons.Material.Outlined.HealthAndSafety) }
         @if (Has(LicensePermission.ViewDeliveries)) { @NavButton("encomendas", "Encomendas", Icons.Material.Outlined.Inventory2) }
         @if (Has(LicensePermission.ViewBookings)) { @NavButton("agendamento", "Agendamento", Icons.Material.Outlined.Deck) }
         @if (Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts)) { @NavButton("administracao", "Administração", Icons.Material.Outlined.AdminPanelSettings) }
-    </nav>
+        </nav>
+        <MudIconButton Icon="@Icons.Material.Outlined.ChevronRight" Class="workspace-nav-control" OnClick="@(() => ScrollWorkspaceNavAsync(1))" aria-label="Ver próximos módulos" />
+    </div>
 
     @if (!SectionAllowed(CurrentSection))
     {
@@ -71,6 +79,15 @@ else
             case "acessos":
                 <AccessEventsModule LicenseId="LicenseId" />
                 break;
+            case "ocorrencias":
+                <IncidentsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageIncidents)" />
+                break;
+            case "automacoes":
+                <AutomationsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageAutomations)" />
+                break;
+            case "emergencia":
+                <EmergencyModule LicenseId="LicenseId" LicenseCode="@_license.Code" CanManage="@Has(LicensePermission.ManageEmergency)" />
+                break;
             case "administracao":
                 <AdministrationModule LicenseId="LicenseId" InitialData="_administration" />
                 break;
@@ -89,6 +106,8 @@ else
     private string? _error;
     private LicenseFullViewModel? _license;
     private LicenseAdministrationViewModel? _administration;
+    private ElementReference _workspaceNav;
+    private string? _lastCenteredSection;
     private string CurrentSection => string.IsNullOrWhiteSpace(Section)
         ? DefaultSection
         : Section.ToLowerInvariant() is "blocos" or "unidades" or "moradores" ? "estrutura" : Section.ToLowerInvariant();
@@ -97,10 +116,39 @@ else
         : Has(LicensePermission.ViewDevices) ? "equipamentos"
         : Has(LicensePermission.ViewCredentials) ? "credenciais"
         : Has(LicensePermission.ViewEvents) ? "acessos"
+        : Has(LicensePermission.ViewIncidents) ? "ocorrencias"
+        : Has(LicensePermission.ViewAutomations) ? "automacoes"
+        : Has(LicensePermission.ViewEmergency) ? "emergencia"
         : Has(LicensePermission.ViewDeliveries) ? "encomendas"
         : Has(LicensePermission.ViewBookings) ? "agendamento"
         : Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts) ? "administracao"
         : "sem-acesso";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_license is null || _lastCenteredSection == CurrentSection) return;
+        _lastCenteredSection = CurrentSection;
+        try
+        {
+            await Js.InvokeVoidAsync("portalInterop.centerActiveNavItem", _workspaceNav);
+        }
+        catch (JSException)
+        {
+            _lastCenteredSection = null;
+        }
+    }
+
+    private async Task ScrollWorkspaceNavAsync(int direction)
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("portalInterop.scrollHorizontal", _workspaceNav, direction);
+        }
+        catch (JSException)
+        {
+            // Uma aba aberta antes da atualização pode manter o script antigo em cache.
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -136,6 +184,9 @@ else
         "estrutura" => Has(LicensePermission.ViewStructure),
         "credenciais" => Has(LicensePermission.ViewCredentials),
         "acessos" => Has(LicensePermission.ViewEvents),
+        "ocorrencias" => Has(LicensePermission.ViewIncidents),
+        "automacoes" => Has(LicensePermission.ViewAutomations),
+        "emergencia" => Has(LicensePermission.ViewEmergency),
         "encomendas" => Has(LicensePermission.ViewDeliveries),
         "agendamento" => Has(LicensePermission.ViewBookings),
         "administracao" => Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts),

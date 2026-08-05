@@ -14,7 +14,7 @@
 else
 {
     <section class="structure-shell">
-        <nav class="hierarchy-breadcrumb" aria-label="Localizacao na estrutura">
+        <nav class="hierarchy-breadcrumb" aria-label="Localização na estrutura">
             <button type="button" class="breadcrumb-home @(_selectedBlockId is null ? "current" : null)" @onclick="GoToRoot">
                 <MudIcon Icon="@Icons.Material.Outlined.AccountTree" />
                 <span>Estrutura</span>
@@ -36,7 +36,7 @@ else
             <div class="structure-level-head">
                 <div>
                     <MudText Typo="Typo.h5">Estrutura da propriedade</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Organize os agrupamentos e entre em cada area para administrar suas unidades.</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Organize os agrupamentos e entre em cada área para administrar suas unidades.</MudText>
                 </div>
                 @if (CanManageStructure)
                 {
@@ -63,7 +63,7 @@ else
 
             @if (Blocks.Count == 0)
             {
-                <div class="structure-empty"><span><MudIcon Icon="@Icons.Material.Outlined.DomainAdd" /></span><MudText Typo="Typo.h6">Nenhum @_structure.GroupLabelSingular.ToLowerInvariant() cadastrado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A estrutura fisica ainda nao foi configurada.</MudText>@if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenCreateAsync("blocos"))">Comecar cadastro</MudButton> }</div>
+                <div class="structure-empty"><span><MudIcon Icon="@Icons.Material.Outlined.DomainAdd" /></span><MudText Typo="Typo.h6">Nenhum @_structure.GroupLabelSingular.ToLowerInvariant() cadastrado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A estrutura física ainda não foi configurada.</MudText>@if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenCreateAsync("blocos"))">Começar cadastro</MudButton> }</div>
             }
             else
             {
@@ -85,7 +85,7 @@ else
             <div class="structure-level-head">
                 <div>
                     <MudText Typo="Typo.h5">@SelectedBlock.Name</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Selecione uma @_structure.UnitLabelSingular.ToLowerInvariant() para acessar pessoas, veiculos e credenciais.</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Selecione uma @_structure.UnitLabelSingular.ToLowerInvariant() para acessar pessoas, veículos e credenciais.</MudText>
                 </div>
                 @if (CanManageStructure)
                 {
@@ -105,7 +105,7 @@ else
 
             @if (SelectedBlock.Units.Count == 0)
             {
-                <div class="structure-empty"><span><MudIcon Icon="@Icons.Material.Outlined.OtherHouses" /></span><MudText Typo="Typo.h6">Nenhuma @_structure.UnitLabelSingular.ToLowerInvariant() cadastrada</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Esta area ainda nao possui unidades.</MudText>@if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenCreateAsync("unidades"))">Cadastrar @_structure.UnitLabelSingular.ToLowerInvariant()</MudButton> }</div>
+                <div class="structure-empty"><span><MudIcon Icon="@Icons.Material.Outlined.OtherHouses" /></span><MudText Typo="Typo.h6">Nenhuma @_structure.UnitLabelSingular.ToLowerInvariant() cadastrada</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Esta área ainda não possui unidades.</MudText>@if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenCreateAsync("unidades"))">Cadastrar @_structure.UnitLabelSingular.ToLowerInvariant()</MudButton> }</div>
             }
             else
             {
@@ -146,7 +146,7 @@ else
             <div class="unit-detail-kpis">
                 <div><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><span><strong>@_unit.People.Count</strong><small>Pessoas</small></span></div>
                 <div><span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.Badge" /></span><span><strong>@_unit.People.Sum(x => x.CredentialCount)</strong><small>Credenciais</small></span></div>
-                <div><span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></span><span><strong>@_unit.Vehicles.Count</strong><small>Veiculos</small></span></div>
+                <div><span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></span><span><strong>@_unit.Vehicles.Count</strong><small>Veículos</small></span></div>
             </div>
 
             <MudPaper Class="unit-detail-panel" Elevation="0">
@@ -189,8 +189,8 @@ else
                             </div>
                         }
                     </MudTabPanel>
-                    <MudTabPanel Text="Veiculos" Icon="@Icons.Material.Outlined.DirectionsCar">
-                        @if (_unit.Vehicles.Count == 0) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /><span>Nenhum veiculo cadastrado nesta unidade. Abra uma pessoa para vincular o primeiro.</span></div> }
+                    <MudTabPanel Text="Veículos" Icon="@Icons.Material.Outlined.DirectionsCar">
+                        @if (_unit.Vehicles.Count == 0) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /><span>Nenhum veículo cadastrado nesta unidade. Abra uma pessoa para vincular o primeiro.</span></div> }
                         else { <div class="profile-list">@foreach (var vehicle in _unit.Vehicles) { <div class="profile-list-row"><div class="profile-row-icon"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></div><div class="profile-row-main"><strong>@vehicle.Plate</strong><span>@vehicle.Brand @vehicle.Model | @vehicle.OwnerName</span></div><div class="profile-row-meta">@(!string.IsNullOrWhiteSpace(vehicle.TagIdentifier) ? $"Tag {vehicle.TagIdentifier}" : "Sem tag")</div><MudChip T="string" Size="Size.Small" Color="@(vehicle.IsActive ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(vehicle.IsActive ? "Ativo" : "Inativo")</MudChip></div> }</div> }
                     </MudTabPanel>
                     <MudTabPanel Text="Credenciais" Icon="@Icons.Material.Outlined.Badge">
@@ -273,7 +273,7 @@ else
         var dialog = await DialogService.ShowAsync<StructureFormDialog>(title, parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = section == "moradores" ? MaxWidth.Medium : MaxWidth.Small });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        Snackbar.Add("Cadastro concluido com sucesso.", Severity.Success);
+        Snackbar.Add("Cadastro concluído com sucesso.", Severity.Success);
         await LoadAsync(_selectedBlockId, _selectedUnitId);
     }
 
@@ -297,12 +297,12 @@ else
         if (SelectedBlock is null) return;
         var confirmed = await DialogService.ShowMessageBoxAsync(
             $"Mover para a lixeira",
-            $"Mover {SelectedBlock.Name} para a lixeira? O item podera ser restaurado por 30 dias e nao pode possuir unidades vinculadas.",
+            $"Mover {SelectedBlock.Name} para a lixeira? O item poderá ser restaurado por 30 dias e não pode possuir unidades vinculadas.",
             yesText: "Mover para a lixeira",
             cancelText: "Cancelar");
         if (confirmed != true) return;
         var result = await Api.DeleteBlockAsync(LicenseId, SelectedBlock.Id);
-        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Nao foi possivel excluir.", Severity.Error); return; }
+        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Não foi possível excluir.", Severity.Error); return; }
         Snackbar.Add("Agrupamento movido para a lixeira.", Severity.Success);
         await LoadAsync();
     }
@@ -328,13 +328,13 @@ else
         if (_unit is null) return;
         var confirmed = await DialogService.ShowMessageBoxAsync(
             "Mover para a lixeira",
-            $"Mover {_structure.UnitLabelSingular.ToLowerInvariant()} {_unit.Number} para a lixeira? Pessoas e veiculos impedem a operacao para preservar os vinculos.",
+            $"Mover {_structure.UnitLabelSingular.ToLowerInvariant()} {_unit.Number} para a lixeira? Pessoas e veículos impedem a operação para preservar os vínculos.",
             yesText: "Mover para a lixeira",
             cancelText: "Cancelar");
         if (confirmed != true) return;
         var blockId = _unit.BlockId;
         var result = await Api.DeleteUnitAsync(LicenseId, _unit.Id);
-        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Nao foi possivel excluir.", Severity.Error); return; }
+        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Não foi possível excluir.", Severity.Error); return; }
         Snackbar.Add("Unidade movida para a lixeira.", Severity.Success);
         await LoadAsync(blockId);
     }
@@ -364,13 +364,13 @@ else
     {
         var parameters = new DialogParameters { [nameof(StructureImportDialog.LicenseId)] = LicenseId };
         var dialog = await DialogService.ShowAsync<StructureImportDialog>(
-            "Importacao em massa",
+            "Importação em massa",
             parameters,
             new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.ExtraLarge });
         var result = await dialog.Result;
         if (result?.Canceled != false || result.Data is not StructureImportExecutionViewModel execution) return;
         Snackbar.Add(
-            $"{execution.CreatedPeople} pessoa(s) e {execution.CreatedVehicles} veiculo(s) importados.",
+            $"{execution.CreatedPeople} pessoa(s) e {execution.CreatedVehicles} veículo(s) importados.",
             Severity.Success);
         await LoadAsync();
     }
@@ -416,10 +416,10 @@ else
 
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
     private static string PrimaryContact(PersonSummaryViewModel person) => !string.IsNullOrWhiteSpace(person.PhoneNumber) ? person.PhoneNumber : !string.IsNullOrWhiteSpace(person.Email) ? person.Email : "Sem contato";
-    private static string RelationshipLabel(string relationship) => relationship switch { "OwnerResponsible" => "Proprietario responsavel", "TenantResponsible" => "Locatario responsavel", "Responsible" => "Responsavel", "Dependent" => "Dependente", _ => "Morador" };
+    private static string RelationshipLabel(string relationship) => relationship switch { "OwnerResponsible" => "Proprietário responsável", "TenantResponsible" => "Locatário responsável", "Responsible" => "Responsável", "Dependent" => "Dependente", _ => "Morador" };
     private bool FaceActionDisabled(PersonSummaryViewModel person) => !CanManageCredentials || !HasPreparedFacePhoto(person);
     private string FaceActionTooltip(PersonSummaryViewModel person) => !CanManageCredentials
-        ? "Sem permissao para gerenciar credenciais"
+        ? "Sem permissão para gerenciar credenciais"
         : !HasPreparedFacePhoto(person)
             ? "Adicione uma foto para ativar a facial"
             : person.HasActiveFaceCredential ? "Gerenciar facial ativa" : "Ativar reconhecimento facial";

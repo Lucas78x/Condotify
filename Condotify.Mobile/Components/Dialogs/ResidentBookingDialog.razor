@@ -23,7 +23,7 @@
         else
         {
             <div class="mobile-form-grid">
-                <MudSelect T="Guid" Value="_amenityId" ValueChanged="AmenityChangedAsync" Label="Area comum" Variant="Variant.Outlined" Required="true">
+                <MudSelect T="Guid" Value="_amenityId" ValueChanged="AmenityChangedAsync" Label="Área comum" Variant="Variant.Outlined" Required="true">
                     @foreach (var amenity in _amenities)
                     {
                         <MudSelectItem T="Guid" Value="amenity.Id">@amenity.Name</MudSelectItem>
@@ -40,14 +40,14 @@
 
             @if (_amenityId != Guid.Empty)
             {
-                <MudText Typo="Typo.subtitle2" Class="mobile-section-label">Horarios disponiveis</MudText>
+                <MudText Typo="Typo.subtitle2" Class="mobile-section-label">Horários disponíveis</MudText>
                 @if (_loadingSlots)
                 {
                     <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
                 }
                 else if (_slots.Count == 0)
                 {
-                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">Nao ha horarios para esta data.</MudAlert>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">Não há horários para esta data.</MudAlert>
                 }
                 else
                 {
@@ -65,13 +65,13 @@
                 @if (SelectedAmenity?.RequiresTermsAcceptance == true)
                 {
                     <MudCheckBox T="bool" @bind-Value="_form.TermsAccepted" Color="Color.Primary"
-                                 Label="Li e aceito o regulamento desta area." Class="mt-4" />
+                                 Label="Li e aceito o regulamento desta área." Class="mt-4" />
                     @if (!string.IsNullOrWhiteSpace(SelectedAmenity.TermsText))
                     {
                         <MudText Typo="Typo.caption" Class="terms-copy">@SelectedAmenity.TermsText</MudText>
                     }
                 }
-                <MudTextField T="string" @bind-Value="_form.Notes" Label="Observacao" Variant="Variant.Outlined" Lines="2" Class="mt-3" />
+                <MudTextField T="string" @bind-Value="_form.Notes" Label="Observação" Variant="Variant.Outlined" Lines="2" Class="mt-3" />
             }
         }
     </DialogContent>
@@ -106,7 +106,7 @@
         var result = await Api.GetResidentAmenitiesAsync();
         _loadingAmenities = false;
         _amenities = result.Value ?? [];
-        if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar as areas comuns.";
+        if (!result.Success) _error = result.Error ?? "Não foi possível carregar as áreas comuns.";
     }
 
     private async Task AmenityChangedAsync(Guid value)
@@ -132,7 +132,7 @@
         var result = await Api.GetResidentAmenityAvailabilityAsync(_amenityId, _date.Value);
         _loadingSlots = false;
         _slots = result.Value ?? [];
-        if (!result.Success) _error = result.Error ?? "Nao foi possivel consultar os horarios.";
+        if (!result.Success) _error = result.Error ?? "Não foi possível consultar os horários.";
     }
 
     private void SelectSlot(AmenitySlotAvailabilityViewModel slot)
@@ -156,7 +156,7 @@
         _saving = false;
         if (!result.Success)
         {
-            _error = result.Error ?? "Nao foi possivel concluir a reserva.";
+            _error = result.Error ?? "Não foi possível concluir a reserva.";
             await LoadSlotsAsync();
             return;
         }
@@ -166,10 +166,10 @@
 
     private string Validate()
     {
-        if (_amenityId == Guid.Empty) return "Selecione uma area comum.";
+        if (_amenityId == Guid.Empty) return "Selecione uma área comum.";
         if (_form.UnitId == Guid.Empty) return "Selecione a unidade responsavel pela reserva.";
         if (!_date.HasValue) return "Selecione a data da reserva.";
-        if (_form.SlotId == Guid.Empty) return "Selecione um horario disponivel.";
+        if (_form.SlotId == Guid.Empty) return "Selecione um horário disponível.";
         if (SelectedAmenity?.RequiresTermsAcceptance == true && !_form.TermsAccepted) return "Aceite o regulamento para continuar.";
         return string.Empty;
     }

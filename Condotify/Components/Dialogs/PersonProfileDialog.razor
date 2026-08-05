@@ -12,7 +12,7 @@
         }
         else if (_profile is null)
         {
-            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@(_error ?? "Nao foi possivel carregar o cadastro.")</MudAlert>
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@(_error ?? "Não foi possível carregar o cadastro.")</MudAlert>
         }
         else
         {
@@ -63,17 +63,17 @@
                             <MudTextField T="string" @bind-Value="_form.CPF" Label="CPF" Variant="Variant.Outlined" />
                             <MudTextField T="string" @bind-Value="_form.RG" Label="RG" Variant="Variant.Outlined" />
                             <MudTextField T="string" @bind-Value="_form.BirthDate" Label="Data de nascimento" Placeholder="dd/mm/aaaa" Variant="Variant.Outlined" />
-                            <MudSelect T="int" @bind-Value="_form.Relationship" Label="Vinculo com a unidade" Variant="Variant.Outlined">
-                                <MudSelectItem Value="1">Proprietario responsavel</MudSelectItem>
-                                <MudSelectItem Value="2">Locatario responsavel</MudSelectItem>
-                                <MudSelectItem Value="3">Apenas responsavel</MudSelectItem>
+                            <MudSelect T="int" @bind-Value="_form.Relationship" Label="Vínculo com a unidade" Variant="Variant.Outlined">
+                                <MudSelectItem Value="1">Proprietário responsável</MudSelectItem>
+                                <MudSelectItem Value="2">Locatário responsável</MudSelectItem>
+                                <MudSelectItem Value="3">Apenas responsável</MudSelectItem>
                                 <MudSelectItem Value="0">Morador</MudSelectItem>
                                 <MudSelectItem Value="4">Dependente</MudSelectItem>
                             </MudSelect>
                             <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Variant="Variant.Outlined" />
                             <MudTextField T="string" @bind-Value="_form.CommercialPhone" Label="Telefone comercial" Variant="Variant.Outlined" />
                             <MudTextField T="string" @bind-Value="_form.Email" Label="E-mail" InputType="InputType.Email" For="@(() => _form.Email)" Variant="Variant.Outlined" Class="full" />
-                            <MudTextField T="string" @bind-Value="_form.Description" Label="Observacoes" Lines="3" Variant="Variant.Outlined" Class="full" />
+                            <MudTextField T="string" @bind-Value="_form.Description" Label="Observações" Lines="3" Variant="Variant.Outlined" Class="full" />
                             <MudSwitch T="bool" @bind-Value="_form.NotifyAccess" Label="Notificar acessos desta pessoa" Color="Color.Primary" />
                             <MudSwitch T="bool" @bind-Value="_form.IsActive" Label="Cadastro ativo" Color="Color.Success" />
                         </div>
@@ -115,7 +115,7 @@
                             }
                             @if (CanManageCredentials && !_loadingRoutes)
                             {
-                                <MudTooltip Text="Configurar excecoes individuais de rota"><MudIconButton Icon="@Icons.Material.Outlined.Tune" Color="Color.Primary" OnClick="OpenRouteOverridesAsync" /></MudTooltip>
+                                <MudTooltip Text="Configurar exceções individuais de rota"><MudIconButton Icon="@Icons.Material.Outlined.Tune" Color="Color.Primary" OnClick="OpenRouteOverridesAsync" /></MudTooltip>
                             }
                             @if (CanManageCredentials) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.FaceRetouchingNatural" Disabled="@(!CanActivateFace)" OnClick="ActivateFaceAsync">@(_activatingFace ? "Sincronizando..." : FaceActionLabel)</MudButton> }
                         </div>
@@ -131,10 +131,10 @@
                     }
                     @if (!_loadingRoutes && (_routeResolution is null || _routeResolution.Devices.Count == 0))
                     {
-                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense Class="mb-4">Nenhuma rota ativa com equipamento facial atende ao perfil desta pessoa. Configure o publico e os destinos em Rotas.</MudAlert>
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense Class="mb-4">Nenhuma rota ativa com equipamento facial atende ao perfil desta pessoa. Configure o público e os destinos em Rotas.</MudAlert>
                     }
                     <div class="profile-subsection-head">
-                        <div><strong>Credenciais vinculadas</strong><span>Controle o estado e a presenca de cada credencial nos equipamentos.</span></div>
+                        <div><strong>Credenciais vinculadas</strong><span>Controle o estado e a presença de cada credencial nos equipamentos.</span></div>
                         <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_profile.Credentials.Count</MudChip>
                     </div>
                     @if (_profile.Credentials.Count == 0)
@@ -153,7 +153,7 @@
                                         <MudChip T="string" Size="Size.Small" Color="@PersonCredentialStatusColor(credential)" Variant="Variant.Outlined">@PersonCredentialStatus(credential)</MudChip>
                                         <small>@CredentialSyncLabel(credential)</small>
                                     </div>
-                                    <div class="profile-row-meta"><span>Valida ate</span><strong>@credential.ValidTo.ToLocalTime().ToString("dd/MM/yyyy")</strong></div>
+                                    <div class="profile-row-meta"><span>Válida até</span><strong>@credential.ValidTo.ToLocalTime().ToString("dd/MM/yyyy")</strong></div>
                                     @if (CanManageCredentials)
                                     {
                                         <div class="profile-row-actions">
@@ -185,11 +185,11 @@
                     }
                 </MudTabPanel>
 
-                <MudTabPanel Text="Veiculos" Icon="@Icons.Material.Outlined.DirectionsCar">
-                    <div class="profile-panel-toolbar"><div><strong>Veiculos da unidade</strong><span>Tags criadas aqui passam a integrar a base de credenciais.</span></div>@if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenVehicleDialogAsync())">Novo veiculo</MudButton> }</div>
+                <MudTabPanel Text="Veículos" Icon="@Icons.Material.Outlined.DirectionsCar">
+                    <div class="profile-panel-toolbar"><div><strong>Veículos da unidade</strong><span>Tags criadas aqui passam a integrar a base de credenciais.</span></div>@if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenVehicleDialogAsync())">Novo veículo</MudButton> }</div>
                     @if (_profile.Vehicles.Count == 0)
                     {
-                        <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /><span>Nenhum veiculo cadastrado.</span></div>
+                        <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /><span>Nenhum veículo cadastrado.</span></div>
                     }
                     else
                     {
@@ -202,12 +202,12 @@
                                     <div class="profile-row-meta">@(!string.IsNullOrWhiteSpace(vehicle.TagIdentifier) ? $"Tag {vehicle.TagIdentifier}" : "Sem tag")</div>
                                     @if (CanManagePeople)
                                     {
-                                        <MudTooltip Text="@(vehicle.IsActive ? "Desativar veiculo e tag" : "Ativar veiculo e tag")">
+                                        <MudTooltip Text="@(vehicle.IsActive ? "Desativar veículo e tag" : "Ativar veículo e tag")">
                                             <MudIconButton Icon="@(vehicle.IsActive ? Icons.Material.Outlined.ToggleOn : Icons.Material.Outlined.ToggleOff)" Color="@(vehicle.IsActive ? Color.Success : Color.Default)" OnClick="@(() => SetVehicleStatusAsync(vehicle))" />
                                         </MudTooltip>
                                         <MudMenu Icon="@Icons.Material.Outlined.MoreVert" Dense>
-                                            <MudMenuItem Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenVehicleDialogAsync(vehicle))">Editar veiculo</MudMenuItem>
-                                            <MudMenuItem Icon="@Icons.Material.Outlined.DeleteOutline" Class="danger-menu-item" OnClick="@(() => DeleteVehicleAsync(vehicle))">Excluir veiculo</MudMenuItem>
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenVehicleDialogAsync(vehicle))">Editar veículo</MudMenuItem>
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.DeleteOutline" Class="danger-menu-item" OnClick="@(() => DeleteVehicleAsync(vehicle))">Excluir veículo</MudMenuItem>
                                         </MudMenu>
                                     }
                                 </div>
@@ -316,7 +316,7 @@
         if (!result.Success || result.Value is null)
         {
             _routeResolution = null;
-            Snackbar.Add(result.Error ?? "Nao foi possivel resolver as rotas de acesso.", Severity.Error);
+            Snackbar.Add(result.Error ?? "Não foi possível resolver as rotas de acesso.", Severity.Error);
             return;
         }
         _routeResolution = result.Value;
@@ -344,12 +344,12 @@
             if (!result.Success || result.Value is null)
             {
                 _form.ImageUrl = previous;
-                _error = result.Error ?? "Nao foi possivel salvar a foto.";
+                _error = result.Error ?? "Não foi possível salvar a foto.";
                 Snackbar.Add(_error, Severity.Error);
                 return;
             }
             _profile = result.Value;
-            Snackbar.Add("Foto preparada e salva. A facial ja pode ser ativada.", Severity.Success);
+            Snackbar.Add("Foto preparada e salva. A facial já pode ser ativada.", Severity.Success);
         }
         catch (OperationCanceledException)
         {
@@ -374,7 +374,7 @@
         if (!result.Success || result.Value is null)
         {
             _form.ImageUrl = previous;
-            Snackbar.Add(result.Error ?? "Nao foi possivel remover a foto.", Severity.Error);
+            Snackbar.Add(result.Error ?? "Não foi possível remover a foto.", Severity.Error);
             return;
         }
         _profile = result.Value;
@@ -387,7 +387,7 @@
         var targets = _routeResolution!.Devices.Select(x => $"{x.DeviceName} ({PortalLabel(x.Portals)})");
         var confirmed = await DialogService.ShowMessageBoxAsync(
             FaceActionLabel,
-            $"A foto sera distribuida para {string.Join(", ", targets)}. Confirmar a operacao?",
+            $"A foto será distribuída para {string.Join(", ", targets)}. Confirmar a operação?",
             yesText: FaceActionLabel,
             cancelText: "Cancelar");
         if (confirmed != true) return;
@@ -396,7 +396,7 @@
         _activatingFace = false;
         if (!operation.Success)
         {
-            _error = operation.Error ?? "Nao foi possivel sincronizar a facial.";
+            _error = operation.Error ?? "Não foi possível sincronizar a facial.";
             Snackbar.Add(_error, Severity.Error);
             return;
         }
@@ -417,12 +417,12 @@
             [nameof(RouteOverrideDialog.Routes)] = _allRoutes,
             [nameof(RouteOverrideDialog.Overrides)] = _routeOverrides
         };
-        var dialog = await DialogService.ShowAsync<RouteOverrideDialog>("Excecoes de rota", parameters,
+        var dialog = await DialogService.ShowAsync<RouteOverrideDialog>("Exceções de rota", parameters,
             new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
         await LoadRouteResolutionAsync();
-        Snackbar.Add("Rotas atualizadas. A reconciliacao foi agendada.", Severity.Success);
+        Snackbar.Add("Rotas atualizadas. A reconciliação foi agendada.", Severity.Success);
     }
 
     private async Task SetCredentialStatusAsync(PersonCredentialViewModel credential)
@@ -437,11 +437,11 @@
     private async Task DeleteCredentialAsync(PersonCredentialViewModel credential)
     {
         var equipmentText = credential.DeviceCount == 0
-            ? "Ela sera apagada do Condotify."
-            : $"Ela sera removida de {credential.DeviceCount} equipamento(s) antes de ser apagada do Condotify.";
+            ? "Ela será apagada do Condotify."
+            : $"Ela será removida de {credential.DeviceCount} equipamento(s) antes de ser apagada do Condotify.";
         var confirmed = await DialogService.ShowMessageBoxAsync(
             "Excluir credencial",
-            $"Excluir {CredentialLabel(credential.Type).ToLowerInvariant()} de {_profile?.Name}? {equipmentText} A foto da pessoa permanecera no cadastro.",
+            $"Excluir {CredentialLabel(credential.Type).ToLowerInvariant()} de {_profile?.Name}? {equipmentText} A foto da pessoa permanecerá no cadastro.",
             yesText: "Excluir credencial",
             cancelText: "Cancelar");
         if (confirmed != true) return;
@@ -452,14 +452,14 @@
         _operatingCredentialId = null;
         if (!result.Success)
         {
-            _error = result.Error ?? "Nao foi possivel excluir a credencial.";
+            _error = result.Error ?? "Não foi possível excluir a credencial.";
             Snackbar.Add(_error, Severity.Error);
             await LoadAsync();
             return;
         }
 
         await LoadAsync();
-        Snackbar.Add(result.Value?.Message ?? "Credencial excluida.", Severity.Success);
+        Snackbar.Add(result.Value?.Message ?? "Credencial excluída.", Severity.Success);
     }
 
     private async Task OpenVehicleDialogAsync(VehicleViewModel? vehicle = null)
@@ -472,31 +472,31 @@
             [nameof(VehicleFormDialog.UnitId)] = _profile.UnitId,
             [nameof(VehicleFormDialog.Existing)] = vehicle
         };
-        var dialog = await DialogService.ShowAsync<VehicleFormDialog>(vehicle is null ? "Novo veiculo" : "Editar veiculo", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Small });
+        var dialog = await DialogService.ShowAsync<VehicleFormDialog>(vehicle is null ? "Novo veículo" : "Editar veículo", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Small });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        await LoadAsync(); Snackbar.Add(vehicle is null ? "Veiculo cadastrado. A tag esta pronta para sincronizacao." : "Veiculo atualizado.", Severity.Success);
+        await LoadAsync(); Snackbar.Add(vehicle is null ? "Veículo cadastrado. A tag está pronta para sincronização." : "Veículo atualizado.", Severity.Success);
     }
 
     private async Task SetVehicleStatusAsync(VehicleViewModel vehicle)
     {
         var result = await Api.SetVehicleStatusAsync(LicenseId, ResidentId, vehicle.Id, !vehicle.IsActive);
-        if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao alterar o veiculo.", Severity.Error); return; }
-        await LoadAsync(); Snackbar.Add("Veiculo e credencial atualizados.", Severity.Success);
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao alterar o veículo.", Severity.Error); return; }
+        await LoadAsync(); Snackbar.Add("Veículo e credencial atualizados.", Severity.Success);
     }
 
     private async Task DeleteVehicleAsync(VehicleViewModel vehicle)
     {
         var confirmed = await DialogService.ShowMessageBoxAsync(
-            "Mover veiculo para a lixeira",
-            $"Mover o veiculo {vehicle.Plate} para a lixeira? Uma TAG ainda sincronizada em equipamentos impedira a operacao.",
+            "Mover veículo para a lixeira",
+            $"Mover o veículo {vehicle.Plate} para a lixeira? Uma TAG ainda sincronizada em equipamentos impedirá a operação.",
             yesText: "Mover para a lixeira",
             cancelText: "Cancelar");
         if (confirmed != true) return;
         var result = await Api.DeleteVehicleAsync(LicenseId, ResidentId, vehicle.Id);
-        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Nao foi possivel excluir o veiculo.", Severity.Error); return; }
+        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Não foi possível excluir o veículo.", Severity.Error); return; }
         await LoadAsync();
-        Snackbar.Add("Veiculo movido para a lixeira.", Severity.Success);
+        Snackbar.Add("Veículo movido para a lixeira.", Severity.Success);
     }
 
     private async Task DeletePersonAsync()
@@ -504,12 +504,12 @@
         if (_profile is null) return;
         var confirmed = await DialogService.ShowMessageBoxAsync(
             "Mover pessoa para a lixeira",
-            $"Mover o cadastro de {_profile.Name} para a lixeira? Credenciais e veiculos vinculados devem ser removidos antes. O cadastro podera ser restaurado por 30 dias.",
+            $"Mover o cadastro de {_profile.Name} para a lixeira? Credenciais e veículos vinculados devem ser removidos antes. O cadastro poderá ser restaurado por 30 dias.",
             yesText: "Mover para a lixeira",
             cancelText: "Cancelar");
         if (confirmed != true) return;
         var result = await Api.DeleteResidentAsync(LicenseId, ResidentId);
-        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Nao foi possivel excluir a pessoa.", Severity.Error); return; }
+        if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Não foi possível excluir a pessoa.", Severity.Error); return; }
         Snackbar.Add("Pessoa movida para a lixeira.", Severity.Success);
         Dialog.Close(DialogResult.Ok(true));
     }
@@ -557,20 +557,20 @@
     private bool CanActivateFace => CanManageCredentials && !_activatingFace && !_savingPhoto && HasPreparedFacePhoto && _routeResolution?.Devices.Count > 0;
     private string FaceActionLabel => FaceCredential is null ? "Ativar facial" : FaceCredential.IsActive ? "Sincronizar facial" : "Reativar facial";
     private string FaceStatusLabel => FaceCredential is null ? HasPreparedFacePhoto ? "Foto pronta" : "Sem foto" : FaceCredential.IsActive ? "Facial ativa" : "Facial inativa";
-    private string FaceGuidance => !HasPreparedFacePhoto ? "Adicione uma foto frontal e bem iluminada para liberar a ativacao." : FaceCredential is null ? "A foto sera distribuida para todos os terminais definidos pelas rotas desta pessoa." : "Sincronize novamente para aplicar alteracoes de rota, validade ou foto.";
+    private string FaceGuidance => !HasPreparedFacePhoto ? "Adicione uma foto frontal e bem iluminada para liberar a ativação." : FaceCredential is null ? "A foto será distribuída para todos os terminais definidos pelas rotas desta pessoa." : "Sincronize novamente para aplicar alterações de rota, validade ou foto.";
     private string RouteNamesLabel => _routeResolution is null || _routeResolution.Routes.Count == 0 ? "Sem rota compativel" : string.Join(" | ", _routeResolution.Routes);
     private string RouteDeviceCountLabel => _routeResolution?.Devices.Count == 1 ? "1 terminal" : $"{_routeResolution?.Devices.Count ?? 0} terminais";
     private Color FaceStatusColor => FaceCredential?.IsActive == true ? Color.Success : HasPreparedFacePhoto ? Color.Info : Color.Warning;
     private static bool IsFace(string type) => type is "Face" or "Facial";
-    private static string CredentialLabel(string type) => type switch { "Face" or "Facial" => "Reconhecimento facial", "VehicleTag" => "Tag veicular", "Card" => "Cartao", "Password" => "Senha", _ => type };
+    private static string CredentialLabel(string type) => type switch { "Face" or "Facial" => "Reconhecimento facial", "VehicleTag" => "Tag veicular", "Card" => "Cartão", "Password" => "Senha", _ => type };
     private static string CredentialIcon(string type) => type switch { "Face" or "Facial" => Icons.Material.Outlined.Face, "VehicleTag" => Icons.Material.Outlined.DirectionsCar, "Password" => Icons.Material.Outlined.Password, _ => Icons.Material.Outlined.Badge };
     private static string CredentialIdentifier(PersonCredentialViewModel item) => string.IsNullOrWhiteSpace(item.Identifier) ? "Sem identificador" : item.Identifier;
     private bool IsOperatingCredential(Guid id) => _operatingCredentialId == id;
-    private static string PersonCredentialStatus(PersonCredentialViewModel item) => item.ValidTo <= DateTime.UtcNow ? "Expirada" : item.IsActive ? item.IsTemporary ? "Temporaria" : "Ativa" : "Suspensa";
+    private static string PersonCredentialStatus(PersonCredentialViewModel item) => item.ValidTo <= DateTime.UtcNow ? "Expirada" : item.IsActive ? item.IsTemporary ? "Temporária" : "Ativa" : "Suspensa";
     private static Color PersonCredentialStatusColor(PersonCredentialViewModel item) => item.ValidTo <= DateTime.UtcNow ? Color.Error : item.IsActive ? item.IsTemporary ? Color.Info : Color.Success : Color.Default;
     private static string CredentialSyncLabel(PersonCredentialViewModel item) => item.DeviceCount == 0 ? "Sem equipamento" : item.SyncedDeviceCount == item.DeviceCount ? $"Sincronizada em {item.DeviceCount}" : $"{item.SyncedDeviceCount} de {item.DeviceCount} sincronizado(s)";
     private static string PortalLabel(IReadOnlyCollection<int> portals) => portals.Count == 1 ? $"porta {portals.First()}" : $"portas {string.Join(", ", portals)}";
-    private static string TerminalStatusLabel(string status) => status switch { "Synced" => "Sincronizado", "Syncing" => "Sincronizando", "RemovalPending" => "Remocao pendente", "Removed" => "Removido", "Failed" => "Falha", _ => "Pendente" };
+    private static string TerminalStatusLabel(string status) => status switch { "Synced" => "Sincronizado", "Syncing" => "Sincronizando", "RemovalPending" => "Remoção pendente", "Removed" => "Removido", "Failed" => "Falha", _ => "Pendente" };
     private static Color TerminalStatusColor(string status) => status switch { "Synced" => Color.Success, "Syncing" => Color.Info, "Failed" or "RemovalPending" => Color.Error, "Removed" => Color.Default, _ => Color.Warning };
     private static string TerminalStatusIcon(string status) => status switch { "Synced" => Icons.Material.Outlined.CloudDone, "Syncing" => Icons.Material.Outlined.Sync, "Failed" or "RemovalPending" => Icons.Material.Outlined.ErrorOutline, "Removed" => Icons.Material.Outlined.LinkOff, _ => Icons.Material.Outlined.Schedule };
     private static string TerminalStatusClass(string status) => status.ToLowerInvariant();

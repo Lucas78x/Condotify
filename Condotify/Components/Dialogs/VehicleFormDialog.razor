@@ -4,7 +4,7 @@
     <DialogContent>
         <div class="dialog-description">
             <MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" />
-            <div><strong>@(Existing is null ? "Novo veiculo" : "Editar veiculo")</strong><span>A tag veicular, quando informada, tambem sera criada como credencial de acesso.</span></div>
+            <div><strong>@(Existing is null ? "Novo veículo" : "Editar veículo")</strong><span>A tag veicular, quando informada, também será criada como credencial de acesso.</span></div>
         </div>
         @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
         <EditForm Model="_model" OnValidSubmit="SaveAsync">
@@ -17,11 +17,11 @@
                 <MudTextField T="string" @bind-Value="_model.Brand" Label="Marca" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_model.Model" Label="Modelo" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_model.Color" Label="Cor" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_model.TagIdentifier" Label="Tag veicular" HelperText="Opcional. Sera vinculada ao morador." Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_model.TagIdentifier" Label="Tag veicular" HelperText="Opcional. Será vinculada ao morador." Variant="Variant.Outlined" />
             </div>
             <div class="form-actions dialog-form-actions">
                 <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : Existing is null ? "Cadastrar veiculo" : "Salvar alteracoes")</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : Existing is null ? "Cadastrar veículo" : "Salvar alterações")</MudButton>
             </div>
         </EditForm>
     </DialogContent>

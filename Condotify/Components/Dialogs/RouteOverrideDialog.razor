@@ -5,7 +5,7 @@
     <DialogContent>
         <div class="dialog-lead">
             <span class="dialog-lead-icon"><MudIcon Icon="@Icons.Material.Outlined.AltRoute" /></span>
-            <div><strong>@PersonName</strong><span>Use excecoes apenas quando esta pessoa precisar fugir das regras do seu perfil.</span></div>
+            <div><strong>@PersonName</strong><span>Use exceções apenas quando esta pessoa precisar fugir das regras do seu perfil.</span></div>
         </div>
 
         @if (!string.IsNullOrWhiteSpace(_error))
@@ -20,7 +20,7 @@
                 <div class="route-override-row">
                     <span class="route-target-icon"><MudIcon Icon="@Icons.Material.Outlined.Route" /></span>
                     <div><strong>@route.Name</strong><span>@(string.IsNullOrWhiteSpace(route.Description) ? "Regra definida pelo perfil da pessoa" : route.Description)</span></div>
-                    <MudSelect T="int" Value="@state.Mode" ValueChanged="@(value => SetMode(route.Id, value))" Label="Aplicacao" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelect T="int" Value="@state.Mode" ValueChanged="@(value => SetMode(route.Id, value))" Label="Aplicação" Variant="Variant.Outlined" Margin="Margin.Dense">
                         <MudSelectItem Value="-1">Seguir perfil</MudSelectItem>
                         <MudSelectItem Value="0">Sempre incluir</MudSelectItem>
                         <MudSelectItem Value="1">Sempre excluir</MudSelectItem>
@@ -32,7 +32,7 @@
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveAsync">@(_saving ? "Salvando..." : "Salvar excecoes")</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveAsync">@(_saving ? "Salvando..." : "Salvar exceções")</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -79,7 +79,7 @@
             if (!result.Success)
             {
                 _saving = false;
-                _error = result.Error ?? "Nao foi possivel salvar todas as excecoes.";
+                _error = result.Error ?? "Não foi possível salvar todas as exceções.";
                 Snackbar.Add(_error, Severity.Error);
                 return;
             }

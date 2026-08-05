@@ -1,0 +1,88 @@
+@page "/audit"
+@implements IDisposable
+@inject MobileSessionCoordinator Session
+@inject MobileAppState AppState
+@inject CondotifyApiClient Api
+
+<PageTitle>Auditoria de acesso | Condotify</PageTitle>
+<PageHeader Eyebrow="RASTREABILIDADE" Title="Auditoria de acesso" Subtitle="Histórico de decisões, credenciais e acionamentos da equipe.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_audits.Count == 0)" EmptyTitle="Nenhuma operação registrada" EmptyText="As ações da equipe aparecerão aqui." Retry="LoadAsync">
+    <section class="screen-overview audit-overview">
+        <span class="screen-overview-icon primary"><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span>
+        <div class="screen-overview-main"><span>Rastreabilidade operacional</span><strong>@_audits.Count ações recentes</strong><small>Usuário, horário, resultado e resumo em uma linha do tempo.</small></div>
+        <span class="overview-badge">Auditado</span>
+    </section>
+
+    <div class="directory-toolbar elevated-search audit-toolbar">
+        <MudTextField @bind-Value="_search" Immediate="true" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Placeholder="Buscar ação, pessoa ou usuário" />
+        <MudSelect T="string" @bind-Value="_status" Variant="Variant.Outlined" Margin="Margin.Dense" Label="Resultado">
+            <MudSelectItem T="string" Value="@string.Empty">Todos</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Success")">Sucesso</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Failed")">Falhas</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    <section class="content-panel audit-timeline">
+        @foreach (var audit in FilteredAudits)
+        {
+            <article class="audit-entry">
+                <span class="audit-dot @AuditStatusClass(audit.Status)"><MudIcon Icon="@AuditIcon(audit.Action)" Size="Size.Small" /></span>
+                <div class="audit-entry-main">
+                    <div class="audit-entry-head"><strong>@ActionLabel(audit.Action)</strong><time>@audit.CreatedAt.ToLocalTime().ToString("dd/MM · HH:mm")</time></div>
+                    <p>@audit.Summary</p>
+                    <small><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Size="Size.Small" /> @Value(audit.UserName) · @EntityLabel(audit.EntityType)</small>
+                </div>
+            </article>
+        }
+        @if (!FilteredAudits.Any())
+        {
+            <div class="page-state compact-state"><MudIcon Icon="@Icons.Material.Outlined.SearchOff" Size="Size.Large" Color="Color.Secondary" /><MudText>Nenhuma ação corresponde aos filtros.</MudText></div>
+        }
+    </section>
+</PageState>
+
+@code {
+    private List<AccessAuditViewModel> _audits = [];
+    private CancellationTokenSource? _loadCts;
+    private bool _loading;
+    private string _error = string.Empty;
+    private string _search = string.Empty;
+    private string _status = string.Empty;
+    private IEnumerable<AccessAuditViewModel> FilteredAudits => _audits.Where(audit =>
+        (string.IsNullOrWhiteSpace(_status) || audit.Status.Contains(_status, StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrWhiteSpace(_search) || new[] { audit.Action, audit.Summary, audit.UserName, audit.EntityType }
+            .Any(value => value.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))));
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var token = _loadCts.Token;
+        _loading = true;
+        _error = string.Empty;
+        if (Session.Current?.Principal != MobilePrincipalKind.Staff || !AppState.SelectedLicenseId.HasValue)
+        {
+            _error = "Esta área é exclusiva para a equipe do condomínio.";
+            _loading = false;
+            return;
+        }
+        var result = await Api.GetAccessAuditsAsync(AppState.SelectedLicenseId.Value, token);
+        if (token.IsCancellationRequested) return;
+        _audits = (result.Value ?? []).OrderByDescending(item => item.CreatedAt).ToList();
+        if (!result.Success) _error = result.Error ?? "Não foi possível carregar a auditoria.";
+        _loading = false;
+    }
+
+    private static string AuditStatusClass(string status) => status.Contains("Success", StringComparison.OrdinalIgnoreCase) ? "success" : status.Contains("Fail", StringComparison.OrdinalIgnoreCase) ? "error" : "info";
+    private static string AuditIcon(string action) => action.Contains("Door", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.LockOpen : action.Contains("Visit", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Badge : action.Contains("Credential", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Key : Icons.Material.Outlined.History;
+    private static string ActionLabel(string action) => action switch { "VisitQrScanned" => "Entrada por QR Code", "VisitStatus" => "Movimentação de visitante", "CredentialStatus" => "Situação da credencial", "OpenDoor" => "Acionamento de porta", _ => string.IsNullOrWhiteSpace(action) ? "Operação" : action };
+    private static string EntityLabel(string entity) => entity switch { "Visit" => "Visitante", "Resident" => "Pessoa", "Credential" => "Credencial", "Device" => "Equipamento", _ => string.IsNullOrWhiteSpace(entity) ? "Sistema" : entity };
+    private static string Value(string value) => string.IsNullOrWhiteSpace(value) ? "Sistema" : value;
+    public void Dispose() { _loadCts?.Cancel(); _loadCts?.Dispose(); }
+}

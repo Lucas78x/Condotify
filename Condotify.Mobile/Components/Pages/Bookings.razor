@@ -5,9 +5,10 @@
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
 @inject IDialogService Dialogs
+@inject MobileDeviceActions DeviceActions
 
 <PageTitle>Reservas | Condotify</PageTitle>
-<PageHeader Title="Reservas" Subtitle="Agenda das áreas comuns.">
+<PageHeader Eyebrow="ÁREAS COMUNS" Title="Reservas" Subtitle="Agenda das áreas comuns.">
     <Actions>
         <div class="page-actions">
             <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
@@ -21,20 +22,38 @@
 </PageHeader>
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_rows.Count == 0)" EmptyTitle="Nenhuma reserva" EmptyText="Os próximos agendamentos aparecerão aqui." Retry="LoadAsync">
+    <section class="content-panel booking-month-calendar" aria-label="Calendário mensal de reservas">
+        <div class="booking-month-head">
+            <MudIconButton Icon="@Icons.Material.Outlined.ChevronLeft" OnClick="PreviousMonth" aria-label="Mês anterior" />
+            <button type="button" @onclick="SelectToday"><strong>@_visibleMonth.ToString("MMMM yyyy", PtBr)</strong><small>Toque em um dia para ver a agenda</small></button>
+            <MudIconButton Icon="@Icons.Material.Outlined.ChevronRight" OnClick="NextMonth" aria-label="Próximo mês" />
+        </div>
+        <div class="booking-weekdays">@foreach (var label in WeekdayLabels) { <span>@label</span> }</div>
+        <div class="booking-month-grid">
+            @foreach (var day in CalendarDays)
+            {
+                <button type="button" class="@(CalendarDayClass(day))" @onclick="() => SelectDate(day.Date)">
+                    <span>@day.Date.Day</span>
+                    @if (day.Bookings > 0) { <small>@day.Bookings</small> }
+                </button>
+            }
+        </div>
+    </section>
     <div class="metric-grid">
         <div class="metric warning"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.PendingActions" /></span><span class="metric-value">@_rows.Count(x => x.Status == "Pending")</span><span class="metric-label">Pendentes</span></div>
         <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" Style="width:24px;height:24px;font-size:24px" /></span><span class="metric-value">@_rows.Count(x => x.Status == "Confirmed")</span><span class="metric-label">Confirmadas</span></div>
         <div class="metric danger"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.EventBusy" /></span><span class="metric-value">@_rows.Count(x => x.Status == "Rejected" || x.Status == "Cancelled")</span><span class="metric-label">Recusadas/canceladas</span></div>
         <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><span class="metric-value">@_rows.Count</span><span class="metric-label">Total</span></div>
     </div>
-    <section class="content-panel">
-        @foreach (var row in _rows)
+    <section class="content-panel card-list-panel">
+        <div class="panel-heading"><div><MudText Typo="Typo.h5">Agenda de @_selectedDate.ToString("dd 'de' MMMM", PtBr)</MudText><span class="panel-subtitle">@VisibleRows.Count() reserva(s) neste dia</span></div></div>
+        @foreach (var row in VisibleRows)
         {
-            <div class="list-row">
+            <div class="list-row booking-row">
                 <MudAvatar Color="@StatusColor(row.Status)" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></MudAvatar>
                 <div class="list-main">
                     <div class="list-title">@row.AmenityName</div>
-                    <div class="list-meta">@row.Date.ToString("dd/MM/yyyy") - @FormatTime(row.SlotStartTime) as @FormatTime(row.SlotEndTime)</div>
+                    <div class="list-meta">@row.Date.ToString("dd/MM/yyyy") · @FormatTime(row.SlotStartTime) às @FormatTime(row.SlotEndTime)</div>
                     <div class="list-meta"><span class="row-status @StatusClass(row.Status)">@StatusLabel(row.Status)</span> · @row.BlockName / @row.UnitNumber</div>
                 </div>
                 @if (Session.Current?.Principal == MobilePrincipalKind.Staff && row.Status == "Pending")
@@ -47,7 +66,15 @@
                     <MudIconButton Icon="@Icons.Material.Outlined.EventBusy" Color="Color.Error" Disabled="@(_cancelling == row.Id)"
                                    OnClick="() => CancelAsync(row)" aria-label="Cancelar reserva" />
                 }
+                @if (row.Status is "Confirmed" or "Pending")
+                {
+                    <MudIconButton Icon="@Icons.Material.Outlined.NotificationsActive" Color="Color.Primary" OnClick="() => ShareReminderAsync(row)" aria-label="Criar lembrete" />
+                }
             </div>
+        }
+        @if (!VisibleRows.Any())
+        {
+            <div class="page-state compact-state"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" Size="Size.Large" Color="Color.Secondary" /><MudText>Nenhuma reserva para este dia.</MudText></div>
         }
     </section>
 </PageState>
@@ -59,6 +86,21 @@
     private bool _loading;
     private Guid? _cancelling;
     private string _error = string.Empty;
+    private static readonly System.Globalization.CultureInfo PtBr = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+    private static readonly string[] WeekdayLabels = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"];
+    private DateTime _visibleMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime _selectedDate = DateTime.Today;
+    private IEnumerable<AmenityBookingViewModel> VisibleRows => _rows.Where(row => row.Date.Date == _selectedDate.Date).OrderBy(row => row.SlotStartTime);
+    private IEnumerable<CalendarDay> CalendarDays
+    {
+        get
+        {
+            var offset = ((int)_visibleMonth.DayOfWeek + 6) % 7;
+            var first = _visibleMonth.AddDays(-offset);
+            return Enumerable.Range(0, 42).Select(index => first.AddDays(index)).Select(date =>
+                new CalendarDay(date, date.Month == _visibleMonth.Month, _rows.Count(row => row.Date.Date == date.Date)));
+        }
+    }
     protected override Task OnInitializedAsync() => LoadAsync();
     private async Task LoadAsync()
     {
@@ -70,7 +112,7 @@
             _profile = profileResult.Value;
             if (!profileResult.Success)
             {
-                _error = profileResult.Error ?? "Nao foi possivel carregar seu vinculo.";
+                _error = profileResult.Error ?? "Não foi possível carregar seu vínculo.";
                 _loading = false;
                 return;
             }
@@ -78,9 +120,9 @@
         }
         else if (AppState.SelectedLicenseId.HasValue)
             result = await Api.GetLicenseAmenityBookingsAsync(AppState.SelectedLicenseId.Value, DateTime.Today.AddMonths(-1), DateTime.Today.AddMonths(3));
-        else { _error = "Selecione um condominio."; _loading = false; return; }
+        else { _error = "Selecione um condomínio."; _loading = false; return; }
         _rows = result.Value ?? [];
-        if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar as reservas.";
+        if (!result.Success) _error = result.Error ?? "Não foi possível carregar as reservas.";
         _loading = false;
     }
     private async Task DecideAsync(AmenityBookingViewModel row, bool approved)
@@ -88,7 +130,7 @@
         var result = approved
             ? await Api.ApproveAmenityBookingAsync(AppState.SelectedLicenseId!.Value, row.AmenityId, row.Id)
             : await Api.RejectAmenityBookingAsync(AppState.SelectedLicenseId!.Value, row.AmenityId, row.Id, "Recusada pelo aplicativo");
-        Snackbar.Add(result.Success ? (approved ? "Reserva aprovada." : "Reserva recusada.") : result.Error ?? "Falha na operacao.", result.Success ? Severity.Success : Severity.Error);
+        Snackbar.Add(result.Success ? (approved ? "Reserva aprovada." : "Reserva recusada.") : result.Error ?? "Falha na operação.", result.Success ? Severity.Success : Severity.Error);
         if (result.Success) await LoadAsync();
     }
     private async Task OpenCreateAsync()
@@ -115,12 +157,19 @@
         _cancelling = row.Id;
         var result = await Api.CancelResidentBookingAsync(row.Id, "Cancelada pelo morador no aplicativo");
         _cancelling = null;
-        Snackbar.Add(result.Success ? "Reserva cancelada." : result.Error ?? "Nao foi possivel cancelar a reserva.", result.Success ? Severity.Success : Severity.Error);
+        Snackbar.Add(result.Success ? "Reserva cancelada." : result.Error ?? "Não foi possível cancelar a reserva.", result.Success ? Severity.Success : Severity.Error);
         if (result.Success) await LoadAsync();
     }
+    private void PreviousMonth() => _visibleMonth = _visibleMonth.AddMonths(-1);
+    private void NextMonth() => _visibleMonth = _visibleMonth.AddMonths(1);
+    private void SelectToday() { _visibleMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1); _selectedDate = DateTime.Today; }
+    private void SelectDate(DateTime date) { _selectedDate = date.Date; _visibleMonth = new(date.Year, date.Month, 1); DeviceActions.Tap(); }
+    private string CalendarDayClass(CalendarDay day) => string.Join(' ', new[] { !day.InMonth ? "outside" : string.Empty, day.Date.Date == DateTime.Today ? "today" : string.Empty, day.Date.Date == _selectedDate.Date ? "selected" : string.Empty, day.Bookings > 0 ? "has-booking" : string.Empty }.Where(value => value.Length > 0));
+    private Task ShareReminderAsync(AmenityBookingViewModel row) => DeviceActions.ShareTextAsync($"Reserva: {row.AmenityName}", $"Lembrete Condotify\n{row.AmenityName}\n{row.Date:dd/MM/yyyy}, das {FormatTime(row.SlotStartTime)} às {FormatTime(row.SlotEndTime)}\n{row.BlockName} / {row.UnitNumber}\nSituação: {StatusLabel(row.Status)}");
     private static bool IsCancelable(AmenityBookingViewModel row) => row.Status is "Pending" or "Confirmed";
     private static Color StatusColor(string status) => status switch { "Confirmed" => Color.Success, "Pending" => Color.Warning, "Rejected" or "Cancelled" => Color.Error, _ => Color.Default };
     private static string StatusClass(string status) => status switch { "Confirmed" => "success", "Pending" => "warning", "Rejected" or "Cancelled" => "error", "Completed" => "neutral", _ => "info" };
     private static string StatusLabel(string status) => status switch { "Confirmed" => "Confirmada", "Pending" => "Pendente", "Rejected" => "Recusada", "Cancelled" => "Cancelada", "Completed" => "Concluída", _ => status };
     private static string FormatTime(TimeSpan value) => $"{value.Hours:00}:{value.Minutes:00}";
+    private sealed record CalendarDay(DateTime Date, bool InMonth, int Bookings);
 }

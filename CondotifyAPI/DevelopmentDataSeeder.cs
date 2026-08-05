@@ -39,7 +39,7 @@ public static class DevelopmentDataSeeder
             enterprise = new EnterpriseDTO
             {
                 Id = EnterpriseId,
-                Name = "Condominio Condotify Demo",
+                Name = "Condomínio Condotify Demo",
                 CNPJ = "00.000.000/0001-00",
                 StateRegistration = "ISENTO",
                 MunicipalRegistration = "ISENTO",
@@ -51,7 +51,7 @@ public static class DevelopmentDataSeeder
                 Number = "100",
                 Complement = "Portaria",
                 Neighborhood = "Centro",
-                City = "Sao Paulo",
+                City = "São Paulo",
                 State = "SP",
                 PostalCode = "01000-000",
                 Country = "Brasil",
@@ -75,7 +75,7 @@ public static class DevelopmentDataSeeder
             var user = new UserAccessDTO
             {
                 Id = UserId,
-                Name = "Usuario Teste",
+                Name = "Usuário Teste",
                 Email = TestEmail,
                 PhoneNumber = "(11) 99999-9999",
                 CPF = "000.000.000-00",
@@ -97,7 +97,7 @@ public static class DevelopmentDataSeeder
             context.Licenses.Add(new LicenseDTO
             {
                 Id = LicenseId,
-                Name = "Condominio Demo",
+                Name = "Condomínio Demo",
                 CNPJ = enterprise.CNPJ,
                 City = enterprise.City,
                 Country = enterprise.Country,

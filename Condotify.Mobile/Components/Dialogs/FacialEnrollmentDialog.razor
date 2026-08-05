@@ -1,0 +1,90 @@
+<MudDialog Class="mobile-dialog">
+    <TitleContent>
+        <div class="mobile-dialog-title">
+            <MudIcon Icon="@Icons.Material.Outlined.FaceRetouchingNatural" Color="Color.Primary" />
+            <div><MudText Typo="Typo.h6">@ActionTitle</MudText><MudText Typo="Typo.caption">Prepare uma foto frontal para os terminais de acesso.</MudText></div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">@_error</MudAlert>
+        }
+
+        <div class="facial-capture-card @(!string.IsNullOrWhiteSpace(_preparedPhoto) ? "ready" : "")">
+            <div class="facial-capture-preview">
+                @if (!string.IsNullOrWhiteSpace(_preparedPhoto))
+                {
+                    <img src="@_preparedPhoto" alt="Prévia facial de @PersonName" />
+                    <span><MudIcon Icon="@Icons.Material.Outlined.Check" /></span>
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Outlined.Face" />
+                    <span class="facial-frame"></span>
+                }
+            </div>
+            <div class="facial-capture-copy">
+                <strong>@(!string.IsNullOrWhiteSpace(_preparedPhoto) ? "Foto pronta para sincronizar" : "Adicione uma foto")</strong>
+                <span>Rosto centralizado, boa iluminação e apenas uma pessoa na imagem.</span>
+            </div>
+            <label class="facial-file-button @(_processing ? "disabled" : "")">
+                <MudIcon Icon="@Icons.Material.Outlined.AddAPhoto" />
+                <span>@(_processing ? "Preparando foto..." : "Câmera ou galeria")</span>
+                <InputFile OnChange="ReadPhotoAsync" accept="image/jpeg,image/png" capture="user" disabled="@_processing" />
+            </label>
+        </div>
+
+        <div class="facial-guidelines">
+            <span><MudIcon Icon="@Icons.Material.Outlined.LightMode" /><small>Boa luz</small></span>
+            <span><MudIcon Icon="@Icons.Material.Outlined.CenterFocusStrong" /><small>Rosto central</small></span>
+            <span><MudIcon Icon="@Icons.Material.Outlined.NoPhotography" /><small>Sem acessórios</small></span>
+        </div>
+        <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true">Ao confirmar, a foto será enviada aos equipamentos definidos pelas rotas de acesso desta pessoa.</MudAlert>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_processing" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Face"
+                   Disabled="@(_processing || string.IsNullOrWhiteSpace(_preparedPhoto))" OnClick="Submit">@ActionTitle</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public string PersonName { get; set; } = string.Empty;
+    [Parameter] public string CurrentPhotoDataUrl { get; set; } = string.Empty;
+    [Parameter] public bool FacialActive { get; set; }
+
+    private string _preparedPhoto = string.Empty;
+    private bool _processing;
+    private string _error = string.Empty;
+    private string ActionTitle => FacialActive ? "Sincronizar facial" : "Ativar facial";
+
+    protected override void OnInitialized() => _preparedPhoto = CurrentPhotoDataUrl;
+
+    private async Task ReadPhotoAsync(InputFileChangeEventArgs args)
+    {
+        _processing = true;
+        _error = string.Empty;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+            _preparedPhoto = await FacePhotoProcessor.PrepareAsync(args.File, timeout.Token);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _error = exception.Message;
+        }
+        catch (OperationCanceledException)
+        {
+            _error = "A preparação da foto demorou demais. Tente novamente.";
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private void Submit() => Dialog.Close(DialogResult.Ok(_preparedPhoto));
+    private void Cancel() => Dialog.Cancel();
+}

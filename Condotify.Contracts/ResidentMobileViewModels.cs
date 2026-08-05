@@ -1,5 +1,14 @@
 namespace Condotify.Models;
 
+public sealed class AuthSessionViewModel
+{
+    public Guid Id { get; set; }
+    public string DeviceLabel { get; set; } = string.Empty;
+    public string CreatedIp { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public DateTime ExpiresAt { get; set; }
+}
+
 public sealed class ResidentProfileViewModel
 {
     public Guid ResidentId { get; set; }

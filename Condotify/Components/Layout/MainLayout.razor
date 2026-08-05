@@ -21,30 +21,22 @@
         <AuthorizeView>
             <Authorized Context="auth">
                 <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="user-menu">
-                    <ActivatorContent><div class="user-summary"><MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(auth.User)</MudAvatar><div class="user-copy"><MudText Typo="Typo.body2" Class="user-name">@(auth.User.Identity?.Name ?? "Administrador")</MudText><MudText Typo="Typo.caption">@AccessLabel(auth.User)</MudText></div><MudIcon Icon="@Icons.Material.Outlined.ExpandMore" Size="Size.Small" /></div></ActivatorContent>
+                    <ActivatorContent Context="menu"><button type="button" class="user-summary user-profile-trigger" aria-label="Abrir menu do usuário" @onclick="menu.ToggleAsync"><MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(auth.User)</MudAvatar><div class="user-copy"><MudText Typo="Typo.body2" Class="user-name">@(auth.User.Identity?.Name ?? "Administrador")</MudText><MudText Typo="Typo.caption">@AccessLabel(auth.User)</MudText></div><MudIcon Icon="@Icons.Material.Outlined.ExpandMore" Size="Size.Small" /></button></ActivatorContent>
                     <ChildContent><MudMenuItem Href="/seguranca" Icon="@Icons.Material.Outlined.Security">Segurança da conta</MudMenuItem><MudMenuItem Href="/Login/Logout" Icon="@Icons.Material.Outlined.Logout">Sair</MudMenuItem></ChildContent>
                 </MudMenu>
-                <MudTooltip Text="Sair"><MudIconButton Href="/Login/Logout" Icon="@Icons.Material.Outlined.Logout" aria-label="Sair da plataforma" Class="logout-action" /></MudTooltip>
             </Authorized>
         </AuthorizeView>
     </MudAppBar>
 
     <MudDrawer @bind-Open="_drawerOpen" Elevation="0" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md" Class="portal-drawer">
         <div class="brand-block">
-            <div class="brand-mark"><span>C</span><i aria-hidden="true"></i></div>
+            <BrandMark Class="portal-brand-symbol" />
             <div>
                 <MudText Typo="Typo.subtitle1" Class="brand-name">Condotify</MudText>
                 <MudText Typo="Typo.caption" Class="brand-subtitle">Controle de acesso</MudText>
             </div>
         </div>
         <NavMenu />
-        <div class="drawer-footer">
-            <MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" Size="Size.Small" />
-            <div>
-                <MudText Typo="Typo.caption" Class="drawer-footer-title">Ambiente protegido</MudText>
-                <MudText Typo="Typo.caption" Class="drawer-footer-copy">Sessão e dados monitorados</MudText>
-            </div>
-        </div>
     </MudDrawer>
 
     <MudMainContent Class="portal-content">

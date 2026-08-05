@@ -4,7 +4,7 @@
     <DialogContent>
         <div class="dialog-description">
             <MudIcon Icon="@Icons.Material.Outlined.Sensors" />
-            <div><strong>@(IsEditing ? "Editar terminal de acesso" : "Novo terminal de acesso")</strong><span>@(IsEditing ? "Atualize a conexao sem perder rotas, credenciais ou historico." : "Selecione o fabricante e informe como o Condotify deve se conectar.")</span></div>
+            <div><strong>@(IsEditing ? "Editar terminal de acesso" : "Novo terminal de acesso")</strong><span>@(IsEditing ? "Atualize a conexão sem perder rotas, credenciais ou histórico." : "Selecione o fabricante e informe como o Condotify deve se conectar.")</span></div>
         </div>
         @if (!string.IsNullOrWhiteSpace(_error))
         {
@@ -12,7 +12,7 @@
         }
         <EditForm Model="_form" OnValidSubmit="SaveAsync" OnInvalidSubmit="HandleInvalidSubmit">
             <DataAnnotationsValidator />
-            <MudText Typo="Typo.overline" Class="form-section-label">IDENTIFICACAO</MudText>
+            <MudText Typo="Typo.overline" Class="form-section-label">IDENTIFICAÇÃO</MudText>
             <div class="form-grid form-grid-three">
                 <MudTextField T="string" @bind-Value="_form.Name" Label="Nome do equipamento" Placeholder="Ex.: Facial portaria" Required Variant="Variant.Outlined" For="@(() => _form.Name)" />
                 <MudSelect T="string" Value="@_brand" ValueChanged="@BrandChanged" Label="Marca" Required Variant="Variant.Outlined" Disabled="IsEditing">
@@ -30,18 +30,18 @@
             </div>
 
             <MudDivider Class="form-divider" />
-            <MudText Typo="Typo.overline" Class="form-section-label">CONEXAO</MudText>
+            <MudText Typo="Typo.overline" Class="form-section-label">CONEXÃO</MudText>
             <div class="form-grid form-grid-three">
-                <MudTextField T="string" @bind-Value="_form.IPAddress" Label="Endereco IP" Placeholder="192.168.0.10" Required Variant="Variant.Outlined" For="@(() => _form.IPAddress)" />
+                <MudTextField T="string" @bind-Value="_form.IPAddress" Label="Endereço IP" Placeholder="192.168.0.10" Required Variant="Variant.Outlined" For="@(() => _form.IPAddress)" />
                 <MudNumericField T="int" @bind-Value="_form.Port" Label="Porta HTTP" Min="1" Max="65535" Variant="Variant.Outlined" />
                 <MudSwitch T="bool" @bind-Value="_form.IsActive" Color="Color.Success" Label="Ativar após identificar o terminal" />
-                <MudTextField T="string" @bind-Value="_form.Username" Label="Usuario" Required Variant="Variant.Outlined" For="@(() => _form.Username)" />
+                <MudTextField T="string" @bind-Value="_form.Username" Label="Usuário" Required Variant="Variant.Outlined" For="@(() => _form.Username)" />
                 <MudTextField T="string" @bind-Value="_form.Password" Label="@(IsEditing ? "Nova senha" : "Senha")" Required="@(!IsEditing)" InputType="InputType.Password" Variant="Variant.Outlined" For="@(() => _form.Password)" HelperText="@(IsEditing ? "Deixe em branco para manter a senha atual." : null)" />
             </div>
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense Class="mt-4">Número de série, endereço MAC e firmware serão consultados no equipamento. As portas também serão descobertas quando o modelo oferecer essa informação.</MudAlert>
             <div class="form-actions dialog-form-actions">
                 <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : IsEditing ? "Salvar alteracoes" : "Salvar equipamento")</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : IsEditing ? "Salvar alterações" : "Salvar equipamento")</MudButton>
             </div>
         </EditForm>
     </DialogContent>
@@ -107,7 +107,7 @@
                 var update = await Api.UpdateDeviceAsync(LicenseId, Existing.Id, _form);
                 if (!update.Success)
                 {
-                    _error = update.Error ?? "Nao foi possivel atualizar o equipamento.";
+                    _error = update.Error ?? "Não foi possível atualizar o equipamento.";
                     return;
                 }
                 Dialog.Close(DialogResult.Ok(true));

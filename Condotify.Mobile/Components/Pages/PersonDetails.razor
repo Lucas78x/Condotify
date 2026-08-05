@@ -4,9 +4,11 @@
 @inject MobileAppState AppState
 @inject CondotifyApiClient Api
 @inject NavigationManager Navigation
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
 
 <PageTitle>@(_person?.Name ?? "Cadastro da pessoa") | Condotify</PageTitle>
-<PageHeader Title="@(_person?.Name ?? "Cadastro da pessoa")" Subtitle="@PersonSubtitle">
+<PageHeader Eyebrow="PERFIL DE ACESSO" Title="@(_person?.Name ?? "Cadastro da pessoa")" Subtitle="@PersonSubtitle">
     <Actions>
         <div class="page-actions">
             <MudIconButton Icon="@Icons.Material.Outlined.ArrowBack" OnClick="Back" aria-label="Voltar" />
@@ -18,7 +20,7 @@
 <PageState Loading="_loading" Error="@_error" Retry="LoadAsync">
     @if (_person is not null)
     {
-        <section class="person-hero content-panel">
+        <section class="person-hero content-panel person-profile-hero">
             @if (!string.IsNullOrWhiteSpace(_photoDataUrl))
             {
                 <MudAvatar Class="person-hero-avatar photo-avatar"><img src="@_photoDataUrl" alt="" /></MudAvatar>
@@ -36,6 +38,19 @@
                 </div>
             </div>
             <span class="row-status @(_person.IsActive ? "success" : "neutral")">@(_person.IsActive ? "Cadastro ativo" : "Cadastro inativo")</span>
+        </section>
+
+        <section class="person-access-actions" aria-label="Ações de acesso da pessoa">
+            <button type="button" class="person-access-action face" disabled="@_facialBusy" @onclick="OpenFacialAsync">
+                <span><MudIcon Icon="@Icons.Material.Outlined.FaceRetouchingNatural" /></span>
+                <div><strong>@FaceActionLabel</strong><small>@(_person.HasActiveFaceCredential ? "Atualizar foto e sincronização" : "Cadastrar foto nos terminais")</small></div>
+                <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+            </button>
+            <button type="button" class="person-access-action vehicle" @onclick="() => OpenVehicleAsync()">
+                <span><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></span>
+                <div><strong>Adicionar veículo</strong><small>Placa e TAG hexadecimal opcional</small></div>
+                <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+            </button>
         </section>
 
         <div class="metric-grid person-metrics">
@@ -74,15 +89,29 @@
                 }
                 @foreach (var credential in _person.Credentials)
                 {
-                    <div class="list-row credential-row">
-                        <MudAvatar Color="@CredentialColor(credential.Type)" Variant="Variant.Filled"><MudIcon Icon="@CredentialIcon(credential.Type)" /></MudAvatar>
-                        <div class="list-main">
-                            <div class="list-title">@CredentialLabel(credential.Type)</div>
-                            <div class="list-meta">@Value(credential.Identifier) · válida até @FormatDate(credential.ValidTo)</div>
-                            <div class="sync-progress"><span style="width: @SyncPercent(credential)%"></span></div>
-                            <div class="list-meta">@credential.SyncedDeviceCount de @credential.DeviceCount terminal(is) sincronizado(s)</div>
+                    <div class="credential-card">
+                        <div class="list-row credential-row">
+                            <MudAvatar Color="@CredentialColor(credential.Type)" Variant="Variant.Filled"><MudIcon Icon="@CredentialIcon(credential.Type)" /></MudAvatar>
+                            <div class="list-main">
+                                <div class="list-title">@CredentialLabel(credential.Type)</div>
+                                <div class="list-meta">@Value(credential.Identifier) · válida até @FormatDate(credential.ValidTo)</div>
+                                <div class="sync-progress"><span style="width: @SyncPercent(credential)%"></span></div>
+                                <div class="list-meta">@credential.SyncedDeviceCount de @credential.DeviceCount terminal(is) sincronizado(s)</div>
+                            </div>
+                            <span class="row-status @(credential.IsActive ? "success" : "warning")">@(credential.IsActive ? "Ativa" : "Pausada")</span>
+                            <MudIconButton Icon="@(credential.IsActive ? Icons.Material.Outlined.PauseCircleOutline : Icons.Material.Outlined.PlayCircleOutline)"
+                                           Color="@(credential.IsActive ? Color.Warning : Color.Success)" Disabled="@(_credentialBusy == credential.Id)"
+                                           OnClick="() => ToggleCredentialAsync(credential)" aria-label="@(credential.IsActive ? "Pausar credencial" : "Ativar credencial")" />
                         </div>
-                        <span class="row-status @(credential.IsActive ? "success" : "warning")">@(credential.IsActive ? "Ativa" : "Pausada")</span>
+                        @if (credential.Devices.Count > 0)
+                        {
+                            <div class="credential-devices">
+                                @foreach (var device in credential.Devices)
+                                {
+                                    <div><span class="status-dot @(DeviceSynced(device) ? "online" : "")"></span><span><strong>@device.DeviceName</strong><small>@DeviceMessage(device)</small></span><span class="row-status @(DeviceSynced(device) ? "success" : "warning")">@(DeviceSynced(device) ? "Sincronizado" : "Pendente")</span></div>
+                                }
+                            </div>
+                        }
                     </div>
                 }
             }
@@ -99,6 +128,11 @@
                         <MudAvatar Color="Color.Warning" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></MudAvatar>
                         <div class="list-main"><div class="list-title">@vehicle.Plate</div><div class="list-meta">@VehicleDescription(vehicle)</div><div class="list-meta">@(!string.IsNullOrWhiteSpace(vehicle.TagIdentifier) ? $"TAG {vehicle.TagIdentifier}" : "Sem TAG vinculada")</div></div>
                         <span class="row-status @(vehicle.IsActive ? "success" : "neutral")">@(vehicle.IsActive ? "Ativo" : "Inativo")</span>
+                        <MudIconButton Icon="@(vehicle.IsActive ? Icons.Material.Outlined.PauseCircleOutline : Icons.Material.Outlined.PlayCircleOutline)"
+                                       Color="@(vehicle.IsActive ? Color.Warning : Color.Success)" Disabled="@(_vehicleBusy == vehicle.Id)"
+                                       OnClick="() => ToggleVehicleAsync(vehicle)" aria-label="@(vehicle.IsActive ? "Desativar veículo" : "Ativar veículo")" />
+                        <MudIconButton Icon="@Icons.Material.Outlined.Edit" Color="Color.Primary" OnClick="() => OpenVehicleAsync(vehicle)" aria-label="Editar veículo e TAG" />
+                        <MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Disabled="@(_vehicleBusy == vehicle.Id)" OnClick="() => DeleteVehicleAsync(vehicle)" aria-label="Excluir veículo" />
                     </div>
                 }
             }
@@ -112,8 +146,12 @@
     private string? _photoDataUrl;
     private CancellationTokenSource? _loadCts;
     private bool _loading;
+    private bool _facialBusy;
+    private Guid? _credentialBusy;
+    private Guid? _vehicleBusy;
     private string _error = string.Empty;
     private string _tab = "data";
+    private string FaceActionLabel => _person?.HasActiveFaceCredential == true ? "Sincronizar facial" : "Ativar reconhecimento facial";
     private string PersonSubtitle => _person is null ? "Carregando cadastro..." : $"{_person.BlockName} · Unidade {_person.UnitNumber}";
 
     protected override Task OnParametersSetAsync() => LoadAsync();
@@ -154,6 +192,84 @@
     private void ShowData() => _tab = "data";
     private void ShowCredentials() => _tab = "credentials";
     private void ShowVehicles() => _tab = "vehicles";
+
+    private async Task OpenFacialAsync()
+    {
+        if (_person is null || !AppState.SelectedLicenseId.HasValue || _facialBusy) return;
+        var parameters = new DialogParameters
+        {
+            [nameof(FacialEnrollmentDialog.PersonName)] = _person.Name,
+            [nameof(FacialEnrollmentDialog.CurrentPhotoDataUrl)] = _photoDataUrl ?? string.Empty,
+            [nameof(FacialEnrollmentDialog.FacialActive)] = _person.HasActiveFaceCredential
+        };
+        var dialog = await Dialogs.ShowAsync<FacialEnrollmentDialog>(string.Empty, parameters,
+            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true });
+        var dialogResult = await dialog.Result;
+        if (dialogResult?.Canceled != false || dialogResult.Data is not string imageBase64 || string.IsNullOrWhiteSpace(imageBase64)) return;
+
+        _facialBusy = true;
+        var operation = await Api.ActivateFacialByRoutesAsync(AppState.SelectedLicenseId.Value, EntityId, imageBase64);
+        _facialBusy = false;
+        if (!operation.Success)
+        {
+            Snackbar.Add(operation.Error ?? "Não foi possível ativar o reconhecimento facial.", Severity.Error);
+            return;
+        }
+        Snackbar.Add(operation.Value?.Message ?? "Reconhecimento facial ativado.", operation.Value?.Synced == false ? Severity.Warning : Severity.Success);
+        _tab = "credentials";
+        await LoadAsync();
+    }
+
+    private async Task OpenVehicleAsync(VehicleViewModel? vehicle = null)
+    {
+        if (_person is null || !AppState.SelectedLicenseId.HasValue) return;
+        var parameters = new DialogParameters
+        {
+            [nameof(MobileVehicleDialog.LicenseId)] = AppState.SelectedLicenseId.Value,
+            [nameof(MobileVehicleDialog.ResidentId)] = EntityId,
+            [nameof(MobileVehicleDialog.UnitId)] = _person.UnitId,
+            [nameof(MobileVehicleDialog.Existing)] = vehicle
+        };
+        var dialog = await Dialogs.ShowAsync<MobileVehicleDialog>(string.Empty, parameters,
+            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true });
+        var dialogResult = await dialog.Result;
+        if (dialogResult?.Canceled != false) return;
+        Snackbar.Add(vehicle is null ? "Veículo cadastrado. A TAG já integra a base de credenciais." : "Veículo e TAG atualizados.", Severity.Success);
+        _tab = "vehicles";
+        await LoadAsync();
+    }
+
+    private async Task ToggleCredentialAsync(PersonCredentialViewModel credential)
+    {
+        if (!AppState.SelectedLicenseId.HasValue || _credentialBusy.HasValue) return;
+        _credentialBusy = credential.Id;
+        var result = await Api.SetCredentialStatusAsync(AppState.SelectedLicenseId.Value, credential.Id, !credential.IsActive);
+        _credentialBusy = null;
+        Snackbar.Add(result.Success ? (credential.IsActive ? "Credencial pausada." : "Credencial ativada e enviada para sincronização.") : result.Error ?? "Não foi possível alterar a credencial.", result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) await LoadAsync();
+    }
+
+    private async Task ToggleVehicleAsync(VehicleViewModel vehicle)
+    {
+        if (!AppState.SelectedLicenseId.HasValue || _vehicleBusy.HasValue) return;
+        _vehicleBusy = vehicle.Id;
+        var result = await Api.SetVehicleStatusAsync(AppState.SelectedLicenseId.Value, EntityId, vehicle.Id, !vehicle.IsActive);
+        _vehicleBusy = null;
+        Snackbar.Add(result.Success ? (vehicle.IsActive ? "Veículo e TAG pausados." : "Veículo e TAG reativados.") : result.Error ?? "Não foi possível alterar o veículo.", result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) await LoadAsync();
+    }
+
+    private async Task DeleteVehicleAsync(VehicleViewModel vehicle)
+    {
+        if (!AppState.SelectedLicenseId.HasValue || _vehicleBusy.HasValue) return;
+        var confirmed = await Dialogs.ShowMessageBoxAsync("Excluir veículo", $"Remover {vehicle.Plate} e sua TAG deste cadastro?", yesText: "Excluir", cancelText: "Cancelar");
+        if (confirmed != true) return;
+        _vehicleBusy = vehicle.Id;
+        var result = await Api.DeleteVehicleAsync(AppState.SelectedLicenseId.Value, EntityId, vehicle.Id);
+        _vehicleBusy = null;
+        Snackbar.Add(result.Success ? "Veículo removido." : result.Error ?? "Não foi possível remover o veículo.", result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) await LoadAsync();
+    }
     private static string Value(string? value) => string.IsNullOrWhiteSpace(value) ? "Não informado" : value;
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
     private static string CategoryLabel(string category) => category switch { "Responsible" => "Responsável", "NonResponsible" => "Morador", "Guest" => "Convidado", "ServiceProvider" => "Prestador", "Default" => "Morador", _ => category };
@@ -173,6 +289,8 @@
     private static string FormatDate(DateTime value) => value.Year < 2000 ? "sem vencimento" : value.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
     private static int SyncPercent(PersonCredentialViewModel credential) => credential.DeviceCount <= 0 ? 0 : Math.Clamp((int)Math.Round(credential.SyncedDeviceCount * 100d / credential.DeviceCount), 0, 100);
     private static string VehicleDescription(VehicleViewModel vehicle) => string.Join(" · ", new[] { vehicle.Brand, vehicle.Model, vehicle.Color }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    private static bool DeviceSynced(PersonCredentialDeviceViewModel device) => device.Status.Contains("Sync", StringComparison.OrdinalIgnoreCase) || device.Status.Contains("Success", StringComparison.OrdinalIgnoreCase);
+    private static string DeviceMessage(PersonCredentialDeviceViewModel device) => string.IsNullOrWhiteSpace(device.Message) ? $"Rotas: {Value(device.RouteNames)}" : device.Message;
 
     public void Dispose()
     {

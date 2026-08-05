@@ -8,15 +8,15 @@ public static class MobileNavigation
 {
     private static readonly MobileNavigationItem[] StaffItems =
     [
-        new("/home", "Inicio", "home"),
+        new("/home", "Início", "home"),
         new("/concierge", "Portaria", "concierge"),
-        new("/cameras", "Cameras", "camera"),
+        new("/cameras", "Câmeras", "camera"),
         new("/more", "Mais", "more")
     ];
 
     private static readonly MobileNavigationItem[] ResidentItems =
     [
-        new("/home", "Inicio", "home"),
+        new("/home", "Início", "home"),
         new("/visitors", "Visitantes", "visitors"),
         new("/bookings", "Reservas", "calendar"),
         new("/more", "Mais", "more")

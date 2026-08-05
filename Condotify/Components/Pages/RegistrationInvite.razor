@@ -11,38 +11,73 @@
     }
     else if (_invite is null)
     {
-        <div class="public-result error"><MudIcon Icon="@Icons.Material.Outlined.LinkOff" /><MudText Typo="Typo.h5">Convite indisponivel</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@(_error ?? "O link e invalido ou nao esta mais disponivel.")</MudText></div>
+        <div class="public-result error"><MudIcon Icon="@Icons.Material.Outlined.LinkOff" /><MudText Typo="Typo.h5">Convite indisponível</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@(_error ?? "O link é inválido ou não está mais disponível.")</MudText></div>
     }
     else if (_completed || _invite.Status == "Completed")
     {
-        <div class="public-result success"><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" /><MudText Typo="Typo.h5">Cadastro concluido</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Seus dados foram enviados para @_invite.LicenseName.</MudText></div>
+        <div class="public-result success"><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" /><MudText Typo="Typo.h5">Cadastro concluído</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Seus dados foram enviados para @_invite.LicenseName.</MudText></div>
     }
     else if (_invite.Status is "Expired" or "Canceled")
     {
-        <div class="public-result error"><MudIcon Icon="@Icons.Material.Outlined.EventBusy" /><MudText Typo="Typo.h5">Convite expirado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Solicite um novo convite a administracao de @_invite.LicenseName.</MudText></div>
+        <div class="public-result error"><MudIcon Icon="@Icons.Material.Outlined.EventBusy" /><MudText Typo="Typo.h5">Convite expirado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Solicite um novo convite à administração de @_invite.LicenseName.</MudText></div>
     }
     else
     {
-        <header class="invite-public-head">
-            <span class="invite-public-icon"><MudIcon Icon="@Icons.Material.Outlined.PersonAdd" /></span>
-            <div><MudText Typo="Typo.h5">Conclua seu cadastro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_invite.LicenseName | @_invite.BlockName / Unidade @_invite.UnitNumber</MudText></div>
-        </header>
-        @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
-        <EditForm Model="_form" OnValidSubmit="CompleteAsync">
-            <DataAnnotationsValidator />
-            <div class="form-grid">
-                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome completo" Required For="@(() => _form.Name)" Variant="Variant.Outlined" Class="full" />
-                <MudTextField T="string" @bind-Value="_form.CPF" Label="CPF" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.RG" Label="RG" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.BirthDate" Label="Data de nascimento" Placeholder="dd/mm/aaaa" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.Email" Label="E-mail" InputType="InputType.Email" For="@(() => _form.Email)" Variant="Variant.Outlined" Class="full" />
-                <MudTextField T="string" @bind-Value="_form.Password" Label="Senha" Required InputType="InputType.Password" For="@(() => _form.Password)" Variant="Variant.Outlined" HelperText="Minimo de 8 caracteres, com maiuscula, minuscula, numero e caractere especial." />
-                <MudTextField T="string" @bind-Value="_form.PasswordConfirmation" Label="Confirme a senha" Required InputType="InputType.Password" For="@(() => _form.PasswordConfirmation)" Variant="Variant.Outlined" />
-            </div>
-            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="public-privacy-note">Os dados serao usados somente para identificacao e controle de acesso da propriedade.</MudAlert>
-            <MudButton ButtonType="ButtonType.Submit" FullWidth Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Outlined.Check" Disabled="_saving">@(_saving ? "Enviando..." : "Concluir cadastro")</MudButton>
-        </EditForm>
+        <div class="invite-public-layout">
+            <aside class="invite-guide">
+                <div class="invite-guide-copy">
+                    <span class="invite-guide-eyebrow"><MudIcon Icon="@Icons.Material.Outlined.MarkEmailRead" Size="Size.Small" /> CONVITE DE CADASTRO</span>
+                    <h2>Seu acesso começa aqui</h2>
+                    <p>Confirme seus dados uma única vez. O Condotify prepara sua identidade digital para os acessos autorizados pelo condomínio.</p>
+                </div>
+
+                <div class="invite-phone-demo" role="img" aria-label="Animação mostrando as três etapas para concluir o convite do condomínio">
+                    <div class="invite-phone-speaker" aria-hidden="true"></div>
+                    <div class="invite-demo-notification">
+                        <BrandMark Class="invite-demo-brand" />
+                        <span><small>NOVO CONVITE</small><strong>@_invite.LicenseName</strong><em>@_invite.BlockName · Unidade @_invite.UnitNumber</em></span>
+                    </div>
+                    <div class="invite-demo-track" aria-hidden="true"><i></i></div>
+                    <div class="invite-demo-steps" aria-hidden="true">
+                        <div class="invite-demo-step invite-demo-step-one"><span><MudIcon Icon="@Icons.Material.Outlined.Badge" /></span><div><small>ETAPA 1</small><strong>Confirme seus dados</strong></div><b>1</b></div>
+                        <div class="invite-demo-step invite-demo-step-two"><span><MudIcon Icon="@Icons.Material.Outlined.Password" /></span><div><small>ETAPA 2</small><strong>Crie sua senha</strong></div><b>2</b></div>
+                        <div class="invite-demo-step invite-demo-step-three"><span><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /></span><div><small>ETAPA 3</small><strong>Cadastro concluído</strong></div><b><MudIcon Icon="@Icons.Material.Outlined.Check" Size="Size.Small" /></b></div>
+                    </div>
+                    <div class="invite-demo-secure"><MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" /> Seus dados são enviados com segurança</div>
+                </div>
+
+                <ol class="invite-guide-steps">
+                    <li><span>1</span><div><strong>Revise suas informações</strong><small>Confira nome, documentos e contato.</small></div></li>
+                    <li><span>2</span><div><strong>Defina uma senha segura</strong><small>Ela será usada no seu acesso ao Condotify.</small></div></li>
+                    <li><span>3</span><div><strong>Conclua o cadastro</strong><small>A administração receberá a confirmação.</small></div></li>
+                </ol>
+
+                <div class="invite-guide-expiry"><MudIcon Icon="@Icons.Material.Outlined.Schedule" /><span><small>Este link é pessoal</small><strong>Válido até @_invite.ExpiresAt.ToLocalTime().ToString("dd/MM 'às' HH:mm")</strong></span></div>
+            </aside>
+
+            <section class="invite-form-panel">
+                <header class="invite-public-head">
+                    <span class="invite-public-icon"><MudIcon Icon="@Icons.Material.Outlined.PersonAdd" /></span>
+                    <div><MudText Typo="Typo.h5">Conclua seu cadastro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_invite.LicenseName | @_invite.BlockName / Unidade @_invite.UnitNumber</MudText></div>
+                </header>
+                @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+                <EditForm Model="_form" OnValidSubmit="CompleteAsync">
+                    <DataAnnotationsValidator />
+                    <div class="form-grid">
+                        <MudTextField T="string" @bind-Value="_form.Name" Label="Nome completo" Required For="@(() => _form.Name)" Variant="Variant.Outlined" Class="full" />
+                        <MudTextField T="string" @bind-Value="_form.CPF" Label="CPF" Variant="Variant.Outlined" />
+                        <MudTextField T="string" @bind-Value="_form.RG" Label="RG" Variant="Variant.Outlined" />
+                        <MudTextField T="string" @bind-Value="_form.BirthDate" Label="Data de nascimento" Placeholder="dd/mm/aaaa" Variant="Variant.Outlined" />
+                        <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Variant="Variant.Outlined" />
+                        <MudTextField T="string" @bind-Value="_form.Email" Label="E-mail" InputType="InputType.Email" For="@(() => _form.Email)" Variant="Variant.Outlined" Class="full" />
+                        <MudTextField T="string" @bind-Value="_form.Password" Label="Senha" Required InputType="InputType.Password" For="@(() => _form.Password)" Variant="Variant.Outlined" HelperText="Mínimo de 8 caracteres, com maiúscula, minúscula, número e caractere especial." />
+                        <MudTextField T="string" @bind-Value="_form.PasswordConfirmation" Label="Confirme a senha" Required InputType="InputType.Password" For="@(() => _form.PasswordConfirmation)" Variant="Variant.Outlined" />
+                    </div>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="public-privacy-note">Os dados serão usados somente para identificação e controle de acesso da propriedade.</MudAlert>
+                    <MudButton ButtonType="ButtonType.Submit" FullWidth Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Outlined.Check" Disabled="_saving">@(_saving ? "Enviando..." : "Concluir cadastro")</MudButton>
+                </EditForm>
+            </section>
+        </div>
     }
 </MudPaper>
 

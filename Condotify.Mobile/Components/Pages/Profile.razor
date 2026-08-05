@@ -1,9 +1,16 @@
 @page "/profile"
 @inject MobileSessionCoordinator Session
+@inject MobileAppState AppState
 @inject CondotifyApiClient Api
+@inject MobilePushLifecycle Push
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject MobileAppLockService AppLock
+@inject MobileBiometricService Biometrics
 
 <PageTitle>Minha conta | Condotify</PageTitle>
-<PageHeader Title="Minha conta" Subtitle="Dados do perfil e escopo da sessão." />
+<PageHeader Eyebrow="CONTA E SEGURANÇA" Title="Minha conta" Subtitle="Dados do perfil e contexto da sessão." />
 
 <PageState Loading="_loading" Error="@_error" Retry="LoadAsync">
     <section class="content-panel profile-panel">
@@ -27,12 +34,64 @@
                 <div><span>Condomínio</span><strong>@_resident.LicenseName</strong></div>
                 <div><span>Unidades</span><strong>@_resident.Units.Count</strong></div>
             </div>
+            @if (_resident.Units.Count > 0)
+            {
+                <div class="profile-context-section">
+                    <span class="settings-label">Vínculos ativos</span>
+                    <div class="profile-unit-list">
+                        @foreach (var unit in _resident.Units)
+                        {
+                            <div class="profile-unit-card">
+                                <span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.HomeWork" /></span>
+                                <div class="list-main"><div class="list-title">@unit.BlockName / @unit.Number</div><div class="list-meta">@unit.Relationship @(!string.IsNullOrWhiteSpace(unit.Floor) ? $"· {unit.Floor}º andar" : "")</div></div>
+                                @if (unit.IsPrimary) { <span class="row-status success">Principal</span> }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
         }
         else
         {
             <div class="profile-fields">
                 <div><span>Tipo de conta</span><strong>Equipe operacional</strong></div>
-                <div><span>Empresa</span><strong>@(Session.Current?.EnterpriseId?.ToString("D") ?? "Nao informada")</strong></div>
+                <div><span>Condomínio ativo</span><strong>@(AppState.SelectedLicense?.Nome ?? "Nenhum selecionado")</strong></div>
+            </div>
+        }
+        <div class="profile-trust-bar"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /><div><strong>Sessão protegida</strong><span>Seus dados e acessos são transmitidos de forma segura.</span></div></div>
+    </section>
+
+    <section class="content-panel profile-sessions-panel">
+        <div class="panel-heading"><div><MudText Typo="Typo.h5">Dispositivos conectados</MudText><span class="panel-subtitle">Sessões ativas da sua conta</span></div><span class="overview-badge">@_sessions.Count ativa(s)</span></div>
+        @foreach (var session in _sessions)
+        {
+            <div class="list-row">
+                <span class="settings-icon info"><MudIcon Icon="@DeviceIcon(session.DeviceLabel)" /></span>
+                <div class="list-main"><div class="list-title">@DeviceLabel(session.DeviceLabel)</div><div class="list-meta">Conectado em @session.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · IP @Value(session.CreatedIp)</div><div class="list-meta">Sessão válida até @session.ExpiresAt.ToLocalTime().ToString("dd/MM/yyyy")</div></div>
+                <span class="row-status success">Ativa</span>
+            </div>
+        }
+        @if (_sessions.Count > 1)
+        {
+            <div class="profile-session-action"><MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Outlined.PhonelinkErase" OnClick="LogoutAllAsync">Desconectar todos os dispositivos</MudButton></div>
+        }
+    </section>
+
+    <section class="content-panel profile-security-panel">
+        <div class="panel-heading"><div><MudText Typo="Typo.h5">Proteção do aplicativo</MudText><span class="panel-subtitle">Biometria ou bloqueio seguro do aparelho</span></div><MudIcon Icon="@Icons.Material.Outlined.Fingerprint" Color="Color.Primary" /></div>
+        <div class="list-row settings-toggle-row">
+            <span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.LockPerson" /></span>
+            <div class="list-main"><div class="list-title">Bloqueio local</div><div class="list-meta">@(_biometricAvailable ? "Exigir confirmação ao reabrir o Condotify" : "Configure biometria, PIN ou padrão seguro no Android")</div></div>
+            <MudSwitch T="bool" Value="@AppLock.Enabled" ValueChanged="ToggleAppLockAsync" Disabled="@(!_biometricAvailable)" Color="Color.Primary" />
+        </div>
+        @if (AppLock.Enabled)
+        {
+            <div class="list-row app-lock-timeout-row">
+                <span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Timer" /></span>
+                <div class="list-main"><div class="list-title">Bloquear após</div><div class="list-meta">Tempo sem nova confirmação de segurança</div></div>
+                <MudSelect T="int" Value="@AppLock.TimeoutMinutes" ValueChanged="AppLock.SetTimeout" Variant="Variant.Outlined" Margin="Margin.Dense" Class="app-lock-timeout-select">
+                    <MudSelectItem T="int" Value="1">1 min</MudSelectItem><MudSelectItem T="int" Value="5">5 min</MudSelectItem><MudSelectItem T="int" Value="15">15 min</MudSelectItem><MudSelectItem T="int" Value="30">30 min</MudSelectItem>
+                </MudSelect>
             </div>
         }
     </section>
@@ -40,22 +99,59 @@
 
 @code {
     private ResidentProfileViewModel? _resident;
+    private List<AuthSessionViewModel> _sessions = [];
     private string? _photoDataUrl;
     private bool _loading;
+    private bool _biometricAvailable;
     private string _error = string.Empty;
     private string Initials => string.Concat((Session.Current?.Name ?? "U").Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => x[0])).ToUpperInvariant();
 
     protected override Task OnInitializedAsync() => LoadAsync();
     private async Task LoadAsync()
     {
-        if (Session.Current?.Principal != MobilePrincipalKind.Resident) return;
         _loading = true; _error = string.Empty;
-        var result = await Api.GetResidentProfileAsync();
-        _resident = result.Value;
+        _biometricAvailable = await Biometrics.IsAvailableAsync();
+        var sessionsResult = await Api.GetAuthSessionsAsync();
+        _sessions = (sessionsResult.Value ?? []).OrderByDescending(item => item.CreatedAt).ToList();
+        if (!sessionsResult.Success) _error = sessionsResult.Error ?? "Não foi possível carregar as sessões conectadas.";
+
+        if (Session.Current?.Principal == MobilePrincipalKind.Resident)
+        {
+            var result = await Api.GetResidentProfileAsync();
+            _resident = result.Value;
+            if (!result.Success) _error = result.Error ?? "Não foi possível carregar seu perfil.";
+        }
         _photoDataUrl = null;
-        if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar seu perfil.";
         _loading = false;
         if (_resident is not null) _ = LoadPhotoAsync(_resident.PhotoUrl);
+    }
+
+    private async Task ToggleAppLockAsync(bool enabled)
+    {
+        if (!enabled)
+        {
+            var authenticated = await Biometrics.AuthenticateAsync("Confirme para desativar a proteção do aplicativo");
+            if (!authenticated) return;
+            AppLock.SetEnabled(false);
+            Snackbar.Add("Bloqueio local desativado.", Severity.Info);
+            return;
+        }
+        var success = await Biometrics.AuthenticateAsync("Confirme para proteger o Condotify neste aparelho");
+        if (!success) { Snackbar.Add("Não foi possível confirmar o bloqueio do aparelho.", Severity.Warning); return; }
+        AppLock.SetEnabled(true);
+        Snackbar.Add("Condotify protegido com o bloqueio do aparelho.", Severity.Success);
+    }
+
+    private async Task LogoutAllAsync()
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync("Desconectar dispositivos", "Todas as sessões, inclusive esta, serão encerradas. Deseja continuar?", yesText: "Desconectar todos", cancelText: "Cancelar");
+        if (confirmed != true) return;
+        var result = await Api.LogoutAllAuthSessionsAsync();
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível encerrar as sessões.", Severity.Error); return; }
+        try { await Push.UnregisterAsync(); } catch { }
+        await Session.LogoutAsync();
+        AppState.Clear();
+        Navigation.NavigateTo("/login", replace: true);
     }
 
     private async Task LoadPhotoAsync(string? reference)
@@ -67,6 +163,8 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private static string Value(string value) => string.IsNullOrWhiteSpace(value) ? "Nao informado" : value;
+    private static string Value(string value) => string.IsNullOrWhiteSpace(value) ? "Não informado" : value;
     private static string AccessTypeLabel(string accessType) => accessType switch { "Responsible" => "Responsável", "NonResponsible" => "Morador", "Guest" => "Convidado", "ServiceProvider" => "Prestador", "Default" => "Morador", _ => accessType };
+    private static string DeviceLabel(string value) => string.IsNullOrWhiteSpace(value) ? "Dispositivo não identificado" : value;
+    private static string DeviceIcon(string value) => value.Contains("Android", StringComparison.OrdinalIgnoreCase) || value.Contains("phone", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Smartphone : Icons.Material.Outlined.Computer;
 }

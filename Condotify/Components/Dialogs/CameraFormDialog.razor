@@ -13,18 +13,18 @@
         <EditForm Model="_form" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
             <div class="form-grid">
-                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome" Placeholder="Ex.: Camera entrada social" Required Variant="Variant.Outlined" For="@(() => _form.Name)" Class="full" />
-                <MudSelect T="int" @bind-Value="_form.DeviceType" Label="Tipo" Variant="Variant.Outlined"><MudSelectItem Value="1">Camera IP</MudSelectItem><MudSelectItem Value="2">DVR</MudSelectItem><MudSelectItem Value="3">NVR</MudSelectItem></MudSelect>
+                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome" Placeholder="Ex.: Câmera da entrada social" Required Variant="Variant.Outlined" For="@(() => _form.Name)" Class="full" />
+                <MudSelect T="int" @bind-Value="_form.DeviceType" Label="Tipo" Variant="Variant.Outlined"><MudSelectItem Value="1">Câmera IP</MudSelectItem><MudSelectItem Value="2">DVR</MudSelectItem><MudSelectItem Value="3">NVR</MudSelectItem></MudSelect>
                 <MudSelect T="int" @bind-Value="_form.Mark" Label="Marca" Variant="Variant.Outlined"><MudSelectItem Value="11">Intelbras</MudSelectItem><MudSelectItem Value="8">Hikvision</MudSelectItem><MudSelectItem Value="4">Dahua</MudSelectItem><MudSelectItem Value="0">Outra</MudSelectItem></MudSelect>
-                <MudTextField T="string" @bind-Value="_form.IpAddress" Label="Endereco IP" Placeholder="192.168.0.20" Required Variant="Variant.Outlined" For="@(() => _form.IpAddress)" />
+                <MudTextField T="string" @bind-Value="_form.IpAddress" Label="Endereço IP" Placeholder="192.168.0.20" Required Variant="Variant.Outlined" For="@(() => _form.IpAddress)" />
                 <MudNumericField T="int" @bind-Value="_form.MaxChannels" Label="Quantidade de canais" Min="1" Max="128" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.HTTPPort" Label="Porta HTTP" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.RTSPPort" Label="Porta RTSP" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.UserName" Label="Usuario" Required Variant="Variant.Outlined" For="@(() => _form.UserName)" />
+                <MudTextField T="string" @bind-Value="_form.UserName" Label="Usuário" Required Variant="Variant.Outlined" For="@(() => _form.UserName)" />
                 <MudTextField T="string" @bind-Value="_form.Password" Label="Senha" Required InputType="InputType.Password" Variant="Variant.Outlined" For="@(() => _form.Password)" />
                 <div class="full">
                     <MudSwitch T="bool" @bind-Value="_form.ResidentVisible" Color="Color.Primary" Label="Disponibilizar no aplicativo dos moradores" />
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Moradores poderao visualizar esta camera sem receber IP ou credenciais do equipamento.</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Moradores poderão visualizar esta câmera sem receber IP ou credenciais do equipamento.</MudText>
                 </div>
             </div>
             <div class="form-actions dialog-form-actions">

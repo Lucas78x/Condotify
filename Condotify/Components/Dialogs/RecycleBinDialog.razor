@@ -8,7 +8,7 @@
             <MudIcon Icon="@Icons.Material.Outlined.RestoreFromTrash" />
             <div>
                 <strong>Lixeira da propriedade</strong>
-                <span>Itens excluidos permanecem protegidos por 30 dias antes da remocao automatica.</span>
+                <span>Itens excluídos ficam disponíveis por 30 dias antes da remoção automática.</span>
             </div>
         </div>
 
@@ -18,7 +18,7 @@
         }
 
         <div class="unit-toolbar recycle-toolbar">
-            <MudTextField T="string" @bind-Value="_search" Immediate Placeholder="Buscar item excluido" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField T="string" @bind-Value="_search" Immediate Placeholder="Buscar item excluído" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Variant="Variant.Outlined" Margin="Margin.Dense" />
             <MudSelect T="string" @bind-Value="_type" Label="Tipo" Variant="Variant.Outlined" Margin="Margin.Dense">
                 <MudSelectItem Value="@("all")">Todos</MudSelectItem>
                 @foreach (var type in _items.Select(x => x.EntityType).Distinct().OrderBy(EntityLabel))
@@ -38,7 +38,7 @@
             <div class="profile-empty recycle-empty">
                 <MudIcon Icon="@Icons.Material.Outlined.DeleteSweep" />
                 <strong>Lixeira vazia</strong>
-                <span>Nenhum item excluido corresponde aos filtros atuais.</span>
+                <span>Nenhum item excluído corresponde aos filtros atuais.</span>
             </div>
         }
         else
@@ -50,7 +50,7 @@
                         <span class="recycle-icon"><MudIcon Icon="@EntityIcon(item.EntityType)" /></span>
                         <div class="recycle-main">
                             <div><strong>@item.DisplayName</strong><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@EntityLabel(item.EntityType)</MudChip></div>
-                            <span>Excluido por @DisplayActor(item.DeletedBy) em @item.DeletedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                            <span>Excluído por @DisplayActor(item.DeletedBy) em @item.DeletedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
                         </div>
                         <div class="recycle-expiry @(item.DaysRemaining <= 7 ? "urgent" : null)">
                             <strong>@item.DaysRemaining</strong>
@@ -104,7 +104,7 @@
     {
         var confirmed = await DialogService.ShowMessageBoxAsync(
             "Restaurar item",
-            $"Restaurar {item.DisplayName}? A operacao sera bloqueada se o local original nao existir ou houver um cadastro conflitante.",
+            $"Restaurar {item.DisplayName}? A operação será bloqueada se o local original não existir ou houver um cadastro conflitante.",
             yesText: "Restaurar",
             cancelText: "Cancelar");
         if (confirmed != true) return;
@@ -116,7 +116,7 @@
         if (!result.Success)
         {
             _error = result.Error;
-            Snackbar.Add(result.Error ?? "Nao foi possivel restaurar o item.", Severity.Error);
+            Snackbar.Add(result.Error ?? "Não foi possível restaurar o item.", Severity.Error);
             return;
         }
         _items.Remove(item);
@@ -127,7 +127,7 @@
     {
         var confirmed = await DialogService.ShowMessageBoxAsync(
             "Excluir definitivamente",
-            $"Excluir {item.DisplayName} definitivamente? Esta acao remove o snapshot e nao podera ser desfeita.",
+            $"Excluir {item.DisplayName} definitivamente? Esta ação remove o snapshot e não poderá ser desfeita.",
             yesText: "Excluir definitivamente",
             cancelText: "Cancelar");
         if (confirmed != true) return;
@@ -139,20 +139,20 @@
         if (!result.Success)
         {
             _error = result.Error;
-            Snackbar.Add(result.Error ?? "Nao foi possivel excluir o item.", Severity.Error);
+            Snackbar.Add(result.Error ?? "Não foi possível excluir o item.", Severity.Error);
             return;
         }
         _items.Remove(item);
-        Snackbar.Add("Item excluido definitivamente.", Severity.Success);
+        Snackbar.Add("Item excluído definitivamente.", Severity.Success);
     }
 
-    private static string DisplayActor(string value) => string.IsNullOrWhiteSpace(value) ? "usuario nao identificado" : value;
+    private static string DisplayActor(string value) => string.IsNullOrWhiteSpace(value) ? "usuário não identificado" : value;
     private static string EntityLabel(string type) => type switch
     {
         "Block" => "Agrupamento",
         "Unit" => "Unidade",
         "Resident" => "Pessoa",
-        "Vehicle" => "Veiculo",
+        "Vehicle" => "Veículo",
         "Device" => "Equipamento",
         _ => type
     };

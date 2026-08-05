@@ -95,7 +95,6 @@ else
             <div class="panel-toolbar">
                 <div>
                     <MudText Typo="Typo.h5" Class="panel-title">Atividade recente</MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Auditoria sem exposição de dados sensíveis</MudText>
                 </div>
             </div>
             @if (_dashboard.RecentActivities.Count == 0)
@@ -113,8 +112,8 @@ else
                         <a href="@($"/licencas/{activity.LicenseId}")" class="operations-activity-row">
                             <span class="activity-status @ActivityTone(activity.Status)"></span>
                             <span>
-                                <strong>@activity.Action</strong>
-                                <small>@activity.Summary</small>
+                                <strong>@ActivityLabel(activity.Action)</strong>
+                                <small>@ActivitySummary(activity)</small>
                                 <em>@activity.LicenseName · @(string.IsNullOrWhiteSpace(activity.UserName) ? "Sistema" : activity.UserName)</em>
                             </span>
                             <time>@activity.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</time>
@@ -175,6 +174,57 @@ else
         "pending" or "queued" or "running" => "warning",
         _ => "neutral"
     };
+
+    private static string ActivityLabel(string action) => action switch
+    {
+        "Create" or "Created" => "Criado",
+        "Update" or "Updated" or "ProfileUpdated" => "Atualizado",
+        "Delete" or "Deleted" => "Excluído",
+        "Activated" => "Ativado",
+        "Deactivated" => "Desativado",
+        "Resolved" => "Resolvido",
+        "Closed" => "Encerrado",
+        "Commented" => "Comentário adicionado",
+        "Assigned" => "Responsável atualizado",
+        "Acknowledged" => "Reconhecido",
+        "Reopened" or "Open" => "Reaberto",
+        "Snoozed" => "Silenciado",
+        "Unsnoozed" => "Silêncio removido",
+        "Inspect" => "Verificação do equipamento",
+        "RouteSimulation" => "Simulação de rotas",
+        "Retry" => "Reprocessamento",
+        "Restore" or "Restored" => "Restaurado",
+        "RouteOverride" => "Exceção de rota",
+        "Trashed" => "Movido para a lixeira",
+        "Purged" => "Excluído definitivamente",
+        "Imported" => "Importado",
+        "Exported" => "Exportado",
+        "ExportFailed" => "Falha na exportação",
+        "ArchiveGenerated" => "Arquivo gerado",
+        "Completed" => "Concluído",
+        "NotificationPolicyUpdated" => "Notificações atualizadas",
+        "SmtpSettingsUpdated" => "E-mail atualizado",
+        "SmtpSettingsRemoved" => "E-mail removido",
+        "OpenDoor" => "Porta acionada",
+        "ProvisionCredential" => "Credencial enviada",
+        "ActivateCredential" => "Credencial ativada",
+        "DeactivateCredential" => "Credencial suspensa",
+        "RestoreCredential" => "Credencial restaurada",
+        "RemoveCredential" => "Credencial removida",
+        "FaceEnrollment" => "Cadastro facial",
+        "ReadAccessLogs" => "Consulta de acessos",
+        "RenewCredential" => "Credencial renovada",
+        _ => "Atividade registrada"
+    };
+
+    private static string ActivitySummary(OperationalActivityViewModel activity)
+    {
+        var summary = activity.Summary?.Trim() ?? string.Empty;
+        var rawSuffix = $": {activity.Action}";
+        return summary.EndsWith(rawSuffix, StringComparison.Ordinal)
+            ? $"{summary[..^rawSuffix.Length]}: {ActivityLabel(activity.Action).ToLowerInvariant()}"
+            : summary;
+    }
 
     private static string RelativeTime(DateTime value)
     {

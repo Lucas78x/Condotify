@@ -44,9 +44,15 @@ public sealed class UpdateConciergeVisitStatusIn
     public string Reason { get; set; } = string.Empty;
 }
 
+public sealed class ScanConciergeVisitIn
+{
+    public string Code { get; set; } = string.Empty;
+}
+
 public sealed class ConciergeVisitOut
 {
     public Guid Id { get; set; }
+    public Guid LicenseId { get; set; }
     public Guid HostResidentId { get; set; }
     public string HostName { get; set; } = string.Empty;
     public string BlockName { get; set; } = string.Empty;

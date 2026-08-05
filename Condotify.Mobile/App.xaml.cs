@@ -7,7 +7,7 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
-        UserAppTheme = AppTheme.Light;
+        UserAppTheme = Preferences.Default.Get("condotify.dark-mode", false) ? AppTheme.Dark : AppTheme.Light;
     }
 
     protected override Window CreateWindow(IActivationState? activationState) =>

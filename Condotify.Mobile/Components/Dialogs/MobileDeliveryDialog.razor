@@ -1,0 +1,57 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="mobile-dialog">
+    <TitleContent>
+        <div class="mobile-dialog-title"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" Color="Color.Primary" /><div><MudText Typo="Typo.h6">Registrar encomenda</MudText><MudText Typo="Typo.caption">Localize o morador e identifique o volume recebido.</MudText></div></div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">@_error</MudAlert> }
+        <div class="mobile-form-grid">
+            <MudAutocomplete T="GlobalResidentSearchViewModel" @bind-Value="_recipient" SearchFunc="SearchResidentsAsync"
+                             ToStringFunc="@(person => person is null ? string.Empty : $"{person.Name} · {person.BlockName}/{person.UnitNumber}")"
+                             Label="Morador e unidade" Placeholder="Digite ao menos 2 letras" Variant="Variant.Outlined" Clearable="true"
+                             Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
+            <MudTextField T="string" @bind-Value="_form.Name" Label="Destinatário ou identificação" Variant="Variant.Outlined" />
+            <MudSelect T="int" @bind-Value="_form.Type" Label="Transportadora/origem" Variant="Variant.Outlined">
+                <MudSelectItem T="int" Value="1">Correios</MudSelectItem><MudSelectItem T="int" Value="2">SEDEX</MudSelectItem>
+                <MudSelectItem T="int" Value="30">Mercado Livre</MudSelectItem><MudSelectItem T="int" Value="31">Amazon</MudSelectItem>
+                <MudSelectItem T="int" Value="32">Shopee</MudSelectItem><MudSelectItem T="int" Value="999">Outros</MudSelectItem>
+            </MudSelect>
+            <MudTextField T="string" @bind-Value="_form.TrackingCode" Label="Código de rastreio" Variant="Variant.Outlined" />
+            <MudTextField T="string" @bind-Value="_form.ReceivedBy" Label="Recebido por" Variant="Variant.Outlined" />
+            <MudTextField T="string" @bind-Value="_form.Description" Label="Observações" Variant="Variant.Outlined" Lines="3" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Inventory" Disabled="_saving" OnClick="SaveAsync">@(_saving ? "Registrando..." : "Registrar recebimento")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    private readonly DeliveryFormViewModel _form = new();
+    private GlobalResidentSearchViewModel? _recipient;
+    private bool _saving;
+    private string _error = string.Empty;
+    private async Task<IEnumerable<GlobalResidentSearchViewModel>> SearchResidentsAsync(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Trim().Length < 2) return [];
+        var result = await Api.SearchResidentsAsync(value.Trim(), null, null, null, null, LicenseId.ToString(), token);
+        return result.Success ? (result.Value ?? []).Where(person => !person.Temporary).Take(15) : [];
+    }
+    private async Task SaveAsync()
+    {
+        if (_recipient is null) { _error = "Selecione o morador e a unidade de destino."; return; }
+        _form.RecipientResidentId = _recipient.Id; _form.UnitId = _recipient.UnitId;
+        if (string.IsNullOrWhiteSpace(_form.Name)) _form.Name = _recipient.Name;
+        if (string.IsNullOrWhiteSpace(_form.ReceivedBy)) _form.ReceivedBy = "Portaria";
+        _saving = true;
+        var result = await Api.CreateDeliveryAsync(LicenseId, _form);
+        _saving = false;
+        if (!result.Success) { _error = result.Error ?? "Não foi possível registrar a encomenda."; return; }
+        Dialog.Close(DialogResult.Ok(true));
+    }
+    private void Cancel() => Dialog.Cancel();
+}

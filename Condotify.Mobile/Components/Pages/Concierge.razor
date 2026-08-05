@@ -3,29 +3,51 @@
 @implements IDisposable
 @inject MobileAppState AppState
 @inject CondotifyApiClient Api
+@inject IDialogService Dialogs
+@inject MobileDeviceActions DeviceActions
 @inject ISnackbar Snackbar
 
 <PageTitle>Portaria | Condotify</PageTitle>
-<PageHeader Title="Portaria" Subtitle="Visitantes, acessos e situação dos equipamentos.">
-    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+<PageHeader Eyebrow="CENTRAL EM TEMPO REAL" Title="Portaria" Subtitle="Visitantes, acessos e situação dos equipamentos.">
+    <Actions>
+        <MudIconButton Icon="@Icons.Material.Outlined.QrCodeScanner" Color="Color.Primary" OnClick="OpenScannerAsync" aria-label="Ler QR Code" />
+        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="() => LoadAsync(true)" aria-label="Atualizar" />
+    </Actions>
 </PageHeader>
 
-<PageState Loading="_loading" Error="@_error" Empty="@(_dashboard?.Visits.Count == 0)" EmptyTitle="Nenhuma visita prevista" EmptyText="Novas autorizacoes aparecerao aqui." Retry="LoadAsync">
+<PageState Loading="_loading" Error="@_error" Empty="@(_dashboard?.Visits.Count == 0)" EmptyTitle="Nenhuma visita prevista" EmptyText="Novas autorizações aparecerão aqui." Retry="() => LoadAsync(true)">
+    <section class="screen-overview concierge-overview">
+        <span class="live-indicator"><span></span>Central ativa · atualização automática</span>
+        <div class="screen-overview-main">
+            <span>Fluxo de acesso</span>
+            <strong>@(_dashboard?.PendingApprovals ?? 0) aprovação(ões) aguardando decisão</strong>
+            <small>@(_dashboard?.InsideNow ?? 0) visitante(s) dentro do condomínio agora</small>
+        </div>
+        <MudIcon Icon="@Icons.Material.Outlined.Security" />
+    </section>
+
+    <button type="button" class="concierge-scan-card" @onclick="OpenScannerAsync">
+        <span class="concierge-scan-icon"><MudIcon Icon="@Icons.Material.Outlined.QrCodeScanner" /></span>
+        <span><strong>Ler QR Code do convite</strong><small>Valida a autorização e registra a entrada em segundos</small></span>
+        <MudIcon Icon="@Icons.Material.Outlined.ArrowForwardIos" Size="Size.Small" />
+    </button>
+
     <div class="metric-grid">
         <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" /></span><span class="metric-value">@(_dashboard?.ExpectedToday ?? 0)</span><span class="metric-label">Previstos hoje</span></div>
         <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.MeetingRoom" /></span><span class="metric-value">@(_dashboard?.InsideNow ?? 0)</span><span class="metric-label">Dentro agora</span></div>
         <div class="metric warning"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.PendingActions" /></span><span class="metric-value">@(_dashboard?.PendingApprovals ?? 0)</span><span class="metric-label">Aguardando</span></div>
         <div class="metric info"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Router" /></span><span class="metric-value">@(_dashboard?.OfflineDevices ?? 0)</span><span class="metric-label">Equipamentos offline</span></div>
     </div>
-    <section class="content-panel">
+
+    <section class="content-panel card-list-panel">
         <div class="panel-heading"><div><MudText Typo="Typo.h5">Movimentação prevista</MudText><span class="panel-subtitle">@(_dashboard?.Visits.Count ?? 0) registro(s)</span></div></div>
         @foreach (var visit in _dashboard?.Visits ?? [])
         {
-            <div class="list-row">
+            <div class="list-row concierge-visit-row">
                 <MudAvatar Color="@VisitColor(visit.Status)" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.Person" /></MudAvatar>
                 <div class="list-main">
                     <div class="list-title">@visit.VisitorName</div>
-                    <div class="list-meta">@visit.BlockName / @visit.UnitNumber - @visit.ValidFrom.ToLocalTime().ToString("dd/MM HH:mm")</div>
+                    <div class="list-meta">@visit.BlockName / @visit.UnitNumber · @visit.ValidFrom.ToLocalTime().ToString("dd/MM HH:mm")</div>
                     <div class="visit-details">
                         <span class="row-status @StatusClass(visit.Status)">@StatusLabel(visit.Status)</span>
                         @if (!string.IsNullOrWhiteSpace(visit.VehiclePlate))
@@ -41,6 +63,24 @@
                         <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Outlined.Check" OnClick="() => DecideAsync(visit, true)">Aprovar</MudButton>
                     </div>
                 }
+                else if (visit.Status.Equals("Scheduled", StringComparison.OrdinalIgnoreCase) || visit.Status.Equals("Expected", StringComparison.OrdinalIgnoreCase))
+                {
+                    <div class="row-actions">
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Login"
+                                   Disabled="@(_changingVisit == visit.Id)" OnClick="() => ChangeVisitStatusAsync(visit, 1)">
+                            @(_changingVisit == visit.Id ? "Registrando..." : "Registrar entrada")
+                        </MudButton>
+                    </div>
+                }
+                else if (visit.Status.Equals("CheckedIn", StringComparison.OrdinalIgnoreCase))
+                {
+                    <div class="row-actions">
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Outlined.Logout"
+                                   Disabled="@(_changingVisit == visit.Id)" OnClick="() => ChangeVisitStatusAsync(visit, 2)">
+                            @(_changingVisit == visit.Id ? "Registrando..." : "Registrar saída")
+                        </MudButton>
+                    </div>
+                }
             </div>
         }
     </section>
@@ -52,29 +92,113 @@
     private bool _loading;
     private string _error = string.Empty;
     private CancellationTokenSource? _loadCts;
-    protected override Task OnInitializedAsync() => LoadAsync();
+    private readonly CancellationTokenSource _lifetimeCts = new();
+    private readonly SemaphoreSlim _loadGate = new(1, 1);
+    private Guid? _changingVisit;
+    private bool _hasLoaded;
+    private int _previousPending;
 
-    private async Task LoadAsync()
+    protected override async Task OnInitializedAsync()
     {
+        await LoadAsync(true);
+        _ = PollAsync(_lifetimeCts.Token);
+    }
+
+    private async Task LoadAsync(bool showLoading = true)
+    {
+        if (!await _loadGate.WaitAsync(0)) return;
         _loadCts?.Cancel();
         _loadCts?.Dispose();
         _loadCts = new CancellationTokenSource();
         var cancellationToken = _loadCts.Token;
 
-        if (!AppState.SelectedLicenseId.HasValue) { _error = "Selecione um condomínio."; return; }
-        _loading = true; _error = string.Empty;
-        var result = await Api.GetConciergeDashboardAsync(AppState.SelectedLicenseId.Value, cancellationToken);
-        if (cancellationToken.IsCancellationRequested) return;
-        _dashboard = result.Value;
-        if (!result.Success) _error = result.Error ?? "Não foi possível carregar a portaria.";
-        _loading = false;
+        try
+        {
+            if (!AppState.SelectedLicenseId.HasValue) { _error = "Selecione um condomínio."; return; }
+            if (showLoading && !_hasLoaded) _loading = true;
+            _error = string.Empty;
+            var result = await Api.GetConciergeDashboardAsync(AppState.SelectedLicenseId.Value, cancellationToken);
+            if (cancellationToken.IsCancellationRequested) return;
+            if (result.Success && result.Value is not null)
+            {
+                if (_hasLoaded && result.Value.PendingApprovals > _previousPending) DeviceActions.Confirm();
+                _dashboard = result.Value;
+                _previousPending = result.Value.PendingApprovals;
+                _hasLoaded = true;
+            }
+            else if (!_hasLoaded) _error = result.Error ?? "Não foi possível carregar a portaria.";
+        }
+        finally
+        {
+            _loading = false;
+            _loadGate.Release();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken)) await LoadAsync(false);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task OpenScannerAsync()
+    {
+        if (!AppState.SelectedLicenseId.HasValue) return;
+        DeviceActions.Tap();
+        var parameters = new DialogParameters { [nameof(QrScannerDialog.LicenseId)] = AppState.SelectedLicenseId.Value };
+        var dialog = await Dialogs.ShowAsync<QrScannerDialog>(string.Empty, parameters,
+            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not ConciergeVisitViewModel visit) return;
+
+        Snackbar.Add($"Entrada de {visit.VisitorName} registrada.", Severity.Success);
+        await LoadAsync(false);
+        await OfferDoorAsync(visit.VisitorName);
+    }
+
+    private async Task ChangeVisitStatusAsync(ConciergeVisitViewModel visit, int status)
+    {
+        if (!AppState.SelectedLicenseId.HasValue || _changingVisit.HasValue) return;
+        _changingVisit = visit.Id;
+        try
+        {
+            var result = await Api.UpdateConciergeVisitStatusAsync(AppState.SelectedLicenseId.Value, visit.Id, status, string.Empty);
+            var successMessage = status == 1 ? $"Entrada de {visit.VisitorName} registrada." : $"Saída de {visit.VisitorName} registrada.";
+            Snackbar.Add(result.Success ? successMessage : result.Error ?? "Não foi possível atualizar a visita.", result.Success ? Severity.Success : Severity.Error);
+            if (!result.Success) return;
+            DeviceActions.Confirm();
+            await LoadAsync(false);
+            if (status == 1) await OfferDoorAsync(visit.VisitorName);
+        }
+        finally { _changingVisit = null; }
+    }
+
+    private async Task OfferDoorAsync(string visitorName)
+    {
+        var device = _dashboard?.Devices.FirstOrDefault(item => item.Online);
+        if (device is null)
+        {
+            Snackbar.Add("Entrada validada, mas não há equipamento online para acionamento remoto.", Severity.Info);
+            return;
+        }
+
+        var confirmed = await Dialogs.ShowMessageBoxAsync("Entrada autorizada",
+            $"Deseja abrir o acesso de {device.Name} para {visitorName}?", yesText: "Abrir acesso", cancelText: "Agora não");
+        if (confirmed != true || !AppState.SelectedLicenseId.HasValue) return;
+        var result = await Api.OpenDoorAsync(AppState.SelectedLicenseId.Value, device.Id, 1, $"Entrada autorizada para {visitorName} pelo aplicativo mobile");
+        Snackbar.Add(result.Success ? "Acesso acionado com sucesso." : result.Error ?? "O equipamento não confirmou o acionamento.", result.Success ? Severity.Success : Severity.Error);
     }
 
     private async Task DecideAsync(ConciergeVisitViewModel visit, bool approved)
     {
         var result = await Api.DecideConciergeVisitAsync(AppState.SelectedLicenseId!.Value, visit.Id, approved, string.Empty);
         Snackbar.Add(result.Success ? (approved ? "Visita aprovada." : "Visita recusada.") : result.Error ?? "Falha na operação.", result.Success ? Severity.Success : Severity.Error);
-        if (result.Success) await LoadAsync();
+        if (result.Success) { DeviceActions.Confirm(); await LoadAsync(false); }
     }
 
     private static Color VisitColor(string status) => status switch { "CheckedIn" => Color.Success, "PendingApproval" => Color.Warning, "Denied" or "Canceled" => Color.Error, _ => Color.Primary };
@@ -82,16 +206,20 @@
     private static string StatusLabel(string status) => status switch
     {
         "CheckedIn" => "No condomínio",
+        "CheckedOut" => "Saída registrada",
         "PendingApproval" => "Aguardando aprovação",
         "Denied" => "Recusada",
         "Canceled" => "Cancelada",
-        "Expected" => "Prevista",
+        "Scheduled" or "Expected" => "Prevista",
         _ => status
     };
 
     public void Dispose()
     {
+        _lifetimeCts.Cancel();
+        _lifetimeCts.Dispose();
         _loadCts?.Cancel();
         _loadCts?.Dispose();
+        _loadGate.Dispose();
     }
 }

@@ -19,15 +19,15 @@
                 }
 
                 <div class="route-form-section">
-                    <div class="section-heading"><div><strong>Identificacao</strong><span>Defina como esta rota sera reconhecida pela operacao.</span></div></div>
+                    <div class="section-heading"><div><strong>Identificação</strong><span>Defina como esta rota será reconhecida pela operação.</span></div></div>
                     <div class="form-grid">
                         <MudTextField T="string" @bind-Value="_form.Name" Label="Nome da rota" Required For="@(() => _form.Name)" Variant="Variant.Outlined" />
-                        <MudTextField T="string" @bind-Value="_form.Description" Label="Descricao" Variant="Variant.Outlined" Class="full" />
+                        <MudTextField T="string" @bind-Value="_form.Description" Label="Descrição" Variant="Variant.Outlined" Class="full" />
                     </div>
                 </div>
 
                 <div class="route-form-section">
-                    <div class="section-heading"><div><strong>Publico permitido</strong><span>Uma pessoa pode receber varias rotas, mas cada rota deve ter um publico claro.</span></div></div>
+                    <div class="section-heading"><div><strong>Público permitido</strong><span>Uma pessoa pode receber várias rotas, mas cada rota deve ter um público claro.</span></div></div>
                     <div class="audience-grid">
                         @foreach (var option in AudienceOptions)
                         {
@@ -38,7 +38,7 @@
                         }
                     </div>
                     <div class="route-toggle-line">
-                        <MudSwitch T="bool" @bind-Value="_form.AllowTemporary" Color="Color.Primary" Label="Permitir pessoas e faces temporarias" />
+                        <MudSwitch T="bool" @bind-Value="_form.AllowTemporary" Color="Color.Primary" Label="Permitir pessoas e faces temporárias" />
                         <MudSwitch T="bool" @bind-Value="_form.IsActive" Color="Color.Success" Label="Rota ativa" />
                     </div>
                 </div>
@@ -52,13 +52,13 @@
                         }
                     </div>
                     <div class="route-time-grid">
-                        <MudTimePicker @bind-Time="_form.StartTime" Label="Inicio" Variant="Variant.Outlined" AmPm="false" />
+                        <MudTimePicker @bind-Time="_form.StartTime" Label="Início" Variant="Variant.Outlined" AmPm="false" />
                         <MudTimePicker @bind-Time="_form.EndTime" Label="Fim" Variant="Variant.Outlined" AmPm="false" />
                     </div>
                 </div>
 
                 <div class="route-form-section">
-                    <div class="section-heading"><div><strong>Equipamentos e portas</strong><span>A credencial sera enviada para todos os destinos selecionados.</span></div><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_form.Devices.Count(x => x.Selected) selecionado(s)</MudChip></div>
+                    <div class="section-heading"><div><strong>Equipamentos e portas</strong><span>A credencial será enviada para todos os destinos selecionados.</span></div><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_form.Devices.Count(x => x.Selected) selecionado(s)</MudChip></div>
                     @if (_form.Devices.Count == 0)
                     {
                         <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Cadastre equipamentos de controle de acesso antes de criar a rota.</MudAlert>
@@ -88,7 +88,7 @@
                                     }
                                     <MudSelect T="int" @bind-Value="target.Direction" Label="Sentido" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(!target.Selected)">
                                         <MudSelectItem Value="0">Entrada</MudSelectItem>
-                                        <MudSelectItem Value="1">Saida</MudSelectItem>
+                                        <MudSelectItem Value="1">Saída</MudSelectItem>
                                         <MudSelectItem Value="2">Bidirecional</MudSelectItem>
                                     </MudSelect>
                                 </div>
@@ -117,13 +117,13 @@
 
     private static readonly (AccessRouteAudience Value, string Label, string Description)[] AudienceOptions =
     [
-        (AccessRouteAudience.OwnerResponsible, "Proprietario responsavel", "Titular proprietario da unidade"),
-        (AccessRouteAudience.TenantResponsible, "Locatario responsavel", "Titular locatario da unidade"),
-        (AccessRouteAudience.Responsible, "Responsavel", "Responsavel sem vinculo de posse"),
+        (AccessRouteAudience.OwnerResponsible, "Proprietário responsável", "Titular proprietário da unidade"),
+        (AccessRouteAudience.TenantResponsible, "Locatário responsável", "Titular locatário da unidade"),
+        (AccessRouteAudience.Responsible, "Responsável", "Responsável sem vínculo de posse"),
         (AccessRouteAudience.Resident, "Morador", "Moradores sem responsabilidade principal"),
         (AccessRouteAudience.Dependent, "Dependente", "Dependentes vinculados a unidade"),
         (AccessRouteAudience.Visitor, "Visitante", "Acessos temporarios de visitantes"),
-        (AccessRouteAudience.ServiceProvider, "Prestador", "Prestadores e equipes de servico")
+        (AccessRouteAudience.ServiceProvider, "Prestador", "Prestadores e equipes de serviço")
     ];
 
     private static readonly (int Bit, string Label)[] Days =
@@ -137,7 +137,7 @@
         _loading = false;
         if (!devicesResult.Success || devicesResult.Value is null)
         {
-            _error = devicesResult.Error ?? "Nao foi possivel carregar os equipamentos.";
+            _error = devicesResult.Error ?? "Não foi possível carregar os equipamentos.";
             return;
         }
 
@@ -182,7 +182,7 @@
         _saving = false;
         if (!result.Success)
         {
-            _error = result.Error ?? "Nao foi possivel salvar a rota.";
+            _error = result.Error ?? "Não foi possível salvar a rota.";
             Snackbar.Add(_error, Severity.Error);
             return;
         }
@@ -193,9 +193,9 @@
     private string? Validate()
     {
         if (string.IsNullOrWhiteSpace(_form.Name)) return "Informe o nome da rota.";
-        if (_form.Audience == 0) return "Selecione ao menos um publico permitido.";
+        if (_form.Audience == 0) return "Selecione ao menos um público permitido.";
         if (_form.DaysOfWeekMask == 0) return "Selecione ao menos um dia da semana.";
-        if (_form.StartTime is null || _form.EndTime is null || _form.StartTime >= _form.EndTime) return "Revise o horario inicial e final.";
+        if (_form.StartTime is null || _form.EndTime is null || _form.StartTime >= _form.EndTime) return "Revise o horário inicial e final.";
         if (_form.Devices.All(x => !x.Selected)) return "Selecione ao menos um equipamento.";
         return null;
     }
@@ -496,7 +496,7 @@
                     return text.ToLowerInvariant() switch
                     {
                         "sim" => true,
-                        "n�o" => false,
+                        "não" => false,
                         "nao" => false,
                         "yes" => true,
                         "no" => false,
@@ -557,11 +557,11 @@
             "entrada" => "Entrada",
             "1" => "Entrada",
 
-            "out" => "Sa�da",
-            "exit" => "Sa�da",
-            "saida" => "Sa�da",
-            "sa�da" => "Sa�da",
-            "2" => "Sa�da",
+            "out" => "Saída",
+            "exit" => "Saída",
+            "saida" => "Saída",
+            "saída" => "Saída",
+            "2" => "Saída",
 
             "both" => "Bidirecional",
             "bidirectional" => "Bidirecional",

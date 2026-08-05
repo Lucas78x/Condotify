@@ -20,6 +20,7 @@
          in JwtPrincipalTypeTests - the encoded JWT was correct, but reading it back lost entries). Pinning to the
          same 8.x line keeps the whole IdentityModel family internally consistent. -->
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.14.0" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="8.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.9">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

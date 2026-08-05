@@ -7,12 +7,12 @@
 
 <PageTitle>@Title | Condotify</PageTitle>
 
-<PageHeader Title="@Title" Subtitle="@Subtitle" Eyebrow="ACESSO RAPIDO" />
+<PageHeader Title="@Title" Subtitle="@Subtitle" Eyebrow="ACESSO RÁPIDO" />
 
 <MudPaper Class="content-panel" Elevation="0">
     <div class="panel-toolbar launcher-toolbar">
-        <div><MudText Typo="Typo.h6" Class="panel-title">Selecione um condominio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">A selecao mantem cada operacao no ambiente correto.</MudText></div>
-        <MudTextField T="string" @bind-Value="_search" Immediate Placeholder="Filtrar por nome, codigo ou cidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
+        <div><MudText Typo="Typo.h6" Class="panel-title">Selecione um condomínio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">A seleção mantém cada operação no ambiente correto.</MudText></div>
+        <MudTextField T="string" @bind-Value="_search" Immediate Placeholder="Filtrar por nome, código ou cidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
     </div>
     @if (_loading)
     {
@@ -24,7 +24,7 @@
     }
     else if (!Filtered.Any())
     {
-        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.DomainDisabled" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum condominio encontrado</MudText></div>
+        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.DomainDisabled" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum condomínio encontrado</MudText></div>
     }
     else
     {
@@ -51,7 +51,7 @@
     private bool _loading = true;
     private string Mode => new Uri(Navigation.Uri).AbsolutePath.Trim('/').ToLowerInvariant();
     private string Title => Mode switch { "portaria" => "Portaria", "credenciais" => "Credenciais", "equipamentos" => "Equipamentos", _ => "Cadastros" };
-    private string Subtitle => Mode switch { "portaria" => "Acesse encomendas e rotinas de atendimento de cada condominio.", "credenciais" => "Gerencie identificadores e sincronizacao com os equipamentos.", "equipamentos" => "Configure terminais, conexoes e acionamentos de cada condominio.", _ => "Administre blocos, unidades e moradores." };
+    private string Subtitle => Mode switch { "portaria" => "Acesse encomendas e rotinas de atendimento de cada condomínio.", "credenciais" => "Gerencie identificadores e sincronização com os equipamentos.", "equipamentos" => "Configure terminais, conexões e acionamentos de cada condomínio.", _ => "Administre blocos, unidades e moradores." };
     private string Section => Mode switch { "portaria" => "encomendas", "credenciais" => "credenciais", "equipamentos" => "equipamentos", _ => "moradores" };
     private IEnumerable<LicenseViewModel> Filtered => string.IsNullOrWhiteSpace(_search) ? _licenses : _licenses.Where(x => $"{x.Nome} {x.Codigo} {x.Cidade} {x.Estado}".Contains(_search, StringComparison.OrdinalIgnoreCase));
 
@@ -61,6 +61,6 @@
         if (result.Success) _licenses = result.Value ?? []; else _error = result.Error;
     }
     private string Target(LicenseViewModel license) => $"/licencas/{license.Id}/{Section}";
-    private static string Location(LicenseViewModel license) => string.IsNullOrWhiteSpace(license.Cidade) ? "Localizacao nao informada" : $"{license.Cidade}{(string.IsNullOrWhiteSpace(license.Estado) ? string.Empty : $" - {license.Estado}")}";
+    private static string Location(LicenseViewModel license) => string.IsNullOrWhiteSpace(license.Cidade) ? "Localização não informada" : $"{license.Cidade}{(string.IsNullOrWhiteSpace(license.Estado) ? string.Empty : $" - {license.Estado}")}";
     private static string Monogram(string name) => string.IsNullOrWhiteSpace(name) ? "C" : name.Trim()[0].ToString().ToUpperInvariant();
 }

@@ -6,7 +6,7 @@
 @inject NavigationManager Navigation
 
 <PageTitle>@(_unit is null ? "Unidade" : $"Unidade {_unit.Number}") | Condotify</PageTitle>
-<PageHeader Title="@(_unit is null ? "Unidade" : $"Unidade {_unit.Number}")" Subtitle="@UnitSubtitle">
+<PageHeader Eyebrow="ESTRUTURA DO CONDOMÍNIO" Title="@(_unit is null ? "Unidade" : $"Unidade {_unit.Number}")" Subtitle="@UnitSubtitle">
     <Actions>
         <div class="page-actions">
             <MudIconButton Icon="@Icons.Material.Outlined.ArrowBack" OnClick="Back" aria-label="Voltar" />
@@ -18,6 +18,11 @@
 <PageState Loading="_loading" Error="@_error" Retry="LoadAsync">
     @if (_unit is not null)
     {
+        <section class="screen-overview unit-overview">
+            <span class="screen-overview-icon primary"><MudIcon Icon="@Icons.Material.Outlined.HomeWork" /></span>
+            <div class="screen-overview-main"><span>Resumo da unidade</span><strong>@_unit.BlockName · Unidade @_unit.Number</strong><small>@_unit.People.Count pessoa(s) e @_unit.Vehicles.Count veículo(s) vinculados</small></div>
+            <span class="row-status success">Cadastro ativo</span>
+        </section>
         <div class="metric-grid">
             <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><span class="metric-value">@_unit.People.Count</span><span class="metric-label">Pessoas</span></div>
             <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Badge" /></span><span class="metric-value">@_unit.People.Sum(x => x.CredentialCount)</span><span class="metric-label">Credenciais</span></div>

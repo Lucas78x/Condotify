@@ -8,35 +8,50 @@
 @inject ISnackbar Snackbar
 
 <PageTitle>Câmeras | Condotify</PageTitle>
-<PageHeader Title="Câmeras" Subtitle="Visualização ao vivo sem expor credenciais dos equipamentos.">
+<PageHeader Eyebrow="MONITORAMENTO AO VIVO" Title="Câmeras" Subtitle="Visualização protegida sem expor credenciais dos equipamentos.">
     <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
 </PageHeader>
 
 @if (_session is not null)
 {
-    <section class="content-panel mb-4">
+    <section class="content-panel camera-stream-panel mb-4">
         <div class="panel-heading"><div><MudText Typo="Typo.h5">@_activeCamera?.Name</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Sessão protegida até @_session.ExpiresAt.ToLocalTime().ToString("HH:mm")</MudText></div><MudIconButton Icon="@Icons.Material.Outlined.Close" OnClick="CloseStreamAsync" aria-label="Fechar vídeo" /></div>
         <div class="video-stage"><video id="condotify-live-video" autoplay muted playsinline controls></video></div>
     </section>
 }
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_cameras.Count == 0)" EmptyTitle="Nenhuma câmera" EmptyText="As câmeras configuradas no portal aparecerão aqui." Retry="LoadAsync">
-    <section class="content-panel">
-        @foreach (var camera in _cameras)
+    <section class="screen-overview camera-overview">
+        <span class="screen-overview-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span>
+        <div class="screen-overview-main">
+            <span>Circuito compartilhado</span>
+            <strong>@_cameras.Count(x => x.Online) de @_cameras.Count câmera(s) disponíveis</strong>
+            <small>Toque em reproduzir para iniciar uma sessão segura</small>
+        </div>
+        <span class="live-indicator"><span></span>Ao vivo</span>
+    </section>
+    <section class="camera-grid camera-showcase">
+        @for (var index = 0; index < _cameras.Count; index++)
         {
-            <div class="list-row">
-                @if (!string.IsNullOrWhiteSpace(camera.SnapshotUrl))
-                {
-                    <img class="camera-snapshot" src="@camera.SnapshotUrl" alt="Miniatura de @camera.Name" />
-                }
-                else
-                {
-                    <div class="camera-snapshot-placeholder"><MudIcon Icon="@Icons.Material.Outlined.VideocamOff" /></div>
-                }
-                <span class="status-dot @(camera.Online ? "online" : "")"></span>
-                <div class="list-main"><div class="list-title">@camera.Name</div><div class="list-meta">@camera.DeviceType - @camera.MaxChannels canal(is)</div><div class="list-meta">@(camera.Online ? "Online" : string.IsNullOrWhiteSpace(camera.HealthMessage) ? "Sem telemetria" : camera.HealthMessage)</div></div>
-                <MudIconButton Icon="@Icons.Material.Outlined.PlayCircle" Color="Color.Primary" Disabled="@(!camera.Online || _opening == camera.Id)" OnClick="() => OpenStreamAsync(camera)" aria-label="Assistir" />
-            </div>
+            var camera = _cameras[index];
+            <article class="camera-card @(index == 0 ? "camera-featured" : "")">
+                <div class="camera-preview">
+                    @if (!string.IsNullOrWhiteSpace(camera.SnapshotUrl))
+                    {
+                        <img src="@camera.SnapshotUrl" alt="Miniatura de @camera.Name" />
+                    }
+                    else
+                    {
+                        <div class="camera-preview-placeholder"><MudIcon Icon="@Icons.Material.Outlined.VideocamOff" /><span>Imagem indisponível</span></div>
+                    }
+                    <span class="camera-live-status @(camera.Online ? "online" : "offline")"><span></span>@(camera.Online ? "Online" : "Offline")</span>
+                    <MudIconButton Class="camera-play" Icon="@Icons.Material.Outlined.PlayArrow" Disabled="@(!camera.Online || _opening == camera.Id)" OnClick="() => OpenStreamAsync(camera)" aria-label="@($"Assistir {camera.Name}")" />
+                </div>
+                <div class="camera-card-body">
+                    <div class="list-main"><div class="list-title">@camera.Name</div><div class="list-meta">@camera.DeviceType · @camera.MaxChannels canal(is)</div></div>
+                    <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Color="Color.Secondary" />
+                </div>
+            </article>
         }
     </section>
 </PageState>
@@ -64,11 +79,11 @@
             var result = await Api.GetResidentCamerasAsync(cancellationToken);
             if (cancellationToken.IsCancellationRequested) return;
             _cameras = (result.Value ?? []).Select(x => new CameraItem(x.Id, x.Name, x.DeviceType, x.MaxChannels, x.Online, x.HealthMessage)).ToList();
-            if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar as cameras.";
+            if (!result.Success) _error = result.Error ?? "Não foi possível carregar as câmeras.";
         }
         else
         {
-            if (!AppState.SelectedLicenseId.HasValue) { _error = "Selecione um condominio."; _loading = false; return; }
+            if (!AppState.SelectedLicenseId.HasValue) { _error = "Selecione um condomínio."; _loading = false; return; }
             var camerasTask = Api.GetCamerasAsync(AppState.SelectedLicenseId.Value, cancellationToken);
             var statusTask = Api.GetCftvStatusAsync(AppState.SelectedLicenseId.Value, cancellationToken);
             await Task.WhenAll(camerasTask, statusTask);
@@ -80,8 +95,8 @@
                 var state = status.Value?.FirstOrDefault(x => x.DeviceId == camera.Id);
                 return new CameraItem(camera.Id, camera.Name, camera.DeviceType, camera.MaxChannels, state?.Online == true, state?.HealthMessage ?? string.Empty);
             }).ToList();
-            if (!cameras.Success) _error = cameras.Error ?? "Nao foi possivel carregar as cameras.";
-            else if (!status.Success) _error = status.Error ?? "Nao foi possivel consultar o estado das cameras.";
+            if (!cameras.Success) _error = cameras.Error ?? "Não foi possível carregar as câmeras.";
+            else if (!status.Success) _error = status.Error ?? "Não foi possível consultar o estado das câmeras.";
         }
         await LoadSnapshotsAsync(cancellationToken);
         if (cancellationToken.IsCancellationRequested) return;
@@ -147,16 +162,16 @@
         if (technicalMessage.Contains("Failed to fetch", StringComparison.OrdinalIgnoreCase) ||
             technicalMessage.Contains("NetworkError", StringComparison.OrdinalIgnoreCase) ||
             technicalMessage.Contains("insecure", StringComparison.OrdinalIgnoreCase))
-            return "Nao foi possivel alcancar o gateway de video nesta rede.";
+            return "Não foi possível alcançar o gateway de vídeo nesta rede.";
 
         if (technicalMessage.Contains("Tempo limite", StringComparison.OrdinalIgnoreCase) ||
             technicalMessage.Contains("demorou", StringComparison.OrdinalIgnoreCase))
-            return "A camera demorou para iniciar. Verifique a rede do equipamento.";
+            return "A câmera demorou para iniciar. Verifique a rede do equipamento.";
 
         if (technicalMessage.Contains("HTTP", StringComparison.OrdinalIgnoreCase))
-            return "O gateway recusou a reproducao deste video.";
+            return "O gateway recusou a reprodução deste vídeo.";
 
-        return "Nao foi possivel reproduzir o video desta camera.";
+        return "Não foi possível reproduzir o vídeo desta câmera.";
     }
 
     private async Task CloseStreamAsync()

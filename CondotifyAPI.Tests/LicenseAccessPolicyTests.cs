@@ -15,6 +15,9 @@ public class LicenseAccessPolicyTests
         Assert.False(permissions.HasFlag(LicensePermissionEnum.ManageDevices));
         Assert.False(permissions.HasFlag(LicensePermissionEnum.ManageUsers));
         Assert.False(permissions.HasFlag(LicensePermissionEnum.ManageSettings));
+        Assert.True(permissions.HasFlag(LicensePermissionEnum.ManageIncidents));
+        Assert.True(permissions.HasFlag(LicensePermissionEnum.ManageEmergency));
+        Assert.False(permissions.HasFlag(LicensePermissionEnum.ManageAutomations));
     }
 
     [Fact]
@@ -24,7 +27,9 @@ public class LicenseAccessPolicyTests
         var mutationPermissions = LicensePermissionEnum.ManageStructure | LicensePermissionEnum.ManagePeople |
             LicensePermissionEnum.ManageCredentials | LicensePermissionEnum.ManageDevices |
             LicensePermissionEnum.OperateDevices | LicensePermissionEnum.ManageDeliveries |
-            LicensePermissionEnum.ManageUsers | LicensePermissionEnum.ManageSettings;
+            LicensePermissionEnum.ManageUsers | LicensePermissionEnum.ManageSettings |
+            LicensePermissionEnum.ManageIncidents | LicensePermissionEnum.ManageAutomations |
+            LicensePermissionEnum.ManageEmergency;
 
         Assert.Equal(LicensePermissionEnum.None, permissions & mutationPermissions);
     }
@@ -62,5 +67,28 @@ public class LicenseAccessPolicyTests
         var permissions = LicenseAccessDefaults.ForRole(LicenseAccessRoleEnum.Concierge);
         Assert.True(permissions.HasFlag(LicensePermissionEnum.ViewBookings));
         Assert.True(permissions.HasFlag(LicensePermissionEnum.ManageBookings));
+    }
+
+    [Fact]
+    public void SafetyManagement_ShouldImplyEveryRequiredReadPermission()
+    {
+        var permissions = LicenseAccessDefaults.Normalize(
+            LicensePermissionEnum.ManageIncidents |
+            LicensePermissionEnum.ManageAutomations |
+            LicensePermissionEnum.ManageEmergency);
+
+        Assert.True(permissions.HasFlag(LicensePermissionEnum.ViewIncidents));
+        Assert.True(permissions.HasFlag(LicensePermissionEnum.ViewAutomations));
+        Assert.True(permissions.HasFlag(LicensePermissionEnum.ViewEmergency));
+    }
+
+    [Fact]
+    public void Operator_ShouldTreatIncidentsWithoutActivatingEmergency()
+    {
+        var permissions = LicenseAccessDefaults.ForRole(LicenseAccessRoleEnum.Operator);
+
+        Assert.True(permissions.HasFlag(LicensePermissionEnum.ManageIncidents));
+        Assert.True(permissions.HasFlag(LicensePermissionEnum.ViewEmergency));
+        Assert.False(permissions.HasFlag(LicensePermissionEnum.ManageEmergency));
     }
 }

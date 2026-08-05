@@ -41,15 +41,10 @@
         .frame { width: min(100%, 420px); }
         .brand { display: flex; align-items: center; justify-content: center; gap: 11px; margin-bottom: 26px; }
         .mark {
-            width: 38px;
-            height: 38px;
-            display: grid;
-            place-items: center;
-            border-radius: 7px;
-            background: var(--primary);
-            color: #fff;
-            font-size: 16px;
-            font-weight: 700;
+            width: 44px;
+            height: 44px;
+            display: block;
+            border-radius: 12px;
             box-shadow: 0 7px 18px rgba(49, 86, 211, .18);
         }
         .brand strong { display: block; font-size: 18px; line-height: 1.2; }
@@ -137,7 +132,7 @@
 <main class="page">
     <div class="frame">
         <div class="brand" aria-label="Condotify">
-            <div class="mark" aria-hidden="true">C</div>
+            <img class="mark" src="/assets/logo/condotify-mark.svg" alt="" aria-hidden="true" />
             <div><strong>Condotify</strong><small>Controle inteligente de acesso</small></div>
         </div>
 
@@ -191,7 +186,6 @@
                             }
                             Manter conectado
                         </label>
-                        <span>Ambiente protegido</span>
                     </div>
                 }
 

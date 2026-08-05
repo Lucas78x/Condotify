@@ -18,14 +18,14 @@
             <div class="form-grid form-grid-two">
                 <MudTextField T="string" @bind-Value="_form.Name" Label="Nome do local" Required Variant="Variant.Outlined" />
                 <MudNumericField T="int?" @bind-Value="_form.Capacity" Label="Capacidade (pessoas)" Min="1" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.Description" Label="Descricao" Variant="Variant.Outlined" Class="full" />
+                <MudTextField T="string" @bind-Value="_form.Description" Label="Descrição" Variant="Variant.Outlined" Class="full" />
                 <MudNumericField T="decimal?" @bind-Value="_form.FeeAmount" Label="Taxa (R$, informativo)" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.FeeDescription" Label="Observacao sobre a taxa" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.FeeDescription" Label="Observação sobre a taxa" Variant="Variant.Outlined" />
             </div>
 
             <div class="visit-policy-options">
                 <MudSwitch T="bool" @bind-Value="_form.Active" Color="Color.Primary" Label="Local ativo" />
-                <MudSwitch T="bool" @bind-Value="_form.RequiresApproval" Color="Color.Primary" Label="Exige aprovacao manual" />
+                <MudSwitch T="bool" @bind-Value="_form.RequiresApproval" Color="Color.Primary" Label="Exige aprovação manual" />
                 <MudSwitch T="bool" @bind-Value="_form.RequiresTermsAcceptance" Color="Color.Primary" Label="Exige aceite de termo de uso" />
             </div>
             @if (_form.RequiresTermsAcceptance)
@@ -36,11 +36,11 @@
             <div class="form-grid form-grid-three">
                 <MudNumericField T="int?" @bind-Value="_form.MonthlyLimitPerUnit" Label="Limite mensal por unidade" Min="0" Variant="Variant.Outlined" HelperText="0 ou vazio = sem limite" />
                 <MudNumericField T="int" @bind-Value="_form.MinAdvanceNoticeHours" Label="Antecedencia minima (horas)" Min="0" Variant="Variant.Outlined" />
-                <MudNumericField T="int" @bind-Value="_form.MaxAdvanceDays" Label="Janela maxima (dias)" Min="1" Variant="Variant.Outlined" />
+                <MudNumericField T="int" @bind-Value="_form.MaxAdvanceDays" Label="Janela máxima (dias)" Min="1" Variant="Variant.Outlined" />
                 <MudNumericField T="int" @bind-Value="_form.CancellationCutoffHours" Label="Prazo de cancelamento (horas)" Min="0" Variant="Variant.Outlined" />
             </div>
 
-            <div class="form-section-heading"><span>2</span><div><strong>Grade semanal de horarios</strong><small>Defina os horarios disponiveis por dia da semana.</small></div></div>
+            <div class="form-section-heading"><span>2</span><div><strong>Grade semanal de horários</strong><small>Defina os horários disponíveis por dia da semana.</small></div></div>
             @foreach (var slot in _form.ScheduleSlots)
             {
                 <div class="form-grid form-grid-three">
@@ -50,14 +50,14 @@
                             <MudSelectItem Value="day">@DayLabel(day)</MudSelectItem>
                         }
                     </MudSelect>
-                    <MudTimePicker Time="slot.StartTime" TimeChanged="@(v => slot.StartTime = v ?? slot.StartTime)" Label="Inicio" Variant="Variant.Outlined" />
+                    <MudTimePicker Time="slot.StartTime" TimeChanged="@(v => slot.StartTime = v ?? slot.StartTime)" Label="Início" Variant="Variant.Outlined" />
                     <MudTimePicker Time="slot.EndTime" TimeChanged="@(v => slot.EndTime = v ?? slot.EndTime)" Label="Fim" Variant="Variant.Outlined" />
                     <MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" OnClick="@(() => _form.ScheduleSlots.Remove(slot))" />
                 </div>
             }
-            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Add" OnClick="AddSlot">Adicionar horario</MudButton>
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Add" OnClick="AddSlot">Adicionar horário</MudButton>
 
-            <div class="form-section-heading"><span>3</span><div><strong>Bloqueios de data</strong><small>Datas indisponiveis para manutencao, feriados ou obras.</small></div></div>
+            <div class="form-section-heading"><span>3</span><div><strong>Bloqueios de data</strong><small>Datas indisponíveis para manutenção, feriados ou obras.</small></div></div>
             @foreach (var blackout in _form.Blackouts)
             {
                 <div class="form-grid form-grid-three">
@@ -124,7 +124,7 @@
         _saving = false;
         if (!result.Success)
         {
-            _error = result.Error ?? "Nao foi possivel salvar o local.";
+            _error = result.Error ?? "Não foi possível salvar o local.";
             Snackbar.Add(_error, Severity.Error);
             return;
         }
@@ -136,12 +136,12 @@
     {
         foreach (var slot in _form.ScheduleSlots)
         {
-            if (slot.StartTime >= slot.EndTime) return "Existe um horario invalido na grade semanal.";
+            if (slot.StartTime >= slot.EndTime) return "Existe um horário inválido na grade semanal.";
         }
 
         foreach (var blackout in _form.Blackouts)
         {
-            if (blackout.EndDate.Date < blackout.StartDate.Date) return "Existe um bloqueio de data invalido.";
+            if (blackout.EndDate.Date < blackout.StartDate.Date) return "Existe um bloqueio de data inválido.";
         }
 
         return null;

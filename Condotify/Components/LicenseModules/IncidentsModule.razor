@@ -1,0 +1,79 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<section class="module-intro">
+    <div><MudText Typo="Typo.h5">Central de ocorrências</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Passagem de turno, evidências e tratativas em uma única linha do tempo.</MudText></div>
+    @if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddAlert" OnClick="OpenCreateAsync">Nova ocorrência</MudButton> }
+</section>
+
+<div class="module-kpis">
+    <div class="mini-kpi"><span class="mini-kpi-icon blue"><MudIcon Icon="@Icons.Material.Outlined.AssignmentLate" /></span><div><strong>@(_page?.Open ?? 0)</strong><span>Em tratamento</span></div></div>
+    <div class="mini-kpi"><span class="mini-kpi-icon red"><MudIcon Icon="@Icons.Material.Outlined.CrisisAlert" /></span><div><strong>@(_page?.Critical ?? 0)</strong><span>Críticas</span></div></div>
+    <div class="mini-kpi"><span class="mini-kpi-icon green"><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" /></span><div><strong>@ResolvedCount</strong><span>Concluídas no filtro</span></div></div>
+</div>
+
+<MudPaper Class="content-panel incidents-panel" Elevation="0">
+    <div class="panel-toolbar incidents-toolbar">
+        <div><MudText Typo="Typo.h6" Class="panel-title">Fila operacional</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Prioridade, responsável e histórico de cada registro</MudText></div>
+        <div class="incident-filters"><MudTextField T="string" Value="_search" ValueChanged="SearchChangedAsync" Immediate DebounceInterval="350" Placeholder="Buscar código ou título" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" /><MudSelect T="string" Value="_status" ValueChanged="ChangeStatusFilterAsync" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem Value="@("active")">Ativas</MudSelectItem><MudSelectItem Value="@("open")">Abertas</MudSelectItem><MudSelectItem Value="@("inprogress")">Em andamento</MudSelectItem><MudSelectItem Value="@("resolved")">Resolvidas</MudSelectItem><MudSelectItem Value="@("all")">Todas</MudSelectItem></MudSelect><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Color="Color.Primary" OnClick="LoadAsync" /></div>
+    </div>
+    @if (_loading) { <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div> }
+    else if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert> }
+    else if (_page?.Items.Count == 0) { <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Size="Size.Large" Color="Color.Success" /><MudText Typo="Typo.subtitle1">Nenhuma ocorrência neste filtro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A operação está sem pendências correspondentes.</MudText></div> }
+    else
+    {
+        <div class="incident-workspace">
+            <div class="incident-list">
+                @foreach (var item in _page?.Items ?? [])
+                {
+                    <button type="button" class="incident-row @(_selected?.Id == item.Id ? "selected" : "")" @onclick="@(() => Select(item))">
+                        <span class="incident-severity @item.Severity.ToLowerInvariant()"></span>
+                        <span class="incident-row-main"><span><strong>@item.Title</strong><em class="status-chip @item.Status.ToLowerInvariant()">@StatusLabel(item.Status)</em></span><small>@item.Code · @CategoryLabel(item.Category) · @item.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</small></span>
+                        <span class="incident-owner">@(string.IsNullOrWhiteSpace(item.AssignedToName) ? "Sem responsável" : item.AssignedToName)</span>
+                    </button>
+                }
+            </div>
+            @if (_selected is not null)
+            {
+                <aside class="incident-detail">
+                    <div class="incident-detail-head"><div><span class="incident-code">@_selected.Code</span><MudText Typo="Typo.h6">@_selected.Title</MudText></div><MudChip T="string" Size="Size.Small" Color="@SeverityColor(_selected.Severity)" Variant="Variant.Outlined">@SeverityLabel(_selected.Severity)</MudChip></div>
+                    <MudText Typo="Typo.body2" Class="incident-description">@(_selected.Description.Length == 0 ? "Sem descrição adicional." : _selected.Description)</MudText>
+                    <div class="incident-meta"><div><small>Status</small><strong>@StatusLabel(_selected.Status)</strong></div><div><small>Origem</small><strong>@SourceLabel(_selected.Source)</strong></div><div><small>Responsável</small><strong>@(string.IsNullOrWhiteSpace(_selected.AssignedToName) ? "Não atribuído" : _selected.AssignedToName)</strong></div><div><small>Atualizada</small><strong>@_selected.UpdatedAt.ToLocalTime().ToString("dd/MM HH:mm")</strong></div></div>
+                    @if (CanManage)
+                    {
+                        <div class="incident-actions"><MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Outlined.PlayArrow" Disabled="@(_selected.Status == "InProgress")" OnClick="@(() => ChangeIncidentStatusAsync(1))">Assumir</MudButton><MudButton Variant="Variant.Outlined" Color="Color.Success" Size="Size.Small" StartIcon="@Icons.Material.Outlined.TaskAlt" Disabled="@(_selected.Status is "Resolved" or "Closed")" OnClick="@(() => ChangeIncidentStatusAsync(2))">Resolver</MudButton></div>
+                        <div class="incident-assignment"><MudTextField T="string" @bind-Value="_assignment" Label="Responsável" Variant="Variant.Outlined" Margin="Margin.Dense" /><MudIconButton Icon="@Icons.Material.Outlined.PersonAdd" Color="Color.Primary" OnClick="AssignAsync" /></div>
+                        <MudTextField T="string" @bind-Value="_comment" Label="Adicionar comentário ou evidência" Variant="Variant.Outlined" Lines="2" Margin="Margin.Dense" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Outlined.Send" OnAdornmentClick="AddCommentAsync" />
+                    }
+                    <div class="incident-timeline"><h4>Linha do tempo</h4>@foreach (var entry in _selected.Timeline) { <div class="timeline-entry"><span><MudIcon Icon="@TimelineIcon(entry.Type)" Size="Size.Small" /></span><div><strong>@TimelineLabel(entry.Type)</strong><p>@entry.Message</p><small>@(string.IsNullOrWhiteSpace(entry.ActorName) ? "Sistema" : entry.ActorName) · @entry.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</small>@if (!string.IsNullOrWhiteSpace(entry.ReferenceUrl)) { <MudLink Href="@entry.ReferenceUrl" Target="_blank">Abrir evidência</MudLink> }</div></div> }</div>
+                </aside>
+            }
+        </div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    private IncidentPageViewModel? _page; private IncidentViewModel? _selected; private bool _loading = true;
+    private string? _error; private string _status = "active"; private string _search = string.Empty; private string _comment = string.Empty; private string _assignment = string.Empty;
+    private Guid _loadedLicenseId;
+    private int ResolvedCount => _page?.Items.Count(x => x.Status is "Resolved" or "Closed") ?? 0;
+    protected override Task OnParametersSetAsync() { if (_loadedLicenseId == LicenseId) return Task.CompletedTask; _loadedLicenseId = LicenseId; _selected = null; return LoadAsync(); }
+    private async Task LoadAsync() { _loading = true; var result = await Api.GetIncidentsAsync(LicenseId, _status, search: _search); _loading = false; if (!result.Success) { _error = result.Error; return; } _page = result.Value; _error = null; if (_selected is not null) _selected = _page?.Items.FirstOrDefault(x => x.Id == _selected.Id); _selected ??= _page?.Items.FirstOrDefault(); _assignment = _selected?.AssignedToName ?? string.Empty; }
+    private void Select(IncidentViewModel value) { _selected = value; _assignment = value.AssignedToName; _comment = string.Empty; }
+    private async Task ChangeStatusFilterAsync(string value) { _status = value; await LoadAsync(); }
+    private async Task SearchChangedAsync(string value) { _search = value; await LoadAsync(); }
+    private async Task OpenCreateAsync() { var dialog = await DialogService.ShowAsync<IncidentFormDialog>("", new DialogParameters<IncidentFormDialog> { { x => x.LicenseId, LicenseId } }, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true }); var result = await dialog.Result; if (result is { Canceled: false }) await LoadAsync(); }
+    private async Task AddCommentAsync() { if (_selected is null || string.IsNullOrWhiteSpace(_comment)) return; var result = await Api.AddIncidentCommentAsync(_selected.Id, new IncidentCommentViewModel { Message = _comment }); if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao comentar.", Severity.Error); return; } _selected = result.Value; _comment = string.Empty; Snackbar.Add("Atualização adicionada à linha do tempo.", Severity.Success); await LoadAsync(); }
+    private async Task AssignAsync() { if (_selected is null) return; var result = await Api.AssignIncidentAsync(_selected.Id, null, _assignment); if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao atribuir.", Severity.Error); return; } _selected = result.Value; Snackbar.Add("Responsável atualizado.", Severity.Success); await LoadAsync(); }
+    private async Task ChangeIncidentStatusAsync(int status) { if (_selected is null) return; var note = status == 2 ? await DialogService.ShowMessageBoxAsync("Resolver ocorrência", "Confirma que a ocorrência foi tratada? A conclusão será registrada na linha do tempo.", yesText: "Resolver", cancelText: "Voltar") : true; if (note != true) return; var result = await Api.UpdateIncidentStatusAsync(_selected.Id, status, status == 2 ? "Ocorrência tratada e concluída pela equipe operacional." : "Atendimento iniciado pela equipe operacional."); if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao atualizar.", Severity.Error); return; } _selected = result.Value; Snackbar.Add(status == 2 ? "Ocorrência resolvida." : "Atendimento iniciado.", Severity.Success); await LoadAsync(); }
+    private static string StatusLabel(string value) => value switch { "Open" => "Aberta", "InProgress" => "Em andamento", "Resolved" => "Resolvida", "Closed" => "Encerrada", _ => value };
+    private static string SeverityLabel(string value) => value switch { "Low" => "Baixa", "Medium" => "Média", "High" => "Alta", "Critical" => "Crítica", _ => value };
+    private static Color SeverityColor(string value) => value switch { "Critical" => Color.Error, "High" => Color.Warning, "Medium" => Color.Info, _ => Color.Success };
+    private static string CategoryLabel(string value) => value switch { "Access" => "Acesso", "Visitor" => "Visitante", "Vehicle" => "Veículo", "Device" => "Equipamento", "Delivery" => "Encomenda", "Safety" => "Segurança", _ => "Outro" };
+    private static string SourceLabel(string value) => value switch { "Manual" => "Equipe", "Automation" => "Automação", "Emergency" => "Emergência", _ => "Sistema" };
+    private static string TimelineIcon(string value) => value switch { "Comment" => Icons.Material.Outlined.ChatBubbleOutline, "Evidence" => Icons.Material.Outlined.PhotoCamera, "StatusChanged" => Icons.Material.Outlined.SyncAlt, "Assignment" => Icons.Material.Outlined.Person, "Automation" => Icons.Material.Outlined.AutoAwesome, "Emergency" => Icons.Material.Outlined.CrisisAlert, _ => Icons.Material.Outlined.Flag };
+    private static string TimelineLabel(string value) => value switch { "Comment" => "Comentário", "Evidence" => "Evidência", "StatusChanged" => "Mudança de status", "Assignment" => "Responsável", "Automation" => "Automação", "Emergency" => "Emergência", _ => "Ocorrência criada" };
+}

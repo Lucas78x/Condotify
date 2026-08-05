@@ -3,16 +3,26 @@
 @inject NavigationManager Navigation
 
 <PageTitle>Condomínios | Condotify</PageTitle>
-<PageHeader Title="Condomínios" Subtitle="Escolha o ambiente que deseja operar.">
+<PageHeader Eyebrow="AMBIENTE DE TRABALHO" Title="Condomínios" Subtitle="Escolha o ambiente que deseja operar.">
     <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
 </PageHeader>
 
 <PageState Loading="_loading" Error="@_error" Empty="@(AppState.Licenses.Count == 0)" EmptyTitle="Nenhum condomínio disponível" EmptyText="Sua conta ainda não possui acesso a um ambiente." Retry="LoadAsync">
-    <section class="content-panel">
+    <section class="screen-overview license-overview">
+        <span class="screen-overview-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span>
+        <div class="screen-overview-main">
+            <span>Ambiente atual</span>
+            <strong>@(AppState.SelectedLicense?.Nome ?? "Selecione um condomínio")</strong>
+            <small>Você possui acesso a @AppState.Licenses.Count ambiente(s)</small>
+        </div>
+        @if (AppState.SelectedLicense is not null) { <span class="row-status success">Em uso</span> }
+    </section>
+    <section class="content-panel card-list-panel">
+        <div class="panel-heading"><div><MudText Typo="Typo.h5">Seus condomínios</MudText><span class="panel-subtitle">A troca altera o contexto de toda a operação</span></div></div>
         @foreach (var license in AppState.Licenses)
         {
             var id = Guid.TryParse(license.Id, out var parsed) ? parsed : Guid.Empty;
-            <button type="button" class="list-row license-row" @onclick="() => Select(id)">
+            <button type="button" class="list-row license-row @(AppState.SelectedLicenseId == id ? "selected" : "")" @onclick="() => Select(id)">
                 <MudAvatar Color="@(AppState.SelectedLicenseId == id ? Color.Primary : Color.Default)" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></MudAvatar>
                 <div class="list-main"><div class="list-title">@license.Nome</div><div class="list-meta">@license.Codigo @Location(license)</div></div>
                 @if (AppState.SelectedLicenseId == id) { <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Color="Color.Success" /> }
@@ -35,7 +45,7 @@
     {
         _loading = true; _error = string.Empty;
         var result = await AppState.LoadLicensesAsync();
-        if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar os condominios.";
+        if (!result.Success) _error = result.Error ?? "Não foi possível carregar os condomínios.";
         _loading = false;
     }
 

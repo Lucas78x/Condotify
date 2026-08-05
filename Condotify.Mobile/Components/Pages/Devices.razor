@@ -6,11 +6,20 @@
 @inject ISnackbar Snackbar
 
 <PageTitle>Equipamentos | Condotify</PageTitle>
-<PageHeader Title="Equipamentos" Subtitle="Estado dos controladores e acionamentos manuais.">
+<PageHeader Eyebrow="CONTROLE DE ACESSO" Title="Equipamentos" Subtitle="Estado dos controladores e acionamentos manuais.">
     <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
 </PageHeader>
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_devices.Count == 0)" EmptyTitle="Nenhum equipamento" EmptyText="Cadastre equipamentos pelo portal administrativo." Retry="LoadAsync">
+    <section class="screen-overview device-overview">
+        <span class="screen-overview-icon success"><MudIcon Icon="@Icons.Material.Outlined.Sensors" /></span>
+        <div class="screen-overview-main">
+            <span>Disponibilidade da operação</span>
+            <strong>@AvailabilityPercent% dos equipamentos online</strong>
+            <div class="overview-progress" aria-label="@($"{AvailabilityPercent}% disponível")"><span style="width: @AvailabilityPercent%"></span></div>
+        </div>
+        <span class="overview-number">@_devices.Count(x => x.IsActive)<small>/ @_devices.Count</small></span>
+    </section>
     <div class="metric-grid">
         <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" /></span><span class="metric-value">@_devices.Count(x => x.IsActive)</span><span class="metric-label">Disponíveis</span></div>
         <div class="metric danger"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.SensorsOff" /></span><span class="metric-value">@_devices.Count(x => !x.IsActive)</span><span class="metric-label">Indisponíveis</span></div>
@@ -18,7 +27,7 @@
     <div class="device-list">
         @foreach (var device in _devices)
         {
-            <section class="content-panel">
+            <section class="content-panel device-card @(device.IsActive ? "is-online" : "is-offline")">
                 <div class="list-row device-row">
                     <span class="status-dot @(device.IsActive ? "online" : "")"></span>
                     <div class="list-main">
@@ -51,6 +60,7 @@
     private Guid? _opening;
     private string _error = string.Empty;
     private CancellationTokenSource? _loadCts;
+    private int AvailabilityPercent => _devices.Count == 0 ? 0 : (int)Math.Round(_devices.Count(x => x.IsActive) * 100d / _devices.Count);
     protected override Task OnInitializedAsync() => LoadAsync();
 
     private async Task LoadAsync()

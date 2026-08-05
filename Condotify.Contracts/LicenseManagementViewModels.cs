@@ -449,7 +449,13 @@ namespace Condotify.Models
         ManageBackups = 1L << 20,
         ViewAlerts = 1L << 21,
         ManageAlerts = 1L << 22,
-        All = (1L << 23) - 1
+        ViewIncidents = 1L << 23,
+        ManageIncidents = 1L << 24,
+        ViewAutomations = 1L << 25,
+        ManageAutomations = 1L << 26,
+        ViewEmergency = 1L << 27,
+        ManageEmergency = 1L << 28,
+        All = (1L << 29) - 1
     }
 
     public class LicenseAdministrationViewModel
@@ -969,6 +975,7 @@ namespace Condotify.Models
     public class ConciergeVisitViewModel
     {
         public Guid Id { get; set; }
+        public Guid LicenseId { get; set; }
         public Guid HostResidentId { get; set; }
         public string HostName { get; set; } = string.Empty;
         public string BlockName { get; set; } = string.Empty;

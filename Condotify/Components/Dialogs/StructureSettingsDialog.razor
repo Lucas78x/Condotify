@@ -4,7 +4,7 @@
     <DialogContent>
         <div class="dialog-description">
             <MudIcon Icon="@Icons.Material.Outlined.Tune" />
-            <div><strong>Nomenclatura da propriedade</strong><span>Adapte a estrutura para condominios, loteamentos, clubes e empresas.</span></div>
+            <div><strong>Nomenclatura da propriedade</strong><span>Adapte a estrutura para condomínios, loteamentos, clubes e empresas.</span></div>
         </div>
         @if (!string.IsNullOrWhiteSpace(_error))
         {
@@ -19,7 +19,7 @@
             </div>
             <div class="form-actions dialog-form-actions">
                 <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveAsync">@(_saving ? "Salvando..." : "Salvar configuracao")</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveAsync">@(_saving ? "Salvando..." : "Salvar configuração")</MudButton>
             </div>
         </MudForm>
     </DialogContent>

@@ -28,12 +28,12 @@
         <MudTabs Elevation="0" Class="device-detail-tabs">
             <MudTabPanel Text="Visao geral" Icon="@Icons.Material.Outlined.Dashboard">
                 <div class="device-overview-grid">
-                    <section><span>Conectividade</span><strong>@(Device.IsActive ? "Disponivel" : "Indisponivel")</strong><small>@(Device.LastHealthCheckAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Ainda nao verificado")</small></section>
-                    <section><span>Tempo de resposta</span><strong>@(Device.LastResponseTimeMs.HasValue ? $"{Device.LastResponseTimeMs} ms" : "-")</strong><small>Ultimo diagnostico</small></section>
-                    <section><span>Firmware</span><strong>@(string.IsNullOrWhiteSpace(Device.FirmwareVersion) ? "Nao informado" : Short(Device.FirmwareVersion, 36))</strong><small>@Device.Type</small></section>
+                    <section><span>Conectividade</span><strong>@(Device.IsActive ? "Disponível" : "Indisponível")</strong><small>@(Device.LastHealthCheckAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Ainda não verificado")</small></section>
+                    <section><span>Tempo de resposta</span><strong>@(Device.LastResponseTimeMs.HasValue ? $"{Device.LastResponseTimeMs} ms" : "-")</strong><small>Último diagnóstico</small></section>
+                    <section><span>Firmware</span><strong>@(string.IsNullOrWhiteSpace(Device.FirmwareVersion) ? "Não informado" : Short(Device.FirmwareVersion, 36))</strong><small>@Device.Type</small></section>
                     <section><span>Portas detectadas</span><strong>@Portals.Count</strong><small>@string.Join(", ", Portals.Select(x => x.Name))</small></section>
                 </div>
-                <div class="device-health-message"><MudIcon Icon="@Icons.Material.Outlined.Info" /><span>@(string.IsNullOrWhiteSpace(Device.HealthMessage) ? "Execute o diagnostico para consultar o estado atual." : Device.HealthMessage)</span></div>
+                <div class="device-health-message"><MudIcon Icon="@Icons.Material.Outlined.Info" /><span>@(string.IsNullOrWhiteSpace(Device.HealthMessage) ? "Execute o diagnóstico para consultar o estado atual." : Device.HealthMessage)</span></div>
             </MudTabPanel>
 
             <MudTabPanel Text="Rotas e portas" Icon="@Icons.Material.Outlined.AltRoute">
@@ -65,7 +65,7 @@
                     <span class="ok"><strong>@_inventory.Count(x => x.Status == "Synced")</strong> Sincronizados</span>
                     <span class="warning"><strong>@_inventory.Count(x => x.Status == "Divergent")</strong> Divergentes</span>
                     <span class="missing"><strong>@_inventory.Count(x => x.Status == "MissingRemote")</strong> Ausentes</span>
-                    <span class="orphan"><strong>@_inventory.Count(x => x.Status == "OrphanRemote")</strong> Orfaos</span>
+                    <span class="orphan"><strong>@_inventory.Count(x => x.Status == "OrphanRemote")</strong> Órfãos</span>
                 </div>
                 @if (_inventory.Count == 0)
                 {
@@ -77,7 +77,7 @@
                         <HeaderContent><MudTh></MudTh><MudTh>Pessoa</MudTh><MudTh>Tipo</MudTh><MudTh>Identificador</MudTh><MudTh>Estado</MudTh><MudTh>Observado</MudTh></HeaderContent>
                         <RowTemplate>
                             <MudTd><MudCheckBox T="bool" @bind-Value="context.Selected" Disabled="@(context.Status is "Synced" or "OrphanRemote" || !context.CredentialId.HasValue)" /></MudTd>
-                            <MudTd DataLabel="Pessoa"><strong>@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : "Nao identificado")</strong><small class="audit-summary">@context.ExternalUserId</small></MudTd>
+                            <MudTd DataLabel="Pessoa"><strong>@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : "Não identificado")</strong><small class="audit-summary">@context.ExternalUserId</small></MudTd>
                             <MudTd DataLabel="Tipo">@CredentialLabel(context.CredentialType)</MudTd>
                             <MudTd DataLabel="Identificador">@(!string.IsNullOrWhiteSpace(context.Identifier) ? context.Identifier : "-")</MudTd>
                             <MudTd DataLabel="Estado"><MudChip T="string" Size="Size.Small" Color="@InventoryColor(context.Status)" Variant="Variant.Outlined">@InventoryLabel(context.Status)</MudChip></MudTd>
@@ -95,7 +95,7 @@
                 else
                 {
                     <MudTable Items="_events" Hover Dense Elevation="0">
-                        <HeaderContent><MudTh>Horario</MudTh><MudTh>Resultado</MudTh><MudTh>Pessoa</MudTh><MudTh>Porta</MudTh></HeaderContent>
+                        <HeaderContent><MudTh>Horário</MudTh><MudTh>Resultado</MudTh><MudTh>Pessoa</MudTh><MudTh>Porta</MudTh></HeaderContent>
                         <RowTemplate><MudTd>@context.OccurredAt.ToLocalTime().ToString("dd/MM HH:mm:ss")</MudTd><MudTd><MudChip T="string" Size="Size.Small" Color="@(context.Authorized ? Color.Success : Color.Error)" Variant="Variant.Outlined">@context.Event</MudChip></MudTd><MudTd>@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : context.ExternalUserId)</MudTd><MudTd>@context.Portal</MudTd></RowTemplate>
                     </MudTable>
                 }
@@ -157,7 +157,7 @@
     {
         var confirmed = await DialogService.ShowMessageBoxAsync(
             "Mover equipamento para a lixeira",
-            $"Mover {Device.Name} para a lixeira? Rotas, credenciais ou eventos vinculados impedirao a operacao. O equipamento restaurado permanecera inativo ate um novo diagnostico.",
+            $"Mover {Device.Name} para a lixeira? Rotas, credenciais ou eventos vinculados impedirão a operação. O equipamento restaurado permanecerá inativo até um novo diagnóstico.",
             yesText: "Mover para a lixeira",
             cancelText: "Cancelar");
         if (confirmed != true) return;
@@ -167,7 +167,7 @@
         if (!result.Success)
         {
             _error = result.Error;
-            Snackbar.Add(result.Error ?? "Nao foi possivel excluir o equipamento.", Severity.Error);
+            Snackbar.Add(result.Error ?? "Não foi possível excluir o equipamento.", Severity.Error);
             return;
         }
         Snackbar.Add("Equipamento movido para a lixeira.", Severity.Success);
@@ -183,7 +183,7 @@
     {
         var result = await Api.RepairDeviceInventoryAsync(LicenseId, Device.Id, SelectedInventory.Select(x => x.Id).ToList());
         if (!result.Success) { _error = result.Error; return; }
-        Snackbar.Add("Correcao adicionada a central de operacoes.", Severity.Success);
+        Snackbar.Add("Correção adicionada à central de operações.", Severity.Success);
         foreach (var item in SelectedInventory) item.Selected = false;
     }
     private void Close() => Dialog.Close(DialogResult.Ok(true));
@@ -579,9 +579,9 @@
     private static string DeviceIcon(string type) => type.Contains("UHF", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Contactless : type.Contains("Face", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Face : Icons.Material.Outlined.Sensors;
     private static string InventoryLabel(string status) => status switch { "Synced" => "Sincronizado", "Divergent" => "Divergente", "MissingRemote" => "Ausente", "OrphanRemote" => "Orfao remoto", _ => "Desconhecido" };
     private static Color InventoryColor(string status) => status switch { "Synced" => Color.Success, "Divergent" => Color.Warning, "MissingRemote" or "OrphanRemote" => Color.Error, _ => Color.Default };
-    private static string CredentialLabel(string type) => type switch { "Face" => "Facial", "QrCode" => "QR Code", "Card" => "Cartao", "VehicleTag" => "Tag veicular", "Password" => "PIN", "User" => "Usuario remoto", _ => "Tag" };
-    private static string Direction(string value) => value switch { "Entry" => "Entrada", "Exit" => "Saida", _ => "Bidirecional" };
-    private static string RouteAudience(long value) => value == 127 ? "Todos os perfis" : "Publico selecionado";
+    private static string CredentialLabel(string type) => type switch { "Face" => "Facial", "QrCode" => "QR Code", "Card" => "Cartão", "VehicleTag" => "Tag veicular", "Password" => "PIN", "User" => "Usuário remoto", _ => "Tag" };
+    private static string Direction(string value) => value switch { "Entry" => "Entrada", "Exit" => "Saída", _ => "Bidirecional" };
+    private static string RouteAudience(long value) => value == 127 ? "Todos os perfis" : "Público selecionado";
     private static string RouteSchedule(AccessRouteViewModel route) => $"{route.StartTime:hh\\:mm} - {route.EndTime:hh\\:mm}";
     private static string Short(string value, int max) => value.Length <= max ? value : value[..max] + "...";
 }

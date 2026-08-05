@@ -5,46 +5,53 @@
 @inject MobileAppState AppState
 @inject CondotifyApiClient Api
 @inject MobileWeatherService Weather
+@inject MobileOfflineCache OfflineCache
 
-<PageTitle>Inicio | Condotify</PageTitle>
-<PageHeader Title="@Greeting">
-    <Actions>
-        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
-    </Actions>
-</PageHeader>
+<PageTitle>Início | Condotify</PageTitle>
 
-<div class="home-conditions">
-    <MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" />
-    <span>@CurrentDateLabel</span>
-    @if (_weather is not null)
-    {
-        <span class="home-conditions-sep">·</span>
-        <MudIcon Icon="@_weather.IconKey" Size="Size.Small" />
-        <span>@Math.Round(_weather.TemperatureC)°C</span>
-        <span class="home-conditions-desc">@_weather.Description</span>
-    }
-</div>
+<section class="home-hero">
+    <div class="home-hero-heading">
+        <div>
+            <span class="home-kicker">@ContextName</span>
+            <h1>@Greeting</h1>
+            <span class="home-question">@HomeQuestion</span>
+        </div>
+        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar início" />
+    </div>
+    <div class="home-conditions">
+        <MudIcon Icon="@(_weather?.IconKey ?? Icons.Material.Outlined.Schedule)" Size="Size.Small" />
+        @if (_weather is not null)
+        {
+            <span>@Math.Round(_weather.TemperatureC)°C · @_weather.Description</span>
+            <span class="home-conditions-sep">·</span>
+        }
+        <span>@CurrentDateLabel</span>
+    </div>
+</section>
 
 <PageState Loading="_loading" Error="@_error" Retry="LoadAsync">
+    @if (_cachedAt.HasValue)
+    {
+        <div class="offline-cache-notice"><MudIcon Icon="@Icons.Material.Outlined.CloudOff" Size="Size.Small" /><span>Exibindo o último resumo salvo em @_cachedAt.Value.ToLocalTime().ToString("dd/MM HH:mm"). Atualize quando a conexão voltar.</span></div>
+    }
     @if (Session.Current?.Principal == MobilePrincipalKind.Resident)
     {
-        <div class="metric-grid">
-            <div class="metric primary"><span class="metric-value">@(_resident?.Units.Count ?? 0)</span><span class="metric-label">Unidades</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span></div>
-            <div class="metric success"><span class="metric-value">@(_resident?.IsResponsible == true ? "Sim" : "Não")</span><span class="metric-label">Responsável</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /></span></div>
-            <div class="metric info"><span class="metric-value">Ativo</span><span class="metric-label">Vínculo</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Link" /></span></div>
-            <div class="metric warning"><span class="metric-value">@(_notifications?.Unread ?? 0)</span><span class="metric-label">Novidades</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" /></span></div>
-        </div>
-        <div class="dashboard-section-title"><MudText Typo="Typo.h5">Acesso rápido</MudText></div>
-        <div class="action-grid">
-            <a class="action-tile" href="/visitors"><MudIcon Icon="@Icons.Material.Outlined.PersonAdd" Color="Color.Primary" /><span>Visitantes</span></a>
-            <a class="action-tile" href="/bookings"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Color="Color.Tertiary" /><span>Reservas</span></a>
-            <a class="action-tile" href="/deliveries"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" Color="Color.Secondary" /><span>Encomendas</span></a>
-            <a class="action-tile" href="/cameras"><MudIcon Icon="@Icons.Material.Outlined.Videocam" Color="Color.Info" /><span>Câmeras</span></a>
-            <a class="action-tile" href="/notifications"><MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" Color="Color.Warning" /><span>Notificações</span></a>
-            <a class="action-tile" href="/profile"><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Color="Color.Info" /><span>Meu cadastro</span></a>
-        </div>
-        <section class="content-panel">
-            <div class="panel-heading"><MudText Typo="Typo.h5">Minhas unidades</MudText></div>
+        <a class="home-primary-action" href="/visitors">
+            <span class="home-primary-icon"><MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" /></span>
+            <span class="home-primary-copy"><strong>Autorizar visitante</strong><small>Crie um acesso e compartilhe o convite</small></span>
+            <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+        </a>
+
+        <section class="home-section">
+            <div class="home-section-heading"><MudText Typo="Typo.h5">Seu dia</MudText><a href="/more">Ver tudo</a></div>
+            <div class="home-highlight-grid">
+                <a class="home-highlight warning" href="/notifications"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" /></span><strong>@(_notifications?.Unread ?? 0) novidade(s)</strong><small>Veja as atualizações da sua rotina</small></a>
+                <a class="home-highlight success" href="/bookings"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><strong>@(_resident?.Units.Count ?? 0) unidade(s)</strong><small>Reservas e áreas comuns</small></a>
+            </div>
+        </section>
+
+        <section class="content-panel home-panel">
+            <div class="panel-heading"><div><MudText Typo="Typo.h5">Minhas unidades</MudText><span class="panel-subtitle">Vínculos ativos no condomínio</span></div></div>
             @foreach (var unit in _resident?.Units ?? [])
             {
                 <div class="list-row">
@@ -57,25 +64,22 @@
     }
     else
     {
-        <div class="metric-grid">
-            <div class="metric primary"><span class="metric-value">@(_dashboard?.ResidentCount ?? 0)</span><span class="metric-label">Pessoas</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span></div>
-            <div class="metric success"><span class="metric-value">@(_dashboard?.OnlineDeviceCount ?? 0)/@(_dashboard?.DeviceCount ?? 0)</span><span class="metric-label">Equipamentos online</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Sensors" /></span></div>
-            <div class="metric info"><span class="metric-value">@(_dashboard?.PendingBookingCount ?? 0)</span><span class="metric-label">Reservas pendentes</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" Style="width:24px;height:24px;font-size:24px" /></span></div>
-            <div class="metric warning"><span class="metric-value">@(_dashboard?.Alerts.Count ?? 0)</span><span class="metric-label">Alertas recentes</span><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></span></div>
-        </div>
-        <div class="dashboard-section-title"><MudText Typo="Typo.h5">Acesso rápido</MudText></div>
-        <div class="action-grid">
-            <a class="action-tile" href="/people"><MudIcon Icon="@Icons.Material.Outlined.Groups" Color="Color.Primary" /><span>Pessoas</span></a>
-            <a class="action-tile" href="/visitors"><MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" Color="Color.Info" /><span>Visitantes</span></a>
-            <a class="action-tile" href="/concierge"><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" Color="Color.Primary" /><span>Portaria</span></a>
-            <a class="action-tile" href="/devices"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" Color="Color.Tertiary" /><span>Acionamentos</span></a>
-            <a class="action-tile" href="/cameras"><MudIcon Icon="@Icons.Material.Outlined.Videocam" Color="Color.Info" /><span>Câmeras</span></a>
-            <a class="action-tile" href="/alerts"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Color="Color.Warning" /><span>Alertas</span></a>
-            <a class="action-tile" href="/deliveries"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" Color="Color.Secondary" /><span>Encomendas</span></a>
-            <a class="action-tile" href="/bookings"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Color="Color.Tertiary" /><span>Reservas</span></a>
-        </div>
-        <section class="content-panel">
-            <div class="panel-heading"><MudText Typo="Typo.h5">Atividade recente</MudText></div>
+        <a class="home-primary-action" href="/concierge">
+            <span class="home-primary-icon"><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" /></span>
+            <span class="home-primary-copy"><strong>Abrir central da portaria</strong><small>Visitantes, aprovações e movimentações</small></span>
+            <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+        </a>
+
+        <section class="home-section">
+            <div class="home-section-heading"><MudText Typo="Typo.h5">Operação agora</MudText><a href="/more">Ver tudo</a></div>
+            <div class="home-highlight-grid">
+                <a class="home-highlight warning" href="/alerts"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></span><strong>@(_dashboard?.Alerts.Count ?? 0) alerta(s)</strong><small>Ocorrências que pedem atenção</small></a>
+                <a class="home-highlight success" href="/devices"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.Sensors" /></span><strong>@(_dashboard?.OnlineDeviceCount ?? 0)/@(_dashboard?.DeviceCount ?? 0) online</strong><small>Estado dos equipamentos</small></a>
+            </div>
+        </section>
+
+        <section class="content-panel home-panel">
+            <div class="panel-heading"><div><MudText Typo="Typo.h5">Atividade recente</MudText><span class="panel-subtitle">Últimos eventos sincronizados</span></div></div>
             @if (_dashboard?.RecentActivities.Count == 0)
             {
                 <div class="page-state"><MudText Color="Color.Secondary">Nenhuma atividade recente.</MudText></div>
@@ -96,8 +100,15 @@
     private MobileNotificationPageViewModel? _notifications;
     private CancellationTokenSource _loadCts = new();
     private WeatherSnapshot? _weather;
+    private DateTimeOffset? _cachedAt;
     private string Greeting => $"Olá, {FirstName}";
     private string FirstName => (Session.Current?.Name ?? "Usuário").Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "Usuário";
+    private string ContextName => Session.Current?.Principal == MobilePrincipalKind.Resident
+        ? Session.Current?.LicenseName ?? "Meu condomínio"
+        : AppState.SelectedLicense?.Nome ?? "Central operacional";
+    private string HomeQuestion => Session.Current?.Principal == MobilePrincipalKind.Resident
+        ? "O que você precisa hoje?"
+        : "Como está a operação agora?";
     private string CurrentDateLabel => DateTime.Now.ToString("dd/MM · HH:mm");
 
     protected override async Task OnInitializedAsync()
@@ -122,6 +133,7 @@
         _loadCts = new CancellationTokenSource();
         var cancellationToken = _loadCts.Token;
         _loading = true; _error = string.Empty;
+        _cachedAt = null;
         _ = LoadWeatherAsync(cancellationToken);
         if (Session.Current?.Principal == MobilePrincipalKind.Resident)
         {
@@ -133,17 +145,34 @@
             var notifications = await notificationsTask;
             _resident = profile.Value;
             _notifications = notifications.Value;
-            if (!profile.Success) _error = profile.Error ?? "Não foi possível carregar seu cadastro.";
+            if (profile.Success && profile.Value is not null)
+                await OfflineCache.SaveAsync(ResidentCacheKey, new ResidentHomeCache(profile.Value, notifications.Value));
+            else
+            {
+                var cached = await OfflineCache.LoadAsync<ResidentHomeCache>(ResidentCacheKey, TimeSpan.FromHours(24));
+                if (cached is not null) { _resident = cached.Value.Profile; _notifications = cached.Value.Notifications; _cachedAt = cached.StoredAt; }
+                else _error = profile.Error ?? "Não foi possível carregar seu cadastro.";
+            }
         }
         else
         {
             var result = await Api.GetOperationalDashboardAsync(cancellationToken);
             if (cancellationToken.IsCancellationRequested) return;
             _dashboard = result.Value;
-            if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar o resumo operacional.";
+            if (result.Success && result.Value is not null) await OfflineCache.SaveAsync(StaffCacheKey, result.Value);
+            else
+            {
+                var cached = await OfflineCache.LoadAsync<OperationalDashboardViewModel>(StaffCacheKey, TimeSpan.FromHours(12));
+                if (cached is not null) { _dashboard = cached.Value; _cachedAt = cached.StoredAt; }
+                else _error = result.Error ?? "Não foi possível carregar o resumo operacional.";
+            }
         }
         _loading = false;
     }
+
+    private string ResidentCacheKey => $"home.resident.{Session.Current?.SubjectId:N}";
+    private string StaffCacheKey => $"home.staff.{AppState.SelectedLicenseId:N}";
+    private sealed record ResidentHomeCache(ResidentProfileViewModel Profile, MobileNotificationPageViewModel? Notifications);
 
     public void Dispose()
     {

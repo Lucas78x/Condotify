@@ -11,6 +11,12 @@ public static class LicensePermissionCatalog
         new(LicensePermission.OperateDevices, "Operacao", "Acionar equipamentos", "Abertura remota e comandos operacionais"),
         new(LicensePermission.ViewAlerts, "Operacao", "Ver alertas", "Falhas, avisos e saude operacional"),
         new(LicensePermission.ManageAlerts, "Operacao", "Tratar alertas", "Reconhecer, resolver e reabrir ocorrencias"),
+        new(LicensePermission.ViewIncidents, "Operacao", "Ver ocorrencias", "Central, historico e linha do tempo operacional"),
+        new(LicensePermission.ManageIncidents, "Operacao", "Tratar ocorrencias", "Abrir, atribuir, comentar e resolver ocorrencias"),
+        new(LicensePermission.ViewAutomations, "Operacao", "Ver automacoes", "Consultar regras e execucoes automaticas"),
+        new(LicensePermission.ManageAutomations, "Operacao", "Gerenciar automacoes", "Criar, editar, ativar e testar regras"),
+        new(LicensePermission.ViewEmergency, "Seguranca", "Ver modo de emergencia", "Acompanhar emergencias e orientacoes ativas"),
+        new(LicensePermission.ManageEmergency, "Seguranca", "Ativar modo de emergencia", "Ativar e encerrar protocolos com auditoria"),
         new(LicensePermission.ViewStructure, "Cadastros", "Ver estrutura", "Blocos, unidades e pessoas"),
         new(LicensePermission.ManageStructure, "Cadastros", "Editar estrutura", "Criar e alterar blocos e unidades"),
         new(LicensePermission.ViewPeople, "Cadastros", "Ver pessoas", "Moradores, visitantes e prestadores"),
@@ -40,15 +46,21 @@ public static class LicensePermissionCatalog
             LicensePermission.ViewDevices | LicensePermission.OperateDevices | LicensePermission.ViewEvents |
             LicensePermission.ViewDeliveries | LicensePermission.ManageDeliveries |
             LicensePermission.ViewBookings | LicensePermission.ManageBookings |
-            LicensePermission.ViewAlerts | LicensePermission.ManageAlerts),
+            LicensePermission.ViewAlerts | LicensePermission.ManageAlerts |
+            LicensePermission.ViewIncidents | LicensePermission.ManageIncidents |
+            LicensePermission.ViewAutomations | LicensePermission.ViewEmergency |
+            LicensePermission.ManageEmergency),
         3 => (long)(LicensePermission.ViewDashboard | LicensePermission.ViewStructure | LicensePermission.ViewPeople |
             LicensePermission.ViewCredentials | LicensePermission.ViewDevices | LicensePermission.OperateDevices |
             LicensePermission.ViewEvents | LicensePermission.ViewDeliveries | LicensePermission.ViewBookings |
-            LicensePermission.ViewAlerts),
+            LicensePermission.ViewAlerts | LicensePermission.ViewIncidents |
+            LicensePermission.ManageIncidents | LicensePermission.ViewAutomations |
+            LicensePermission.ViewEmergency),
         _ => (long)(LicensePermission.ViewDashboard | LicensePermission.ViewStructure | LicensePermission.ViewPeople |
             LicensePermission.ViewCredentials | LicensePermission.ViewDevices | LicensePermission.ViewEvents |
             LicensePermission.ViewDeliveries | LicensePermission.ViewBookings |
-            LicensePermission.ViewAlerts)
+            LicensePermission.ViewAlerts | LicensePermission.ViewIncidents |
+            LicensePermission.ViewAutomations | LicensePermission.ViewEmergency)
     };
 
     public static long Normalize(long permissions)
@@ -64,6 +76,9 @@ public static class LicensePermissionCatalog
         if (value.HasFlag(LicensePermission.ManageSettings)) value |= LicensePermission.ViewSettings;
         if (value.HasFlag(LicensePermission.ManageBackups)) value |= LicensePermission.ViewBackups;
         if (value.HasFlag(LicensePermission.ManageAlerts)) value |= LicensePermission.ViewAlerts;
+        if (value.HasFlag(LicensePermission.ManageIncidents)) value |= LicensePermission.ViewIncidents;
+        if (value.HasFlag(LicensePermission.ManageAutomations)) value |= LicensePermission.ViewAutomations;
+        if (value.HasFlag(LicensePermission.ManageEmergency)) value |= LicensePermission.ViewEmergency | LicensePermission.ViewIncidents;
         return (long)value;
     }
 
@@ -83,6 +98,9 @@ public static class LicensePermissionCatalog
             LicensePermission.ViewSettings => ~LicensePermission.ManageSettings,
             LicensePermission.ViewBackups => ~LicensePermission.ManageBackups,
             LicensePermission.ViewAlerts => ~LicensePermission.ManageAlerts,
+            LicensePermission.ViewIncidents => ~(LicensePermission.ManageIncidents | LicensePermission.ManageEmergency),
+            LicensePermission.ViewAutomations => ~LicensePermission.ManageAutomations,
+            LicensePermission.ViewEmergency => ~LicensePermission.ManageEmergency,
             _ => LicensePermission.All
         };
         return (long)value;

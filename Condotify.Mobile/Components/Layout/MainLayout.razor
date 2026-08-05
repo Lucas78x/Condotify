@@ -4,9 +4,12 @@
 @inject MobileAppState AppState
 @inject MobilePushLifecycle Push
 @inject MobileConnectivityState NetworkState
+@inject MobileAppearanceState Appearance
+@inject MobileAppLockService AppLock
+@inject MobileBiometricService Biometrics
 @inject NavigationManager Navigation
 
-<MudThemeProvider Theme="@Condotify.UI.CondotifyTheme.Default" IsDarkMode="false" />
+<MudThemeProvider Theme="@Condotify.UI.CondotifyTheme.Default" IsDarkMode="@Appearance.IsDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -17,9 +20,9 @@
 }
 else
 {
-    <MudLayout Class="mobile-shell">
+    <MudLayout Class="@($"mobile-shell {(Appearance.IsDarkMode ? "dark-mode" : "light-mode")}")">
         <MudAppBar Class="mobile-appbar" Elevation="0" Dense="true">
-            <div class="appbar-mobile-brand brand-mark" aria-hidden="true">C</div>
+            <BrandMark Class="appbar-mobile-brand" />
             <div class="appbar-context">
                 <MudText Typo="Typo.subtitle2">@TopbarTitle</MudText>
                 <MudText Typo="Typo.caption">@ContextLabel</MudText>
@@ -34,7 +37,7 @@ else
             <MudTooltip Text="Notificações">
                 <MudIconButton Icon="@Icons.Material.Outlined.NotificationsNone" Color="Color.Inherit" OnClick="OpenNotifications" aria-label="Notificações" />
             </MudTooltip>
-            <MudMenu Icon="@Icons.Material.Outlined.AccountCircle" Class="account-menu" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" aria-label="Conta">
+            <MudMenu Icon="@Icons.Material.Outlined.PersonOutline" Class="account-menu" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" aria-label="Conta">
                 <MudMenuItem OnClick="OpenProfile" Icon="@Icons.Material.Outlined.PersonOutline">Minha conta</MudMenuItem>
                 <MudMenuItem OnClick="LogoutAsync" Icon="@Icons.Material.Outlined.Logout">Sair</MudMenuItem>
             </MudMenu>
@@ -42,7 +45,7 @@ else
 
         <MudDrawer Class="desktop-rail" Open="true" Variant="DrawerVariant.Persistent" Elevation="0">
             <div class="desktop-brand">
-                <div class="brand-mark" aria-hidden="true">C</div>
+                <BrandMark Class="desktop-brand-mark" />
                 <div>
                     <MudText Typo="Typo.subtitle1">Condotify</MudText>
                     <MudText Typo="Typo.caption">Controle de acesso</MudText>
@@ -86,17 +89,34 @@ else
                 </NavLink>
             }
         </nav>
+        @if (_locked)
+        {
+            <div class="app-lock-screen" role="dialog" aria-modal="true" aria-label="Aplicativo bloqueado">
+                <div class="app-lock-card">
+                    <BrandMark Class="app-lock-mark" />
+                    <MudIcon Icon="@Icons.Material.Outlined.Lock" Class="app-lock-icon" />
+                    <MudText Typo="Typo.h5">Condotify protegido</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Confirme sua biometria ou o bloqueio do aparelho para continuar.</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Fingerprint" Disabled="_unlocking" OnClick="UnlockAsync">@(_unlocking ? "Aguardando confirmação..." : "Desbloquear")</MudButton>
+                </div>
+            </div>
+        }
     </MudLayout>
 }
 
 @code {
     private IReadOnlyList<MobileNavigationItem> NavigationItems => MobileNavigation.For(Session.Current?.Principal ?? MobilePrincipalKind.Staff);
-    private string TopbarTitle => Session.Current?.Principal == MobilePrincipalKind.Resident ? "Meu condomínio" : "Central operacional";
-    private string ContextLabel => Session.Current?.Principal == MobilePrincipalKind.Resident
-        ? Session.Current.LicenseName
+    private string TopbarTitle => Session.Current?.Principal == MobilePrincipalKind.Resident
+        ? Session.Current?.LicenseName ?? "Meu condomínio"
         : AppState.SelectedLicense?.Nome ?? "Central operacional";
+    private string ContextLabel => Session.Current?.Principal == MobilePrincipalKind.Resident
+        ? "Conta de morador"
+        : "Central operacional";
     private bool IsLoginRoute => Navigation.Uri.EndsWith("/login", StringComparison.OrdinalIgnoreCase);
     private string PrincipalLabel => Session.Current?.Principal == MobilePrincipalKind.Resident ? "Morador" : "Operação";
+    private bool _locked;
+    private bool _unlocking;
+    private bool _lockChecked;
     private static string Initials(string? name) =>
         string.IsNullOrWhiteSpace(name)
             ? "?"
@@ -104,10 +124,62 @@ else
 
     protected override void OnInitialized()
     {
-        Preferences.Default.Remove("condotify.dark-mode");
         Session.Changed += Refresh;
         AppState.Changed += Refresh;
         NetworkState.Changed += Refresh;
+        Appearance.Changed += Refresh;
+        AppLock.Changed += RefreshLock;
+        Navigation.LocationChanged += OnLocationChanged;
+        _ = MonitorLockAsync(_lockMonitorCts.Token);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_lockChecked || !Session.IsAuthenticated || !AppLock.NeedsUnlock) return;
+        _lockChecked = true;
+        _locked = true;
+        await InvokeAsync(StateHasChanged);
+        await UnlockAsync();
+    }
+
+    private async Task UnlockAsync()
+    {
+        if (_unlocking) return;
+        _unlocking = true;
+        var success = await Biometrics.AuthenticateAsync("Proteja os dados e acessos do seu condomínio");
+        _unlocking = false;
+        if (success) { AppLock.MarkUnlocked(); _locked = false; }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshLock()
+    {
+        if (!AppLock.Enabled) _locked = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private readonly CancellationTokenSource _lockMonitorCts = new();
+    private async Task MonitorLockAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                if (Session.IsAuthenticated && AppLock.NeedsUnlock && !_locked)
+                {
+                    _locked = true;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
+    {
+        if (Session.IsAuthenticated && AppLock.NeedsUnlock) _locked = true;
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task LogoutAsync()
@@ -138,5 +210,10 @@ else
         Session.Changed -= Refresh;
         AppState.Changed -= Refresh;
         NetworkState.Changed -= Refresh;
+        Appearance.Changed -= Refresh;
+        AppLock.Changed -= RefreshLock;
+        Navigation.LocationChanged -= OnLocationChanged;
+        _lockMonitorCts.Cancel();
+        _lockMonitorCts.Dispose();
     }
 }

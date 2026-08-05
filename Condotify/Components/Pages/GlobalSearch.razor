@@ -4,7 +4,7 @@
 
 <PageTitle>Pesquisa global | Condotify</PageTitle>
 
-<PageHeader Title="Pesquisa global" Subtitle="Localize pessoas e credenciais em todos os condominios da empresa." Eyebrow="CENTRAL DE CONSULTA" />
+<PageHeader Title="Pesquisa global" Subtitle="Localize pessoas e credenciais em todos os condomínios da empresa." Eyebrow="CENTRAL DE CONSULTA" />
 
 <MudPaper Class="content-panel search-workbench" Elevation="0">
     <div class="panel-toolbar">
@@ -15,9 +15,9 @@
             <MudTextField T="string" @bind-Value="_name" Label="Pessoa" Placeholder="Nome ou e-mail" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.PersonSearch" Immediate />
             <MudTextField T="string" @bind-Value="_document" Label="Documento" Placeholder="CPF ou RG" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Badge" Immediate />
             <MudTextField T="string" @bind-Value="_phone" Label="Telefone" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Phone" Immediate />
-            <MudTextField T="string" @bind-Value="_credential" Label="Credencial" Placeholder="Cartao, tag ou QR Code" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Contactless" Immediate />
-            <MudSelect T="string" @bind-Value="_licenseId" Label="Condominio" Variant="Variant.Outlined">
-                <MudSelectItem T="string" Value="@("all")">Todos os condominios</MudSelectItem>
+            <MudTextField T="string" @bind-Value="_credential" Label="Credencial" Placeholder="Cartão, tag ou QR Code" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Contactless" Immediate />
+            <MudSelect T="string" @bind-Value="_licenseId" Label="Condomínio" Variant="Variant.Outlined">
+                <MudSelectItem T="string" Value="@("all")">Todos os condomínios</MudSelectItem>
                 @foreach (var license in _licenses.OrderBy(x => x.Nome)) { <MudSelectItem T="string" Value="@license.Id">@license.Nome</MudSelectItem> }
             </MudSelect>
             <MudTextField T="string" @bind-Value="_unit" Label="Bloco ou unidade" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Apartment" Immediate />
@@ -42,23 +42,23 @@
     }
     else if (!_searched)
     {
-        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.ManageSearch" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Informe ao menos um filtro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A pesquisa consulta todos os condominios aos quais sua empresa tem acesso.</MudText></div>
+        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.ManageSearch" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Informe ao menos um filtro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A pesquisa consulta todos os condomínios aos quais sua empresa tem acesso.</MudText></div>
     }
     else if (_results.Count == 0)
     {
-        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.PersonOff" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum cadastro encontrado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Revise os filtros ou tente uma informacao diferente.</MudText></div>
+        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.PersonOff" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum cadastro encontrado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Revise os filtros ou tente uma informação diferente.</MudText></div>
     }
     else
     {
         <div class="table-wrap"><MudTable Items="_results" Hover Dense Elevation="0" RowsPerPage="20">
-            <HeaderContent><MudTh>Pessoa</MudTh><MudTh>Condominio</MudTh><MudTh>Unidade</MudTh><MudTh>Contato</MudTh><MudTh>Credenciais</MudTh><MudTh></MudTh></HeaderContent>
+            <HeaderContent><MudTh>Pessoa</MudTh><MudTh>Condomínio</MudTh><MudTh>Unidade</MudTh><MudTh>Contato</MudTh><MudTh>Credenciais</MudTh><MudTh></MudTh></HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Pessoa"><div class="license-name-cell"><span class="person-monogram">@Monogram(context.Name)</span><span class="license-meta"><span class="license-title">@context.Name</span><span class="license-code">@DocumentLabel(context)</span></span></div></MudTd>
-                <MudTd DataLabel="Condominio">@context.LicenseName</MudTd>
+                <MudTd DataLabel="Condomínio">@context.LicenseName</MudTd>
                 <MudTd DataLabel="Unidade"><strong>@context.UnitNumber</strong><div class="license-code">@context.BlockName</div></MudTd>
                 <MudTd DataLabel="Contato">@(!string.IsNullOrWhiteSpace(context.PhoneNumber) ? context.PhoneNumber : context.Email)</MudTd>
                 <MudTd DataLabel="Credenciais"><div class="credential-bindings">@foreach (var credential in context.Credentials) { <span class="sync-state @(credential.IsActive ? "ok" : "pending")">@CredentialLabel(credential.Type) @credential.Identifier</span> }</div></MudTd>
-                <MudTd><MudTooltip Text="Abrir cadastro no condominio"><MudIconButton Href="@($"/licencas/{context.LicenseId}/moradores")" Icon="@Icons.Material.Outlined.ArrowForward" Color="Color.Primary" /></MudTooltip></MudTd>
+                <MudTd><MudTooltip Text="Abrir cadastro no condomínio"><MudIconButton Href="@($"/licencas/{context.LicenseId}/moradores")" Icon="@Icons.Material.Outlined.ArrowForward" Color="Color.Primary" /></MudTooltip></MudTd>
             </RowTemplate>
             <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 20, 50, 100 })" /></PagerContent>
         </MudTable></div>
@@ -100,5 +100,5 @@
     }
     private static string Monogram(string name) => string.IsNullOrWhiteSpace(name) ? "P" : name.Trim()[0].ToString().ToUpperInvariant();
     private static string DocumentLabel(GlobalResidentSearchViewModel item) => !string.IsNullOrWhiteSpace(item.CPF) ? $"CPF {item.CPF}" : !string.IsNullOrWhiteSpace(item.RG) ? $"RG {item.RG}" : item.AccessType;
-    private static string CredentialLabel(string type) => type switch { "Face" => "Facial", "QrCode" => "QR", "Card" => "Cartao", "VehicleTag" => "Veicular", "Password" => "PIN", _ => "Tag" };
+    private static string CredentialLabel(string type) => type switch { "Face" => "Facial", "QrCode" => "QR", "Card" => "Cartão", "VehicleTag" => "Veicular", "Password" => "PIN", _ => "Tag" };
 }

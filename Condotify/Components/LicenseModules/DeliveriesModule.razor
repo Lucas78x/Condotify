@@ -16,12 +16,12 @@
     else
     {
         <div class="table-wrap"><MudTable Items="_deliveries" Hover Dense Elevation="0">
-            <HeaderContent><MudTh>Encomenda</MudTh><MudTh>Recebimento</MudTh><MudTh>Status</MudTh><MudTh>Acoes</MudTh></HeaderContent>
+            <HeaderContent><MudTh>Encomenda</MudTh><MudTh>Recebimento</MudTh><MudTh>Status</MudTh><MudTh>Ações</MudTh></HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Encomenda"><div class="license-meta"><span class="license-title">@context.Name</span><span class="license-code">@(!string.IsNullOrWhiteSpace(context.TrackingCode) ? context.TrackingCode : context.Type)</span></div></MudTd>
                 <MudTd DataLabel="Recebimento">@context.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
                 <MudTd DataLabel="Status"><MudChip T="string" Size="Size.Small" Color="@StatusColor(context.StatusValue)" Variant="Variant.Outlined">@StatusLabel(context.StatusValue)</MudChip></MudTd>
-                <MudTd DataLabel="Acoes">@if (CanManage && context.StatusValue == 2) { <MudTooltip Text="Marcar como entregue"><MudIconButton Icon="@Icons.Material.Outlined.HowToReg" Color="Color.Success" OnClick="@(() => ChangeStatusAsync(context.Id, 3))" /></MudTooltip><MudTooltip Text="Cancelar"><MudIconButton Icon="@Icons.Material.Outlined.Cancel" Color="Color.Error" OnClick="@(() => ChangeStatusAsync(context.Id, 4))" /></MudTooltip> }</MudTd>
+                <MudTd DataLabel="Ações">@if (CanManage && context.StatusValue == 2) { <MudTooltip Text="Marcar como entregue"><MudIconButton Icon="@Icons.Material.Outlined.HowToReg" Color="Color.Success" OnClick="@(() => ChangeStatusAsync(context.Id, 3))" /></MudTooltip><MudTooltip Text="Cancelar"><MudIconButton Icon="@Icons.Material.Outlined.Cancel" Color="Color.Error" OnClick="@(() => ChangeStatusAsync(context.Id, 4))" /></MudTooltip> }</MudTd>
             </RowTemplate>
         </MudTable></div>
     }

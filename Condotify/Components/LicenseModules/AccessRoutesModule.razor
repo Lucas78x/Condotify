@@ -5,7 +5,7 @@
 <section class="module-intro">
     <div>
         <MudText Typo="Typo.h2">Rotas de acesso</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Secondary">Distribua credenciais por perfil, equipamentos, portas e horarios.</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Distribua credenciais por perfil, equipamentos, portas e horários.</MudText>
     </div>
     @if (CanManage)
     {
@@ -26,7 +26,7 @@
 
 <MudPaper Class="content-panel" Elevation="0">
     <div class="panel-toolbar">
-        <div><MudText Typo="Typo.h5" Class="panel-title">Politicas de distribuicao</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Uma pessoa recebe automaticamente as rotas compativeis com seu perfil</MudText></div>
+        <div><MudText Typo="Typo.h5" Class="panel-title">Políticas de distribuição</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Uma pessoa recebe automaticamente as rotas compatíveis com seu perfil</MudText></div>
         <MudTooltip Text="Atualizar"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Color="Color.Primary" OnClick="LoadAsync" /></MudTooltip>
     </div>
 
@@ -51,8 +51,8 @@
                 <article class="access-route-row">
                     <span class="access-route-icon"><MudIcon Icon="@Icons.Material.Outlined.AltRoute" /></span>
                     <div class="access-route-main"><strong>@route.Name</strong><span>@(string.IsNullOrWhiteSpace(route.Description) ? AudienceSummary(route) : route.Description)</span></div>
-                    <div class="access-route-audience"><small>Publico</small><strong>@AudienceSummary(route)</strong></div>
-                    <div class="access-route-schedule"><small>Horario</small><strong>@ScheduleSummary(route)</strong></div>
+                    <div class="access-route-audience"><small>Público</small><strong>@AudienceSummary(route)</strong></div>
+                    <div class="access-route-schedule"><small>Horário</small><strong>@ScheduleSummary(route)</strong></div>
                     <div class="access-route-targets"><small>Destinos</small><strong>@route.Devices.Count equipamento(s)</strong><span>@string.Join(" | ", route.Devices.Take(2).Select(DeviceSummary))</span></div>
                     @if (route.AllowTemporary) { <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">Temporarios</MudChip> }
                     <MudChip T="string" Size="Size.Small" Color="@(route.IsActive ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(route.IsActive ? "Ativa" : "Inativa")</MudChip>
@@ -93,7 +93,7 @@
         var result = await Api.GetAccessRoutesAsync(LicenseId);
         _loading = false;
         if (result.Success && result.Value is not null) _routes = result.Value;
-        else _error = result.Error ?? "Nao foi possivel carregar as rotas.";
+        else _error = result.Error ?? "Não foi possível carregar as rotas.";
     }
 
     private async Task OpenRouteAsync(AccessRouteViewModel? route)
@@ -109,10 +109,10 @@
 
     private async Task DeleteRouteAsync(AccessRouteViewModel route)
     {
-        var confirmed = await DialogService.ShowMessageBoxAsync("Excluir rota", $"Excluir a rota {route.Name}? As credenciais existentes serao reconciliadas na proxima ativacao.", yesText: "Excluir rota", cancelText: "Cancelar");
+        var confirmed = await DialogService.ShowMessageBoxAsync("Excluir rota", $"Excluir a rota {route.Name}? As credenciais existentes serão reconciliadas na próxima ativação.", yesText: "Excluir rota", cancelText: "Cancelar");
         if (confirmed != true) return;
         var result = await Api.DeleteAccessRouteAsync(LicenseId, route.Id);
-        if (!result.Success) { Snackbar.Add(result.Error ?? "Nao foi possivel excluir a rota.", Severity.Error); return; }
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível excluir a rota.", Severity.Error); return; }
         Snackbar.Add("Rota excluida.", Severity.Success);
         await LoadAsync();
     }
@@ -124,7 +124,7 @@
     {
         var value = (AccessRouteAudience)route.Audience;
         var labels = new List<string>();
-        if (value.HasFlag(AccessRouteAudience.OwnerResponsible)) labels.Add("Proprietarios");
+        if (value.HasFlag(AccessRouteAudience.OwnerResponsible)) labels.Add("Proprietários");
         if (value.HasFlag(AccessRouteAudience.TenantResponsible)) labels.Add("Locatarios");
         if (value.HasFlag(AccessRouteAudience.Responsible)) labels.Add("Responsaveis");
         if (value.HasFlag(AccessRouteAudience.Resident)) labels.Add("Moradores");

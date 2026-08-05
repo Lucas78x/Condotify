@@ -1,0 +1,54 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<section class="module-intro">
+    <div><MudText Typo="Typo.h5">Regras e automações</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Transforme sinais da operação em alertas e ocorrências automaticamente.</MudText></div>
+    @if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenDialogAsync(null))">Nova automação</MudButton> }
+</section>
+
+<div class="module-kpis">
+    <div class="mini-kpi"><span class="mini-kpi-icon blue"><MudIcon Icon="@Icons.Material.Outlined.AutoAwesome" /></span><div><strong>@_rules.Count</strong><span>Regras criadas</span></div></div>
+    <div class="mini-kpi"><span class="mini-kpi-icon green"><MudIcon Icon="@Icons.Material.Outlined.PlayCircle" /></span><div><strong>@_rules.Count(x => x.IsEnabled)</strong><span>Ativas</span></div></div>
+    <div class="mini-kpi"><span class="mini-kpi-icon amber"><MudIcon Icon="@Icons.Material.Outlined.Bolt" /></span><div><strong>@_rules.Sum(x => x.ExecutionCount)</strong><span>Execuções</span></div></div>
+</div>
+
+@if (_loading) { <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div> }
+else if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert> }
+else if (_rules.Count == 0)
+{
+    <MudPaper Class="content-panel" Elevation="0"><div class="empty-state"><MudIcon Icon="@Icons.Material.Outlined.AutoAwesome" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.h6">A operação ainda depende de acompanhamento manual</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Crie regras para equipamentos offline, recusas, visitantes e encomendas.</MudText>@if (CanManage) { <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => OpenDialogAsync(null))">Criar primeira regra</MudButton> }</div></MudPaper>
+}
+else
+{
+    <div class="automation-grid">
+        @foreach (var rule in _rules)
+        {
+            <MudPaper Class="automation-card" Elevation="0">
+                <div class="automation-card-head"><span class="automation-trigger-icon"><MudIcon Icon="@TriggerIcon(rule.TriggerType)" /></span><div><MudText Typo="Typo.subtitle1">@rule.Name</MudText><MudText Typo="Typo.caption">@TriggerLabel(rule)</MudText></div><MudSwitch T="bool" Value="rule.IsEnabled" ValueChanged="@(value => ToggleAsync(rule, value))" Disabled="@(!CanManage)" Color="Color.Primary" /></div>
+                <p>@(string.IsNullOrWhiteSpace(rule.Description) ? "Sem descrição adicional." : rule.Description)</p>
+                <div class="automation-flow"><span>SE</span><strong>@TriggerShort(rule.TriggerType)</strong><MudIcon Icon="@Icons.Material.Outlined.ArrowForward" /><span>ENTÃO</span><strong>@ActionsLabel(rule.Actions)</strong></div>
+                <div class="automation-card-meta"><span><MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" /> @(rule.LastEvaluatedAt.HasValue ? $"Verificada {Relative(rule.LastEvaluatedAt.Value)}" : "Aguardando primeira verificação")</span><span><MudIcon Icon="@Icons.Material.Outlined.Bolt" Size="Size.Small" /> @(rule.LastTriggeredAt.HasValue ? $"Disparou {Relative(rule.LastTriggeredAt.Value)}" : "Nunca disparou")</span></div>
+                @if (CanManage) { <div class="automation-card-actions"><MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.PlayArrow" OnClick="@(() => EvaluateAsync(rule))">Testar agora</MudButton><MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenDialogAsync(rule))">Editar</MudButton><MudIconButton Size="Size.Small" Color="Color.Error" Icon="@Icons.Material.Outlined.DeleteOutline" OnClick="@(() => DeleteAsync(rule))" /></div> }
+            </MudPaper>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    private List<AutomationRuleViewModel> _rules = []; private bool _loading = true; private string? _error; private Guid _loadedLicenseId;
+    protected override Task OnParametersSetAsync() { if (_loadedLicenseId == LicenseId) return Task.CompletedTask; _loadedLicenseId = LicenseId; return LoadAsync(); }
+    private async Task LoadAsync() { _loading = true; var result = await Api.GetAutomationRulesAsync(LicenseId); _loading = false; if (result.Success) { _rules = result.Value ?? []; _error = null; } else _error = result.Error; }
+    private async Task OpenDialogAsync(AutomationRuleViewModel? rule) { var parameters = new DialogParameters<AutomationRuleDialog> { { x => x.LicenseId, LicenseId }, { x => x.Rule, rule } }; var dialog = await DialogService.ShowAsync<AutomationRuleDialog>("", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true }); if ((await dialog.Result) is { Canceled: false }) await LoadAsync(); }
+    private async Task ToggleAsync(AutomationRuleViewModel rule, bool enabled) { var form = ToForm(rule); form.IsEnabled = enabled; var result = await Api.SaveAutomationRuleAsync(LicenseId, rule.Id, form); if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao alterar a regra.", Severity.Error); return; } rule.IsEnabled = enabled; Snackbar.Add(enabled ? "Automação ativada." : "Automação pausada.", Severity.Success); }
+    private async Task EvaluateAsync(AutomationRuleViewModel rule) { var result = await Api.EvaluateAutomationRuleAsync(LicenseId, rule.Id); Snackbar.Add(result.Success ? "Regra avaliada. Novos sinais foram processados." : result.Error ?? "Falha ao testar a regra.", result.Success ? Severity.Success : Severity.Error); await LoadAsync(); }
+    private async Task DeleteAsync(AutomationRuleViewModel rule) { if (await DialogService.ShowMessageBoxAsync("Excluir automação", $"Excluir a regra {rule.Name}? As ocorrências já criadas serão preservadas.", yesText: "Excluir", cancelText: "Voltar") != true) return; var result = await Api.DeleteAutomationRuleAsync(LicenseId, rule.Id); if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao excluir.", Severity.Error); return; } Snackbar.Add("Automação excluída.", Severity.Success); await LoadAsync(); }
+    private static AutomationRuleFormViewModel ToForm(AutomationRuleViewModel x) => new() { Name = x.Name, Description = x.Description, TriggerType = x.TriggerType switch { "DeviceOffline" => 0, "AccessDeniedThreshold" => 1, "VisitorOverstay" => 2, _ => 3 }, Threshold = x.Threshold, WindowMinutes = x.WindowMinutes, Severity = x.Severity switch { "Low" => 0, "Medium" => 1, "High" => 2, _ => 3 }, Actions = x.Actions, IsEnabled = x.IsEnabled, CooldownMinutes = x.CooldownMinutes };
+    private static string TriggerIcon(string value) => value switch { "DeviceOffline" => Icons.Material.Outlined.Router, "AccessDeniedThreshold" => Icons.Material.Outlined.NoAccounts, "VisitorOverstay" => Icons.Material.Outlined.TimerOff, _ => Icons.Material.Outlined.Inventory2 };
+    private static string TriggerShort(string value) => value switch { "DeviceOffline" => "terminal offline", "AccessDeniedThreshold" => "recusas acima do limite", "VisitorOverstay" => "permanência excedida", _ => "retirada atrasada" };
+    private static string TriggerLabel(AutomationRuleViewModel x) => x.TriggerType switch { "DeviceOffline" => $"Offline por {x.Threshold} min", "AccessDeniedThreshold" => $"{x.Threshold} recusas em {x.WindowMinutes} min", "VisitorOverstay" => $"Tolerância de {x.Threshold} min", _ => $"Após {x.WindowMinutes} min" };
+    private static string ActionsLabel(int actions) => actions == 3 ? "ocorrência + alerta" : (actions & 1) != 0 ? "abrir ocorrência" : "gerar alerta";
+    private static string Relative(DateTime value) { var delta = DateTime.UtcNow - value.ToUniversalTime(); return delta.TotalMinutes < 1 ? "agora" : delta.TotalHours < 1 ? $"há {(int)delta.TotalMinutes} min" : delta.TotalDays < 1 ? $"há {(int)delta.TotalHours} h" : $"há {(int)delta.TotalDays} d"; }
+}

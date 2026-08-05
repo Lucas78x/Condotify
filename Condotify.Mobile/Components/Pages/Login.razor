@@ -1,5 +1,4 @@
 @page "/login"
-@using Microsoft.Maui.ApplicationModel
 @inject MobileSessionCoordinator Session
 @inject MobileDeviceContext Device
 @inject MobileAppState AppState
@@ -12,7 +11,7 @@
         @if (_step == LoginStep.Credentials)
         {
             <div class="login-hero">
-                <div class="login-hero-mark" aria-hidden="true">C</div>
+                <BrandMark Class="login-hero-mark" />
                 <MudText Typo="Typo.h5">Condotify</MudText>
                 <MudText Typo="Typo.caption">Controle de acesso inteligente</MudText>
             </div>
@@ -31,21 +30,9 @@
         <div class="@BodyClass">
             @if (_step == LoginStep.Credentials)
             {
-                <div class="principal-switch" role="group" aria-label="Tipo de acesso">
-                    <button type="button"
-                            class="@PrincipalClass(MobilePrincipalKind.Staff)"
-                            aria-pressed="@(_principal == MobilePrincipalKind.Staff)"
-                            @onclick="() => ChangePrincipal(MobilePrincipalKind.Staff)">
-                        <MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" />
-                        <span>Equipe</span>
-                    </button>
-                    <button type="button"
-                            class="@PrincipalClass(MobilePrincipalKind.Resident)"
-                            aria-pressed="@(_principal == MobilePrincipalKind.Resident)"
-                            @onclick="() => ChangePrincipal(MobilePrincipalKind.Resident)">
-                        <MudIcon Icon="@Icons.Material.Outlined.Home" Size="Size.Small" />
-                        <span>Morador</span>
-                    </button>
+                <div class="login-unified-note">
+                    <MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" />
+                    <span><strong>Um único acesso</strong><small>Após entrar, o Condotify abre automaticamente o ambiente correto para seu perfil.</small></span>
                 </div>
 
                 <MudForm @ref="_form" class="login-form">
@@ -127,7 +114,7 @@
             }
             else if (_step == LoginStep.ForgotEmail)
             {
-                <div class="login-lead">Informe o e-mail da sua conta. Se ele existir, enviaremos um código para redefinir sua senha.</div>
+                <div class="login-lead">Informe o e-mail da sua conta. Moradores receberão um código de recuperação; contas da equipe são liberadas pelo administrador responsável.</div>
                 <MudForm @ref="_form" class="login-form">
                     @if (!string.IsNullOrWhiteSpace(_error))
                     {
@@ -221,28 +208,6 @@
                     </MudButton>
                 </div>
             }
-            else if (_step == LoginStep.StaffSupport)
-            {
-                <div class="login-confirm">
-                    <div class="login-support-icon" aria-hidden="true"><MudIcon Icon="@Icons.Material.Outlined.SupportAgent" /></div>
-                    <MudText Typo="Typo.h1">Fale com o suporte</MudText>
-                </div>
-                <div class="login-lead">Por segurança, contas da equipe não redefinem a senha pelo aplicativo. Entre em contato para liberar o acesso.</div>
-                <button type="button" class="login-support-row" @onclick="OpenSupportEmailAsync">
-                    <MudIcon Icon="@Icons.Material.Outlined.AlternateEmail" />
-                    <div>
-                        <span class="login-support-label">E-mail</span>
-                        <span class="login-support-value">@SupportEmail</span>
-                    </div>
-                </button>
-                <button type="button" class="login-support-row" @onclick="OpenSupportWhatsAppAsync">
-                    <MudIcon Icon="@Icons.Material.Outlined.Chat" />
-                    <div>
-                        <span class="login-support-label">WhatsApp</span>
-                        <span class="login-support-value">@SupportPhoneDisplay</span>
-                    </div>
-                </button>
-            }
         </div>
     </div>
 </div>
@@ -250,7 +215,6 @@
 @code {
     private MudForm? _form;
     private LoginStep _step = LoginStep.Credentials;
-    private MobilePrincipalKind _principal = MobilePrincipalKind.Staff;
     private string _email = string.Empty;
     private string _password = string.Empty;
     private string _mfaCode = string.Empty;
@@ -263,36 +227,18 @@
     private string _newPassword = string.Empty;
     private string _confirmPassword = string.Empty;
 
-    // Placeholder contact channel until a real support desk is wired up.
-    private const string SupportEmail = "suporte@condotify.com.br";
-    private const string SupportPhoneDisplay = "(11) 90000-0000";
-    private const string SupportWhatsAppUrl = "https://wa.me/5511900000000";
-
-    private enum LoginStep { Credentials, Mfa, ForgotEmail, ForgotReset, ForgotDone, StaffSupport }
+    private enum LoginStep { Credentials, Mfa, ForgotEmail, ForgotReset, ForgotDone }
 
     private string StepTitle => _step switch
     {
         LoginStep.Mfa => "Confirme sua identidade",
         LoginStep.ForgotEmail => "Recuperar senha",
         LoginStep.ForgotReset => "Redefinir senha",
-        LoginStep.StaffSupport => "Esqueci minha senha",
         _ => string.Empty
     };
 
     private string BodyClass =>
         _step == LoginStep.Credentials ? "login-body login-sheet" : "login-body";
-
-    private string PrincipalClass(MobilePrincipalKind principal) =>
-        _principal == principal ? "active" : string.Empty;
-
-    private void ChangePrincipal(MobilePrincipalKind principal)
-    {
-        _principal = principal;
-        _step = LoginStep.Credentials;
-        _challenge = string.Empty;
-        _mfaCode = string.Empty;
-        _error = string.Empty;
-    }
 
     private void TogglePassword() => _showPassword = !_showPassword;
 
@@ -318,10 +264,8 @@
             MobileLoginResult result;
             if (_step == LoginStep.Mfa)
                 result = await Session.VerifyStaffMfaAsync(_challenge, _mfaCode, Device.DeviceLabel);
-            else if (_principal == MobilePrincipalKind.Resident)
-                result = await Session.LoginResidentAsync(_email, _password, Device.DeviceLabel);
             else
-                result = await Session.LoginStaffAsync(_email, _password, Device.DeviceLabel);
+                result = await Session.LoginUnifiedAsync(_email, _password, Device.DeviceLabel);
 
             if (result.MfaRequired)
             {
@@ -342,7 +286,7 @@
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
         {
-            _error = "Sem conexao com a central. Verifique sua rede e tente novamente.";
+            _error = "Sem conexão com a central. Verifique sua rede e tente novamente.";
         }
         finally
         {
@@ -353,7 +297,8 @@
     private void OpenForgotPassword()
     {
         _error = string.Empty;
-        _step = _principal == MobilePrincipalKind.Resident ? LoginStep.ForgotEmail : LoginStep.StaffSupport;
+        _forgotEmail = _email;
+        _step = LoginStep.ForgotEmail;
     }
 
     private async Task SubmitForgotEmailAsync()
@@ -377,7 +322,7 @@
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
         {
-            _error = "Sem conexao com a central. Verifique sua rede e tente novamente.";
+            _error = "Sem conexão com a central. Verifique sua rede e tente novamente.";
         }
         finally
         {
@@ -392,7 +337,7 @@
         _error = string.Empty;
         if (_newPassword != _confirmPassword)
         {
-            _error = "As senhas nao coincidem.";
+            _error = "As senhas não coincidem.";
             return;
         }
         _busy = true;
@@ -408,19 +353,13 @@
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
         {
-            _error = "Sem conexao com a central. Verifique sua rede e tente novamente.";
+            _error = "Sem conexão com a central. Verifique sua rede e tente novamente.";
         }
         finally
         {
             _busy = false;
         }
     }
-
-    private static async Task OpenSupportEmailAsync() =>
-        await Launcher.OpenAsync(new Uri($"mailto:{SupportEmail}"));
-
-    private static async Task OpenSupportWhatsAppAsync() =>
-        await Launcher.OpenAsync(new Uri(SupportWhatsAppUrl));
 
     private void GoToCredentialsFromConfirmation()
     {

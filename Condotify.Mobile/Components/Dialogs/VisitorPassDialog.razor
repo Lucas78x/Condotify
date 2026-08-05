@@ -1,0 +1,40 @@
+@inject MobileDeviceActions DeviceActions
+
+<MudDialog Class="mobile-dialog visitor-pass-dialog">
+    <TitleContent>
+        <div class="mobile-dialog-title">
+            <MudIcon Icon="@Icons.Material.Outlined.ConfirmationNumber" Color="Color.Primary" />
+            <div><MudText Typo="Typo.h6">Convite de acesso</MudText><MudText Typo="Typo.caption">Apresente este QR Code na portaria.</MudText></div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <div class="visitor-pass-hero">
+            <span class="visitor-pass-brand"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /> Condotify</span>
+            <div class="visitor-pass-person"><small>VISITANTE</small><strong>@Visit.VisitorName</strong><span>@Visit.BlockName @(!string.IsNullOrWhiteSpace(Visit.UnitNumber) ? $"· Unidade {Visit.UnitNumber}" : string.Empty)</span></div>
+            @if (!string.IsNullOrWhiteSpace(QrDataUri))
+            {
+                <div class="visitor-pass-qr"><img src="@QrDataUri" alt="QR Code do convite de @Visit.VisitorName" /></div>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">O QR Code ainda não foi disponibilizado.</MudAlert>
+            }
+            <div class="visitor-pass-validity"><span><small>ENTRADA A PARTIR DE</small><strong>@Visit.ValidFrom.ToLocalTime().ToString("dd/MM · HH:mm")</strong></span><span><small>VÁLIDO ATÉ</small><strong>@Visit.ValidTo.ToLocalTime().ToString("dd/MM · HH:mm")</strong></span></div>
+            <code>@Visit.CredentialCode</code>
+        </div>
+        <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true">O convite é pessoal. A portaria valida horário, situação e limite de utilizações.</MudAlert>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Share" Disabled="@string.IsNullOrWhiteSpace(Visit.CredentialCode)" OnClick="ShareAsync">Compartilhar convite</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public ConciergeVisitViewModel Visit { get; set; } = null!;
+    private string QrDataUri => QrCodeRenderer.ToPngDataUri(Visit.CredentialCode);
+    private Task ShareAsync() => DeviceActions.ShareTextAsync($"Convite para {Visit.VisitorName}",
+        $"Convite Condotify\nVisitante: {Visit.VisitorName}\nLocal: {Visit.BlockName} / {Visit.UnitNumber}\nVálido de {Visit.ValidFrom.ToLocalTime():dd/MM HH:mm} até {Visit.ValidTo.ToLocalTime():dd/MM HH:mm}\nCódigo: {Visit.CredentialCode}");
+    private void Close() => Dialog.Close();
+}

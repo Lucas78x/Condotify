@@ -1,0 +1,149 @@
+@implements IAsyncDisposable
+@inject CondotifyApiClient Api
+@inject IJSRuntime JS
+@inject MobileDeviceActions DeviceActions
+
+<MudDialog Class="mobile-dialog qr-scanner-dialog">
+    <TitleContent>
+        <div class="mobile-dialog-title">
+            <MudIcon Icon="@Icons.Material.Outlined.QrCodeScanner" Color="Color.Primary" />
+            <div><MudText Typo="Typo.h6">Ler convite</MudText><MudText Typo="Typo.caption">Aponte a câmera para o QR Code do visitante.</MudText></div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <div class="qr-camera-shell">
+            <video id="@_videoId" class="qr-camera-preview" playsinline muted></video>
+            <div class="qr-scan-frame"><span></span><span></span><span></span><span></span></div>
+            @if (_starting)
+            {
+                <div class="qr-camera-state"><MudProgressCircular Indeterminate="true" Color="Color.Inherit" /><span>Preparando câmera...</span></div>
+            }
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <MudAlert Severity="@(_error ? Severity.Warning : Severity.Info)" Variant="Variant.Outlined" Dense="true" Class="mt-3">@_message</MudAlert>
+        }
+
+        <div class="qr-manual-entry">
+            <MudText Typo="Typo.subtitle2">Código manual</MudText>
+            <MudText Typo="Typo.caption">Use quando a câmera não conseguir reconhecer o convite.</MudText>
+            <MudTextField T="string" @bind-Value="_manualCode" Placeholder="VIS-... ou link do convite" Variant="Variant.Outlined"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Password" Immediate="true" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_processing" OnClick="CancelAsync">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Login"
+                   Disabled="@(_processing || string.IsNullOrWhiteSpace(_manualCode))" OnClick="SubmitManualAsync">
+            @(_processing ? "Validando..." : "Registrar entrada")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+
+    private readonly string _videoId = $"condotify-qr-{Guid.NewGuid():N}";
+    private DotNetObjectReference<QrScannerDialog>? _reference;
+    private bool _starting = true;
+    private bool _processing;
+    private bool _error;
+    private bool _disposed;
+    private string _message = string.Empty;
+    private string _manualCode = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var permission = await DeviceActions.RequestCameraAsync();
+        if (!permission)
+        {
+            _starting = false;
+            _error = true;
+            _message = "Permissão da câmera negada. Você ainda pode digitar o código do convite.";
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        try
+        {
+            _reference = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("condotifyQrScanner.start", _videoId, _reference);
+            _starting = false;
+        }
+        catch (Exception ex)
+        {
+            _starting = false;
+            _error = true;
+            _message = ex.Message.Contains("não", StringComparison.OrdinalIgnoreCase)
+                ? ex.Message
+                : "Não foi possível iniciar o leitor. Digite o código abaixo.";
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OnCodeDetected(string code)
+    {
+        _manualCode = code;
+        await InvokeAsync(StateHasChanged);
+        await ValidateAsync(code);
+    }
+
+    private Task SubmitManualAsync() => ValidateAsync(_manualCode);
+
+    private async Task ValidateAsync(string code)
+    {
+        if (_processing || string.IsNullOrWhiteSpace(code)) return;
+        _processing = true;
+        _error = false;
+        _message = "Validando autorização...";
+        await InvokeAsync(StateHasChanged);
+
+        var result = await Api.ScanConciergeVisitAsync(LicenseId, code.Trim());
+        if (!result.Success || result.Value is null)
+        {
+            _processing = false;
+            _error = true;
+            _message = result.Error ?? "O convite não pôde ser validado.";
+            await RestartScannerAsync();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        DeviceActions.Confirm();
+        await StopScannerAsync();
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+
+    private async Task RestartScannerAsync()
+    {
+        try
+        {
+            _reference ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("condotifyQrScanner.start", _videoId, _reference);
+        }
+        catch { }
+    }
+
+    private async Task CancelAsync()
+    {
+        await StopScannerAsync();
+        Dialog.Cancel();
+    }
+
+    private async Task StopScannerAsync()
+    {
+        try { await JS.InvokeVoidAsync("condotifyQrScanner.stop", _videoId); } catch { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        await StopScannerAsync();
+        _reference?.Dispose();
+    }
+}

@@ -34,5 +34,16 @@ window.portalInterop = {
             result.supported = false;
         }
         return result;
+    },
+    scrollHorizontal: function (element, direction) {
+        if (!element) return;
+        const distance = Math.max(260, element.clientWidth * 0.72);
+        element.scrollBy({ left: distance * Math.sign(direction || 1), behavior: "smooth" });
+    },
+    centerActiveNavItem: function (element) {
+        if (!element) return;
+        const activeItem = element.querySelector(".mud-button-filled");
+        if (!activeItem) return;
+        activeItem.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
     }
 };

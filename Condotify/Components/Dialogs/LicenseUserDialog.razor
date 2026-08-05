@@ -2,7 +2,7 @@
 
 <MudDialog Class="entity-dialog entity-dialog-wide access-user-dialog">
     <DialogContent>
-        <div class="dialog-description"><MudIcon Icon="@Icons.Material.Outlined.AdminPanelSettings" /><div><strong>@(Existing is null ? "Novo usuario da operacao" : "Acesso de usuario")</strong><span>O acesso vale somente para este condominio.</span></div></div>
+        <div class="dialog-description"><MudIcon Icon="@Icons.Material.Outlined.AdminPanelSettings" /><div><strong>@(Existing is null ? "Novo usuário da operação" : "Acesso de usuário")</strong><span>O acesso vale somente para este condomínio.</span></div></div>
         @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
         <EditForm Model="_form" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
@@ -12,10 +12,10 @@
                 @if (Existing is null)
                 {
                     <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Variant="Variant.Outlined" />
-                    <MudTextField T="string" @bind-Value="_form.Password" Label="Senha temporaria" Required InputType="InputType.Password" Variant="Variant.Outlined" HelperText="Minimo de 8 caracteres; a troca sera solicitada no primeiro acesso." />
+                    <MudTextField T="string" @bind-Value="_form.Password" Label="Senha temporária" Required InputType="InputType.Password" Variant="Variant.Outlined" HelperText="Mínimo de 8 caracteres; a troca será solicitada no primeiro acesso." />
                 }
                 <MudSelect T="int" Value="_form.Role" ValueChanged="RoleChanged" Label="Perfil inicial" Variant="Variant.Outlined" Class="full">
-                    <MudSelectItem Value="0">Administrador da licenca</MudSelectItem>
+                    <MudSelectItem Value="0">Administrador da licença</MudSelectItem>
                     <MudSelectItem Value="1">Gestor</MudSelectItem>
                     <MudSelectItem Value="2">Portaria</MudSelectItem>
                     <MudSelectItem Value="3">Operador</MudSelectItem>
@@ -24,7 +24,7 @@
             </div>
 
             <div class="permission-editor">
-                <div class="permission-editor-head"><div><strong>Permissoes deste usuario</strong><span>Ajuste excecoes ao perfil selecionado.</span></div><MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ResetPermissions">Restaurar perfil</MudButton></div>
+                <div class="permission-editor-head"><div><strong>Permissões deste usuário</strong><span>Ajuste exceções ao perfil selecionado.</span></div><MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ResetPermissions">Restaurar perfil</MudButton></div>
                 @foreach (var group in LicensePermissionCatalog.Options.GroupBy(x => x.Group))
                 {
                     <section class="permission-group"><h4>@group.Key</h4><div class="permission-grid">
@@ -38,7 +38,7 @@
 
             @if (Existing is not null)
             {
-                <MudSwitch T="bool" @bind-Value="_form.IsActive" Label="Acesso ativo para esta licenca" Color="Color.Success" Class="mt-3" />
+                <MudSwitch T="bool" @bind-Value="_form.IsActive" Label="Acesso ativo para esta licença" Color="Color.Success" Class="mt-3" />
             }
             <div class="form-actions dialog-form-actions"><MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : "Salvar acesso")</MudButton></div>
         </EditForm>

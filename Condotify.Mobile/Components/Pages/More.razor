@@ -2,33 +2,91 @@
 @inject MobileSessionCoordinator Session
 @inject MobileAppState AppState
 @inject MobilePushLifecycle Push
+@inject MobileAppearanceState Appearance
 @inject NavigationManager Navigation
 
 <PageTitle>Mais | Condotify</PageTitle>
-<PageHeader Title="Mais" Subtitle="Recursos e configurações da sua conta." />
+<PageHeader Eyebrow="MENU" Title="Mais" Subtitle="Recursos e configurações da sua conta." />
 
-<section class="content-panel settings-panel">
+<div class="settings-panel">
+    <a class="settings-profile-card" href="/profile">
+        <MudAvatar Color="Color.Primary" Variant="Variant.Filled">@Initials</MudAvatar>
+        <div class="list-main"><div class="list-title">@(Session.Current?.Name ?? "Usuário")</div><div class="list-meta">@PrincipalLabel · @ContextLabel</div></div>
+        <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Color="Color.Secondary" />
+    </a>
+
+    <section class="settings-section settings-shortcuts-section">
+        <span class="settings-label">Acesso rápido</span>
+        <div class="settings-shortcuts">
+            @if (Session.Current?.Principal == MobilePrincipalKind.Staff)
+            {
+                <a href="/concierge"><span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" /></span><strong>Portaria</strong></a>
+                <a href="/cameras"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><strong>Câmeras</strong></a>
+                <a href="/deliveries"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><strong>Encomendas</strong></a>
+                <a href="/bookings"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><strong>Reservas</strong></a>
+            }
+            else
+            {
+                <a href="/visitors"><span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" /></span><strong>Visitantes</strong></a>
+                <a href="/cameras"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><strong>Câmeras</strong></a>
+                <a href="/deliveries"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><strong>Encomendas</strong></a>
+                <a href="/bookings"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><strong>Reservas</strong></a>
+            }
+        </div>
+    </section>
+
     @if (Session.Current?.Principal == MobilePrincipalKind.Staff)
     {
-        <a class="list-row" href="/people"><MudIcon Icon="@Icons.Material.Outlined.Groups" Color="Color.Primary" /><div class="list-main"><div class="list-title">Pessoas e unidades</div><div class="list-meta">Moradores, prestadores, veículos e credenciais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-        <a class="list-row" href="/visitors"><MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" Color="Color.Info" /><div class="list-main"><div class="list-title">Visitantes</div><div class="list-meta">Autorizações e movimentações do condomínio</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-        <a class="list-row" href="/deliveries"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" Color="Color.Primary" /><div class="list-main"><div class="list-title">Encomendas</div><div class="list-meta">Recebimentos e entregas</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-        <a class="list-row" href="/devices"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" Color="Color.Tertiary" /><div class="list-main"><div class="list-title">Equipamentos</div><div class="list-meta">Status e acionamentos</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-        <a class="list-row" href="/alerts"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Color="Color.Warning" /><div class="list-main"><div class="list-title">Alertas operacionais</div><div class="list-meta">Ocorrências que exigem atenção</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-        <a class="list-row" href="/bookings"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Color="Color.Tertiary" /><div class="list-main"><div class="list-title">Reservas</div><div class="list-meta">Aprovações e agenda de áreas comuns</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-        <a class="list-row" href="/licenses"><MudIcon Icon="@Icons.Material.Outlined.Apartment" Color="Color.Secondary" /><div class="list-main"><div class="list-title">Trocar condomínio</div><div class="list-meta">Selecionar ambiente de trabalho</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+        <section class="settings-section">
+            <span class="settings-label">Operação</span>
+            <div class="settings-group">
+                <a class="list-row" href="/people"><span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><div class="list-main"><div class="list-title">Pessoas e unidades</div><div class="list-meta">Moradores, prestadores, veículos e credenciais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                <a class="list-row" href="/visitors"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" /></span><div class="list-main"><div class="list-title">Visitantes</div><div class="list-meta">Autorizações e movimentações</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                <a class="list-row" href="/devices"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><div class="list-main"><div class="list-title">Equipamentos</div><div class="list-meta">Estado e acionamentos</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                <a class="list-row" href="/audit"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span><div class="list-main"><div class="list-title">Auditoria de acesso</div><div class="list-meta">Histórico de ações, entradas e credenciais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                <a class="list-row" href="/alerts"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></span><div class="list-main"><div class="list-title">Alertas operacionais</div><div class="list-meta">Ocorrências que exigem atenção</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+            </div>
+        </section>
+
+        <section class="settings-section">
+            <span class="settings-label">Condomínio</span>
+            <div class="settings-group">
+                <a class="list-row" href="/deliveries"><span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><div class="list-main"><div class="list-title">Encomendas</div><div class="list-meta">Recebimentos e entregas</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                <a class="list-row" href="/bookings"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><div class="list-main"><div class="list-title">Reservas</div><div class="list-meta">Aprovações e agenda de áreas comuns</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                <a class="list-row" href="/licenses"><span class="settings-icon neutral"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span><div class="list-main"><div class="list-title">Trocar condomínio</div><div class="list-meta">Selecionar ambiente de trabalho</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+            </div>
+        </section>
     }
     else
     {
-        <a class="list-row" href="/deliveries"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" Color="Color.Secondary" /><div class="list-main"><div class="list-title">Minhas encomendas</div><div class="list-meta">Volumes destinados as suas unidades</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-        <a class="list-row" href="/cameras"><MudIcon Icon="@Icons.Material.Outlined.Videocam" Color="Color.Info" /><div class="list-main"><div class="list-title">Câmeras compartilhadas</div><div class="list-meta">Visualização autorizada pelo condomínio</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+        <section class="settings-section">
+            <span class="settings-label">Condomínio</span>
+            <div class="settings-group">
+                <a class="list-row" href="/deliveries"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><div class="list-main"><div class="list-title">Minhas encomendas</div><div class="list-meta">Volumes destinados às suas unidades</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                <a class="list-row" href="/cameras"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><div class="list-main"><div class="list-title">Câmeras compartilhadas</div><div class="list-meta">Visualização autorizada pelo condomínio</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+            </div>
+        </section>
     }
-    <a class="list-row" href="/notifications"><MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" Color="Color.Info" /><div class="list-main"><div class="list-title">Notificações</div><div class="list-meta">Caixa de entrada e preferências</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-    <a class="list-row" href="/profile"><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Color="Color.Secondary" /><div class="list-main"><div class="list-title">Minha conta</div><div class="list-meta">Perfil, sessão e segurança</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-    <button type="button" class="list-row danger-row" @onclick="LogoutAsync"><MudIcon Icon="@Icons.Material.Outlined.Logout" /><div class="list-main"><div class="list-title">Sair</div><div class="list-meta">Encerrar esta sessão com segurança</div></div></button>
-</section>
+
+    <section class="settings-section">
+        <span class="settings-label">Conta e preferências</span>
+        <div class="settings-group">
+            <div class="list-row settings-toggle-row"><span class="settings-icon neutral"><MudIcon Icon="@Icons.Material.Outlined.DarkMode" /></span><div class="list-main"><div class="list-title">Tema escuro</div><div class="list-meta">Mais conforto visual em ambientes com pouca luz</div></div><MudSwitch T="bool" Value="@Appearance.IsDarkMode" ValueChanged="Appearance.SetDarkMode" Color="Color.Primary" /></div>
+            <div class="list-row settings-toggle-row"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Vibration" /></span><div class="list-main"><div class="list-title">Resposta tátil</div><div class="list-meta">Confirma ações importantes com uma vibração discreta</div></div><MudSwitch T="bool" Value="@Appearance.HapticsEnabled" ValueChanged="Appearance.SetHaptics" Color="Color.Primary" /></div>
+            <a class="list-row" href="/notifications"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" /></span><div class="list-main"><div class="list-title">Notificações</div><div class="list-meta">Caixa de entrada e preferências</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+            <a class="list-row" href="/profile"><span class="settings-icon neutral"><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" /></span><div class="list-main"><div class="list-title">Minha conta</div><div class="list-meta">Perfil, sessão e dados da conta</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+            <button type="button" class="list-row danger-row" @onclick="LogoutAsync"><span class="settings-icon danger"><MudIcon Icon="@Icons.Material.Outlined.Logout" /></span><div class="list-main"><div class="list-title">Sair</div><div class="list-meta">Encerrar esta sessão</div></div></button>
+        </div>
+    </section>
+</div>
 
 @code {
+    private string Initials => string.Concat((Session.Current?.Name ?? "U").Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => x[0])).ToUpperInvariant();
+    private string PrincipalLabel => Session.Current?.Principal == MobilePrincipalKind.Resident ? "Morador" : "Equipe operacional";
+    private string ContextLabel => Session.Current?.Principal == MobilePrincipalKind.Resident
+        ? Session.Current?.LicenseName ?? "Meu condomínio"
+        : AppState.SelectedLicense?.Nome ?? "Central operacional";
+
     private async Task LogoutAsync()
     {
         try { await Push.UnregisterAsync(); } catch { }

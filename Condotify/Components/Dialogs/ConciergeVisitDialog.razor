@@ -4,7 +4,7 @@
     <TitleContent>
         <div class="dialog-title-block">
             <MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" />
-            <div><MudText Typo="Typo.h6">Autorizar visitante</MudText><MudText Typo="Typo.caption">Defina quem, quando e por onde a pessoa podera acessar.</MudText></div>
+            <div><MudText Typo="Typo.h6">Autorizar visitante</MudText><MudText Typo="Typo.caption">Defina quem, quando e por onde a pessoa poderá acessar.</MudText></div>
         </div>
     </TitleContent>
     <DialogContent>
@@ -23,22 +23,22 @@
             </div>
 
             <div class="visit-form-section">
-                <div class="form-section-heading"><span>2</span><div><strong>Visitante</strong><small>Dados para identificacao na portaria.</small></div></div>
+                <div class="form-section-heading"><span>2</span><div><strong>Visitante</strong><small>Dados para identificação na portaria.</small></div></div>
                 <div class="form-grid form-grid-two">
                     <MudTextField T="string" @bind-Value="_form.VisitorName" Label="Nome completo" Required Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_form.Document" Label="CPF, RG ou documento" Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Telefone" Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_form.Company" Label="Empresa" Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_form.Purpose" Label="Motivo da visita" Variant="Variant.Outlined" />
-                    <MudTextField T="string" @bind-Value="_form.VehiclePlate" Label="Placa do veiculo" Variant="Variant.Outlined" />
+                    <MudTextField T="string" @bind-Value="_form.VehiclePlate" Label="Placa do veículo" Variant="Variant.Outlined" />
                 </div>
             </div>
 
             <div class="visit-form-section">
-                <div class="form-section-heading"><span>3</span><div><strong>Credencial temporaria</strong><small>Escolha a forma de identificacao e a validade.</small></div></div>
+                <div class="form-section-heading"><span>3</span><div><strong>Credencial temporária</strong><small>Escolha a forma de identificação e a validade.</small></div></div>
                 <div class="credential-segment" role="radiogroup" aria-label="Tipo de credencial">
-                    <button type="button" role="radio" aria-checked="@(_form.CredentialType == 2)" class="@SegmentClass(2)" @onclick="() => SelectCredential(2)"><MudIcon Icon="@Icons.Material.Outlined.QrCode2" /><span><strong>QR Code</strong><small>Envio rapido e uso controlado</small></span></button>
-                    <button type="button" role="radio" aria-checked="@(_form.CredentialType == 1)" class="@SegmentClass(1)" @onclick="() => SelectCredential(1)"><MudIcon Icon="@Icons.Material.Outlined.Face" /><span><strong>Facial temporaria</strong><small>Distribuida aos terminais da rota</small></span></button>
+                    <button type="button" role="radio" aria-checked="@(_form.CredentialType == 2)" class="@SegmentClass(2)" @onclick="() => SelectCredential(2)"><MudIcon Icon="@Icons.Material.Outlined.QrCode2" /><span><strong>QR Code</strong><small>Envio rápido e uso controlado</small></span></button>
+                    <button type="button" role="radio" aria-checked="@(_form.CredentialType == 1)" class="@SegmentClass(1)" @onclick="() => SelectCredential(1)"><MudIcon Icon="@Icons.Material.Outlined.Face" /><span><strong>Facial temporária</strong><small>Distribuída aos terminais da rota</small></span></button>
                 </div>
                 @if (_form.CredentialType == 1)
                 {
@@ -49,9 +49,9 @@
                         }
                         else
                         {
-                            <img src="@_form.ImageBase64" alt="Pre-visualizacao da foto do visitante" />
+                            <img src="@_form.ImageBase64" alt="Pré-visualização da foto do visitante" />
                         }
-                        <div><strong>@(_photoName ?? "Foto frontal obrigatoria")</strong><small>JPG ou PNG, rosto centralizado e bem iluminado.</small></div>
+                        <div><strong>@(_photoName ?? "Foto frontal obrigatória")</strong><small>JPG ou PNG, rosto centralizado e bem iluminado.</small></div>
                         <label class="file-button"><MudIcon Icon="@Icons.Material.Outlined.AddAPhoto" Size="Size.Small" /> Selecionar foto<InputFile OnChange="ReadPhotoAsync" accept="image/jpeg,image/png" /></label>
                     </div>
                 }
@@ -63,20 +63,20 @@
                     <MudTimePicker @bind-Time="_toTime" Label="Hora final" Variant="Variant.Outlined" />
                 </div>
                 <div class="visit-policy-options">
-                    <MudSwitch T="bool" @bind-Value="_form.RequireApproval" Color="Color.Primary" Label="Exigir aprovacao antes de liberar" />
-                    <MudSwitch T="bool" @bind-Value="_recurring" Color="Color.Primary" Label="Repetir esta autorizacao" />
+                    <MudSwitch T="bool" @bind-Value="_form.RequireApproval" Color="Color.Primary" Label="Exigir aprovação antes de liberar" />
+                    <MudSwitch T="bool" @bind-Value="_recurring" Color="Color.Primary" Label="Repetir esta autorização" />
                 </div>
                 @if (_recurring)
                 {
                     <div class="form-grid form-grid-two">
-                        <MudNumericField T="int" @bind-Value="_form.RepeatCount" Label="Quantidade de ocorrencias" Min="2" Max="30" Variant="Variant.Outlined" />
+                        <MudNumericField T="int" @bind-Value="_form.RepeatCount" Label="Quantidade de ocorrências" Min="2" Max="30" Variant="Variant.Outlined" />
                         <MudNumericField T="int" @bind-Value="_form.RepeatEveryDays" Label="Intervalo em dias" Min="1" Max="365" Variant="Variant.Outlined" />
                     </div>
                 }
             </div>
 
             <div class="visit-form-section">
-                <div class="form-section-heading"><span>4</span><div><strong>Rotas permitidas</strong><small>Somente os terminais destas rotas receberao a credencial.</small></div></div>
+                <div class="form-section-heading"><span>4</span><div><strong>Rotas permitidas</strong><small>Somente os terminais destas rotas receberão a credencial.</small></div></div>
                 @if (Routes.Count == 0)
                 {
                     <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Nenhuma rota para visitantes esta configurada. Cadastre uma rota antes de liberar o acesso.</MudAlert>
@@ -163,14 +163,14 @@
     private async Task SaveAsync()
     {
         if (_host is null) { _error = "Selecione o morador que recebera a visita."; return; }
-        if (_form.CredentialType == 1 && string.IsNullOrWhiteSpace(_form.ImageBase64)) { _error = "Selecione uma foto para a credencial facial temporaria."; return; }
+        if (_form.CredentialType == 1 && string.IsNullOrWhiteSpace(_form.ImageBase64)) { _error = "Selecione uma foto para a credencial facial temporária."; return; }
         if (_form.RouteIds.Count == 0) { _error = "Selecione ao menos uma rota de acesso."; return; }
-        if (!_fromDate.HasValue || !_toDate.HasValue) { _error = "Informe o inicio e o termino da visita."; return; }
+        if (!_fromDate.HasValue || !_toDate.HasValue) { _error = "Informe o início e o término da visita."; return; }
         _form.HostResidentId = _host.Id;
         _form.ValidFrom = _fromDate.Value.Date.Add(_fromTime ?? TimeSpan.Zero);
         _form.ValidTo = _toDate.Value.Date.Add(_toTime ?? TimeSpan.Zero);
         if (!_recurring) _form.RepeatCount = 1;
-        if (_form.ValidTo <= _form.ValidFrom) { _error = "O termino deve ser posterior ao inicio da visita."; return; }
+        if (_form.ValidTo <= _form.ValidFrom) { _error = "O término deve ser posterior ao início da visita."; return; }
 
         _saving = true;
         _error = null;

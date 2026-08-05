@@ -8,26 +8,32 @@
 @inject ISnackbar Snackbar
 
 <PageTitle>Visitantes | Condotify</PageTitle>
-<PageHeader Title="Visitantes" Subtitle="@Subtitle">
+<PageHeader Eyebrow="AUTORIZAÇÕES" Title="Visitantes" Subtitle="@Subtitle">
     <Actions>
         <div class="page-actions">
             <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
-            @if (!IsStaff)
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAddAlt1"
-                           Disabled="@(_profile is null)" OnClick="OpenCreateAsync">Novo visitante</MudButton>
-            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAddAlt1"
+                       Disabled="@(!CanCreate)" OnClick="OpenCreateAsync">Novo visitante</MudButton>
         </div>
     </Actions>
 </PageHeader>
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_rows.Count == 0)" EmptyTitle="Nenhum visitante" EmptyText="As autorizações aparecerão aqui." Retry="LoadAsync">
-    <div class="metric-grid">
-        <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><span class="metric-value">@_rows.Count</span><span class="metric-label">Autorizações</span></div>
-        <div class="metric warning"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.PendingActions" /></span><span class="metric-value">@_rows.Count(x => x.Status == "PendingApproval")</span><span class="metric-label">Aguardando aprovação</span></div>
-        <div class="metric success"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Login" /></span><span class="metric-value">@_rows.Count(x => x.Status == "CheckedIn")</span><span class="metric-label">Dentro agora</span></div>
-        <div class="metric info"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.QrCode2" /></span><span class="metric-value">@_rows.Count(x => !string.IsNullOrWhiteSpace(x.CredentialCode))</span><span class="metric-label">Com credencial</span></div>
+    <div class="visitor-segments" role="group" aria-label="Filtro de visitantes">
+        <button type="button" class="@(_view == MobileVisitorView.Today ? "active" : "")" @onclick="() => SetView(MobileVisitorView.Today)">Hoje <span>@ViewCount(MobileVisitorView.Today)</span></button>
+        <button type="button" class="@(_view == MobileVisitorView.Upcoming ? "active" : "")" @onclick="() => SetView(MobileVisitorView.Upcoming)">Próximos <span>@ViewCount(MobileVisitorView.Upcoming)</span></button>
+        <button type="button" class="@(_view == MobileVisitorView.History ? "active" : "")" @onclick="() => SetView(MobileVisitorView.History)">Histórico <span>@ViewCount(MobileVisitorView.History)</span></button>
     </div>
+
+    <section class="screen-overview visitor-overview visitor-fast-entry">
+        <span class="screen-overview-icon info"><MudIcon Icon="@Icons.Material.Outlined.QrCodeScanner" /></span>
+        <div class="screen-overview-main">
+            <span>Convite antecipado</span>
+            <strong>Entrada mais rápida</strong>
+            <small>Gere o QR Code antes da chegada e reduza o tempo de atendimento na portaria.</small>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" Disabled="@(!CanCreate)" OnClick="OpenCreateAsync">Criar convite</MudButton>
+    </section>
 
     <div class="directory-toolbar">
         <MudTextField @bind-Value="_search"
@@ -41,7 +47,7 @@
                       aria-label="Buscar visitante" />
     </div>
 
-    <section class="content-panel">
+    <section class="content-panel card-list-panel visitor-list-panel">
         <div class="panel-heading"><div><MudText Typo="Typo.h5">@ListTitle</MudText><span class="panel-subtitle">@FilteredRows.Count() registro(s) encontrado(s)</span></div></div>
         @if (!FilteredRows.Any())
         {
@@ -74,6 +80,19 @@
                         <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="() => DecideAsync(visit, true)">Aprovar</MudButton>
                     </div>
                 }
+                else
+                {
+                    <div class="row-actions visitor-pass-actions">
+                        @if (!string.IsNullOrWhiteSpace(visit.CredentialCode) && visit.Status is not "Denied" and not "Canceled")
+                        {
+                            <MudIconButton Icon="@Icons.Material.Outlined.QrCode2" Color="Color.Primary" OnClick="() => OpenPassAsync(visit)" aria-label="Ver e compartilhar QR Code" />
+                        }
+                        @if (!IsStaff)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Outlined.Replay" Color="Color.Secondary" OnClick="() => RepeatVisitAsync(visit)" aria-label="Repetir esta visita" />
+                        }
+                    </div>
+                }
             </div>
         }
     </section>
@@ -88,10 +107,20 @@
     private bool _loading;
     private string _error = string.Empty;
     private string _search = string.Empty;
+    private MobileVisitorView _view = MobileVisitorView.Today;
     private bool IsStaff => Session.Current?.Principal == MobilePrincipalKind.Staff;
+    private bool CanCreate => IsStaff ? AppState.SelectedLicenseId.HasValue : _profile is not null;
     private string Subtitle => IsStaff ? "Autorizações e movimentações de visitantes do condomínio." : "Autorizações vinculadas ao seu cadastro.";
-    private string ListTitle => IsStaff ? "Movimentação de visitantes" : "Minhas autorizações";
-    private IEnumerable<ConciergeVisitViewModel> FilteredRows => _rows.Where(MatchesSearch).OrderByDescending(x => x.ValidFrom);
+    private string ListTitle => _view switch
+    {
+        MobileVisitorView.Today => "Chegam hoje",
+        MobileVisitorView.Upcoming => "Próximas autorizações",
+        _ => "Histórico de acessos"
+    };
+    private IEnumerable<ConciergeVisitViewModel> FilteredRows => _rows
+        .Where(visit => MobileAccessPresentation.MatchesVisitorView(visit, _view, DateTime.Now))
+        .Where(MatchesSearch)
+        .OrderBy(visit => _view == MobileVisitorView.History ? -visit.ValidFrom.Ticks : visit.ValidFrom.Ticks);
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -112,10 +141,23 @@
                 _loading = false;
                 return;
             }
-            var result = await Api.GetConciergeDashboardAsync(AppState.SelectedLicenseId.Value, cancellationToken);
+            var result = await Api.GetConciergeVisitsAsync(
+                AppState.SelectedLicenseId.Value,
+                DateTime.Today.AddDays(-90),
+                DateTime.Today.AddDays(91),
+                cancellationToken);
             if (cancellationToken.IsCancellationRequested) return;
-            _rows = result.Value?.Visits ?? [];
-            if (!result.Success) _error = result.Error ?? "Não foi possível carregar os visitantes.";
+            if (result.Success)
+            {
+                _rows = result.Value ?? [];
+            }
+            else
+            {
+                var fallback = await Api.GetConciergeDashboardAsync(AppState.SelectedLicenseId.Value, cancellationToken);
+                if (cancellationToken.IsCancellationRequested) return;
+                _rows = fallback.Value?.Visits ?? [];
+                if (!fallback.Success) _error = fallback.Error ?? result.Error ?? "Não foi possível carregar os visitantes.";
+            }
         }
         else
         {
@@ -165,14 +207,58 @@
 
     private async Task OpenCreateAsync()
     {
-        if (_profile is null) return;
-        var parameters = new DialogParameters { [nameof(ResidentVisitorDialog.Profile)] = _profile };
-        var dialog = await Dialogs.ShowAsync<ResidentVisitorDialog>(string.Empty, parameters, new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true });
+        if (!CanCreate) return;
+        IDialogReference dialog;
+        if (IsStaff)
+        {
+            var parameters = new DialogParameters { [nameof(StaffVisitorDialog.LicenseId)] = AppState.SelectedLicenseId!.Value };
+            dialog = await Dialogs.ShowAsync<StaffVisitorDialog>(string.Empty, parameters, new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true });
+        }
+        else
+        {
+            var parameters = new DialogParameters { [nameof(ResidentVisitorDialog.Profile)] = _profile! };
+            dialog = await Dialogs.ShowAsync<ResidentVisitorDialog>(string.Empty, parameters, new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true });
+        }
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        Snackbar.Add("Visitante autorizado. O QR Code está pronto para sincronização.", Severity.Success);
+        Snackbar.Add("Visitante autorizado. O QR Code está pronto para compartilhar.", Severity.Success);
+        _view = MobileVisitorView.Today;
         await LoadAsync();
+        if (result?.Data is ConciergeVisitViewModel created && !string.IsNullOrWhiteSpace(created.CredentialCode)) await OpenPassAsync(created);
     }
+
+    private async Task OpenPassAsync(ConciergeVisitViewModel visit)
+    {
+        var parameters = new DialogParameters { [nameof(VisitorPassDialog.Visit)] = visit };
+        await Dialogs.ShowAsync<VisitorPassDialog>(string.Empty, parameters,
+            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.ExtraSmall, CloseOnEscapeKey = true });
+    }
+
+    private async Task RepeatVisitAsync(ConciergeVisitViewModel visit)
+    {
+        if (_profile is null) return;
+        var parameters = new DialogParameters
+        {
+            [nameof(ResidentVisitorDialog.Profile)] = _profile,
+            [nameof(ResidentVisitorDialog.Template)] = visit
+        };
+        var dialog = await Dialogs.ShowAsync<ResidentVisitorDialog>(string.Empty, parameters,
+            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        Snackbar.Add("Nova autorização criada com os dados anteriores.", Severity.Success);
+        _view = MobileVisitorView.Today;
+        await LoadAsync();
+        if (result.Data is ConciergeVisitViewModel created && !string.IsNullOrWhiteSpace(created.CredentialCode)) await OpenPassAsync(created);
+    }
+
+    private void SetView(MobileVisitorView view)
+    {
+        _view = view;
+        _search = string.Empty;
+    }
+
+    private int ViewCount(MobileVisitorView view) => _rows.Count(visit => MobileAccessPresentation.MatchesVisitorView(visit, view, DateTime.Now));
 
     private async Task DecideAsync(ConciergeVisitViewModel visit, bool approved)
     {

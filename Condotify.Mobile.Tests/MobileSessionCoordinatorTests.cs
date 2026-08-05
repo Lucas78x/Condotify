@@ -58,6 +58,48 @@ public sealed class MobileSessionCoordinatorTests
     }
 
     [Fact]
+    public async Task LoginUnified_RoutesStaffWithoutCallingResidentEndpoint()
+    {
+        var handler = new RecordingHandler(_ => Json(new
+        {
+            result = "Success",
+            accessToken = Jwt(DateTimeOffset.UtcNow.AddHours(1), name: "Porteiro"),
+            refreshToken = "staff-refresh",
+            expiresIn = 3600
+        }));
+        var service = Create(handler, new MemoryVault());
+
+        var result = await service.LoginUnifiedAsync("porteiro@example.com", "secret", "Android");
+
+        Assert.True(result.Success);
+        Assert.Equal(MobilePrincipalKind.Staff, service.Current?.Principal);
+        Assert.Equal(["/api/auth/login"], handler.Paths);
+    }
+
+    [Fact]
+    public async Task LoginUnified_FallsBackToResidentAndKeepsResolvedPrincipal()
+    {
+        var licenseId = Guid.NewGuid();
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath == "/api/auth/login"
+            ? Json(new { result = "InvalidCredentials" }, HttpStatusCode.Unauthorized)
+            : Json(new
+            {
+                result = "Success",
+                accessToken = Jwt(DateTimeOffset.UtcNow.AddHours(1), licenseId: licenseId),
+                refreshToken = "resident-refresh",
+                expiresIn = 3600,
+                licenseId
+            }));
+        var service = Create(handler, new MemoryVault());
+
+        var result = await service.LoginUnifiedAsync("morador@example.com", "secret", "Android");
+
+        Assert.True(result.Success);
+        Assert.Equal(MobilePrincipalKind.Resident, service.Current?.Principal);
+        Assert.Equal(["/api/auth/login", "/api/auth/resident/login"], handler.Paths);
+    }
+
+    [Fact]
     public async Task ForgotPassword_PostsToResidentForgotEndpoint()
     {
         var handler = new RecordingHandler(_ => Json(new { result = "Accepted" }, HttpStatusCode.Accepted));

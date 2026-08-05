@@ -14,11 +14,11 @@
                                  ToStringFunc="@(x => x is null ? string.Empty : $"{x.Name} - {x.BlockName} / {x.UnitNumber}")"
                                  Label="Morador e unidade de destino" Placeholder="Digite pelo menos 2 caracteres" Variant="Variant.Outlined"
                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Clearable="true" Class="full" />
-                <MudTextField T="string" @bind-Value="_form.Name" Label="Destinatario ou identificacao" Required Variant="Variant.Outlined" For="@(() => _form.Name)" Class="full" />
+                <MudTextField T="string" @bind-Value="_form.Name" Label="Destinatário ou identificação" Required Variant="Variant.Outlined" For="@(() => _form.Name)" Class="full" />
                 <MudSelect T="int" @bind-Value="_form.Type" Label="Origem" Variant="Variant.Outlined"><MudSelectItem Value="1">Correios</MudSelectItem><MudSelectItem Value="2">SEDEX</MudSelectItem><MudSelectItem Value="30">Mercado Livre</MudSelectItem><MudSelectItem Value="31">Amazon</MudSelectItem><MudSelectItem Value="32">Shopee</MudSelectItem><MudSelectItem Value="999">Outros</MudSelectItem></MudSelect>
-                <MudTextField T="string" @bind-Value="_form.TrackingCode" Label="Codigo de rastreio" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.TrackingCode" Label="Código de rastreio" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.ReceivedBy" Label="Recebido por" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.Description" Label="Observacoes" Lines="3" Variant="Variant.Outlined" Class="full" />
+                <MudTextField T="string" @bind-Value="_form.Description" Label="Observações" Lines="3" Variant="Variant.Outlined" Class="full" />
             </div>
             <div class="form-actions dialog-form-actions">
                 <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>

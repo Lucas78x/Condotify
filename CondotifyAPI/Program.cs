@@ -15,6 +15,7 @@ using CondotifyAPI.Services.RecycleBin;
 using CondotifyAPI.Services.Backups;
 using CondotifyAPI.Services.Observability;
 using CondotifyAPI.Services.Mobile;
+using CondotifyAPI.Services.Operations;
 using MediatR;
 using CondotifyAPI.Domain.Models.Users;
 using CondotifyAPI.Domain.Models.Resident;
@@ -200,6 +201,10 @@ builder.Services.AddScoped<ICredentialReconciliationService, CredentialReconcili
 builder.Services.AddScoped<IDeviceInventoryService, DeviceInventoryService>();
 builder.Services.AddScoped<ILicenseAuthorizationService, LicenseAuthorizationService>();
 builder.Services.AddScoped<IResidentAuthorizationService, ResidentAuthorizationService>();
+builder.Services.AddScoped<IIncidentService, IncidentService>();
+builder.Services.AddScoped<IAutomationRuleEvaluationService, AutomationRuleEvaluationService>();
+builder.Services.AddScoped<IDigitalPassProviderService, DigitalPassProviderService>();
+builder.Services.AddScoped<IAppleWalletPassService, AppleWalletPassService>();
 builder.Services.AddHostedService<ExpiredCredentialCleanupService>();
 builder.Services.AddHostedService<CredentialReconciliationWorker>();
 builder.Services.AddHostedService<AccessEventIngestionWorker>();
@@ -211,6 +216,7 @@ builder.Services.AddHostedService<AutomaticBackupWorker>();
 builder.Services.AddHostedService<OperationalAlertWorker>();
 builder.Services.AddHostedService<AlertNotificationWorker>();
 builder.Services.AddHostedService<PushNotificationWorker>();
+builder.Services.AddHostedService<AutomationRuleWorker>();
 
 builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();
 builder.Services.AddScoped<IAccessControlDriverFactory, AccessControlDriverFactory>();

@@ -1,0 +1,97 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="mobile-dialog">
+    <TitleContent>
+        <div class="mobile-dialog-title">
+            <MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" Color="Color.Primary" />
+            <div><MudText Typo="Typo.h6">@(Existing is null ? "Novo veículo" : "Editar veículo")</MudText><MudText Typo="Typo.caption">Cadastre o veículo e, se desejar, sua TAG de acesso.</MudText></div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">@_error</MudAlert>
+        }
+
+        <div class="mobile-form-grid">
+            <MudTextField T="string" @bind-Value="_model.Plate" Label="Placa" Placeholder="ABC1D23" Variant="Variant.Outlined" Required="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Pin" />
+            <MudSelect T="string" @bind-Value="_model.Type" Label="Tipo" Variant="Variant.Outlined">
+                <MudSelectItem T="string" Value='@("Carro")'>Carro</MudSelectItem>
+                <MudSelectItem T="string" Value='@("Moto")'>Moto</MudSelectItem>
+                <MudSelectItem T="string" Value='@("Utilitario")'>Utilitário</MudSelectItem>
+                <MudSelectItem T="string" Value='@("Outro")'>Outro</MudSelectItem>
+            </MudSelect>
+            <MudTextField T="string" @bind-Value="_model.Brand" Label="Marca" Variant="Variant.Outlined" />
+            <MudTextField T="string" @bind-Value="_model.Model" Label="Modelo" Variant="Variant.Outlined" />
+            <MudTextField T="string" @bind-Value="_model.Color" Label="Cor" Variant="Variant.Outlined" />
+        </div>
+
+        <MudText Typo="Typo.subtitle2" Class="mobile-section-label">TAG veicular (opcional)</MudText>
+        <MudTextField T="string" Value="_model.TagIdentifier" ValueChanged="TagChanged" Label="Código hexadecimal"
+                      Placeholder="E2003412ABCD0099" Variant="Variant.Outlined" Immediate="true"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Nfc"
+                      HelperText="Espaços e hífens serão removidos automaticamente." />
+        <TagHexGuide />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add"
+                   Disabled="_saving" OnClick="SaveAsync">@(_saving ? "Salvando..." : Existing is null ? "Cadastrar veículo" : "Salvar alterações")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public Guid ResidentId { get; set; }
+    [Parameter, EditorRequired] public Guid UnitId { get; set; }
+    [Parameter] public VehicleViewModel? Existing { get; set; }
+
+    private readonly VehicleFormViewModel _model = new();
+    private bool _saving;
+    private string _error = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        _model.UnitId = UnitId;
+        if (Existing is null) return;
+        _model.Plate = Existing.Plate;
+        _model.Brand = Existing.Brand;
+        _model.Model = Existing.Model;
+        _model.Color = Existing.Color;
+        _model.Type = Existing.Type;
+        _model.TagIdentifier = Existing.TagIdentifier;
+    }
+
+    private void TagChanged(string value) => _model.TagIdentifier = MobileAccessPresentation.NormalizeTagHex(value);
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+        _model.Plate = _model.Plate.Trim().ToUpperInvariant();
+        _model.TagIdentifier = MobileAccessPresentation.NormalizeTagHex(_model.TagIdentifier);
+        _error = Validate();
+        if (!string.IsNullOrWhiteSpace(_error)) return;
+
+        _saving = true;
+        var result = Existing is null
+            ? await Api.CreateVehicleAsync(LicenseId, ResidentId, _model)
+            : await Api.UpdateVehicleAsync(LicenseId, ResidentId, Existing.Id, _model, Existing.IsActive);
+        _saving = false;
+        if (!result.Success)
+        {
+            _error = result.Error ?? "Não foi possível cadastrar o veículo.";
+            return;
+        }
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+
+    private string Validate()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Plate)) return "Informe a placa do veículo.";
+        if (_model.Plate.Length is < 7 or > 8) return "Confira a placa informada.";
+        return MobileAccessPresentation.ValidateTagHex(_model.TagIdentifier);
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

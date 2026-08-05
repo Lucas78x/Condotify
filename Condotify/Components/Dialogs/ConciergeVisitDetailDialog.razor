@@ -1,9 +1,10 @@
 @inject IJSRuntime Js
 @inject ISnackbar Snackbar
+@inject CondotifyApiClient Api
 
 <MudDialog Class="entity-dialog concierge-detail-dialog">
     <TitleContent>
-        <div class="dialog-title-block"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /><div><MudText Typo="Typo.h6">Autorizacao de acesso</MudText><MudText Typo="Typo.caption">Dados apresentados na portaria e nos terminais.</MudText></div></div>
+        <div class="dialog-title-block"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /><div><MudText Typo="Typo.h6">Autorização de acesso</MudText><MudText Typo="Typo.caption">Dados apresentados na portaria e nos terminais.</MudText></div></div>
     </TitleContent>
     <DialogContent>
         <header class="visit-detail-person">
@@ -16,13 +17,13 @@
             @if (Visit.CredentialType == "QrCode")
             {
                 <section class="visit-qr-panel">
-                    <img src="@_qrDataUri" alt="QR Code da autorizacao" />
-                    <div><strong>QR Code de acesso</strong><small>Apresente este codigo no leitor dentro da janela autorizada.</small><code>@Visit.CredentialCode</code><MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ContentCopy" OnClick="CopyCodeAsync">Copiar codigo</MudButton></div>
+                    <img src="@_qrDataUri" alt="QR Code da autorização" />
+                <div><strong>QR Code de acesso</strong><small>Apresente este código no leitor dentro da janela autorizada.</small><code>@Visit.CredentialCode</code><MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ContentCopy" OnClick="CopyCodeAsync">Copiar código</MudButton></div>
                 </section>
             }
             else
             {
-                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.Face">A foto facial foi encaminhada aos terminais definidos pelas rotas temporarias.</MudAlert>
+                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.Face">A foto facial foi encaminhada aos terminais definidos pelas rotas temporárias.</MudAlert>
             }
 
             <div class="visit-detail-grid">
@@ -32,11 +33,24 @@
                 <div><small>Telefone</small><strong>@Fallback(Visit.PhoneNumber)</strong></div>
                 <div><small>Motivo</small><strong>@Fallback(Visit.Purpose)</strong></div>
                 <div><small>Empresa</small><strong>@Fallback(Visit.Company)</strong></div>
-                <div><small>Veiculo</small><strong>@Fallback(Visit.VehiclePlate)</strong></div>
-                <div><small>Utilizacoes</small><strong>@UsesLabel(Visit)</strong></div>
-                <div><small>Aprovacao</small><strong>@ApprovalLabel(Visit)</strong></div>
+                <div><small>Veículo</small><strong>@Fallback(Visit.VehiclePlate)</strong></div>
+                <div><small>Utilizações</small><strong>@UsesLabel(Visit)</strong></div>
+                <div><small>Aprovação</small><strong>@ApprovalLabel(Visit)</strong></div>
                 <div><small>Recorrencia</small><strong>@RecurrenceLabel(Visit)</strong></div>
             </div>
+
+            <section class="digital-pass-section">
+                <div class="digital-pass-heading"><span><MudIcon Icon="@Icons.Material.Outlined.Wallet" /></span><div><strong>Passe digital Condotify</strong><small>Compartilhe um link seguro e adicione a autorização a uma carteira compatível.</small></div></div>
+                @if (_pass is null)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddCard" Disabled="_issuing" OnClick="IssuePassAsync">@(_issuing ? "Emitindo..." : "Emitir passe digital")</MudButton>
+                }
+                else
+                {
+                    <div class="digital-pass-result"><img src="@QrCodeRenderer.ToPngDataUri(_pass.PublicUrl)" alt="QR Code do passe digital" /><div><strong>Passe pronto para compartilhar</strong><small>O link pode ser aberto sem login e deixa de funcionar quando a visita expirar ou for revogada.</small><div class="digital-pass-buttons"><MudButton Href="@_pass.PublicUrl" Target="_blank" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.OpenInNew">Abrir passe</MudButton><MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.ContentCopy" OnClick="CopyPassLinkAsync">Copiar link</MudButton>@if (_pass.GoogleWalletConfigured) { <MudButton Href="@_pass.GoogleWalletUrl" Target="_blank" Variant="Variant.Filled" Color="Color.Dark" StartIcon="@Icons.Material.Outlined.Wallet">Google Wallet</MudButton> }@if (_pass.AppleWalletConfigured) { <MudButton Href="@_pass.AppleWalletUrl" Target="_blank" Variant="Variant.Filled" Color="Color.Dark" StartIcon="@Icons.Material.Outlined.PhoneIphone">Apple Wallet</MudButton> }</div></div></div>
+                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Outlined.LinkOff" OnClick="RevokePassAsync">Revogar passe</MudButton>
+                }
+            </section>
         </div>
     </DialogContent>
     <DialogActions><MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton></DialogActions>
@@ -46,18 +60,23 @@
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public ConciergeVisitViewModel Visit { get; set; } = new();
     private string _qrDataUri = string.Empty;
+    private DigitalPassViewModel? _pass;
+    private bool _issuing;
 
     protected override void OnParametersSet() => _qrDataUri = QrCodeRenderer.ToPngDataUri(Visit.CredentialCode);
     private async Task CopyCodeAsync()
     {
         await Js.InvokeVoidAsync("navigator.clipboard.writeText", Visit.CredentialCode);
-        Snackbar.Add("Codigo copiado.", Severity.Success);
+        Snackbar.Add("Código copiado.", Severity.Success);
     }
     private void Close() => Dialog.Close();
-    private static string Fallback(string value) => string.IsNullOrWhiteSpace(value) ? "Nao informado" : value;
+    private async Task IssuePassAsync() { _issuing = true; var result = await Api.IssueDigitalPassAsync(Visit.LicenseId, Visit.Id); _issuing = false; if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível emitir o passe.", Severity.Error); return; } _pass = result.Value; Snackbar.Add("Passe digital emitido.", Severity.Success); }
+    private async Task CopyPassLinkAsync() { if (_pass is null) return; await Js.InvokeVoidAsync("navigator.clipboard.writeText", _pass.PublicUrl); Snackbar.Add("Link do passe copiado.", Severity.Success); }
+    private async Task RevokePassAsync() { var result = await Api.RevokeDigitalPassAsync(Visit.LicenseId, Visit.Id); if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível revogar.", Severity.Error); return; } _pass = null; Snackbar.Add("Passe revogado. O link anterior não funciona mais.", Severity.Success); }
+    private static string Fallback(string value) => string.IsNullOrWhiteSpace(value) ? "Não informado" : value;
     private static string UsesLabel(ConciergeVisitViewModel visit) => visit.MaxUses.HasValue ? $"{visit.UseCount} de {visit.MaxUses}" : $"{visit.UseCount} sem limite";
     private static string Initials(string name) => string.Join(string.Empty, name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
-    private static string StatusLabel(string status) => status switch { "Scheduled" => "Agendada", "CheckedIn" => "No local", "CheckedOut" => "Finalizada", "Canceled" => "Cancelada", "Expired" => "Expirada", "Denied" => "Negada", "PendingApproval" => "Aguardando aprovacao", _ => status };
+    private static string StatusLabel(string status) => status switch { "Scheduled" => "Agendada", "CheckedIn" => "No local", "CheckedOut" => "Finalizada", "Canceled" => "Cancelada", "Expired" => "Expirada", "Denied" => "Negada", "PendingApproval" => "Aguardando aprovação", _ => status };
     private static string ApprovalLabel(ConciergeVisitViewModel visit) => !visit.ApprovalRequired ? "Dispensada" : visit.ApprovedAt.HasValue ? $"{visit.ApprovedBy} em {visit.ApprovedAt.Value.ToLocalTime():dd/MM HH:mm}" : "Pendente";
-    private static string RecurrenceLabel(ConciergeVisitViewModel visit) => visit.RecurrenceCount > 1 ? $"Ocorrencia {visit.RecurrenceSequence} de {visit.RecurrenceCount}" : "Visita unica";
+    private static string RecurrenceLabel(ConciergeVisitViewModel visit) => visit.RecurrenceCount > 1 ? $"Ocorrência {visit.RecurrenceSequence} de {visit.RecurrenceCount}" : "Visita única";
 }

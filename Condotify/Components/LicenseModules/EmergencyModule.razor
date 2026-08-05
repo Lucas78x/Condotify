@@ -1,0 +1,75 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<section class="module-intro emergency-intro">
+    <div><MudText Typo="Typo.h5">Modo de emergência</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Protocolos críticos com confirmação forte, ocorrência automática e auditoria completa.</MudText></div>
+    <MudChip T="string" Color="@(Active is null ? Color.Success : Color.Error)" Variant="Variant.Outlined" Icon="@(Active is null ? Icons.Material.Outlined.HealthAndSafety : Icons.Material.Outlined.CrisisAlert)">@(Active is null ? "Operação normal" : "EMERGÊNCIA ATIVA")</MudChip>
+</section>
+
+@if (_loading) { <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div> }
+else if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert> }
+else if (Active is not null)
+{
+    <MudPaper Class="emergency-active-panel" Elevation="0">
+        <div class="emergency-pulse"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></div>
+        <div class="emergency-active-copy"><span>@TypeLabel(Active.Type) · ATIVADO @Active.ActivatedAt.ToLocalTime().ToString("dd/MM HH:mm")</span><MudText Typo="Typo.h4">@Active.Title</MudText><p>@Active.Instructions</p><small>Ativado por @Active.ActivatedByName · Ocorrência vinculada</small><MudButton Href="@($"/licencas/{LicenseId}/ocorrencias")" Variant="Variant.Outlined" Color="Color.Inherit" StartIcon="@Icons.Material.Outlined.AssignmentLate">Abrir central de ocorrências</MudButton></div>
+    </MudPaper>
+    @if (CanManage)
+    {
+        <MudPaper Class="content-panel emergency-resolve-panel" Elevation="0">
+            <div><MudText Typo="Typo.h6">Encerrar protocolo</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Registre o desfecho para concluir a emergência e a ocorrência crítica.</MudText></div>
+            <MudTextField T="string" @bind-Value="_resolution" Label="Desfecho e medidas tomadas" Variant="Variant.Outlined" Lines="3" />
+            <MudTextField T="string" @bind-Value="_resolveConfirmation" Label="@($"Digite ENCERRAR {LicenseCode}")" HelperText="A confirmação evita encerramentos acidentais." Variant="Variant.Outlined" />
+            <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Outlined.TaskAlt" Disabled="_saving" OnClick="ResolveAsync">Encerrar emergência</MudButton>
+        </MudPaper>
+    }
+}
+else
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4" Icon="@Icons.Material.Outlined.Shield">Ativar um protocolo não aciona portas automaticamente. O Condotify alerta a equipe, abre uma ocorrência crítica e mantém as orientações visíveis; comandos físicos continuam exigindo uma ação humana autorizada.</MudAlert>
+    <div class="emergency-protocol-grid">
+        @foreach (var protocol in Protocols)
+        {
+            <button type="button" class="emergency-protocol-card @(_activation.Type == protocol.Type ? "selected" : "")" disabled="@(!CanManage)" @onclick="@(() => SelectProtocol(protocol))"><span class="protocol-icon @protocol.Css"><MudIcon Icon="@protocol.Icon" /></span><strong>@protocol.Name</strong><small>@protocol.Description</small><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></button>
+        }
+    </div>
+    @if (CanManage)
+    {
+        <MudPaper Class="content-panel emergency-activation-panel" Elevation="0">
+            <div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Preparar protocolo</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Revise a mensagem que ficara visivel para toda a equipe</MudText></div></div>
+            <MudTextField T="string" @bind-Value="_activation.Title" Label="Título da emergência" Variant="Variant.Outlined" />
+            <MudTextField T="string" @bind-Value="_activation.Instructions" Label="Orientações imediatas" Variant="Variant.Outlined" Lines="4" />
+            <MudTextField T="string" @bind-Value="_activation.ConfirmationText" Label="@($"Digite ATIVAR {LicenseCode}")" HelperText="Esta operação gera alertas e fica registrada na auditoria." Variant="Variant.Outlined" />
+            <div class="emergency-activation-actions"><span><MudIcon Icon="@Icons.Material.Outlined.Lock" /> Somente perfis autorizados podem ativar</span><MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Outlined.CrisisAlert" Disabled="_saving" OnClick="ActivateAsync">@(_saving ? "Ativando..." : "Ativar modo de emergência")</MudButton></div>
+        </MudPaper>
+    }
+}
+
+@if (_sessions.Any(x => x.Status != "Active"))
+{
+    <MudPaper Class="content-panel emergency-history" Elevation="0"><div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Histórico de protocolos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Emergências encerradas e seus desfechos</MudText></div></div><div class="emergency-history-list">@foreach (var item in _sessions.Where(x => x.Status != "Active").Take(10)) { <div><span class="protocol-icon compact"><MudIcon Icon="@Icons.Material.Outlined.HealthAndSafety" /></span><div><strong>@item.Title</strong><small>@TypeLabel(item.Type) · @item.ActivatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small><p>@item.Resolution</p></div><MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Encerrada</MudChip></div> }</div></MudPaper>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public string LicenseCode { get; set; } = string.Empty;
+    [Parameter] public bool CanManage { get; set; }
+    private List<EmergencySessionViewModel> _sessions = []; private bool _loading = true; private bool _saving; private string? _error;
+    private EmergencyActivationViewModel _activation = new(); private string _resolution = string.Empty; private string _resolveConfirmation = string.Empty;
+    private Guid _loadedLicenseId;
+    private EmergencySessionViewModel? Active => _sessions.FirstOrDefault(x => x.Status == "Active");
+    private static readonly ProtocolOption[] Protocols = [
+        new(0, "Lockdown", "Restringir circulação e manter acessos sob controle humano.", Icons.Material.Outlined.Lock, "red"),
+        new(1, "Evacuação", "Orientar saída segura e concentração nos pontos definidos.", Icons.Material.Outlined.DirectionsRun, "amber"),
+        new(2, "Pânico", "Mobilizar imediatamente a equipe de segurança.", Icons.Material.Outlined.CrisisAlert, "red"),
+        new(3, "Incêndio", "Iniciar protocolo de incêndio e orientar evacuação.", Icons.Material.Outlined.LocalFireDepartment, "amber"),
+        new(4, "Emergência médica", "Acionar apoio e manter o local acessível ao socorro.", Icons.Material.Outlined.MedicalServices, "blue")
+    ];
+    protected override async Task OnParametersSetAsync() { if (_loadedLicenseId == LicenseId) return; _loadedLicenseId = LicenseId; SelectProtocol(Protocols[0]); await LoadAsync(); }
+    private async Task LoadAsync() { _loading = true; var result = await Api.GetEmergencySessionsAsync(LicenseId); _loading = false; if (result.Success) { _sessions = result.Value ?? []; _error = null; } else _error = result.Error; }
+    private void SelectProtocol(ProtocolOption value) { _activation.Type = value.Type; _activation.Title = value.Type switch { 0 => "Protocolo de segurança: lockdown", 1 => "Evacuação do condomínio", 2 => "Alerta de pânico", 3 => "Alerta de incêndio", _ => "Atendimento de emergência médica" }; _activation.Instructions = value.Type switch { 0 => "Permaneça em local seguro. Toda entrada e saída deve ser validada pela central de portaria.", 1 => "Siga as rotas de evacuação e dirija-se ao ponto de encontro. Não utilize elevadores.", 2 => "Equipe de segurança em alerta. Preserve o local e aguarde orientações da central.", 3 => "Inicie a evacuação pelas rotas sinalizadas, não utilize elevadores e acione o Corpo de Bombeiros.", _ => "Mantenha a área livre para o atendimento e aguarde a equipe de socorro." }; _activation.ConfirmationText = string.Empty; }
+    private async Task ActivateAsync() { if (string.IsNullOrWhiteSpace(_activation.Title) || string.IsNullOrWhiteSpace(_activation.Instructions)) { Snackbar.Add("Revise o título e as orientações.", Severity.Warning); return; } _saving = true; var result = await Api.ActivateEmergencyAsync(LicenseId, _activation); _saving = false; if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível ativar o protocolo.", Severity.Error); return; } Snackbar.Add("Modo de emergência ativado e equipe notificada.", Severity.Error); await LoadAsync(); }
+    private async Task ResolveAsync() { if (Active is null) return; if (string.IsNullOrWhiteSpace(_resolution)) { Snackbar.Add("Informe o desfecho da emergência.", Severity.Warning); return; } _saving = true; var result = await Api.ResolveEmergencyAsync(LicenseId, Active.Id, new EmergencyResolveViewModel { Resolution = _resolution, ConfirmationText = _resolveConfirmation }); _saving = false; if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível encerrar.", Severity.Error); return; } _resolution = _resolveConfirmation = string.Empty; Snackbar.Add("Emergência encerrada e ocorrência concluída.", Severity.Success); await LoadAsync(); }
+    private static string TypeLabel(string value) => value switch { "Lockdown" => "Lockdown", "Evacuation" => "Evacuação", "Panic" => "Pânico", "Fire" => "Incêndio", "Medical" => "Emergência médica", _ => "Emergência" };
+    private sealed record ProtocolOption(int Type, string Name, string Description, string Icon, string Css);
+}

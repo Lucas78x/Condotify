@@ -16,7 +16,7 @@
         {
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
         }
-        <div class="form-section-heading"><span>1</span><div><strong>Unidade</strong><small>Busque pelo numero da unidade ou nome do morador.</small></div></div>
+        <div class="form-section-heading"><span>1</span><div><strong>Unidade</strong><small>Busque pelo número da unidade ou nome do morador.</small></div></div>
         <MudAutocomplete T="AmenityUnitSearchViewModel" Value="_unit" SearchFunc="SearchUnitsAsync"
                          ToStringFunc="@(x => x is null ? string.Empty : $"{x.BlockName} / {x.UnitNumber}")"
                          Label="Unidade" Placeholder="Digite pelo menos 2 caracteres" Variant="Variant.Outlined"
@@ -26,7 +26,7 @@
         @if (_unit is not null && _unit.Residents.Count > 0)
         {
             <MudSelect T="Guid?" @bind-Value="_form.ResidentId" Label="Morador (opcional)" Variant="Variant.Outlined">
-                <MudSelectItem T="Guid?" Value="null">Nao vincular a um morador</MudSelectItem>
+                <MudSelectItem T="Guid?" Value="null">Não vincular a um morador</MudSelectItem>
                 @foreach (var resident in _unit.Residents)
                 {
                     <MudSelectItem T="Guid?" Value="resident.ResidentId">@resident.Name</MudSelectItem>
@@ -34,13 +34,13 @@
             </MudSelect>
         }
 
-        <div class="form-section-heading"><span>2</span><div><strong>Data e horario</strong><small>Somente horarios livres podem ser selecionados.</small></div></div>
+        <div class="form-section-heading"><span>2</span><div><strong>Data e horário</strong><small>Somente horários livres podem ser selecionados.</small></div></div>
         <MudDatePicker Date="_form.Date" DateChanged="OnDateChangedAsync" Label="Data" Variant="Variant.Outlined"
                        MinDate="EarliestAllowedDate" MaxDate="LatestAllowedDate" IsDateDisabledFunc="@(d => IsDateBlackedOut(d))" />
 
         @if (IsDateBlackedOut(_form.Date))
         {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Esta data nao esta disponivel para este local (bloqueio de agenda).</MudAlert>
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Esta data não está disponível para este local (bloqueio de agenda).</MudAlert>
         }
         else if (_loadingAvailability)
         {
@@ -48,18 +48,18 @@
         }
         else if (_availability.Count == 0)
         {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhum horario configurado para este dia da semana.</MudAlert>
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhum horário configurado para este dia da semana.</MudAlert>
         }
         else
         {
-            <div class="credential-segment" role="radiogroup" aria-label="Horarios disponiveis">
+            <div class="credential-segment" role="radiogroup" aria-label="Horários disponíveis">
                 @foreach (var slot in _availability)
                 {
                     <button type="button" role="radio" aria-checked="@(_form.SlotId == slot.SlotId)" disabled="@(!slot.Available)"
                             class="@SlotClass(slot)" @onclick="@(() => SelectSlot(slot))">
                         <span>
                             <strong>@slot.StartTime.ToString(@"hh\:mm") - @slot.EndTime.ToString(@"hh\:mm")</strong>
-                            <small>@(slot.Available ? "Disponivel" : $"Ocupado - {slot.OccupiedByUnitNumber}")</small>
+                            <small>@(slot.Available ? "Disponível" : $"Ocupado - {slot.OccupiedByUnitNumber}")</small>
                         </span>
                     </button>
                 }
@@ -78,7 +78,7 @@
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Taxa informativa: R$ @Amenity.FeeAmount.Value.ToString("N2") @Amenity.FeeDescription</MudAlert>
         }
 
-        <MudTextField T="string" @bind-Value="_form.Notes" Label="Observacoes" Lines="2" Variant="Variant.Outlined" />
+        <MudTextField T="string" @bind-Value="_form.Notes" Label="Observações" Lines="2" Variant="Variant.Outlined" />
 
         <div class="form-actions dialog-form-actions">
             <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
@@ -107,14 +107,14 @@
             ? $"Duplicar reserva de {Amenity.Name}"
             : $"Agendar {Amenity.Name}";
     private string DialogSubtitle => IsEditing
-        ? "Ajuste unidade, data, horario ou observacoes."
+        ? "Ajuste unidade, data, horário ou observações."
         : DuplicateMode
             ? "Revise os dados antes de criar a nova reserva."
-            : "Selecione a unidade, a data e o horario.";
+            : "Selecione a unidade, a data e o horário.";
     private string SaveLabel => _saving
         ? "Salvando..."
         : IsEditing
-            ? "Salvar alteracoes"
+            ? "Salvar alterações"
             : "Confirmar agendamento";
 
     // These mirror AmenityBookingValidator.ValidateWindow on the API side (same day/hour math against
@@ -237,7 +237,7 @@
         _saving = false;
         if (!result.Success)
         {
-            _error = result.Error ?? "Nao foi possivel concluir o agendamento.";
+            _error = result.Error ?? "Não foi possível concluir o agendamento.";
             Snackbar.Add(_error, Severity.Error);
             return;
         }
@@ -248,11 +248,11 @@
     private string? Validate()
     {
         if (_unit is null) return "Selecione a unidade que fara a reserva.";
-        if (_form.SlotId == Guid.Empty) return "Selecione um horario disponivel.";
+        if (_form.SlotId == Guid.Empty) return "Selecione um horário disponível.";
         if (Amenity.RequiresTermsAcceptance && !_form.TermsAccepted) return "E necessario aceitar o termo de uso para agendar este local.";
         if (_form.Date.Date < EarliestAllowedDate || _form.Date.Date > LatestAllowedDate)
             return $"Selecione uma data entre {EarliestAllowedDate:dd/MM/yyyy} e {LatestAllowedDate:dd/MM/yyyy}.";
-        if (IsDateBlackedOut(_form.Date)) return "Esta data nao esta disponivel para este local.";
+        if (IsDateBlackedOut(_form.Date)) return "Esta data não está disponível para este local.";
         return null;
     }
 

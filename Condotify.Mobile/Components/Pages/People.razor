@@ -4,15 +4,30 @@
 @inject MobileAppState AppState
 @inject CondotifyApiClient Api
 @inject NavigationManager Navigation
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
 
 <PageTitle>Pessoas e unidades | Condotify</PageTitle>
-<PageHeader Title="Pessoas e unidades" Subtitle="Navegue pela estrutura do condomínio até cada cadastro.">
-    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+<PageHeader Eyebrow="GESTÃO DE ACESSO" Title="Pessoas e unidades" Subtitle="Navegue pela estrutura do condomínio até cada cadastro.">
+    <Actions>
+        <MudIconButton Icon="@Icons.Material.Outlined.PersonAdd" Color="Color.Primary" Disabled="@(_structure is null)" OnClick="OpenCreatePersonAsync" aria-label="Cadastrar pessoa" />
+        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
+    </Actions>
 </PageHeader>
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_structure?.Blocks.Count == 0)" EmptyTitle="Estrutura vazia" EmptyText="Nenhum bloco ou unidade foi cadastrado neste condomínio." Retry="LoadAsync">
     @if (_structure is not null)
     {
+        <section class="screen-overview directory-overview">
+            <span class="screen-overview-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span>
+            <div class="screen-overview-main">
+                <span>Base do condomínio</span>
+                <strong>@TotalPeople pessoas em @TotalUnits @_structure.UnitLabelPlural.ToLowerInvariant()</strong>
+                <small>Cadastros organizados por @_structure.GroupLabelPlural.ToLowerInvariant() e @_structure.UnitLabelPlural.ToLowerInvariant()</small>
+            </div>
+            <span class="overview-badge">@_structure.Blocks.Count @_structure.GroupLabelPlural.ToLowerInvariant()</span>
+        </section>
+
         <div class="metric-grid">
             <div class="metric primary"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Domain" /></span><span class="metric-value">@_structure.Blocks.Count</span><span class="metric-label">@_structure.GroupLabelPlural</span></div>
             <div class="metric info"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.MeetingRoom" /></span><span class="metric-value">@TotalUnits</span><span class="metric-label">@_structure.UnitLabelPlural</span></div>
@@ -20,7 +35,7 @@
             <div class="metric warning"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Badge" /></span><span class="metric-value">@TemporaryPeople</span><span class="metric-label">Acessos temporários</span></div>
         </div>
 
-        <div class="directory-toolbar">
+        <div class="directory-toolbar elevated-search">
             <MudTextField @bind-Value="_search"
                           Immediate="true"
                           Clearable="true"
@@ -42,7 +57,7 @@
         }
         else
         {
-            <div class="directory-list">
+            <div class="directory-list directory-cards">
                 @foreach (var block in FilteredBlocks)
                 {
                     <section class="content-panel directory-block">
@@ -134,6 +149,22 @@
         value?.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase) == true;
 
     private void OpenUnit(Guid unitId) => Navigation.NavigateTo($"/units/{unitId:D}");
+
+    private async Task OpenCreatePersonAsync()
+    {
+        if (_structure is null || !AppState.SelectedLicenseId.HasValue) return;
+        var parameters = new DialogParameters
+        {
+            [nameof(MobilePersonDialog.LicenseId)] = AppState.SelectedLicenseId.Value,
+            [nameof(MobilePersonDialog.Structure)] = _structure
+        };
+        var dialog = await Dialogs.ShowAsync<MobilePersonDialog>(string.Empty, parameters,
+            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        Snackbar.Add("Pessoa cadastrada. Agora você pode incluir facial, veículo e TAG.", Severity.Success);
+        await LoadAsync();
+    }
 
     public void Dispose()
     {

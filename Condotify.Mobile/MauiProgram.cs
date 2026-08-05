@@ -68,6 +68,11 @@ public static class MauiProgram
         builder.Services.AddSingleton<MobilePushLifecycle>();
         builder.Services.AddSingleton<MobileDeepLinkState>();
         builder.Services.AddSingleton<MobileConnectivityState>();
+        builder.Services.AddSingleton<MobileAppearanceState>();
+        builder.Services.AddSingleton<MobileAppLockService>();
+        builder.Services.AddSingleton<MobileBiometricService>();
+        builder.Services.AddSingleton<MobileOfflineCache>();
+        builder.Services.AddSingleton<MobileDeviceActions>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

@@ -3,20 +3,33 @@
 @inject ISnackbar Snackbar
 
 <PageTitle>Notificações | Condotify</PageTitle>
-<PageHeader Title="Notificações" Subtitle="Atualizações importantes da sua rotina.">
+<PageHeader Eyebrow="CENTRAL DE AVISOS" Title="Notificações" Subtitle="Atualizações importantes da sua rotina.">
     <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
 </PageHeader>
 
+@if (!_loading && string.IsNullOrWhiteSpace(_error) && _page is not null)
+{
+    <section class="screen-overview notification-overview">
+        <span class="screen-overview-icon primary"><MudIcon Icon="@Icons.Material.Outlined.NotificationsActive" /></span>
+        <div class="screen-overview-main">
+            <span>Sua caixa de entrada</span>
+            <strong>@UnreadCount notificação(ões) não lida(s)</strong>
+            <small>@(_page.Items.Count) atualização(ões) carregadas nesta consulta</small>
+        </div>
+        <span class="overview-number">@UnreadCount<small>novas</small></span>
+    </section>
+}
+
 <MudTabs Rounded="false" ApplyEffectsToContainer="true" Class="notification-tabs">
     <MudTabPanel Text="Inbox" Icon="@Icons.Material.Outlined.Inbox">
-        <PageState Loading="_loading" Error="@_error" Empty="@(_page?.Items.Count == 0)" EmptyTitle="Tudo em dia" EmptyText="Novas notificacoes aparecerao aqui." Retry="LoadAsync">
-            <section class="content-panel">
+        <PageState Loading="_loading" Error="@_error" Empty="@(_page?.Items.Count == 0)" EmptyTitle="Tudo em dia" EmptyText="Novas notificações aparecerão aqui." Retry="LoadAsync">
+            <section class="content-panel card-list-panel preference-panel">
                 @foreach (var item in _page?.Items ?? [])
                 {
                     <button class="list-row notification-row @(item.IsRead ? "read" : "")" type="button" @onclick="() => OpenAsync(item)">
                         <MudAvatar Color="@ColorFor(item.Category)" Variant="Variant.Filled"><MudIcon Icon="@IconFor(item.Category)" /></MudAvatar>
                         <div class="list-main"><div class="list-title">@item.Title</div><div class="list-meta">@item.Body</div><div class="list-meta">@item.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</div></div>
-                        @if (!item.IsRead) { <span class="unread-dot" aria-label="Nao lida"></span> }
+                        @if (!item.IsRead) { <span class="unread-dot" aria-label="Não lida"></span> }
                     </button>
                 }
             </section>
@@ -24,7 +37,7 @@
     </MudTabPanel>
     <MudTabPanel Text="Preferências" Icon="@Icons.Material.Outlined.Tune">
         <PageState Loading="_loadingPreferences" Error="@_preferenceError" Retry="LoadPreferencesAsync">
-            <section class="content-panel">
+            <section class="content-panel card-list-panel">
                 @foreach (var preference in _preferences)
                 {
                     <div class="list-row">
@@ -46,6 +59,7 @@
     private bool _loadingPreferences;
     private string _error = string.Empty;
     private string _preferenceError = string.Empty;
+    private int UnreadCount => _page?.Items.Count(x => !x.IsRead) ?? 0;
 
     protected override async Task OnInitializedAsync() => await Task.WhenAll(LoadAsync(), LoadPreferencesAsync());
 
@@ -54,7 +68,7 @@
         _loading = true; _error = string.Empty;
         var result = await Api.GetMobileNotificationsAsync();
         _page = result.Value;
-        if (!result.Success) _error = result.Error ?? "Nao foi possivel carregar as notificacoes.";
+        if (!result.Success) _error = result.Error ?? "Não foi possível carregar as notificações.";
         _loading = false;
     }
 
@@ -63,7 +77,7 @@
         _loadingPreferences = true; _preferenceError = string.Empty;
         var result = await Api.GetMobileNotificationPreferencesAsync();
         _preferences = result.Value ?? [];
-        if (!result.Success) _preferenceError = result.Error ?? "Nao foi possivel carregar as preferencias.";
+        if (!result.Success) _preferenceError = result.Error ?? "Não foi possível carregar as preferências.";
         _loadingPreferences = false;
     }
 
@@ -83,18 +97,18 @@
     {
         changed.Enabled = changed.IsEssential || enabled;
         var result = await Api.UpdateMobileNotificationPreferencesAsync(new MobileNotificationPreferencesUpdateViewModel { Preferences = _preferences });
-        if (!result.Success) Snackbar.Add(result.Error ?? "Nao foi possivel salvar.", Severity.Error);
+        if (!result.Success) Snackbar.Add(result.Error ?? "Não foi possível salvar.", Severity.Error);
         else _preferences = result.Value ?? _preferences;
     }
 
     private async Task SendTestAsync()
     {
         var result = await Api.SendTestMobileNotificationAsync();
-        Snackbar.Add(result.Success ? "Notificacao adicionada ao inbox." : result.Error ?? "Falha no teste.", result.Success ? Severity.Success : Severity.Error);
+        Snackbar.Add(result.Success ? "Notificação adicionada à caixa de entrada." : result.Error ?? "Falha no teste.", result.Success ? Severity.Success : Severity.Error);
         if (result.Success) await LoadAsync();
     }
 
-    private static string Label(MobileNotificationCategory category) => category switch { MobileNotificationCategory.Access => "Acessos", MobileNotificationCategory.Visitor => "Visitantes", MobileNotificationCategory.Delivery => "Encomendas", MobileNotificationCategory.Booking => "Reservas", MobileNotificationCategory.Security => "Seguranca", MobileNotificationCategory.Operational => "Operacao", _ => "Sistema" };
+    private static string Label(MobileNotificationCategory category) => category switch { MobileNotificationCategory.Access => "Acessos", MobileNotificationCategory.Visitor => "Visitantes", MobileNotificationCategory.Delivery => "Encomendas", MobileNotificationCategory.Booking => "Reservas", MobileNotificationCategory.Security => "Segurança", MobileNotificationCategory.Operational => "Operação", _ => "Sistema" };
     private static string IconFor(MobileNotificationCategory category) => category switch { MobileNotificationCategory.Access => Icons.Material.Outlined.Badge, MobileNotificationCategory.Visitor => Icons.Material.Outlined.Group, MobileNotificationCategory.Delivery => Icons.Material.Outlined.Inventory2, MobileNotificationCategory.Booking => Icons.Material.Outlined.CalendarMonth, MobileNotificationCategory.Security => Icons.Material.Outlined.Security, MobileNotificationCategory.Operational => Icons.Material.Outlined.WarningAmber, _ => Icons.Material.Outlined.Info };
     private static Color ColorFor(MobileNotificationCategory category) => category switch { MobileNotificationCategory.Security => Color.Error, MobileNotificationCategory.Operational => Color.Warning, MobileNotificationCategory.Delivery => Color.Info, MobileNotificationCategory.Booking => Color.Tertiary, _ => Color.Primary };
 }

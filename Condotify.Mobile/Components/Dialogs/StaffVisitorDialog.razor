@@ -1,0 +1,121 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="mobile-dialog">
+    <TitleContent>
+        <div class="mobile-dialog-title">
+            <MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" Color="Color.Primary" />
+            <div><MudText Typo="Typo.h6">Entrada rápida</MudText><MudText Typo="Typo.caption">Autorize a visita e gere a credencial antes da chegada.</MudText></div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">@_error</MudAlert>
+        }
+
+        @if (_loading)
+        {
+            <div class="dialog-loading"><MudProgressCircular Indeterminate="true" Color="Color.Primary" /></div>
+        }
+        else
+        {
+            <div class="mobile-form-grid">
+                <MudSelect T="Guid" @bind-Value="_form.HostResidentId" Label="Morador anfitrião" Variant="Variant.Outlined" Required="true">
+                    @foreach (var host in _hosts)
+                    {
+                        <MudSelectItem T="Guid" Value="host.Id">@host.Name · @host.Location</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudTextField T="string" @bind-Value="_form.VisitorName" Label="Nome do visitante" Variant="Variant.Outlined" Required="true" />
+                <MudTextField T="string" @bind-Value="_form.Document" Label="CPF, RG ou documento" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Telefone" Variant="Variant.Outlined" InputType="InputType.Telephone" />
+                <MudTextField T="string" @bind-Value="_form.VehiclePlate" Label="Placa do veículo" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.Purpose" Label="Motivo da visita" Variant="Variant.Outlined" />
+            </div>
+
+            <MudText Typo="Typo.subtitle2" Class="mobile-section-label">Validade do acesso</MudText>
+            <div class="mobile-date-grid">
+                <MudDatePicker @bind-Date="_fromDate" Label="Data inicial" Variant="Variant.Outlined" MinDate="DateTime.Today" />
+                <MudTimePicker @bind-Time="_fromTime" Label="Hora inicial" Variant="Variant.Outlined" />
+                <MudDatePicker @bind-Date="_toDate" Label="Data final" Variant="Variant.Outlined" MinDate="DateTime.Today" />
+                <MudTimePicker @bind-Time="_toTime" Label="Hora final" Variant="Variant.Outlined" />
+            </div>
+            <MudNumericField T="int?" @bind-Value="_form.MaxUses" Label="Limite de acessos" Variant="Variant.Outlined" Min="1" Max="100" Class="mt-3" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.QrCode2"
+                   Disabled="@(_loading || _saving)" OnClick="SaveAsync">@(_saving ? "Gerando..." : "Gerar acesso")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+
+    private readonly ConciergeVisitFormViewModel _form = new() { CredentialType = 2, MaxUses = 1 };
+    private List<HostOption> _hosts = [];
+    private DateTime? _fromDate = DateTime.Today;
+    private TimeSpan? _fromTime = DateTime.Now.AddMinutes(5).TimeOfDay;
+    private DateTime? _toDate = DateTime.Today;
+    private TimeSpan? _toTime = DateTime.Now.AddHours(4).TimeOfDay;
+    private bool _loading;
+    private bool _saving;
+    private string _error = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        var result = await Api.GetStructureAsync(LicenseId);
+        _loading = false;
+        if (!result.Success || result.Value is null)
+        {
+            _error = result.Error ?? "Não foi possível carregar os moradores.";
+            return;
+        }
+
+        _hosts = result.Value.Blocks
+            .SelectMany(block => block.Units.SelectMany(unit => unit.Residents.Select(resident =>
+                new HostOption(resident.Id, resident.Name, $"{block.Name}/{unit.Number}"))))
+            .OrderBy(host => host.Name)
+            .ToList();
+        if (_hosts.Count == 0) _error = "Cadastre um morador antes de criar a visita.";
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+        _error = Validate();
+        if (!string.IsNullOrWhiteSpace(_error)) return;
+
+        _form.ValidFrom = _fromDate!.Value.Date.Add(_fromTime ?? TimeSpan.Zero);
+        _form.ValidTo = _toDate!.Value.Date.Add(_toTime ?? TimeSpan.Zero);
+        _form.VehiclePlate = _form.VehiclePlate.Trim().ToUpperInvariant();
+        _saving = true;
+        var result = await Api.CreateConciergeVisitAsync(LicenseId, _form);
+        _saving = false;
+        if (!result.Success)
+        {
+            _error = result.Error ?? "Não foi possível autorizar a visita.";
+            return;
+        }
+        Dialog.Close(DialogResult.Ok(result.Value));
+    }
+
+    private string Validate()
+    {
+        if (_form.HostResidentId == Guid.Empty) return "Selecione o morador anfitrião.";
+        if (string.IsNullOrWhiteSpace(_form.VisitorName)) return "Informe o nome do visitante.";
+        if (!_fromDate.HasValue || !_toDate.HasValue) return "Informe o início e o fim da autorização.";
+        var from = _fromDate.Value.Date.Add(_fromTime ?? TimeSpan.Zero);
+        var to = _toDate.Value.Date.Add(_toTime ?? TimeSpan.Zero);
+        if (to <= from) return "O término deve ser posterior ao início.";
+        if (to <= DateTime.Now) return "A autorização precisa terminar no futuro.";
+        if (to > from.AddDays(30)) return "A validade máxima de uma visita é de 30 dias.";
+        return string.Empty;
+    }
+
+    private void Cancel() => Dialog.Cancel();
+    private sealed record HostOption(Guid Id, string Name, string Location);
+}

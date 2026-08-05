@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title id="title">Condotify</title>
+  <rect x="1" y="1" width="62" height="62" rx="17" fill="#3156D3" />
+  <g transform="translate(8 8) scale(.75)">
+    <rect x="2" y="2" width="60" height="60" rx="18" fill="#FFFFFF" />
+    <path d="M47 18.5A20 20 0 1 0 47 45.5" fill="none" stroke="#3156D3" stroke-width="8.5" stroke-linecap="round" />
+    <path d="M22 44V29.5L31 24v20H22Zm11 0V30l8 4.8V44h-8Z" fill="#1C2F7A" />
+    <path d="M27.5 44v-7h4v7h-4Z" fill="#FFFFFF" />
+  </g>
+</svg>

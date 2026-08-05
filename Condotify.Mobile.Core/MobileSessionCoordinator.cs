@@ -51,6 +51,21 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
         CancellationToken cancellationToken = default) =>
         LoginAsync("api/auth/resident/login", MobilePrincipalKind.Resident, email, password, deviceLabel, cancellationToken);
 
+    public async Task<MobileLoginResult> LoginUnifiedAsync(
+        string email,
+        string password,
+        string deviceLabel,
+        CancellationToken cancellationToken = default)
+    {
+        var staff = await LoginStaffAsync(email, password, deviceLabel, cancellationToken);
+        if (staff.Success || staff.MfaRequired) return staff;
+
+        var resident = await LoginResidentAsync(email, password, deviceLabel, cancellationToken);
+        return resident.Success
+            ? resident
+            : new MobileLoginResult(false, false, "E-mail ou senha inválidos.");
+    }
+
     public async Task<MobileLoginResult> VerifyStaffMfaAsync(
         string challengeToken,
         string code,
@@ -93,7 +108,7 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
 
             return response.IsSuccessStatusCode && payload?.Result == "Success"
                 ? new MobilePasswordResetResult(true, string.Empty)
-                : new MobilePasswordResetResult(false, payload?.Error ?? "Nao foi possivel redefinir a senha agora.");
+                : new MobilePasswordResetResult(false, payload?.Error ?? "Não foi possível redefinir a senha agora.");
         }
     }
 
@@ -217,7 +232,7 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
                 string.IsNullOrWhiteSpace(payload.RefreshToken))
                 return new(false, false, response.StatusCode == System.Net.HttpStatusCode.Unauthorized
                     ? "Email ou senha invalidos."
-                    : "Nao foi possivel entrar agora.");
+                    : "Não foi possível entrar agora.");
 
             _session = BuildSession(payload, principal, null);
             await _vault.SaveAsync(_session, cancellationToken);

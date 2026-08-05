@@ -1,0 +1,35 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog">
+    <TitleContent><div class="dialog-title-block"><MudIcon Icon="@Icons.Material.Outlined.ReportProblem" /><div><MudText Typo="Typo.h6">Nova ocorrência</MudText><MudText Typo="Typo.caption">Registre o fato para a equipe acompanhar até a conclusão.</MudText></div></div></TitleContent>
+    <DialogContent>
+        <EditForm Model="_form" OnValidSubmit="SaveAsync"><DataAnnotationsValidator />
+            <MudStack Spacing="2">
+                <MudTextField @bind-Value="_form.Title" Label="Título" Variant="Variant.Outlined" Required MaxLength="180" />
+                <MudTextField @bind-Value="_form.Description" Label="Descrição e providências iniciais" Variant="Variant.Outlined" Lines="4" MaxLength="4000" />
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6"><MudSelect T="int" @bind-Value="_form.Category" Label="Categoria" Variant="Variant.Outlined"><MudSelectItem Value="0">Acesso</MudSelectItem><MudSelectItem Value="1">Visitante</MudSelectItem><MudSelectItem Value="2">Veículo</MudSelectItem><MudSelectItem Value="3">Equipamento</MudSelectItem><MudSelectItem Value="4">Encomenda</MudSelectItem><MudSelectItem Value="5">Segurança</MudSelectItem><MudSelectItem Value="6">Outro</MudSelectItem></MudSelect></MudItem>
+                    <MudItem xs="12" sm="6"><MudSelect T="int" @bind-Value="_form.Severity" Label="Gravidade" Variant="Variant.Outlined"><MudSelectItem Value="0">Baixa</MudSelectItem><MudSelectItem Value="1">Média</MudSelectItem><MudSelectItem Value="2">Alta</MudSelectItem><MudSelectItem Value="3">Crítica</MudSelectItem></MudSelect></MudItem>
+                </MudGrid>
+                <MudDatePicker Label="Prazo opcional" @bind-Date="_form.DueAt" Variant="Variant.Outlined" Clearable />
+            </MudStack>
+        </EditForm>
+    </DialogContent>
+    <DialogActions><MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SaveAsync" StartIcon="@Icons.Material.Outlined.AddTask">@(_saving ? "Registrando..." : "Registrar ocorrência")</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    private readonly IncidentCreateViewModel _form = new();
+    private bool _saving;
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_form.Title)) { Snackbar.Add("Informe o título da ocorrência.", Severity.Warning); return; }
+        _saving = true; var result = await Api.CreateIncidentAsync(LicenseId, _form); _saving = false;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível registrar a ocorrência.", Severity.Error); return; }
+        Snackbar.Add("Ocorrência registrada e adicionada à central.", Severity.Success); Dialog.Close(DialogResult.Ok(result.Value));
+    }
+    private void Cancel() => Dialog.Cancel();
+}

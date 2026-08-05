@@ -62,7 +62,7 @@
                             <MudText Typo="Typo.caption" Color="Color.Secondary">@device.Model</MudText>
                         </div>
                         <MudChip T="string" Size="Size.Small" Color="@(device.IsActive ? Color.Success : Color.Warning)" Variant="Variant.Outlined" Icon="@(device.IsActive ? Icons.Material.Outlined.CheckCircle : Icons.Material.Outlined.ErrorOutline)">
-                            @(device.IsActive ? "Online" : "Nao testado")
+                            @(device.IsActive ? "Online" : "Não testado")
                         </MudChip>
                     </div>
 
@@ -79,7 +79,7 @@
                     </div>
 
                     <div class="device-health-line">
-                        <span>@(string.IsNullOrWhiteSpace(device.HealthMessage) ? "Diagnostico ainda nao executado" : device.HealthMessage)</span>
+                        <span>@(string.IsNullOrWhiteSpace(device.HealthMessage) ? "Diagnóstico ainda não executado" : device.HealthMessage)</span>
                         @if (!string.IsNullOrWhiteSpace(device.FirmwareVersion)) { <small>@ShortFirmware(device.FirmwareVersion)</small> }
                     </div>
 
@@ -93,16 +93,16 @@
                                     <MudMenuItem OnClick="@(() => OpenDoorAsync(device, portal.Number))" Icon="@Icons.Material.Outlined.MeetingRoom">@portal.Name</MudMenuItem>
                                 }
                             </MudMenu>
-                            @if (CanManage) { <MudTooltip Text="Atualizar diagnostico e portas"><MudIconButton Icon="@Icons.Material.Outlined.MonitorHeart" Color="Color.Primary" OnClick="@(() => InspectDeviceAsync(device))" Disabled="@(_operatingDeviceId == device.Id)" /></MudTooltip> }
+                            @if (CanManage) { <MudTooltip Text="Atualizar diagnóstico e portas"><MudIconButton Icon="@Icons.Material.Outlined.MonitorHeart" Color="Color.Primary" OnClick="@(() => InspectDeviceAsync(device))" Disabled="@(_operatingDeviceId == device.Id)" /></MudTooltip> }
                         }
                         @if (CanManage && !device.IsActive)
                         {
-                            <MudTooltip Text="Executar diagnostico detalhado"><MudIconButton Icon="@Icons.Material.Outlined.MonitorHeart" Color="Color.Primary" OnClick="@(() => InspectDeviceAsync(device))" Disabled="@(_operatingDeviceId == device.Id)" /></MudTooltip>
+                            <MudTooltip Text="Executar diagnóstico detalhado"><MudIconButton Icon="@Icons.Material.Outlined.MonitorHeart" Color="Color.Primary" OnClick="@(() => InspectDeviceAsync(device))" Disabled="@(_operatingDeviceId == device.Id)" /></MudTooltip>
                         }
                         else if (!device.IsActive && CanManage)
                         {
                             <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Outlined.WifiTethering" OnClick="@(() => TestConnectionAsync(device))" Disabled="@(_operatingDeviceId == device.Id)">
-                                @(_operatingDeviceId == device.Id ? "Testando..." : "Testar conexao")
+                                @(_operatingDeviceId == device.Id ? "Testando..." : "Testar conexão")
                             </MudButton>
                         }
                     </div>
@@ -114,22 +114,22 @@
 
 <MudPaper Class="content-panel action-history" Elevation="0">
     <div class="panel-toolbar">
-        <div><MudText Typo="Typo.h5" Class="panel-title">Atividade recente</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Testes e acionamentos registrados pela operacao</MudText></div>
+        <div><MudText Typo="Typo.h5" Class="panel-title">Atividade recente</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Testes e acionamentos registrados pela operação</MudText></div>
     </div>
     @if (_actions.Count == 0)
     {
-        <div class="panel-body"><MudText Typo="Typo.body2" Color="Color.Secondary">Ainda nao ha acionamentos registrados.</MudText></div>
+        <div class="panel-body"><MudText Typo="Typo.body2" Color="Color.Secondary">Ainda não há acionamentos registrados.</MudText></div>
     }
     else
     {
         <MudTable Items="_actions" Hover Dense Elevation="0">
-            <HeaderContent><MudTh>Horario</MudTh><MudTh>Equipamento</MudTh><MudTh>Operacao</MudTh><MudTh>Detalhes</MudTh><MudTh>Usuario</MudTh></HeaderContent>
+            <HeaderContent><MudTh>Horário</MudTh><MudTh>Equipamento</MudTh><MudTh>Operação</MudTh><MudTh>Detalhes</MudTh><MudTh>Usuário</MudTh></HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="Horario">@context.Timestamp.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
+                <MudTd DataLabel="Horário">@context.Timestamp.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
                 <MudTd DataLabel="Equipamento">@context.DeviceName</MudTd>
-                <MudTd DataLabel="Operacao"><MudChip T="string" Size="Size.Small" Color="@ActionColor(context.Action)" Variant="Variant.Outlined">@ActionLabel(context.Action)</MudChip></MudTd>
+                <MudTd DataLabel="Operação"><MudChip T="string" Size="Size.Small" Color="@ActionColor(context.Action)" Variant="Variant.Outlined">@ActionLabel(context.Action)</MudChip></MudTd>
                 <MudTd DataLabel="Detalhes">@context.Details</MudTd>
-                <MudTd DataLabel="Usuario">@context.UserName</MudTd>
+                <MudTd DataLabel="Usuário">@context.UserName</MudTd>
             </RowTemplate>
         </MudTable>
     }
@@ -218,7 +218,7 @@
         _operatingDeviceId = null;
         if (!result.Success || result.Value is null)
         {
-            _error = result.Error ?? "Nao foi possivel concluir o diagnostico.";
+            _error = result.Error ?? "Não foi possível concluir o diagnóstico.";
             return;
         }
         Snackbar.Add(result.Value.Message, result.Value.Online ? Severity.Success : Severity.Warning);
@@ -229,7 +229,7 @@
     {
         var confirmed = await DialogService.ShowMessageBoxAsync(
             "Confirmar acionamento",
-            $"Abrir a porta {channel} pelo equipamento {device.Name}? Esta operacao ficara registrada no historico.",
+            $"Abrir a porta {channel} pelo equipamento {device.Name}? Esta operação ficará registrada no histórico.",
             yesText: "Abrir porta",
             cancelText: "Cancelar");
         if (confirmed != true) return;
@@ -273,12 +273,12 @@
 
             var root = document.RootElement;
 
-            // Algumas integra��es podem salvar diretamente um array.
+            // Algumas integrações podem salvar diretamente um array.
             if (root.ValueKind == JsonValueKind.Array)
                 return ParseDevicePortalsArray(root, fallback);
 
             /*
-             * Tamb�m suporta formatos envelopados, por exemplo:
+             * Também suporta formatos envelopados, por exemplo:
              *
              * {
              *   "items": [...]
@@ -329,7 +329,7 @@
         }
         catch (JsonException)
         {
-            // JSON inv�lido: utiliza o fallback sem quebrar a tela.
+            // JSON inválido: utiliza o fallback sem quebrar a tela.
         }
         catch (InvalidOperationException)
         {
@@ -337,7 +337,7 @@
         }
         catch (NotSupportedException)
         {
-            // Formato n�o suportado pelo System.Text.Json.
+            // Formato não suportado pelo System.Text.Json.
         }
 
         return fallback;
@@ -503,7 +503,7 @@
                 null,
 
             /*
-             * Evita chamar GetString() em objetos ou arrays, que � justamente
+             * Evita chamar GetString() em objetos ou arrays, que é justamente
              * uma das causas do InvalidOperationException.
              */
             JsonValueKind.Object =>
@@ -614,7 +614,7 @@
                         "yes" => true,
                         "no" => false,
                         "sim" => true,
-                        "n�o" => false,
+                        "não" => false,
                         "nao" => false,
                         "enabled" => true,
                         "disabled" => false,
@@ -674,11 +674,11 @@
             "entrada" => "Entrada",
             "1" => "Entrada",
 
-            "out" => "Sa�da",
-            "exit" => "Sa�da",
-            "saida" => "Sa�da",
-            "sa�da" => "Sa�da",
-            "2" => "Sa�da",
+            "out" => "Saída",
+            "exit" => "Saída",
+            "saida" => "Saída",
+            "saída" => "Saída",
+            "2" => "Saída",
 
             "both" => "Bidirecional",
             "bidirectional" => "Bidirecional",
@@ -686,7 +686,7 @@
             "3" => "Bidirecional",
 
             /*
-             * N�o descarta valores desconhecidos de outras marcas.
+             * Não descarta valores desconhecidos de outras marcas.
              * Dessa forma, Intelbras, Control iD ou novos fabricantes
              * continuam exibindo o valor original.
              */
@@ -704,10 +704,10 @@
         "DeactivateCredential" => "Suspender credencial",
         "RestoreCredential" => "Restaurar",
         "RenewCredential" => "Renovar QR Code",
-        "RemoveCredential" => "Remover vinculo",
+        "RemoveCredential" => "Remover vínculo",
         "FaceEnrollment" => "Cadastro facial",
         "ReadAccessLogs" => "Consultar acessos",
-        _ => "Teste de conexao"
+        _ => "Teste de conexão"
     };
 
     private static Color ActionColor(string action) => action switch
