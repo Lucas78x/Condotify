@@ -55,6 +55,7 @@ services:
       CONDOTIFY_MEDIA_HLS_BASEURL: ${CONDOTIFY_MEDIA_HLS_BASEURL:-http://localhost:8888}
       CONDOTIFY_MEDIA_WEBRTC_BASEURL: ${CONDOTIFY_MEDIA_WEBRTC_BASEURL:-http://localhost:8889}
       CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE: ${CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE:-24}
+      CONDOTIFY_LPR_OCR_URL: http://lpr-ocr:8000
     ports:
       - "7118:8080"
     volumes:
@@ -66,6 +67,7 @@ services:
     networks:
       - default
       - condotify-media
+      - condotify-lpr
 
   mediamtx:
     image: bluenviron/mediamtx:1.9.3
@@ -87,6 +89,14 @@ services:
       - api
     networks:
       - condotify-media
+
+  lpr-ocr:
+    build:
+      context: ./lpr-ocr
+    container_name: condotify-lpr-ocr
+    restart: unless-stopped
+    networks:
+      - condotify-lpr
 
   portal:
     build:
@@ -132,6 +142,10 @@ networks:
   # (portal, pgadmin) que a alcancasse comprometeria todas as cameras da
   # instalacao. mediamtx NAO entra na rede default por causa disto.
   condotify-media:
+
+  # Isola o servico de OCR (LPR): apenas a api participa desta rede. Segue o
+  # mesmo padrao de condotify-media -- nenhuma porta e publicada.
+  condotify-lpr:
 
 volumes:
   condotify-postgres-data:

@@ -16,6 +16,7 @@ using CondotifyAPI.Services.Backups;
 using CondotifyAPI.Services.Observability;
 using CondotifyAPI.Services.Mobile;
 using CondotifyAPI.Services.Operations;
+using CondotifyAPI.Services.Lpr;
 using MediatR;
 using CondotifyAPI.Domain.Models.Users;
 using CondotifyAPI.Domain.Models.Resident;
@@ -185,6 +186,12 @@ builder.Services.AddHttpClient<IMediaGatewayClient, MediaGatewayClient>(client =
         Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_GATEWAY_URL") ?? "http://mediamtx:9997");
     client.Timeout = TimeSpan.FromSeconds(5);
 });
+builder.Services.AddHttpClient<ILprRecognitionClient, HttpLprRecognitionClient>(client =>
+{
+    client.BaseAddress = new Uri(
+        Environment.GetEnvironmentVariable("CONDOTIFY_LPR_OCR_URL") ?? "http://lpr-ocr:8000");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 builder.Services.AddTransient<Mediator>();
 builder.Services.AddScoped<ISender, ScopedSender<Mediator>>();
@@ -205,6 +212,9 @@ builder.Services.AddScoped<IIncidentService, IncidentService>();
 builder.Services.AddScoped<IAutomationRuleEvaluationService, AutomationRuleEvaluationService>();
 builder.Services.AddScoped<IDigitalPassProviderService, DigitalPassProviderService>();
 builder.Services.AddScoped<IAppleWalletPassService, AppleWalletPassService>();
+builder.Services.AddSingleton<ILprDebounceStore, InMemoryLprDebounceStore>();
+builder.Services.AddScoped<IVehicleLookupService, VehicleLookupService>();
+builder.Services.AddScoped<LprDeviceProcessor>();
 builder.Services.AddHostedService<ExpiredCredentialCleanupService>();
 builder.Services.AddHostedService<CredentialReconciliationWorker>();
 builder.Services.AddHostedService<AccessEventIngestionWorker>();
@@ -217,6 +227,7 @@ builder.Services.AddHostedService<OperationalAlertWorker>();
 builder.Services.AddHostedService<AlertNotificationWorker>();
 builder.Services.AddHostedService<PushNotificationWorker>();
 builder.Services.AddHostedService<AutomationRuleWorker>();
+builder.Services.AddHostedService<LprPollingService>();
 
 builder.Services.AddSingleton<IAccessControlDriver, IntelbrasAccessControlDriver>();
 builder.Services.AddScoped<IAccessControlDriverFactory, AccessControlDriverFactory>();
