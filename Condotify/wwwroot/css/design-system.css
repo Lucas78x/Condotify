@@ -1525,8 +1525,15 @@ details[open] > :not(summary) {
     .public-shell:has(.invite-public-layout) .public-content { width: min(calc(100% - 20px), 1080px); padding: 18px 0 34px; }
     .invite-public-card:has(.invite-public-layout) { border-radius: 18px; }
     .invite-public-layout { margin: -28px; min-height: 0; }
-    .invite-guide { display: flex; padding: 28px 20px 24px; }
-    .invite-phone-demo { width: min(100%, 320px); }
+    .invite-guide { display: flex; padding: 20px 18px 16px; gap: 14px; }
+    .invite-phone-demo { width: min(100%, 300px); padding: 16px 12px 10px; gap: 6px; }
     .invite-form-panel { padding: 26px 20px 24px; }
     .invite-public-layout .invite-public-head { margin-bottom: 22px; }
+    /* No mobile a animacao do celular ja explica os 3 passos - a lista
+       simples abaixo dela ficava redundante e empurrava o formulario para
+       fora da tela. Some so aqui; acima de 640px continua igual. */
+    .invite-guide-steps { display: none; }
+    .invite-demo-steps { gap: 5px; }
+    .invite-demo-step { min-height: 40px; padding: 5px 8px 5px 6px; }
+    .invite-guide-expiry { padding: 8px 10px; margin-top: 14px; }
 }
