@@ -46,6 +46,27 @@ public sealed class DigitalPassProviderServiceTests
     }
 
     [Fact]
+    public void Build_ShouldWorkTwiceInARowWithTheSameConfiguredKey()
+    {
+        using var rsa = RSA.Create(2048);
+        var settings = new Dictionary<string, string?>
+        {
+            ["DigitalPass:GoogleWallet:IssuerId"] = "3388000000022000000",
+            ["DigitalPass:GoogleWallet:ServiceAccountEmail"] = "wallet@test.iam.gserviceaccount.com",
+            ["DigitalPass:GoogleWallet:PrivateKey"] = rsa.ExportRSAPrivateKeyPem(),
+            ["DigitalPass:GoogleWallet:ClassSuffix"] = "condotify_access"
+        };
+        var service = new DigitalPassProviderService(new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
+
+        var first = service.Build(Pass(), "token-one", "https://app.condotify.test/passe/token-one");
+        var second = service.Build(Pass(), "token-two", "https://app.condotify.test/passe/token-two");
+
+        Assert.True(first.GoogleWalletConfigured);
+        Assert.True(second.GoogleWalletConfigured);
+        Assert.StartsWith("https://pay.google.com/gp/v/save/", second.GoogleWalletUrl, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AppleWallet_ShouldBuildASignedPkpassWhenCertificatesAreConfigured()
     {
         using var signerKey = RSA.Create(2048);
