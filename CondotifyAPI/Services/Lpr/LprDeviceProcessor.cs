@@ -132,6 +132,17 @@ public sealed class LprDeviceProcessor(
                 message: $"Placa {normalizedPlate} nao possui cadastro ativo para a cancela {device.Name}.",
                 cancellationToken);
         }
+        else if (matchedVehicleId.HasValue)
+        {
+            // A registered, active vehicle was just recognized at this gate -
+            // whatever "plate not recognized" condition may have been open for
+            // this device has now cleared. Same pattern EmergencyController
+            // uses: the source that raised the alert is responsible for
+            // resolving it once its own triggering condition ends, since
+            // OperationalAlertEvaluationService only manages Source ==
+            // "MonitorAutomatico" alerts.
+            await ResolveAlertAsync(context, device, alertType: "LprPlateNotRecognized", cancellationToken);
+        }
 
         // Persist the audit (and any alert) before touching hardware. This is
         // our best-known state at this point - Action reflects exactly what
@@ -204,9 +215,19 @@ public sealed class LprDeviceProcessor(
     }
 
     /// <summary>
-    /// Upserts an operational alert by fingerprint (device + alert type +
-    /// plate), incrementing the occurrence count if one is already open
-    /// rather than spamming a new alert per poll cycle.
+    /// Upserts an operational alert by fingerprint, incrementing the
+    /// occurrence count if one is already open rather than spamming a new
+    /// alert per poll cycle.
+    ///
+    /// The fingerprint for "LprPlateNotRecognized" is per-device only (no
+    /// plate) - every distinct unrecognized plate at the same gate collapses
+    /// into the same alert instead of spawning a new permanent one per
+    /// plate, which is what was happening before (nothing ever resolves an
+    /// Lpr-sourced alert - see OperationalAlertEvaluationService, which only
+    /// manages Source == "MonitorAutomatico"). The actual offending plate
+    /// goes in Message/Title, which are refreshed on every occurrence below.
+    /// "LprGateOpenFailed" deliberately keeps the plate in its fingerprint -
+    /// unchanged, out of scope for this fix.
     /// </summary>
     private static async Task RaiseAlertAsync(
         DatabaseContext context,
@@ -219,7 +240,9 @@ public sealed class LprDeviceProcessor(
     {
         var license = await context.Licenses.AsNoTracking()
             .FirstAsync(l => l.Id == device.LicenseId, cancellationToken);
-        var fingerprint = $"lpr:{alertType}:{device.Id}:{plate}";
+        var fingerprint = alertType == "LprPlateNotRecognized"
+            ? $"lpr:{alertType}:{device.Id}"
+            : $"lpr:{alertType}:{device.Id}:{plate}";
         var now = DateTime.UtcNow;
 
         var existing = await context.OperationalAlerts
@@ -231,6 +254,9 @@ public sealed class LprDeviceProcessor(
             existing.LastOccurredAt = now;
             existing.IsConditionActive = true;
             existing.Status = OperationalAlertStatus.Open;
+            existing.Title = title;
+            existing.Message = message;
+            existing.UpdatedAt = now;
             return;
         }
 
@@ -255,5 +281,34 @@ public sealed class LprDeviceProcessor(
             CreatedAt = now,
             UpdatedAt = now
         });
+    }
+
+    /// <summary>
+    /// Resolves this device's open alert of the given type, if any - mirrors
+    /// how EmergencyController resolves its own "Emergency" alerts directly
+    /// when the triggering session ends, since OperationalAlertEvaluationService
+    /// never touches non-"MonitorAutomatico" sources.
+    /// </summary>
+    private static async Task ResolveAlertAsync(
+        DatabaseContext context,
+        AccessControlDeviceDTO device,
+        string alertType,
+        CancellationToken cancellationToken)
+    {
+        var fingerprint = $"lpr:{alertType}:{device.Id}";
+        var alert = await context.OperationalAlerts
+            .FirstOrDefaultAsync(a => a.Source == "Lpr" &&
+                                       a.Fingerprint == fingerprint &&
+                                       a.Status != OperationalAlertStatus.Resolved,
+                cancellationToken);
+        if (alert == null) return;
+
+        var now = DateTime.UtcNow;
+        alert.IsConditionActive = false;
+        alert.Status = OperationalAlertStatus.Resolved;
+        alert.ResolvedAt = now;
+        alert.ResolvedBy = "Sistema";
+        alert.ResolutionNote = "Um veiculo cadastrado foi reconhecido nesta cancela.";
+        alert.UpdatedAt = now;
     }
 }

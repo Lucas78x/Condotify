@@ -15,7 +15,14 @@ public sealed class LprPollingService(IServiceScopeFactory scopes, IConfiguratio
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var interval = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue("Lpr:PollIntervalSeconds", 2), 1, 60));
+        // Default raised from 2s to 5s: CftvSnapshotService (pre-existing,
+        // reused as-is) builds a brand-new HttpClientHandler/HttpClient per
+        // call, and at LPR's polling cadence this becomes a hot path that
+        // churns sockets. A deeper IHttpClientFactory migration of that
+        // service is a valid follow-up but out of scope here - this keeps
+        // the cadence configurable while making the out-of-the-box default
+        // less aggressive.
+        var interval = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue("Lpr:PollIntervalSeconds", 5), 1, 60));
         using var timer = new PeriodicTimer(interval);
         do
         {
@@ -33,7 +40,7 @@ public sealed class LprPollingService(IServiceScopeFactory scopes, IConfiguratio
             var processor = scope.ServiceProvider.GetRequiredService<LprDeviceProcessor>();
 
             var devices = await context.Devices
-                .Where(d => d.LprMode != null && d.LprCameraId != null)
+                .Where(d => d.LprMode != null && d.LprCameraId != null && d.IsActive)
                 .ToListAsync(cancellationToken);
 
             foreach (var device in devices)

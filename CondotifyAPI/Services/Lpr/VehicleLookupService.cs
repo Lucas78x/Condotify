@@ -13,7 +13,8 @@ public sealed class VehicleLookupService(DatabaseContext context) : IVehicleLook
     public async Task<Guid?> FindActiveVehicleIdAsync(Guid licenseId, string normalizedPlate, CancellationToken cancellationToken = default) =>
         await context.Vehicles
             .AsNoTracking()
-            .Where(v => v.IsActive && v.Plate == normalizedPlate && v.Unit.Block.LicenseId == licenseId)
+            .Where(v => v.IsActive && v.Plate == normalizedPlate && v.Unit.Block.LicenseId == licenseId &&
+                        (v.Resident == null || v.Resident.IsActive))
             .Select(v => (Guid?)v.Id)
             .FirstOrDefaultAsync(cancellationToken);
 }
