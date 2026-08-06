@@ -6,6 +6,7 @@ using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Services.AccessControl;
 using CondotifyAPI.Services.CFTV;
+using CondotifyAPI.Services.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace CondotifyAPI.Services.Lpr;
@@ -15,6 +16,7 @@ public sealed class LprDeviceProcessor(
     ILprRecognitionClient recognitionClient,
     IVehicleLookupService vehicleLookup,
     IAccessControlService accessControl,
+    IPrivateMediaStore mediaStore,
     IMapper mapper,
     ILprDebounceStore debounceStore,
     IConfiguration configuration,
@@ -103,6 +105,8 @@ public sealed class LprDeviceProcessor(
         // and would get a fresh audit row every poll indefinitely.
         debounceStore.MarkTriggered(device.Id, normalizedPlate);
 
+        var snapshotReference = await TryStoreSnapshotAsync(device, snapshot.Content, cancellationToken);
+
         var audit = new VehicleAccessAuditDTO
         {
             Id = Guid.NewGuid(),
@@ -110,6 +114,7 @@ public sealed class LprDeviceProcessor(
             PlateRead = normalizedPlate,
             Confidence = recognition.Confidence,
             MatchedVehicleId = matchedVehicleId,
+            SnapshotReference = snapshotReference,
             Action = action switch
             {
                 LprAction.Opened => VehicleAccessAuditAction.Opened,
@@ -183,6 +188,35 @@ public sealed class LprDeviceProcessor(
 
                 await context.SaveChangesAsync(cancellationToken);
             }
+        }
+    }
+
+    /// <summary>
+    /// Persists the snapshot behind the same encrypted-at-rest private media
+    /// store used for resident/visit photos (SP-1), so an operator can
+    /// visually confirm a plate the OCR misread instead of trusting the raw
+    /// text blind. Scoped to the "real" audit path only (a plate-shaped read
+    /// that survived debounce) - deliberately not called for the camera/OCR
+    /// failure or empty-frame cases below, which would otherwise persist a
+    /// personal-data-bearing image every debounce window for gates that
+    /// simply have no vehicle in frame.
+    /// </summary>
+    private async Task<string?> TryStoreSnapshotAsync(AccessControlDeviceDTO device, byte[] snapshotContent, CancellationToken cancellationToken)
+    {
+        var dataUri = SnapshotDataUri.Build(snapshotContent);
+        if (dataUri is null) return null;
+
+        try
+        {
+            return await mediaStore.StoreDataUriAsync(device.LicenseId, dataUri, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // The audit itself is more valuable than the photo - a failure
+            // here (disk full, permissions) must not block writing the
+            // decision that was already made.
+            logger.LogWarning(exception, "Falha ao persistir snapshot LPR para o dispositivo {DeviceId}.", device.Id);
+            return null;
         }
     }
 

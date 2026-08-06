@@ -19,7 +19,8 @@ public sealed class PrivateMediaController(DatabaseContext context, IPrivateMedi
     {
         var reference = PrivateMediaStore.Reference(licenseId, mediaId);
         var linked = await context.Residents.AsNoTracking().AnyAsync(x => x.Unit.Block.LicenseId == licenseId && x.ImgUrl == reference, cancellationToken)
-            || await context.AccessVisits.AsNoTracking().AnyAsync(x => x.LicenseId == licenseId && x.PhotoUrl == reference, cancellationToken);
+            || await context.AccessVisits.AsNoTracking().AnyAsync(x => x.LicenseId == licenseId && x.PhotoUrl == reference, cancellationToken)
+            || await context.VehicleAccessAudits.AsNoTracking().AnyAsync(x => x.Device.LicenseId == licenseId && x.SnapshotReference == reference, cancellationToken);
         if (!linked) return NotFound();
         var file = await media.ReadAsync(licenseId, mediaId, cancellationToken);
         return file is null ? NotFound() : File(file.Content, file.ContentType);
