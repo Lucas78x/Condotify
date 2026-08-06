@@ -90,10 +90,34 @@ URL pública errada) precisem ser corrigidos duas vezes no futuro.
 | Quem | Como autoriza |
 |---|---|
 | Porteiro (existente) | `LicensePermissionEnum.ManagePeople` via `LicenseUserAccesses` |
-| Morador (novo) | `Authorize(Policy = "Resident")` + `visit.HostResidentId == grant.ResidentId` |
+| Morador (novo) | `Authorize(Policy = "Resident")` + `visit.HostResidentId == grant.ResidentId` + flag da licença abaixo |
 
 Nenhuma mudança nas regras de quem hoje já pode emitir/revogar — só adiciona
 um caminho novo, mais restrito (só a própria visita), pro morador.
+
+## Flag por licença: "moradores podem emitir passe digital"
+
+Escopo pontual, **não** o sistema geral de toggle de funcionalidades por
+licença (isso fica pra uma spec própria, decidido separadamente). Reusa a
+tabela/tela de política de credencial que já existe por licença, em vez de
+criar uma tabela nova só pra um booleano:
+
+- Novo campo `AllowResidentDigitalPass` (bool, default `true`) em
+  `LicenseCredentialPolicyDTO` (`CondotifyAPI.Domain/DTO/License/LicenseCredentialPolicyDTO.cs`)
+  e no DTO espelho `CredentialPolicyOut`/`UpdateCredentialPolicyIn`
+  (`CondotifyAPI/Data/Administration/LicenseAdministrationDtos.cs`) — já
+  expostos por `LicenseAdministrationController.GetPolicyAsync`/`UpdatePolicy`.
+- Migration simples: `ALTER TABLE "LicenseCredentialPolicies" ADD "AllowResidentDigitalPass" boolean NOT NULL DEFAULT TRUE`.
+- Novo toggle em `Condotify/Components/LicenseModules/AdministrationModule.razor`,
+  ao lado dos toggles de política de credencial que já existem lá
+  (`AllowQrCodeRenewal`, `RequireFacePhoto`, etc.) — mesmo padrão visual,
+  mesmo formulário, sem tela nova.
+- Os dois novos endpoints de morador (`POST`/`DELETE
+  api/resident/visits/{visitId}/pass`) carregam a política da licença antes
+  de chamar `IDigitalPassIssuanceService` e retornam `Forbid()` se
+  `!policy.AllowResidentDigitalPass`. O endpoint do porteiro **não** verifica
+  essa flag — ela é só sobre o morador emitir por conta própria; o porteiro
+  continua podendo emitir manualmente mesmo com a flag desligada.
 
 ## Testes
 
@@ -103,9 +127,17 @@ um caminho novo, mais restrito (só a própria visita), pro morador.
   do bug encontrado).
 - Integração de autorização: morador tentando emitir passe de uma visita que
   **não** é dele → `Forbid`.
+- Integração de autorização: `AllowResidentDigitalPass = false` na licença →
+  morador recebe `Forbid` ao tentar emitir; porteiro continua emitindo
+  normalmente pelo portal.
 
 ## Fora de escopo
 
 - Mudar quem pode emitir passe pelo portal (porteiro continua igual).
 - Qualquer mudança no fluxo de Apple Wallet além de reusar o mesmo serviço.
 - Notificar o morador quando o passe expira (feature separada).
+- **Sistema geral de toggle de funcionalidades por licença** ("quase tudo no
+  app pode ser desabilitado por permissão"). Decisão explícita: essa spec
+  cobre só a única flag pontual acima; o sistema geral fica pra uma spec
+  própria, com seu próprio levantamento de quais recursos, modelo de dados e
+  tela de administração.
