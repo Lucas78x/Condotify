@@ -212,6 +212,7 @@ builder.Services.AddScoped<IIncidentService, IncidentService>();
 builder.Services.AddScoped<IAutomationRuleEvaluationService, AutomationRuleEvaluationService>();
 builder.Services.AddScoped<IDigitalPassProviderService, DigitalPassProviderService>();
 builder.Services.AddScoped<IAppleWalletPassService, AppleWalletPassService>();
+builder.Services.AddScoped<IDigitalPassIssuanceService, DigitalPassIssuanceService>();
 builder.Services.AddSingleton<ILprDebounceStore, InMemoryLprDebounceStore>();
 builder.Services.AddScoped<IVehicleLookupService, VehicleLookupService>();
 builder.Services.AddScoped<LprDeviceProcessor>();

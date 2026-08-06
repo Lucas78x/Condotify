@@ -119,6 +119,15 @@ public sealed class DigitalPassProviderService(IConfiguration configuration) : I
         ["defaultValue"] = new Dictionary<string, object> { ["language"] = "pt-BR", ["value"] = value }
     };
 
-    private static string? FirstNonBlank(params string?[] candidates) =>
+    internal static string? FirstNonBlank(params string?[] candidates) =>
         candidates.FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate));
+
+    internal static string ResolvePublicUrl(IConfiguration configuration, string requestHostRoot, string token)
+    {
+        var root = FirstNonBlank(
+            configuration["DigitalPass:PublicAppUrl"],
+            Environment.GetEnvironmentVariable("CONDOTIFY_PUBLIC_APP_URL"),
+            requestHostRoot);
+        return $"{root!.TrimEnd('/')}/passe/{Uri.EscapeDataString(token)}";
+    }
 }
