@@ -131,8 +131,16 @@ public sealed class AppleWalletPassService(IConfiguration configuration) : IAppl
         ? X509Certificate2.CreateFromPem(value.Replace("\\n", "\n", StringComparison.Ordinal))
         : new X509Certificate2(Convert.FromBase64String(value));
 
-    private string Setting(string key, string environmentName) =>
-        configuration[$"DigitalPass:AppleWallet:{key}"] ?? Environment.GetEnvironmentVariable(environmentName) ?? string.Empty;
+    // appsettings.json ships each of these as "" (not absent), and "" is not null -
+    // `??` never falls through to the env var. Every candidate must be checked for
+    // blank individually.
+    private string Setting(string key, string environmentName)
+    {
+        var fromConfig = configuration[$"DigitalPass:AppleWallet:{key}"];
+        if (!string.IsNullOrWhiteSpace(fromConfig)) return fromConfig;
+        var fromEnvironment = Environment.GetEnvironmentVariable(environmentName);
+        return string.IsNullOrWhiteSpace(fromEnvironment) ? string.Empty : fromEnvironment;
+    }
 
     private static Dictionary<string, object> Field(string key, string label, string value) => new()
     { ["key"] = key, ["label"] = label, ["value"] = value };

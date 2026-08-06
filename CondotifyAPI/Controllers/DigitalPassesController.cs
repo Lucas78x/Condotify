@@ -127,7 +127,11 @@ public sealed class DigitalPassesController(
 
     private string PublicUrl(string token)
     {
-        var root = configuration["DigitalPass:PublicAppUrl"] ?? Environment.GetEnvironmentVariable("CONDOTIFY_PUBLIC_APP_URL");
+        // appsettings.json ships DigitalPass:PublicAppUrl as "" (not absent), and ""
+        // is not null - `??` never falls through to the env var or the request-host
+        // default. Each candidate must be checked for blank, not just null.
+        var root = configuration["DigitalPass:PublicAppUrl"];
+        if (string.IsNullOrWhiteSpace(root)) root = Environment.GetEnvironmentVariable("CONDOTIFY_PUBLIC_APP_URL");
         if (string.IsNullOrWhiteSpace(root)) root = $"{Request.Scheme}://{Request.Host}";
         return $"{root.TrimEnd('/')}/passe/{Uri.EscapeDataString(token)}";
     }

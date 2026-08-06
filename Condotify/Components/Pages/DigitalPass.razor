@@ -9,16 +9,16 @@
 <main class="public-pass-page">
     @if (_loading)
     {
-        <div class="public-pass-loading"><BrandMark Compact="true" /><MudProgressCircular Indeterminate Color="Color.Primary" /><span>Validando autorização...</span></div>
+        <div class="public-pass-loading"><BrandMark Class="public-brand-symbol" /><MudProgressCircular Indeterminate Color="Color.Primary" /><span>Validando autorização...</span></div>
     }
     else if (_pass is null)
     {
-        <MudPaper Class="public-pass-invalid" Elevation="0"><BrandMark Compact="true" /><span><MudIcon Icon="@Icons.Material.Outlined.LinkOff" /></span><MudText Typo="Typo.h5">Passe indisponível</MudText><MudText Typo="Typo.body2">@(_error ?? "Este passe não existe, expirou ou foi revogado.")</MudText></MudPaper>
+        <MudPaper Class="public-pass-invalid" Elevation="0"><BrandMark Class="public-brand-symbol" /><span><MudIcon Icon="@Icons.Material.Outlined.LinkOff" /></span><MudText Typo="Typo.h5">Passe indisponível</MudText><MudText Typo="Typo.body2">@(_error ?? "Este passe não existe, expirou ou foi revogado.")</MudText></MudPaper>
     }
     else
     {
         <article class="public-pass-card">
-            <header><BrandMark Compact="true" /><span class="public-pass-valid"><i></i> AUTORIZAÇÃO VÁLIDA</span></header>
+            <header><BrandMark Class="public-brand-symbol" /><span class="public-pass-valid"><i></i> AUTORIZAÇÃO VÁLIDA</span></header>
             <div class="public-pass-hero"><span>ACESSO DE VISITANTE</span><h1>@_pass.VisitorName</h1><p>@_pass.LicenseName</p></div>
             <div class="public-pass-qr"><img src="@QrCodeRenderer.ToPngDataUri(_pass.CredentialCode)" alt="QR Code de acesso" /><span>Apresente este código no leitor da portaria</span><code>@_pass.CredentialCode</code></div>
             <dl><div><dt>Anfitrião</dt><dd>@_pass.HostName</dd></div><div><dt>Destino</dt><dd>@_pass.UnitLabel</dd></div><div><dt>Motivo</dt><dd>@(string.IsNullOrWhiteSpace(_pass.Purpose) ? "Visita" : _pass.Purpose)</dd></div><div><dt>Válido de</dt><dd>@_pass.ValidFrom.ToLocalTime().ToString("dd/MM HH:mm")</dd></div><div><dt>Válido até</dt><dd>@_pass.ValidTo.ToLocalTime().ToString("dd/MM HH:mm")</dd></div></dl>

@@ -31,8 +31,7 @@ public sealed class DigitalPassProviderService(IConfiguration configuration) : I
         };
         output.GoogleWalletUrl = BuildGoogleWalletUrl(output);
         output.GoogleWalletConfigured = !string.IsNullOrWhiteSpace(output.GoogleWalletUrl);
-        var appleTemplate = configuration["DigitalPass:AppleWallet:PassServiceUrlTemplate"]
-                            ?? Environment.GetEnvironmentVariable("CONDOTIFY_APPLE_WALLET_URL_TEMPLATE");
+        var appleTemplate = FirstNonBlank(configuration["DigitalPass:AppleWallet:PassServiceUrlTemplate"], Environment.GetEnvironmentVariable("CONDOTIFY_APPLE_WALLET_URL_TEMPLATE"));
         if (!string.IsNullOrWhiteSpace(appleTemplate))
         {
             output.AppleWalletUrl = appleTemplate.Replace("{token}", Uri.EscapeDataString(token), StringComparison.Ordinal);
@@ -43,17 +42,29 @@ public sealed class DigitalPassProviderService(IConfiguration configuration) : I
 
     private string BuildGoogleWalletUrl(DigitalPassViewModel pass)
     {
-        var issuerId = configuration["DigitalPass:GoogleWallet:IssuerId"] ?? Environment.GetEnvironmentVariable("CONDOTIFY_GOOGLE_WALLET_ISSUER_ID");
-        var serviceAccount = configuration["DigitalPass:GoogleWallet:ServiceAccountEmail"] ?? Environment.GetEnvironmentVariable("CONDOTIFY_GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL");
-        var privateKey = configuration["DigitalPass:GoogleWallet:PrivateKey"] ?? Environment.GetEnvironmentVariable("CONDOTIFY_GOOGLE_WALLET_PRIVATE_KEY");
-        var classSuffix = configuration["DigitalPass:GoogleWallet:ClassSuffix"] ?? "condotify_access";
+        // Each setting ships in appsettings.json as "" (not absent), and "" is not
+        // null - `??` never falls through to the env var. Every candidate must be
+        // checked for blank individually.
+        var issuerId = FirstNonBlank(configuration["DigitalPass:GoogleWallet:IssuerId"], Environment.GetEnvironmentVariable("CONDOTIFY_GOOGLE_WALLET_ISSUER_ID"));
+        var serviceAccount = FirstNonBlank(configuration["DigitalPass:GoogleWallet:ServiceAccountEmail"], Environment.GetEnvironmentVariable("CONDOTIFY_GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL"));
+        var privateKey = FirstNonBlank(configuration["DigitalPass:GoogleWallet:PrivateKey"], Environment.GetEnvironmentVariable("CONDOTIFY_GOOGLE_WALLET_PRIVATE_KEY"));
+        var classSuffix = FirstNonBlank(configuration["DigitalPass:GoogleWallet:ClassSuffix"], "condotify_access");
         if (string.IsNullOrWhiteSpace(issuerId) || string.IsNullOrWhiteSpace(serviceAccount) || string.IsNullOrWhiteSpace(privateKey)) return string.Empty;
 
         try
         {
             using var rsa = RSA.Create();
             rsa.ImportFromPem(privateKey.Replace("\\n", "\n", StringComparison.Ordinal));
-            var header = new JwtHeader(new SigningCredentials(new RsaSecurityKey(rsa), SecurityAlgorithms.RsaSha256));
+            // Microsoft.IdentityModel caches signature providers by key material across
+            // calls. Since `rsa` is disposed at the end of this method, a cached
+            // provider from a previous call would sign against an already-disposed
+            // RSA instance on the next call with the same key - ObjectDisposedException.
+            // A dedicated, non-caching factory keeps signing scoped to this call.
+            var signingCredentials = new SigningCredentials(new RsaSecurityKey(rsa), SecurityAlgorithms.RsaSha256)
+            {
+                CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false }
+            };
+            var header = new JwtHeader(signingCredentials);
             var objectId = $"{issuerId}.{pass.Id:N}";
             var genericObject = new Dictionary<string, object>
             {
@@ -107,4 +118,7 @@ public sealed class DigitalPassProviderService(IConfiguration configuration) : I
     {
         ["defaultValue"] = new Dictionary<string, object> { ["language"] = "pt-BR", ["value"] = value }
     };
+
+    private static string? FirstNonBlank(params string?[] candidates) =>
+        candidates.FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate));
 }
