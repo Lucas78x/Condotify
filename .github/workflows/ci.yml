@@ -37,3 +37,20 @@ jobs:
           name: test-results
           path: '**/TestResults/*.trx'
           if-no-files-found: ignore
+
+  lpr-ocr-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test dependencies
+        # Only the packages the tests actually import - not requirements.txt.
+        # Model loading in app/recognizer.py is lazy and the tests use a fake
+        # recognizer, so the heavy fast-alpr/opencv/numpy stack is never
+        # imported here.
+        run: pip install fastapi python-multipart httpx pytest
+      - name: Test
+        run: pytest lpr-ocr/tests/ -v
