@@ -101,38 +101,7 @@ public sealed class ResidentProfileController : ControllerBase
             .OrderByDescending(x => x.ValidFrom)
             .Take(100)
             .ToListAsync(cancellationToken);
-        return Ok(rows.Select(x => new ConciergeVisitOut
-        {
-            Id = x.Id,
-            HostResidentId = x.HostResidentId,
-            HostName = x.HostResident.Name,
-            BlockName = x.GuestResident.Unit.Block.Name,
-            UnitNumber = x.GuestResident.Unit.Number,
-            VisitorName = x.VisitorName,
-            Document = x.Document,
-            PhoneNumber = x.PhoneNumber,
-            Company = x.Company,
-            Purpose = x.Purpose,
-            VehiclePlate = x.VehiclePlate,
-            PhotoUrl = x.PhotoUrl,
-            Status = x.Status.ToString(),
-            CredentialType = x.Credential.CredentialType.ToString(),
-            CredentialCode = x.Credential.Identifier,
-            UseCount = x.Credential.UseCount,
-            MaxUses = x.Credential.MaxUses,
-            ValidFrom = x.ValidFrom,
-            ValidTo = x.ValidTo,
-            CheckedInAt = x.CheckedInAt,
-            CheckedOutAt = x.CheckedOutAt,
-            ApprovalRequired = x.ApprovalRequired,
-            ApprovedBy = x.ApprovedBy,
-            ApprovedAt = x.ApprovedAt,
-            ApprovalNotes = x.ApprovalNotes,
-            ExpectedCheckoutAt = x.ExpectedCheckoutAt,
-            IsOverstayed = x.Status == Domain.Enums.Invitation.AccessVisitStatusEnum.CheckedIn && (x.ExpectedCheckoutAt ?? x.ValidTo) < DateTime.UtcNow,
-            RecurrenceSequence = x.RecurrenceSequence,
-            RecurrenceCount = x.RecurrenceCount
-        }));
+        return Ok(rows.Select(ToVisitOut));
     }
 
     [HttpPost("visits")]
@@ -583,6 +552,7 @@ public sealed class ResidentProfileController : ControllerBase
         ResidentAccessCredentialDTO credential) => new()
     {
         Id = visit.Id,
+        LicenseId = visit.LicenseId,
         HostResidentId = visit.HostResidentId,
         HostName = hostName,
         BlockName = blockName,
