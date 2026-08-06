@@ -95,6 +95,12 @@ services:
       context: ./lpr-ocr
     container_name: condotify-lpr-ocr
     restart: unless-stopped
+    # Starlette spools UploadFile uploads over ~1MB to a temp file; camera
+    # JPEGs (up to CftvSnapshotService's 5MB cap) can exceed that. tmpfs
+    # keeps any such spillover RAM-backed instead of touching real disk,
+    # honoring this service's "never persists images" (LGPD) requirement.
+    tmpfs:
+      - /tmp
     networks:
       - condotify-lpr
 

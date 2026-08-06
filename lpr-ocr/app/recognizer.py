@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -31,12 +32,20 @@ class FastAlprRecognizer:
         self._detector_model = detector_model
         self._ocr_model = ocr_model
         self._alpr = None
+        # Recognition now runs off the event loop, in FastAPI's threadpool
+        # (see app/main.py), so multiple concurrent requests can genuinely
+        # race here during the first call. Guard the lazy load with a lock;
+        # the check-lock-check pattern keeps the common (already-loaded)
+        # path lock-free.
+        self._load_lock = threading.Lock()
 
     def _ensure_loaded(self):
         if self._alpr is None:
-            from fast_alpr import ALPR
+            with self._load_lock:
+                if self._alpr is None:
+                    from fast_alpr import ALPR
 
-            self._alpr = ALPR(detector_model=self._detector_model, ocr_model=self._ocr_model)
+                    self._alpr = ALPR(detector_model=self._detector_model, ocr_model=self._ocr_model)
         return self._alpr
 
     def recognize(self, image_bytes: bytes) -> PlateRecognitionResult:
