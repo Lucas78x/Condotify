@@ -122,6 +122,7 @@ public sealed class LicenseAdministrationController : ControllerBase
         policy.RequireFacePhoto = input.RequireFacePhoto;
         policy.AutoDeactivateExpiredCredentials = input.AutoDeactivateExpiredCredentials;
         policy.RemoveExpiredCredentialsFromDevices = input.RemoveExpiredCredentialsFromDevices;
+        policy.AllowResidentDigitalPass = input.AllowResidentDigitalPass;
         policy.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return Ok(ToPolicy(policy));
@@ -139,7 +140,7 @@ public sealed class LicenseAdministrationController : ControllerBase
 
     private Guid CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
     private static LicenseUserAccessOut ToUser(LicenseUserAccessDTO item) => new() { Id = item.Id, UserId = item.UserId, Name = item.User.Name, Email = item.User.Email, PhoneNumber = item.User.PhoneNumber, Role = item.Role.ToString(), Permissions = (long)item.Permissions, IsActive = item.IsActive, LastAccess = item.User.LastAccess };
-    private static CredentialPolicyOut ToPolicy(LicenseCredentialPolicyDTO item) => new() { QrCodeValidityMinutes = item.QrCodeValidityMinutes, AllowQrCodeRenewal = item.AllowQrCodeRenewal, MaxQrCodeRenewals = item.MaxQrCodeRenewals, QrCodeRenewalMinutes = item.QrCodeRenewalMinutes, TemporaryFaceValidityMinutes = item.TemporaryFaceValidityMinutes, MaxTemporaryFaceValidityMinutes = item.MaxTemporaryFaceValidityMinutes, RequireFacePhoto = item.RequireFacePhoto, AutoDeactivateExpiredCredentials = item.AutoDeactivateExpiredCredentials, RemoveExpiredCredentialsFromDevices = item.RemoveExpiredCredentialsFromDevices };
+    private static CredentialPolicyOut ToPolicy(LicenseCredentialPolicyDTO item) => new() { QrCodeValidityMinutes = item.QrCodeValidityMinutes, AllowQrCodeRenewal = item.AllowQrCodeRenewal, MaxQrCodeRenewals = item.MaxQrCodeRenewals, QrCodeRenewalMinutes = item.QrCodeRenewalMinutes, TemporaryFaceValidityMinutes = item.TemporaryFaceValidityMinutes, MaxTemporaryFaceValidityMinutes = item.MaxTemporaryFaceValidityMinutes, RequireFacePhoto = item.RequireFacePhoto, AutoDeactivateExpiredCredentials = item.AutoDeactivateExpiredCredentials, RemoveExpiredCredentialsFromDevices = item.RemoveExpiredCredentialsFromDevices, AllowResidentDigitalPass = item.AllowResidentDigitalPass };
     private static string? ValidatePolicy(UpdateCredentialPolicyIn input)
     {
         if (input.QrCodeValidityMinutes is < 5 or > 43200) return "A validade do QR Code deve ficar entre 5 minutos e 30 dias.";

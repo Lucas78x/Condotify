@@ -38,6 +38,7 @@ public class LicenseCredentialPolicyConfiguration : IEntityTypeConfiguration<Lic
         builder.Property(x => x.RequireFacePhoto).HasDefaultValue(true);
         builder.Property(x => x.AutoDeactivateExpiredCredentials).HasDefaultValue(true);
         builder.Property(x => x.RemoveExpiredCredentialsFromDevices).HasDefaultValue(true);
+        builder.Property(x => x.AllowResidentDigitalPass).HasDefaultValue(true);
         builder.Property(x => x.UpdatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.HasOne(x => x.License).WithOne(x => x.CredentialPolicy).HasForeignKey<LicenseCredentialPolicyDTO>(x => x.LicenseId).OnDelete(DeleteBehavior.Cascade);
     }

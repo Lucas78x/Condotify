@@ -55,6 +55,7 @@ public class CredentialPolicyOut
     public bool RequireFacePhoto { get; set; }
     public bool AutoDeactivateExpiredCredentials { get; set; }
     public bool RemoveExpiredCredentialsFromDevices { get; set; }
+    public bool AllowResidentDigitalPass { get; set; }
 }
 
 public sealed class UpdateCredentialPolicyIn : CredentialPolicyOut;

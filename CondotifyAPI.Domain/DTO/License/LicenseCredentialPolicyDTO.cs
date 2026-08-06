@@ -13,5 +13,6 @@ public class LicenseCredentialPolicyDTO
     public bool RequireFacePhoto { get; set; } = true;
     public bool AutoDeactivateExpiredCredentials { get; set; } = true;
     public bool RemoveExpiredCredentialsFromDevices { get; set; } = true;
+    public bool AllowResidentDigitalPass { get; set; } = true;
     public DateTime UpdatedAt { get; set; }
 }
