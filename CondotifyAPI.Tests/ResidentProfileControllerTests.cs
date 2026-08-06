@@ -66,6 +66,28 @@ public sealed class ResidentProfileControllerTests
         Assert.Empty(action.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
     }
 
+    [Theory]
+    [InlineData(nameof(ResidentProfileController.IssuePass))]
+    [InlineData(nameof(ResidentProfileController.RevokePass))]
+    public void DigitalPassCommands_DoNotOverrideTheResidentPolicy(string actionName)
+    {
+        var action = typeof(ResidentProfileController).GetMethods()
+            .Single(x => x.Name == actionName);
+
+        Assert.Empty(action.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+        Assert.Empty(action.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true));
+    }
+
+    [Fact]
+    public void DigitalPassRoutes_UseExpectedVerbsAndTemplate()
+    {
+        var issue = typeof(ResidentProfileController).GetMethod(nameof(ResidentProfileController.IssuePass));
+        var revoke = typeof(ResidentProfileController).GetMethod(nameof(ResidentProfileController.RevokePass));
+
+        Assert.Equal("visits/{visitId:guid}/pass", Assert.Single(issue!.GetCustomAttributes(typeof(HttpPostAttribute), false).Cast<HttpPostAttribute>()).Template);
+        Assert.Equal("visits/{visitId:guid}/pass", Assert.Single(revoke!.GetCustomAttributes(typeof(HttpDeleteAttribute), false).Cast<HttpDeleteAttribute>()).Template);
+    }
+
     [Fact]
     public void ResidentCftvController_RequiresResidentPolicy()
     {

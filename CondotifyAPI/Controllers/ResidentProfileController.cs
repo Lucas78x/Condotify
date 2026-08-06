@@ -15,6 +15,7 @@ using CondotifyAPI.Domain.Enums.Resident;
 using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Services.Amenities;
 using CondotifyAPI.Services.Authorization;
+using CondotifyAPI.Services.Operations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -28,11 +29,13 @@ public sealed class ResidentProfileController : ControllerBase
 {
     private readonly DatabaseContext _context;
     private readonly IResidentAuthorizationService _authorization;
+    private readonly IDigitalPassIssuanceService _issuance;
 
-    public ResidentProfileController(DatabaseContext context, IResidentAuthorizationService authorization)
+    public ResidentProfileController(DatabaseContext context, IResidentAuthorizationService authorization, IDigitalPassIssuanceService issuance)
     {
         _context = context;
         _authorization = authorization;
+        _issuance = issuance;
     }
 
     [HttpGet("me")]
@@ -102,6 +105,47 @@ public sealed class ResidentProfileController : ControllerBase
             .Take(100)
             .ToListAsync(cancellationToken);
         return Ok(rows.Select(ToVisitOut));
+    }
+
+    [HttpPost("visits/{visitId:guid}/pass")]
+    public async Task<IActionResult> IssuePass(Guid visitId, CancellationToken cancellationToken)
+    {
+        var grant = await _authorization.GetGrantAsync(User, cancellationToken);
+        if (grant is null) return Forbid();
+
+        var visit = await _context.AccessVisits.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == visitId && x.LicenseId == grant.LicenseId, cancellationToken);
+        if (visit is null) return NotFound();
+        if (visit.HostResidentId != grant.ResidentId) return Forbid();
+
+        var policy = await _context.LicenseCredentialPolicies.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.LicenseId == grant.LicenseId, cancellationToken);
+        if (policy is not null && !policy.AllowResidentDigitalPass) return Forbid();
+
+        var resident = await _context.Residents.AsNoTracking().FirstOrDefaultAsync(x => x.Id == grant.ResidentId, cancellationToken);
+        var result = await _issuance.IssueAsync(grant.LicenseId, visitId, $"{Request.Scheme}://{Request.Host}", null, resident?.Name ?? "Morador", cancellationToken);
+        return result.Outcome switch
+        {
+            DigitalPassIssueOutcome.VisitNotFound => NotFound(),
+            DigitalPassIssueOutcome.Success => Ok(result.Pass),
+            _ => Conflict(new { Errors = result.Error })
+        };
+    }
+
+    [HttpDelete("visits/{visitId:guid}/pass")]
+    public async Task<IActionResult> RevokePass(Guid visitId, CancellationToken cancellationToken)
+    {
+        var grant = await _authorization.GetGrantAsync(User, cancellationToken);
+        if (grant is null) return Forbid();
+
+        var visit = await _context.AccessVisits.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == visitId && x.LicenseId == grant.LicenseId, cancellationToken);
+        if (visit is null) return NotFound();
+        if (visit.HostResidentId != grant.ResidentId) return Forbid();
+
+        var resident = await _context.Residents.AsNoTracking().FirstOrDefaultAsync(x => x.Id == grant.ResidentId, cancellationToken);
+        var result = await _issuance.RevokeAsync(grant.LicenseId, visitId, null, resident?.Name ?? "Morador", cancellationToken);
+        return result.Outcome == DigitalPassRevokeOutcome.NotFound ? NotFound() : NoContent();
     }
 
     [HttpPost("visits")]
