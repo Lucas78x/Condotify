@@ -1,4 +1,6 @@
 @inject MobileDeviceActions DeviceActions
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
 
 <MudDialog Class="mobile-dialog visitor-pass-dialog">
     <TitleContent>
@@ -23,6 +25,22 @@
             <code>@Visit.CredentialCode</code>
         </div>
         <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true">O convite é pessoal. A portaria valida horário, situação e limite de utilizações.</MudAlert>
+
+        <section class="visitor-pass-wallet">
+            <div class="visitor-pass-wallet-heading"><MudIcon Icon="@Icons.Material.Outlined.Wallet" /><div><strong>Passe digital Condotify</strong><small>Adicione esta autorização a uma carteira compatível no seu celular.</small></div></div>
+            @if (_pass is null)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Outlined.AddCard" Disabled="_issuing" OnClick="IssuePassAsync">@(_issuing ? "Emitindo..." : "Adicionar à carteira")</MudButton>
+            }
+            else
+            {
+                <div class="visitor-pass-wallet-buttons">
+                    @if (_pass.GoogleWalletConfigured) { <MudButton Href="@_pass.GoogleWalletUrl" Target="_blank" Variant="Variant.Filled" Color="Color.Dark" StartIcon="@Icons.Material.Outlined.Wallet">Google Wallet</MudButton> }
+                    @if (_pass.AppleWalletConfigured) { <MudButton Href="@_pass.AppleWalletUrl" Target="_blank" Variant="Variant.Filled" Color="Color.Dark" StartIcon="@Icons.Material.Outlined.PhoneIphone">Apple Wallet</MudButton> }
+                </div>
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Outlined.LinkOff" Disabled="_revoking" OnClick="RevokePassAsync">@(_revoking ? "Revogando..." : "Revogar passe")</MudButton>
+            }
+        </section>
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton>
@@ -34,7 +52,31 @@
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public ConciergeVisitViewModel Visit { get; set; } = null!;
     private string QrDataUri => QrCodeRenderer.ToPngDataUri(Visit.CredentialCode);
+    private DigitalPassViewModel? _pass;
+    private bool _issuing;
+    private bool _revoking;
+
     private Task ShareAsync() => DeviceActions.ShareTextAsync($"Convite para {Visit.VisitorName}",
         $"Convite Condotify\nVisitante: {Visit.VisitorName}\nLocal: {Visit.BlockName} / {Visit.UnitNumber}\nVálido de {Visit.ValidFrom.ToLocalTime():dd/MM HH:mm} até {Visit.ValidTo.ToLocalTime():dd/MM HH:mm}\nCódigo: {Visit.CredentialCode}");
     private void Close() => Dialog.Close();
+
+    private async Task IssuePassAsync()
+    {
+        _issuing = true;
+        var result = await Api.IssueResidentDigitalPassAsync(Visit.Id);
+        _issuing = false;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível emitir o passe.", Severity.Error); return; }
+        _pass = result.Value;
+        Snackbar.Add("Passe digital emitido.", Severity.Success);
+    }
+
+    private async Task RevokePassAsync()
+    {
+        _revoking = true;
+        var result = await Api.RevokeResidentDigitalPassAsync(Visit.Id);
+        _revoking = false;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível revogar.", Severity.Error); return; }
+        _pass = null;
+        Snackbar.Add("Passe revogado.", Severity.Success);
+    }
 }

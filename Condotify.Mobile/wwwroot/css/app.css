@@ -904,6 +904,11 @@ body { color: var(--condotify-ink); background: var(--condotify-soft); }
 .visitor-pass-validity strong { font-size: .8rem; }
 .visitor-pass-hero code { max-width: 100%; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); font-size: .72rem; }
 .visitor-pass-actions { flex-wrap: nowrap; }
+.visitor-pass-wallet { display: grid; gap: 12px; margin-top: 16px; padding: 16px; border-radius: 20px; background: var(--surface); box-shadow: 0 8px 22px rgba(15, 37, 78, .08); }
+.visitor-pass-wallet-heading { display: flex; align-items: flex-start; gap: 10px; }
+.visitor-pass-wallet-heading strong { display: block; font-size: .92rem; }
+.visitor-pass-wallet-heading small { color: var(--text-muted); font-size: .74rem; }
+.visitor-pass-wallet-buttons { display: grid; gap: 8px; }
 .settings-toggle-row { cursor: default; }
 .dark-mode .content-panel, .dark-mode .metric, .dark-mode .settings-group, .dark-mode .settings-profile-card,
 .dark-mode .visitor-pass-hero, .dark-mode .page-header .mud-icon-button { border-color: var(--mud-palette-lines-default); }
