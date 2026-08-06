@@ -1214,6 +1214,9 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<bool>> RevokeResidentDigitalPassAsync(Guid visitId, CancellationToken cancellationToken = default) =>
         DeleteAsync($"api/resident/visits/{visitId}/pass", cancellationToken);
 
+    public Task<ApiResult<ResidentDigitalPassStatusViewModel>> GetResidentDigitalPassStatusAsync(Guid visitId, CancellationToken cancellationToken = default) =>
+        GetAsync<ResidentDigitalPassStatusViewModel>($"api/resident/visits/{visitId}/pass", cancellationToken);
+
     public Task<ApiResult<DigitalPassViewModel>> GetPublicDigitalPassAsync(string token, CancellationToken cancellationToken = default) =>
         GetAsync<DigitalPassViewModel>($"api/public/passes/{Uri.EscapeDataString(token)}", cancellationToken);
 

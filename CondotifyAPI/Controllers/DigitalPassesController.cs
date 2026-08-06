@@ -86,10 +86,6 @@ public sealed class DigitalPassesController(
         }
     }
 
-    private IQueryable<CondotifyAPI.Domain.DTO.Invitation.AccessVisitDTO> VisitQuery() => context.AccessVisits
-        .Include(x => x.License).Include(x => x.Credential)
-        .Include(x => x.HostResident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block);
-
     private Condotify.Models.DigitalPassViewModel ToOutput(DigitalPassDTO pass, string token, string publicUrl)
     {
         var output = providers.Build(pass, token, publicUrl);

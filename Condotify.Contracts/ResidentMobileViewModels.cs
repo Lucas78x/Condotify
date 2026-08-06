@@ -20,6 +20,7 @@ public sealed class ResidentProfileViewModel
     public string PhotoUrl { get; set; } = string.Empty;
     public string AccessType { get; set; } = string.Empty;
     public bool IsResponsible { get; set; }
+    public bool AllowResidentDigitalPass { get; set; } = true;
     public List<ResidentUnitViewModel> Units { get; set; } = [];
 }
 

@@ -13,7 +13,13 @@ public sealed class ResidentMeOut
     public string PhotoUrl { get; set; } = string.Empty;
     public ResidentAccessTypeEnum AccessType { get; set; }
     public bool IsResponsible { get; set; }
+    public bool AllowResidentDigitalPass { get; set; } = true;
     public IReadOnlyCollection<ResidentUnitOut> Units { get; set; } = [];
+}
+
+public sealed class ResidentDigitalPassStatusOut
+{
+    public bool HasActivePass { get; set; }
 }
 
 public sealed class ResidentUnitOut

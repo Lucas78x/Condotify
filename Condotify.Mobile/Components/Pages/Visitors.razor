@@ -229,7 +229,14 @@
 
     private async Task OpenPassAsync(ConciergeVisitViewModel visit)
     {
-        var parameters = new DialogParameters { [nameof(VisitorPassDialog.Visit)] = visit };
+        // The wallet block talks to the resident-scoped endpoints, so it is only
+        // meaningful when a resident profile is loaded (never for staff) and the
+        // license still allows resident self-issue.
+        var parameters = new DialogParameters
+        {
+            [nameof(VisitorPassDialog.Visit)] = visit,
+            [nameof(VisitorPassDialog.AllowDigitalPass)] = _profile?.AllowResidentDigitalPass == true
+        };
         await Dialogs.ShowAsync<VisitorPassDialog>(string.Empty, parameters,
             new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.ExtraSmall, CloseOnEscapeKey = true });
     }

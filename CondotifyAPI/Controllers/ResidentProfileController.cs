@@ -7,6 +7,7 @@ using CondotifyAPI.Data.Deliveries;
 using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.DTO.Amenities;
 using CondotifyAPI.Domain.DTO.Invitation;
+using CondotifyAPI.Domain.DTO.Operations;
 using CondotifyAPI.Domain.DTO.Resident;
 using CondotifyAPI.Domain.Enums.AccessControl;
 using CondotifyAPI.Domain.Enums.Amenities;
@@ -70,6 +71,7 @@ public sealed class ResidentProfileController : ControllerBase
             ResidentId = resident.Id,
             LicenseId = grant.LicenseId,
             LicenseName = licenseName,
+            AllowResidentDigitalPass = await ResidentDigitalPassAllowedAsync(grant.LicenseId, cancellationToken),
             Name = resident.Name,
             Email = resident.Email,
             PhoneNumber = resident.PhoneNumber,
@@ -107,6 +109,22 @@ public sealed class ResidentProfileController : ControllerBase
         return Ok(rows.Select(ToVisitOut));
     }
 
+    [HttpGet("visits/{visitId:guid}/pass")]
+    public async Task<IActionResult> GetPassStatus(Guid visitId, CancellationToken cancellationToken)
+    {
+        var grant = await _authorization.GetGrantAsync(User, cancellationToken);
+        if (grant is null) return Forbid();
+
+        var visit = await _context.AccessVisits.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == visitId && x.LicenseId == grant.LicenseId, cancellationToken);
+        if (visit is null) return NotFound();
+        if (visit.HostResidentId != grant.ResidentId) return Forbid();
+
+        var hasActivePass = await _context.DigitalPasses.AsNoTracking()
+            .AnyAsync(x => x.VisitId == visitId && x.LicenseId == grant.LicenseId && x.Status == DigitalPassStatusEnum.Active, cancellationToken);
+        return Ok(new ResidentDigitalPassStatusOut { HasActivePass = hasActivePass });
+    }
+
     [HttpPost("visits/{visitId:guid}/pass")]
     public async Task<IActionResult> IssuePass(Guid visitId, CancellationToken cancellationToken)
     {
@@ -117,13 +135,9 @@ public sealed class ResidentProfileController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == visitId && x.LicenseId == grant.LicenseId, cancellationToken);
         if (visit is null) return NotFound();
         if (visit.HostResidentId != grant.ResidentId) return Forbid();
+        if (!await ResidentDigitalPassAllowedAsync(grant.LicenseId, cancellationToken)) return Forbid();
 
-        var policy = await _context.LicenseCredentialPolicies.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.LicenseId == grant.LicenseId, cancellationToken);
-        if (policy is not null && !policy.AllowResidentDigitalPass) return Forbid();
-
-        var resident = await _context.Residents.AsNoTracking().FirstOrDefaultAsync(x => x.Id == grant.ResidentId, cancellationToken);
-        var result = await _issuance.IssueAsync(grant.LicenseId, visitId, $"{Request.Scheme}://{Request.Host}", null, resident?.Name ?? "Morador", cancellationToken);
+        var result = await _issuance.IssueAsync(grant.LicenseId, visitId, $"{Request.Scheme}://{Request.Host}", null, ResidentActor(grant), cancellationToken);
         return result.Outcome switch
         {
             DigitalPassIssueOutcome.VisitNotFound => NotFound(),
@@ -142,9 +156,9 @@ public sealed class ResidentProfileController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == visitId && x.LicenseId == grant.LicenseId, cancellationToken);
         if (visit is null) return NotFound();
         if (visit.HostResidentId != grant.ResidentId) return Forbid();
+        if (!await ResidentDigitalPassAllowedAsync(grant.LicenseId, cancellationToken)) return Forbid();
 
-        var resident = await _context.Residents.AsNoTracking().FirstOrDefaultAsync(x => x.Id == grant.ResidentId, cancellationToken);
-        var result = await _issuance.RevokeAsync(grant.LicenseId, visitId, null, resident?.Name ?? "Morador", cancellationToken);
+        var result = await _issuance.RevokeAsync(grant.LicenseId, visitId, null, ResidentActor(grant), cancellationToken);
         return result.Outcome == DigitalPassRevokeOutcome.NotFound ? NotFound() : NoContent();
     }
 
@@ -569,6 +583,26 @@ public sealed class ResidentProfileController : ControllerBase
 
         return Ok(deliveries);
     }
+
+    /// <summary>
+    /// A missing policy row means the license never opened the Administration
+    /// module's credential-policy form, which is treated as "allowed" - same
+    /// default as <c>LicenseCredentialPolicyDTO.AllowResidentDigitalPass</c>.
+    /// </summary>
+    private async Task<bool> ResidentDigitalPassAllowedAsync(Guid licenseId, CancellationToken cancellationToken)
+    {
+        var policy = await _context.LicenseCredentialPolicies.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.LicenseId == licenseId, cancellationToken);
+        return policy is null || policy.AllowResidentDigitalPass;
+    }
+
+    /// <summary>
+    /// Audit attribution for resident-originated rows: the grant already carries
+    /// the resident id, and the id-bearing tag keeps the row traceable (and
+    /// distinguishable from a staff user of the same name) even though
+    /// <c>UserId</c> is null. Same convention as <see cref="CreateVisit"/>.
+    /// </summary>
+    private static string ResidentActor(ResidentAccessGrant grant) => $"resident:{grant.ResidentId:N}";
 
     private IQueryable<AccessVisitDTO> ResidentVisitQuery(ResidentAccessGrant grant) =>
         _context.AccessVisits

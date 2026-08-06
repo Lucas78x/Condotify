@@ -171,3 +171,8 @@ public sealed class DigitalPassViewModel
     public DateTime ValidTo { get; set; }
     public DateTime IssuedAt { get; set; }
 }
+
+public sealed class ResidentDigitalPassStatusViewModel
+{
+    public bool HasActivePass { get; set; }
+}

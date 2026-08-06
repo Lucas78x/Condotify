@@ -26,21 +26,32 @@
         </div>
         <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true">O convite é pessoal. A portaria valida horário, situação e limite de utilizações.</MudAlert>
 
-        <section class="visitor-pass-wallet">
-            <div class="visitor-pass-wallet-heading"><MudIcon Icon="@Icons.Material.Outlined.Wallet" /><div><strong>Passe digital Condotify</strong><small>Adicione esta autorização a uma carteira compatível no seu celular.</small></div></div>
-            @if (_pass is null)
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Outlined.AddCard" Disabled="_issuing" OnClick="IssuePassAsync">@(_issuing ? "Emitindo..." : "Adicionar à carteira")</MudButton>
-            }
-            else
-            {
-                <div class="visitor-pass-wallet-buttons">
-                    @if (_pass.GoogleWalletConfigured) { <MudButton Href="@_pass.GoogleWalletUrl" Target="_blank" Variant="Variant.Filled" Color="Color.Dark" StartIcon="@Icons.Material.Outlined.Wallet">Google Wallet</MudButton> }
-                    @if (_pass.AppleWalletConfigured) { <MudButton Href="@_pass.AppleWalletUrl" Target="_blank" Variant="Variant.Filled" Color="Color.Dark" StartIcon="@Icons.Material.Outlined.PhoneIphone">Apple Wallet</MudButton> }
-                </div>
-                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Outlined.LinkOff" Disabled="_revoking" OnClick="RevokePassAsync">@(_revoking ? "Revogando..." : "Revogar passe")</MudButton>
-            }
-        </section>
+        @if (AllowDigitalPass)
+        {
+            <section class="visitor-pass-wallet">
+                <div class="visitor-pass-wallet-heading"><MudIcon Icon="@Icons.Material.Outlined.Wallet" /><div><strong>Passe digital Condotify</strong><small>Adicione esta autorização a uma carteira compatível no seu celular.</small></div></div>
+                @if (_pass is null && !_hasActivePass)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Outlined.AddCard" Disabled="_issuing" OnClick="IssuePassAsync">@(_issuing ? "Emitindo..." : "Adicionar à carteira")</MudButton>
+                }
+                else
+                {
+                    @if (_pass is not null)
+                    {
+                        <div class="visitor-pass-wallet-buttons">
+                            @if (_pass.GoogleWalletConfigured) { <MudButton Href="@_pass.GoogleWalletUrl" Target="_blank" Variant="Variant.Filled" Color="Color.Dark" StartIcon="@Icons.Material.Outlined.Wallet">Google Wallet</MudButton> }
+                            @if (_pass.AppleWalletConfigured) { <MudButton Href="@_pass.AppleWalletUrl" Target="_blank" Variant="Variant.Filled" Color="Color.Dark" StartIcon="@Icons.Material.Outlined.PhoneIphone">Apple Wallet</MudButton> }
+                        </div>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption">Este convite já tem um passe ativo. Gerar um novo link substitui o anterior, que deixa de funcionar.</MudText>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Outlined.AddCard" Disabled="_issuing" OnClick="IssuePassAsync">@(_issuing ? "Emitindo..." : "Gerar novo link da carteira")</MudButton>
+                    }
+                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Outlined.LinkOff" Disabled="_revoking" OnClick="RevokePassAsync">@(_revoking ? "Revogando..." : "Revogar passe")</MudButton>
+                }
+            </section>
+        }
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton>
@@ -51,10 +62,31 @@
 @code {
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public ConciergeVisitViewModel Visit { get; set; } = null!;
+    /// <summary>
+    /// Mirrors the license's <c>AllowResidentDigitalPass</c> policy, supplied by
+    /// the caller from the resident profile it already holds. The server-side
+    /// <c>Forbid()</c> stays the authority - this only avoids showing a button
+    /// that could never succeed.
+    /// </summary>
+    [Parameter] public bool AllowDigitalPass { get; set; } = true;
     private string QrDataUri => QrCodeRenderer.ToPngDataUri(Visit.CredentialCode);
     private DigitalPassViewModel? _pass;
+    private bool _hasActivePass;
     private bool _issuing;
     private bool _revoking;
+
+    /// <summary>
+    /// The raw pass token is never persisted (only its hash), so a reopened
+    /// dialog cannot rebuild the previous wallet links. It can still learn that
+    /// a pass exists, which is what keeps "Revogar passe" reachable without
+    /// having to re-issue first.
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AllowDigitalPass) return;
+        var status = await Api.GetResidentDigitalPassStatusAsync(Visit.Id);
+        if (status.Success && status.Value is not null) _hasActivePass = status.Value.HasActivePass;
+    }
 
     private Task ShareAsync() => DeviceActions.ShareTextAsync($"Convite para {Visit.VisitorName}",
         $"Convite Condotify\nVisitante: {Visit.VisitorName}\nLocal: {Visit.BlockName} / {Visit.UnitNumber}\nVálido de {Visit.ValidFrom.ToLocalTime():dd/MM HH:mm} até {Visit.ValidTo.ToLocalTime():dd/MM HH:mm}\nCódigo: {Visit.CredentialCode}");
@@ -63,20 +95,36 @@
     private async Task IssuePassAsync()
     {
         _issuing = true;
-        var result = await Api.IssueResidentDigitalPassAsync(Visit.Id);
-        _issuing = false;
-        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível emitir o passe.", Severity.Error); return; }
-        _pass = result.Value;
-        Snackbar.Add("Passe digital emitido.", Severity.Success);
+        try
+        {
+            var result = await Api.IssueResidentDigitalPassAsync(Visit.Id);
+            if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível emitir o passe.", Severity.Error); return; }
+            _pass = result.Value;
+            _hasActivePass = true;
+            Snackbar.Add("Passe digital emitido.", Severity.Success);
+        }
+        finally
+        {
+            // A deserialization failure escapes the api client's own catch-all;
+            // without this the button would stay disabled for the dialog's life.
+            _issuing = false;
+        }
     }
 
     private async Task RevokePassAsync()
     {
         _revoking = true;
-        var result = await Api.RevokeResidentDigitalPassAsync(Visit.Id);
-        _revoking = false;
-        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível revogar.", Severity.Error); return; }
-        _pass = null;
-        Snackbar.Add("Passe revogado.", Severity.Success);
+        try
+        {
+            var result = await Api.RevokeResidentDigitalPassAsync(Visit.Id);
+            if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível revogar.", Severity.Error); return; }
+            _pass = null;
+            _hasActivePass = false;
+            Snackbar.Add("Passe revogado.", Severity.Success);
+        }
+        finally
+        {
+            _revoking = false;
+        }
     }
 }
