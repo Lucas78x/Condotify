@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using CondotifyAPI.Data.Finance;
 using CondotifyAPI.Domain.DTO.Finance;
 using CondotifyAPI.Infrastructure;
@@ -27,8 +28,7 @@ public sealed class ResidentBoletosController(
         var documents = await context.BoletoDocuments.AsNoTracking()
             .Include(x => x.Batch)
             .Include(x => x.Unit).ThenInclude(x => x!.Block)
-            .Where(x => x.Batch.Status == BoletoBatchStatusEnum.Published &&
-                        x.UnitId.HasValue && grant.UnitIds.Contains(x.UnitId.Value))
+            .Where(IsVisibleTo(grant))
             .OrderByDescending(x => x.Batch.PublishedAt)
             .Select(x => new ResidentBoletoOut
             {
@@ -51,14 +51,28 @@ public sealed class ResidentBoletosController(
 
         var document = await context.BoletoDocuments.AsNoTracking()
             .Include(x => x.Batch)
-            .FirstOrDefaultAsync(x =>
-                x.Id == documentId &&
-                x.Batch.Status == BoletoBatchStatusEnum.Published &&
-                x.Batch.LicenseId == grant.LicenseId, cancellationToken);
-        if (document is null || !document.UnitId.HasValue || !grant.UnitIds.Contains(document.UnitId.Value))
-            return NotFound();
+            .Where(IsVisibleTo(grant))
+            .FirstOrDefaultAsync(x => x.Id == documentId, cancellationToken);
+        if (document is null) return NotFound();
 
         var bytes = await store.ReadAsync(grant.LicenseId, document.StorageReference, cancellationToken);
         return bytes is null ? NotFound() : File(bytes, "application/pdf");
     }
+
+    /// <summary>
+    /// The single definition of "is this document visible to this resident" - a document is
+    /// visible only when its batch is Published, belongs to the resident's licence, has a unit
+    /// assigned, and that unit is one the resident currently has an active link to. Both
+    /// <see cref="List"/> and <see cref="Download"/> compose this same expression into their EF
+    /// query rather than each re-deriving the rule, so the two endpoints cannot silently drift
+    /// apart. Returned as an expression tree (not a compiled delegate) so it stays
+    /// EF-translatable when passed to <c>Where</c>; tests exercise it by compiling it and
+    /// invoking it directly against plain in-memory objects - no database required.
+    /// </summary>
+    internal static Expression<Func<BoletoDocumentDTO, bool>> IsVisibleTo(ResidentAccessGrant grant) =>
+        document =>
+            document.Batch.Status == BoletoBatchStatusEnum.Published &&
+            document.Batch.LicenseId == grant.LicenseId &&
+            document.UnitId.HasValue &&
+            grant.UnitIds.Contains(document.UnitId.Value);
 }
