@@ -38,8 +38,12 @@ public static class BoletoPageMatcher
         if (cpfsFound.Count == 0)
             return new MatchResult(null, BoletoMatchMethodEnum.Unmatched);
 
+        // O CPF do candidato pode chegar formatado ("123.456.789-01"): a coluna
+        // Resident.CPF aceita 14 caracteres e quase todos os fluxos de cadastro
+        // gravam com pontuacao. Normaliza aqui tambem para o matcher nao depender
+        // de o chamador ter lembrado de normalizar (defesa em profundidade).
         var matchedUnits = residents
-            .Where(x => cpfsFound.Contains(x.Cpf))
+            .Where(x => cpfsFound.Contains(DigitsOnly(x.Cpf)))
             .Select(x => x.UnitId)
             .Distinct()
             .ToList();
@@ -83,8 +87,10 @@ public static class BoletoPageMatcher
 
     internal static IEnumerable<string> ExtractCpfs(string text) =>
         CpfPattern.Matches(text)
-            .Select(match => new string(match.Value.Where(char.IsDigit).ToArray()))
+            .Select(match => DigitsOnly(match.Value))
             .Where(digits => digits.Length == 11);
+
+    internal static string DigitsOnly(string value) => new(value.Where(char.IsDigit).ToArray());
 
     internal static bool HasUnitNumberReference(string normalizedText, string unitNumber)
     {

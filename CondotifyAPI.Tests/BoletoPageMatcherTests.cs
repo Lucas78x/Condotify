@@ -28,6 +28,25 @@ public sealed class BoletoPageMatcherTests
         Assert.Equal(BoletoMatchMethodEnum.Cpf, result.Method);
     }
 
+    [Theory]
+    [InlineData("Sacado: Maria Silva CPF: 123.456.789-01")]
+    [InlineData("Sacado: Maria Silva CPF: 12345678901")]
+    public void Match_ByCpf_WithPunctuatedCandidateCpf_Matches(string pageText)
+    {
+        // Quase todo fluxo de cadastro grava o CPF formatado (a coluna aceita 14
+        // caracteres justamente por isso); o matcher nao pode depender de o
+        // chamador ter normalizado.
+        var punctuatedCandidate = new List<BoletoPageMatcher.ResidentCandidate>
+        {
+            new(Guid.NewGuid(), "123.456.789-01", UnitA)
+        };
+
+        var result = BoletoPageMatcher.Match(pageText, punctuatedCandidate, Units);
+
+        Assert.Equal(UnitA, result.UnitId);
+        Assert.Equal(BoletoMatchMethodEnum.Cpf, result.Method);
+    }
+
     [Fact]
     public void Match_ByCpf_WithoutPunctuation_Matches()
     {
