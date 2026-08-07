@@ -83,11 +83,31 @@ namespace CondotifyAPI.Infrastructure.Migrations
                 name: "IX_BoletoDocuments_UnitId",
                 table: "BoletoDocuments",
                 column: "UnitId");
+
+            // Backfill: LicenseUserAccesses.Permissions e um bitmask PERSISTIDO, gravado
+            // uma unica vez na criacao/edicao do acesso - nunca re-derivado do Role. Sem
+            // isto, todo sindico (Administrator = 0) e gerente (Manager = 1) ja existente
+            // ficaria sem os bits novos e o modulo Boletos simplesmente nao apareceria
+            // para ele. Concierge/Operator/Viewer nao recebem acesso financeiro.
+            // ViewFinance = 1<<31 = 2147483648, ManageFinance = 1<<32 = 4294967296
+            // (LicensePermissionEnum), somados = 6442450944.
+            migrationBuilder.Sql("""
+                UPDATE "LicenseUserAccesses"
+                SET "Permissions" = "Permissions" | 6442450944
+                WHERE "Role" IN (0, 1);
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Desfaz o backfill: sem as tabelas de boleto os bits financeiros nao
+            // significam nada, e nenhuma outra funcionalidade usa esses dois bits.
+            migrationBuilder.Sql("""
+                UPDATE "LicenseUserAccesses"
+                SET "Permissions" = "Permissions" & ~6442450944;
+                """);
+
             migrationBuilder.DropTable(
                 name: "BoletoDocuments");
 
