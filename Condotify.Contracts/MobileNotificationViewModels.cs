@@ -16,7 +16,8 @@ public enum MobileNotificationCategory
     Booking = 4,
     Security = 5,
     Operational = 6,
-    System = 7
+    System = 7,
+    Financial = 8
 }
 
 public sealed class MobileInstallationUpsertViewModel
@@ -78,7 +79,7 @@ public static class MobileDeepLinks
 {
     public const string CanonicalHost = "app.condotify.com.br";
 
-    private static readonly string[] StaticRoutes = ["/home", "/profile"];
+    private static readonly string[] StaticRoutes = ["/home", "/profile", "/boletos"];
     private static readonly HashSet<string> EntityRoutes = new(StringComparer.OrdinalIgnoreCase)
     {
         "visitors", "deliveries", "bookings", "alerts", "cameras"

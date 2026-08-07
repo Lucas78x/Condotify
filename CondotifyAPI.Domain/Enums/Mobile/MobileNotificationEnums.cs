@@ -16,7 +16,8 @@ public enum MobileNotificationCategory
     Booking = 4,
     Security = 5,
     Operational = 6,
-    System = 7
+    System = 7,
+    Financial = 8
 }
 
 public enum PushDeliveryStatus
