@@ -47,6 +47,7 @@ public partial class DatabaseContext : DbContext
         RefreshTokensEntityConfiguration(modelBuilder);
         MobileEntityConfiguration(modelBuilder);
         SafetyOperationsEntityConfiguration(modelBuilder);
+        BoletoEntityConfiguration(modelBuilder);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
