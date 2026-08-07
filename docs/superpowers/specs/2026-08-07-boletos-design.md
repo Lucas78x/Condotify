@@ -189,11 +189,17 @@ outras áreas do app) para o morador dono da unidade:
 - `DeduplicationKey`: escopado por `BoletoDocument.Id`, para não duplicar
   em caso de retry
 
-## Visão do morador (portal web + app mobile)
+## Visão do morador (app mobile)
 
-Tela nova "Boletos" (mobile: segue o padrão de `Cameras.razor` —
-`PageHeader`, `PageState`, injeta `CondotifyApiClient`; web: página
-equivalente na área do morador):
+**Correção encontrada na fase de plano:** não existe portal web para
+morador no Condotify — o projeto web (`Condotify`) é inteiramente da
+equipe (síndico/portaria/administração), sem nenhum login ou tela de
+morador. Toda funcionalidade de morador (Câmeras, Encomendas, Visitantes)
+já é mobile-only hoje. A visão do morador desta feature segue o mesmo
+padrão: só app.
+
+Tela nova "Boletos" no mobile, seguindo o padrão de `Cameras.razor` —
+`PageHeader`, `PageState`, injeta `CondotifyApiClient`:
 
 - Lista todos os `BoletoDocument` publicados das unidades em que o morador
   tem `ResidentUnitLink` ativo (`IsActive`, sem `EndsAt` vencido) naquela
