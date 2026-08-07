@@ -1,6 +1,5 @@
 @page "/boletos"
 @inject CondotifyApiClient Api
-@inject IJSRuntime JS
 @inject ISnackbar Snackbar
 
 <PageTitle>Boletos | Condotify</PageTitle>
@@ -53,20 +52,37 @@
             return;
         }
 
-        // window.open com URL data: é no-op na WebView do MAUI (e bloqueado nos
-        // navegadores desktop). js/file-download.js faz blob + <a download>, mesmo
-        // padrão de portalInterop.downloadBase64 no portal web.
+        // A WebView do Android usada pelo BlazorWebView não tem DownloadListener
+        // registrado, então um clique em <a download> sobre uma blob: URL é
+        // silenciosamente ignorado (confirmado em dispositivo físico). Em vez de
+        // tentar um download "silencioso" via JS/blob, gravamos o PDF em um arquivo
+        // temporário e abrimos a folha nativa de compartilhamento do MAUI — o
+        // residente pode salvar em Arquivos/Downloads, abrir em um leitor de PDF ou
+        // compartilhar diretamente.
         var base64 = StripDataUrlPrefix(result.Value!);
         if (base64 is null)
         {
             Snackbar.Add("Não foi possível abrir o boleto.", Severity.Error);
             return;
         }
-        await JS.InvokeVoidAsync(
-            "condotifyFileDownload.downloadBase64",
-            $"boleto-{SanitizeFileName(boleto.Reference)}.pdf",
-            base64,
-            "application/pdf");
+
+        try
+        {
+            var bytes = Convert.FromBase64String(base64);
+            var fileName = $"boleto-{SanitizeFileName(boleto.Reference)}.pdf";
+            var path = Path.Combine(FileSystem.CacheDirectory, fileName);
+            await File.WriteAllBytesAsync(path, bytes);
+
+            await Share.Default.RequestAsync(new ShareFileRequest
+            {
+                Title = boleto.Reference,
+                File = new ShareFile(path)
+            });
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("Não foi possível abrir o boleto.", Severity.Error);
+        }
     }
 
     /// <summary>
