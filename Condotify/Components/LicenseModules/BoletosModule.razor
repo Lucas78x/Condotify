@@ -44,6 +44,7 @@ else
                 <MudTh>Status</MudTh>
                 <MudTh>Páginas</MudTh>
                 <MudTh>Enviado por</MudTh>
+                <MudTh></MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Referência">@context.Reference</MudTd>
@@ -51,6 +52,11 @@ else
                 <MudTd DataLabel="Status"><MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)" Variant="Variant.Outlined">@StatusLabel(context.Status)</MudChip></MudTd>
                 <MudTd DataLabel="Páginas">@context.MatchedCount / @context.TotalPages casadas</MudTd>
                 <MudTd DataLabel="Enviado por">@context.UploadedByName</MudTd>
+                <MudTd>
+                    <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="() => OpenReviewAsync(context.Id)" Disabled="!CanManage">
+                        @(context.Status == "PendingReview" ? "Revisar" : "Detalhes")
+                    </MudButton>
+                </MudTd>
             </RowTemplate>
         </MudTable>
     </section>
@@ -81,6 +87,20 @@ else
         var parameters = new DialogParameters { [nameof(BoletoUploadDialog.LicenseId)] = LicenseId };
         var dialog = await DialogService.ShowAsync<BoletoUploadDialog>("Novo lote de boletos", parameters,
             new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadAsync();
+            if (result.Data is BoletoBatchDetailViewModel detail)
+                await OpenReviewAsync(detail.Batch.Id);
+        }
+    }
+
+    private async Task OpenReviewAsync(Guid batchId)
+    {
+        var parameters = new DialogParameters { [nameof(BoletoReviewDialog.LicenseId)] = LicenseId, [nameof(BoletoReviewDialog.BatchId)] = batchId };
+        var dialog = await DialogService.ShowAsync<BoletoReviewDialog>("Revisão do lote", parameters,
+            new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Large, FullWidth = true });
         var result = await dialog.Result;
         if (result is { Canceled: false }) await LoadAsync();
     }

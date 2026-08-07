@@ -1,0 +1,197 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudDialog Class="entity-dialog entity-dialog-wide">
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-3">@_error</MudAlert> }
+
+        @if (_loading)
+        {
+            <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+        }
+        else if (_detail is not null)
+        {
+            <div class="dialog-description mb-3">
+                <MudIcon Icon="@Icons.Material.Outlined.FactCheck" />
+                <div>
+                    <strong>@_detail.Batch.Reference</strong>
+                    <span>@_detail.Batch.MatchedCount de @_detail.Batch.TotalPages páginas casadas automaticamente. Corrija o que faltar antes de publicar.</span>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_actionError))
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-3">@_actionError</MudAlert>
+            }
+
+            <MudTable Items="_detail.Documents" Hover Dense Elevation="0" Class="import-preview-table">
+                <HeaderContent>
+                    <MudTh>Página</MudTh>
+                    <MudTh>Trecho identificado</MudTh>
+                    <MudTh>Unidade</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Página">
+                        <MudLink Disabled="@(_opening == context.Id)" OnClick="@(() => OpenPageAsync(context.Id))">#@context.PageNumber</MudLink>
+                    </MudTd>
+                    <MudTd DataLabel="Trecho"><small class="audit-summary">@context.ExtractedSnippet</small></MudTd>
+                    <MudTd DataLabel="Unidade">
+                        @if (context.Ignored)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Ignorada</MudChip>
+                        }
+                        else
+                        {
+                            <MudSelect T="Guid?" Value="context.UnitId" ValueChanged="@(value => AssignUnitAsync(context, value))" Dense Placeholder="Selecionar unidade...">
+                                @foreach (var unit in _units)
+                                {
+                                    <MudSelectItem T="Guid?" Value="unit.Id">@unit.Label</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        <MudTooltip Text="@(context.Ignored ? "Restaurar página" : "Ignorar página (capa/lixo)")">
+                            <MudIconButton Icon="@(context.Ignored ? Icons.Material.Outlined.RestoreFromTrash : Icons.Material.Outlined.Block)"
+                                           Size="Size.Small" OnClick="@(() => ToggleIgnoreAsync(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (_detail?.Batch.Status == "PendingReview")
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Error" Disabled="_busy" OnClick="CancelBatchAsync">Cancelar lote</MudButton>
+            <MudSpacer />
+            <MudButton Variant="Variant.Text" Disabled="_busy" OnClick="Close">Fechar</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Send"
+                       Disabled="@(!CanPublish || _busy)" OnClick="PublishAsync">
+                @(_busy ? "Publicando..." : "Publicar lote")
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public Guid BatchId { get; set; }
+
+    private BoletoBatchDetailViewModel? _detail;
+    private List<(Guid Id, string Label)> _units = [];
+    private bool _loading;
+    private bool _busy;
+    private Guid? _opening;
+    private string? _error;
+    private string? _actionError;
+
+    private bool CanPublish => _detail is not null &&
+        _detail.Documents.Where(x => !x.Ignored).All(x => x.UnitId.HasValue);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task OpenPageAsync(Guid documentId)
+    {
+        _opening = documentId;
+        var result = await Api.GetBoletoDocumentFileAsync(LicenseId, documentId);
+        _opening = null;
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Value))
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível abrir a página.", Severity.Error);
+            return;
+        }
+        await JS.InvokeVoidAsync("open", result.Value, "_blank");
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        var detailTask = Api.GetBoletoBatchAsync(LicenseId, BatchId);
+        var structureTask = Api.GetStructureAsync(LicenseId);
+        await Task.WhenAll(detailTask, structureTask);
+        _loading = false;
+
+        var detail = await detailTask;
+        if (detail.Success) _detail = detail.Value;
+        else _error = detail.Error;
+
+        var structure = await structureTask;
+        if (structure.Success && structure.Value is not null)
+        {
+            _units = structure.Value.Blocks
+                .SelectMany(block => block.Units.Select(unit => (unit.Id, Label: $"{block.Name} / {unit.Number}")))
+                .OrderBy(x => x.Label)
+                .ToList();
+        }
+    }
+
+    private async Task AssignUnitAsync(BoletoDocumentViewModel document, Guid? unitId)
+    {
+        _actionError = null;
+        var result = await Api.UpdateBoletoDocumentAsync(LicenseId, document.Id, unitId, false);
+        if (!result.Success || result.Value is null) { _actionError = result.Error; return; }
+        _detail = result.Value;
+    }
+
+    private async Task ToggleIgnoreAsync(BoletoDocumentViewModel document)
+    {
+        _actionError = null;
+        var result = await Api.UpdateBoletoDocumentAsync(LicenseId, document.Id, document.Ignored ? document.UnitId : null, !document.Ignored);
+        if (!result.Success || result.Value is null) { _actionError = result.Error; return; }
+        _detail = result.Value;
+    }
+
+    private async Task PublishAsync()
+    {
+        if (!CanPublish) return;
+        _busy = true;
+        _actionError = null;
+        try
+        {
+            var result = await Api.PublishBoletoBatchAsync(LicenseId, BatchId);
+            if (!result.Success)
+            {
+                _actionError = result.Error;
+                return;
+            }
+            Snackbar.Add("Lote publicado. Os moradores já podem ver seus boletos.", Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CancelBatchAsync()
+    {
+        _busy = true;
+        _actionError = null;
+        try
+        {
+            var result = await Api.CancelBoletoBatchAsync(LicenseId, BatchId);
+            if (!result.Success)
+            {
+                _actionError = result.Error;
+                return;
+            }
+            Snackbar.Add("Lote cancelado.", Severity.Info);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Close() => Dialog.Close(DialogResult.Ok(false));
+}

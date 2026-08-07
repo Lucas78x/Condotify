@@ -399,6 +399,59 @@ public sealed class CondotifyApiClient
         }
     }
 
+    public Task<ApiResult<BoletoBatchDetailViewModel>> UpdateBoletoDocumentAsync(Guid licenseId, Guid documentId, Guid? unitId, bool ignored, CancellationToken cancellationToken = default) =>
+        SendForAsync<BoletoBatchDetailViewModel>(HttpMethod.Put, $"api/access/licenses/{licenseId}/boletos/documents/{documentId}", new { UnitId = unitId, Ignored = ignored }, cancellationToken);
+
+    public Task<ApiResult<BoletoPublishResultViewModel>> PublishBoletoBatchAsync(Guid licenseId, Guid batchId, CancellationToken cancellationToken = default) =>
+        SendForAsync<BoletoPublishResultViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/boletos/batches/{batchId}/publish", new { }, cancellationToken);
+
+    public Task<ApiResult<bool>> CancelBoletoBatchAsync(Guid licenseId, Guid batchId, CancellationToken cancellationToken = default) =>
+        DeleteViaPostAsync($"api/access/licenses/{licenseId}/boletos/batches/{batchId}/cancel", cancellationToken);
+
+    public Task<ApiResult<bool>> DeleteBoletoDocumentAsync(Guid licenseId, Guid documentId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/boletos/documents/{documentId}", cancellationToken);
+
+    public Task<ApiResult<string>> GetBoletoDocumentFileAsync(Guid licenseId, Guid documentId, CancellationToken cancellationToken = default) =>
+        GetPdfDataUrlAsync($"api/access/licenses/{licenseId}/boletos/documents/{documentId}/file", cancellationToken);
+
+    private async Task<ApiResult<string>> GetPdfDataUrlAsync(string path, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var client = await CreateClientAsync(cancellationToken);
+            using var response = await client.GetAsync(BuildApiUrl(path), cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return ApiResult<string>.Fail(await ReadErrorAsync(response, "O arquivo esta indisponivel."), response.StatusCode);
+
+            var mediaType = response.Content.Headers.ContentType?.MediaType;
+            if (!string.Equals(mediaType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+                return ApiResult<string>.Fail("A API retornou um arquivo invalido.", response.StatusCode);
+
+            var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            return content.Length == 0
+                ? ApiResult<string>.Fail("A API retornou um arquivo vazio.", response.StatusCode)
+                : ApiResult<string>.Ok($"data:{mediaType};base64,{Convert.ToBase64String(content)}", response.StatusCode);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return ApiResult<string>.Fail("Operação cancelada.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falha ao consultar arquivo em {ApiPath}", path);
+            return ApiResult<string>.Fail("A API está indisponível. Tente novamente em instantes.");
+        }
+    }
+
+    private async Task<ApiResult<bool>> DeleteViaPostAsync(string path, CancellationToken cancellationToken)
+    {
+        var response = await SendAsync(HttpMethod.Post, path, new { }, false, cancellationToken);
+        response.Document?.Dispose();
+        return response.Success
+            ? ApiResult<bool>.Ok(true, response.StatusCode)
+            : ApiResult<bool>.Fail(response.Error!, response.StatusCode);
+    }
+
     public Task<ApiResult<UnitDetailViewModel>> GetUnitDetailsAsync(Guid licenseId, Guid unitId, CancellationToken cancellationToken = default) =>
         GetAsync<UnitDetailViewModel>($"api/access/licenses/{licenseId}/units/{unitId}/details", cancellationToken);
 
