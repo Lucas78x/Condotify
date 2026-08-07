@@ -42,21 +42,37 @@
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Ignorada</MudChip>
                         }
-                        else
+                        else if (_detail?.Batch.Status == "PendingReview")
                         {
-                            <MudSelect T="Guid?" Value="context.UnitId" ValueChanged="@(value => AssignUnitAsync(context, value))" Dense Placeholder="Selecionar unidade...">
+                            <MudSelect T="Guid?" Value="context.UnitId" ValueChanged="@(value => AssignUnitAsync(context, value))" Dense
+                                       Placeholder="Selecionar unidade..." Disabled="@_updating.Contains(context.Id)">
                                 @foreach (var unit in _units)
                                 {
                                     <MudSelectItem T="Guid?" Value="unit.Id">@unit.Label</MudSelectItem>
                                 }
                             </MudSelect>
                         }
+                        else
+                        {
+                            <span>@(string.IsNullOrWhiteSpace(context.UnitLabel) ? "—" : context.UnitLabel)</span>
+                        }
                     </MudTd>
                     <MudTd>
-                        <MudTooltip Text="@(context.Ignored ? "Restaurar página" : "Ignorar página (capa/lixo)")">
-                            <MudIconButton Icon="@(context.Ignored ? Icons.Material.Outlined.RestoreFromTrash : Icons.Material.Outlined.Block)"
-                                           Size="Size.Small" OnClick="@(() => ToggleIgnoreAsync(context))" />
-                        </MudTooltip>
+                        @if (_detail?.Batch.Status == "PendingReview")
+                        {
+                            <MudTooltip Text="@(context.Ignored ? "Restaurar página" : "Ignorar página (capa/lixo)")">
+                                <MudIconButton Icon="@(context.Ignored ? Icons.Material.Outlined.RestoreFromTrash : Icons.Material.Outlined.Block)"
+                                               Size="Size.Small" Disabled="@_updating.Contains(context.Id)" OnClick="@(() => ToggleIgnoreAsync(context))" />
+                            </MudTooltip>
+                        }
+                        else if (_detail?.Batch.Status == "Published")
+                        {
+                            <MudTooltip Text="@(_confirmingDeleteId == context.Id ? "Clique novamente para confirmar a exclusão" : "Excluir página (remove o acesso do morador)")">
+                                <MudIconButton Icon="@Icons.Material.Outlined.DeleteForever"
+                                               Color="@(_confirmingDeleteId == context.Id ? Color.Error : Color.Default)"
+                                               Size="Size.Small" Disabled="@_updating.Contains(context.Id)" OnClick="@(() => DeleteDocumentAsync(context))" />
+                            </MudTooltip>
+                        }
                     </MudTd>
                 </RowTemplate>
             </MudTable>
@@ -90,6 +106,8 @@
     private bool _loading;
     private bool _busy;
     private Guid? _opening;
+    private readonly HashSet<Guid> _updating = [];
+    private Guid? _confirmingDeleteId;
     private string? _error;
     private string? _actionError;
 
@@ -136,18 +154,62 @@
 
     private async Task AssignUnitAsync(BoletoDocumentViewModel document, Guid? unitId)
     {
+        if (!_updating.Add(document.Id)) return;
         _actionError = null;
-        var result = await Api.UpdateBoletoDocumentAsync(LicenseId, document.Id, unitId, false);
-        if (!result.Success || result.Value is null) { _actionError = result.Error; return; }
-        _detail = result.Value;
+        try
+        {
+            var result = await Api.UpdateBoletoDocumentAsync(LicenseId, document.Id, unitId, false);
+            if (!result.Success || result.Value is null) { _actionError = result.Error; return; }
+            _detail = result.Value;
+        }
+        finally
+        {
+            _updating.Remove(document.Id);
+        }
     }
 
     private async Task ToggleIgnoreAsync(BoletoDocumentViewModel document)
     {
+        if (!_updating.Add(document.Id)) return;
         _actionError = null;
-        var result = await Api.UpdateBoletoDocumentAsync(LicenseId, document.Id, document.Ignored ? document.UnitId : null, !document.Ignored);
-        if (!result.Success || result.Value is null) { _actionError = result.Error; return; }
-        _detail = result.Value;
+        try
+        {
+            var result = await Api.UpdateBoletoDocumentAsync(LicenseId, document.Id, document.Ignored ? document.UnitId : null, !document.Ignored);
+            if (!result.Success || result.Value is null) { _actionError = result.Error; return; }
+            _detail = result.Value;
+        }
+        finally
+        {
+            _updating.Remove(document.Id);
+        }
+    }
+
+    private async Task DeleteDocumentAsync(BoletoDocumentViewModel document)
+    {
+        if (_confirmingDeleteId != document.Id)
+        {
+            _confirmingDeleteId = document.Id;
+            return;
+        }
+
+        if (!_updating.Add(document.Id)) return;
+        _confirmingDeleteId = null;
+        _actionError = null;
+        try
+        {
+            var result = await Api.DeleteBoletoDocumentAsync(LicenseId, document.Id);
+            if (!result.Success)
+            {
+                _actionError = result.Error;
+                return;
+            }
+            Snackbar.Add("Página excluída.", Severity.Info);
+            await LoadAsync();
+        }
+        finally
+        {
+            _updating.Remove(document.Id);
+        }
     }
 
     private async Task PublishAsync()
