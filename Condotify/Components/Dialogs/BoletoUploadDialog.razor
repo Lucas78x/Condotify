@@ -1,0 +1,98 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.UploadFile" />
+            <div>
+                <strong>Novo lote de boletos</strong>
+                <span>Envie o PDF único exportado pela administradora — uma cobrança por página.</span>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+
+        <MudTextField T="string" Label="Referência" Placeholder="Agosto/2026" @bind-Value="_reference" Class="mb-3" MaxLength="80" />
+        <MudDatePicker Label="Vencimento" @bind-Date="_dueDate" Class="mb-3" />
+
+        <div class="import-source">
+            <div class="import-source-copy">
+                <MudIcon Icon="@Icons.Material.Outlined.PictureAsPdf" />
+                <div>
+                    <strong>@(string.IsNullOrWhiteSpace(_fileName) ? "Selecione o PDF" : _fileName)</strong>
+                    <span>Limite de 20 MB.</span>
+                </div>
+            </div>
+            <label class="file-button @(_loading ? "disabled" : null)">
+                <MudIcon Icon="@Icons.Material.Outlined.UploadFile" />
+                <span>@(_fileBytes is null ? "Selecionar PDF" : "Trocar arquivo")</span>
+                <InputFile OnChange="ReadFileAsync" accept=".pdf,application/pdf" disabled="@_loading" />
+            </label>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_loading" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.CloudUpload"
+                   Disabled="@(!CanSubmit || _loading)" OnClick="SubmitAsync">
+            @(_loading ? "Enviando..." : "Enviar e processar")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+
+    private const long MaxFileSize = 20_000_000;
+    private string _reference = string.Empty;
+    private DateTime? _dueDate = DateTime.Today.AddDays(10);
+    private string _fileName = string.Empty;
+    private byte[]? _fileBytes;
+    private bool _loading;
+    private string? _error;
+
+    private bool CanSubmit => !string.IsNullOrWhiteSpace(_reference) && _dueDate.HasValue && _fileBytes is { Length: > 0 };
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task ReadFileAsync(InputFileChangeEventArgs args)
+    {
+        _error = null;
+        var file = args.File;
+        if (file.Size > MaxFileSize)
+        {
+            _error = "O arquivo excede o limite de 20 MB.";
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(MaxFileSize);
+        await using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+        _fileBytes = buffer.ToArray();
+        _fileName = file.Name;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (!CanSubmit) return;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await Api.UploadBoletoBatchAsync(LicenseId, _reference.Trim(), _dueDate!.Value, _fileName, _fileBytes!);
+            if (!result.Success || result.Value is null)
+            {
+                _error = result.Error ?? "Não foi possível processar o lote.";
+                return;
+            }
+            Dialog.Close(DialogResult.Ok(result.Value));
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

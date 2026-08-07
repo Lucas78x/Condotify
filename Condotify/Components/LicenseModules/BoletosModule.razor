@@ -1,0 +1,104 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+
+@if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+
+@if (_loading)
+{
+    <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+}
+else if (_batches.Count == 0)
+{
+    <div class="boletos-onboard">
+        <div class="boletos-onboard-track"><i></i></div>
+        <div class="boletos-onboard-steps">
+            <div class="boletos-onboard-step boletos-onboard-step-one">
+                <span><MudIcon Icon="@Icons.Material.Outlined.UploadFile" /></span>
+                <div><small>PASSO 1</small><strong>Envie o PDF</strong><span>O lote completo exportado da administradora, uma página por unidade.</span></div>
+            </div>
+            <div class="boletos-onboard-step boletos-onboard-step-two">
+                <span><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span>
+                <div><small>PASSO 2</small><strong>Conferência automática</strong><span>O sistema já casa cada página com a unidade certa.</span></div>
+            </div>
+            <div class="boletos-onboard-step boletos-onboard-step-three">
+                <span><MudIcon Icon="@Icons.Material.Outlined.Send" /></span>
+                <div><small>PASSO 3</small><strong>Publique pros moradores</strong><span>Um clique libera tudo de uma vez.</span></div>
+            </div>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.UploadFile" Class="boletos-onboard-cta" OnClick="OpenUploadAsync" Disabled="!CanManage">
+            Enviar primeiro lote
+        </MudButton>
+    </div>
+}
+else
+{
+    <section class="content-panel">
+        <div class="panel-heading">
+            <div><MudText Typo="Typo.h5">Lotes de boletos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Histórico de envios para esta licença</MudText></div>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.UploadFile" OnClick="OpenUploadAsync" Disabled="!CanManage">Novo lote</MudButton>
+        </div>
+        <MudTable Items="_batches" Hover Dense Elevation="0">
+            <HeaderContent>
+                <MudTh>Referência</MudTh>
+                <MudTh>Vencimento</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Páginas</MudTh>
+                <MudTh>Enviado por</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Referência">@context.Reference</MudTd>
+                <MudTd DataLabel="Vencimento">@context.DueDate.ToString("dd/MM/yyyy")</MudTd>
+                <MudTd DataLabel="Status"><MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)" Variant="Variant.Outlined">@StatusLabel(context.Status)</MudChip></MudTd>
+                <MudTd DataLabel="Páginas">@context.MatchedCount / @context.TotalPages casadas</MudTd>
+                <MudTd DataLabel="Enviado por">@context.UploadedByName</MudTd>
+            </RowTemplate>
+        </MudTable>
+    </section>
+}
+
+@code {
+    [Parameter] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+
+    private List<BoletoBatchViewModel> _batches = [];
+    private bool _loading;
+    private string? _error;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        var result = await Api.GetBoletoBatchesAsync(LicenseId);
+        _loading = false;
+        if (result.Success) _batches = result.Value ?? [];
+        else _error = result.Error;
+    }
+
+    private async Task OpenUploadAsync()
+    {
+        var parameters = new DialogParameters { [nameof(BoletoUploadDialog.LicenseId)] = LicenseId };
+        var dialog = await DialogService.ShowAsync<BoletoUploadDialog>("Novo lote de boletos", parameters,
+            new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) await LoadAsync();
+    }
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Processing" => "Processando",
+        "PendingReview" => "Em revisão",
+        "Published" => "Publicado",
+        "Cancelled" => "Cancelado",
+        _ => status
+    };
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "PendingReview" => Color.Warning,
+        "Published" => Color.Success,
+        "Cancelled" => Color.Default,
+        _ => Color.Info
+    };
+}

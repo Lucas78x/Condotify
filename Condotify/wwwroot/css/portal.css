@@ -2155,3 +2155,16 @@ html, body {
         justify-content: flex-end;
     }
 }
+
+.boletos-onboard { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 0 16px; padding: 26px 24px; border-radius: 18px; background: linear-gradient(145deg, #f4f7ff, #ffffff); border: 1px solid #e7ebf2; }
+.boletos-onboard-track { width: 2px; position: relative; margin: 10px 0; border-radius: 999px; background: #dbe4f2; overflow: hidden; }
+.boletos-onboard-track i { width: 100%; height: 70px; position: absolute; top: -70px; left: 0; border-radius: inherit; background: linear-gradient(180deg, transparent, #3471e2, transparent); animation: invite-progress-run 6s ease-in-out infinite; }
+.boletos-onboard-steps { display: grid; gap: 18px; }
+.boletos-onboard-step { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; align-items: center; padding: 14px 16px; border: 1px solid #e7ebf2; border-radius: 14px; background: #fff; animation: invite-step-focus 6s ease-in-out infinite; }
+.boletos-onboard-step > span { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; color: #3156d3; background: #eef1fb; }
+.boletos-onboard-step strong { display: block; color: #263043; font-size: .95rem; }
+.boletos-onboard-step small { color: #8994a4; font-size: .65rem; font-weight: 750; letter-spacing: .08em; }
+.boletos-onboard-step span:last-child { color: #687386; font-size: .82rem; }
+.boletos-onboard-step-two { animation-delay: 2s; }
+.boletos-onboard-step-three { animation-delay: 4s; }
+.boletos-onboard-cta { grid-column: 2; margin-top: 22px; justify-self: start; }

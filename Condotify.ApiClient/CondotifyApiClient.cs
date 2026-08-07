@@ -353,6 +353,52 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<LicenseStructureViewModel>> GetStructureAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
         GetAsync<LicenseStructureViewModel>($"api/access/licenses/{licenseId}/structure", cancellationToken);
 
+    public Task<ApiResult<List<BoletoBatchViewModel>>> GetBoletoBatchesAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<BoletoBatchViewModel>>($"api/access/licenses/{licenseId}/boletos/batches", cancellationToken);
+
+    public Task<ApiResult<BoletoBatchDetailViewModel>> GetBoletoBatchAsync(Guid licenseId, Guid batchId, CancellationToken cancellationToken = default) =>
+        GetAsync<BoletoBatchDetailViewModel>($"api/access/licenses/{licenseId}/boletos/batches/{batchId}", cancellationToken);
+
+    public async Task<ApiResult<BoletoBatchDetailViewModel>> UploadBoletoBatchAsync(
+        Guid licenseId,
+        string reference,
+        DateTime dueDate,
+        string fileName,
+        byte[] fileBytes,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var client = await CreateClientAsync(cancellationToken);
+            using var content = new MultipartFormDataContent
+            {
+                { new StringContent(reference), "Reference" },
+                { new StringContent(dueDate.ToString("O")), "DueDate" }
+            };
+            var fileContent = new ByteArrayContent(fileBytes);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+            content.Add(fileContent, "File", fileName);
+
+            using var response = await client.PostAsync(BuildApiUrl($"api/access/licenses/{licenseId}/boletos/batches"), content, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return ApiResult<BoletoBatchDetailViewModel>.Fail(await ReadErrorAsync(response, "Nao foi possivel enviar o lote de boletos."), response.StatusCode);
+
+            var value = await response.Content.ReadFromJsonAsync<BoletoBatchDetailViewModel>(GetJsonOptions, cancellationToken);
+            return value is null
+                ? ApiResult<BoletoBatchDetailViewModel>.Fail("Nao foi possivel interpretar a resposta da API.", response.StatusCode)
+                : ApiResult<BoletoBatchDetailViewModel>.Ok(value, response.StatusCode);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return ApiResult<BoletoBatchDetailViewModel>.Fail("Operação cancelada.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falha ao enviar lote de boletos para a licenca {LicenseId}", licenseId);
+            return ApiResult<BoletoBatchDetailViewModel>.Fail("A API está indisponível. Tente novamente em instantes.");
+        }
+    }
+
     public Task<ApiResult<UnitDetailViewModel>> GetUnitDetailsAsync(Guid licenseId, Guid unitId, CancellationToken cancellationToken = default) =>
         GetAsync<UnitDetailViewModel>($"api/access/licenses/{licenseId}/units/{unitId}/details", cancellationToken);
 
