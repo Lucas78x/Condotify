@@ -1,0 +1,131 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" />
+            <div>
+                <strong>Enviar boleto avulso</strong>
+                <span>Publica direto pra uma unidade específica, sem passar pela revisão de lote.</span>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+
+        @if (_loadingUnits)
+        {
+            <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+        }
+        else
+        {
+            <MudSelect T="Guid?" Label="Unidade" @bind-Value="_unitId" Class="mb-3" Placeholder="Selecionar unidade...">
+                @foreach (var unit in _units)
+                {
+                    <MudSelectItem T="Guid?" Value="unit.Id">@unit.Label</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField T="string" Label="Referência" Placeholder="Agosto/2026" @bind-Value="_reference" Class="mb-3" MaxLength="80" />
+            <MudDatePicker Label="Vencimento" @bind-Date="_dueDate" Class="mb-3" />
+
+            <div class="import-source">
+                <div class="import-source-copy">
+                    <MudIcon Icon="@Icons.Material.Outlined.PictureAsPdf" />
+                    <div>
+                        <strong>@(string.IsNullOrWhiteSpace(_fileName) ? "Selecione o PDF" : _fileName)</strong>
+                        <span>Quantas páginas precisar, até 2 MB.</span>
+                    </div>
+                </div>
+                <label class="file-button @(_submitting ? "disabled" : null)">
+                    <MudIcon Icon="@Icons.Material.Outlined.UploadFile" />
+                    <span>@(_fileBytes is null ? "Selecionar PDF" : "Trocar arquivo")</span>
+                    <InputFile OnChange="ReadFileAsync" accept=".pdf,application/pdf" disabled="@_submitting" />
+                </label>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_submitting" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Send"
+                   Disabled="@(!CanSubmit || _submitting)" OnClick="SubmitAsync">
+            @(_submitting ? "Enviando..." : "Publicar boleto")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+
+    private const long MaxFileSize = 20_000_000;
+    private List<(Guid Id, string Label)> _units = [];
+    private Guid? _unitId;
+    private string _reference = string.Empty;
+    private DateTime? _dueDate = DateTime.Today.AddDays(10);
+    private string _fileName = string.Empty;
+    private byte[]? _fileBytes;
+    private bool _loadingUnits = true;
+    private bool _submitting;
+    private string? _error;
+
+    private bool CanSubmit => _unitId.HasValue && !string.IsNullOrWhiteSpace(_reference) && _dueDate.HasValue && _fileBytes is { Length: > 0 };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.GetStructureAsync(LicenseId);
+        _loadingUnits = false;
+        if (result.Success && result.Value is not null)
+        {
+            _units = result.Value.Blocks
+                .SelectMany(block => block.Units.Select(unit => (unit.Id, Label: $"{block.Name} / {unit.Number}")))
+                .OrderBy(x => x.Label)
+                .ToList();
+        }
+        else
+        {
+            _error = result.Error ?? "Não foi possível carregar as unidades.";
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task ReadFileAsync(InputFileChangeEventArgs args)
+    {
+        _error = null;
+        var file = args.File;
+        if (file.Size > MaxFileSize)
+        {
+            _error = "O arquivo excede o limite de 20 MB.";
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(MaxFileSize);
+        await using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+        _fileBytes = buffer.ToArray();
+        _fileName = file.Name;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (!CanSubmit) return;
+        _submitting = true;
+        _error = null;
+        try
+        {
+            var result = await Api.UploadSingleBoletoAsync(LicenseId, _unitId!.Value, _reference.Trim(), _dueDate!.Value, _fileName, _fileBytes!);
+            if (!result.Success || result.Value is null)
+            {
+                _error = result.Error ?? "Não foi possível enviar o boleto.";
+                return;
+            }
+            Dialog.Close(DialogResult.Ok(result.Value));
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

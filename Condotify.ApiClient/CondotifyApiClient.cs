@@ -399,6 +399,48 @@ public sealed class CondotifyApiClient
         }
     }
 
+    public async Task<ApiResult<BoletoBatchDetailViewModel>> UploadSingleBoletoAsync(
+        Guid licenseId,
+        Guid unitId,
+        string reference,
+        DateTime dueDate,
+        string fileName,
+        byte[] fileBytes,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var client = await CreateClientAsync(cancellationToken);
+            using var content = new MultipartFormDataContent
+            {
+                { new StringContent(unitId.ToString()), "UnitId" },
+                { new StringContent(reference), "Reference" },
+                { new StringContent(dueDate.ToString("O")), "DueDate" }
+            };
+            var fileContent = new ByteArrayContent(fileBytes);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+            content.Add(fileContent, "File", fileName);
+
+            using var response = await client.PostAsync(BuildApiUrl($"api/access/licenses/{licenseId}/boletos/single"), content, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return ApiResult<BoletoBatchDetailViewModel>.Fail(await ReadErrorAsync(response, "Nao foi possivel enviar o boleto."), response.StatusCode);
+
+            var value = await response.Content.ReadFromJsonAsync<BoletoBatchDetailViewModel>(GetJsonOptions, cancellationToken);
+            return value is null
+                ? ApiResult<BoletoBatchDetailViewModel>.Fail("Nao foi possivel interpretar a resposta da API.", response.StatusCode)
+                : ApiResult<BoletoBatchDetailViewModel>.Ok(value, response.StatusCode);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return ApiResult<BoletoBatchDetailViewModel>.Fail("Operação cancelada.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falha ao enviar boleto avulso para a licenca {LicenseId}", licenseId);
+            return ApiResult<BoletoBatchDetailViewModel>.Fail("A API está indisponível. Tente novamente em instantes.");
+        }
+    }
+
     public Task<ApiResult<BoletoBatchDetailViewModel>> UpdateBoletoDocumentAsync(Guid licenseId, Guid documentId, Guid? unitId, bool ignored, CancellationToken cancellationToken = default) =>
         SendForAsync<BoletoBatchDetailViewModel>(HttpMethod.Put, $"api/access/licenses/{licenseId}/boletos/documents/{documentId}", new { UnitId = unitId, Ignored = ignored }, cancellationToken);
 

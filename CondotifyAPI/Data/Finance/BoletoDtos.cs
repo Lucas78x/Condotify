@@ -38,6 +38,14 @@ public sealed class BoletoBatchUploadForm
     public IFormFile File { get; set; } = null!;
 }
 
+public sealed class BoletoSingleUploadForm
+{
+    public Guid UnitId { get; set; }
+    public string Reference { get; set; } = string.Empty;
+    public DateTime DueDate { get; set; }
+    public IFormFile File { get; set; } = null!;
+}
+
 public sealed class BoletoDocumentUpdateIn
 {
     public Guid? UnitId { get; set; }

@@ -2167,4 +2167,6 @@ html, body {
 .boletos-onboard-step span:last-child { color: #687386; font-size: .82rem; }
 .boletos-onboard-step-two { animation-delay: 2s; }
 .boletos-onboard-step-three { animation-delay: 4s; }
-.boletos-onboard-cta { grid-column: 2; margin-top: 22px; justify-self: start; }
+.boletos-onboard-cta-group { grid-column: 2; margin-top: 22px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.panel-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.panel-heading-actions { display: flex; align-items: center; gap: 10px; }

@@ -157,6 +157,112 @@ public sealed class BoletosController(
         return detail is null ? NotFound() : Ok(detail);
     }
 
+    [HttpPost("single")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageFinance)]
+    [RequestSizeLimit(20_000_000)]
+    public async Task<IActionResult> UploadSingle(Guid licenseId, [FromForm] BoletoSingleUploadForm form, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(form.Reference) || form.Reference.Length > 80)
+            return BadRequest(new { Result = "InvalidReference", Errors = "Informe uma referencia valida." });
+        if (form.File is null || form.File.Length == 0)
+            return BadRequest(new { Result = "FileRequired", Errors = "Selecione o PDF do boleto." });
+        if (!string.Equals(form.File.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { Result = "InvalidFileType", Errors = "O arquivo deve ser um PDF." });
+        if (form.DueDate == default)
+            return BadRequest(new { Result = "InvalidDueDate", Errors = "Informe a data de vencimento." });
+
+        var unitExists = await context.Units.AsNoTracking().AnyAsync(x => x.Id == form.UnitId && x.Block.LicenseId == licenseId, cancellationToken);
+        if (!unitExists) return BadRequest(new { Result = "InvalidUnit", Errors = "Unidade invalida para esta licenca." });
+
+        await using var stream = new MemoryStream();
+        await form.File.CopyToAsync(stream, cancellationToken);
+        var sourceBytes = stream.ToArray();
+
+        // Ao contrario do lote (uma pagina = uma unidade, exige separar por
+        // pagina para casar cada uma com uma unidade diferente), aqui a
+        // unidade ja foi escolhida manualmente: o PDF inteiro - com quantas
+        // paginas tiver (capa, anexo, boleto em si) - pertence a essa unica
+        // unidade, entao e guardado sem dividir.
+        try
+        {
+            pdf.CountPages(sourceBytes);
+        }
+        catch (Exception)
+        {
+            return BadRequest(new { Result = "InvalidPdf", Errors = "Nao foi possivel ler o PDF enviado." });
+        }
+
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedActor) ? parsedActor : Guid.Empty;
+        var actorName = User.FindFirstValue("name") ?? User.Identity?.Name ?? "Administracao";
+        var now = DateTime.UtcNow;
+
+        string reference;
+        try
+        {
+            reference = await store.StoreAsync(licenseId, sourceBytes, cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            return BadRequest(new { Result = "FileTooLarge", Errors = "O PDF do boleto deve ter no maximo 2 MB." });
+        }
+        catch (Exception)
+        {
+            return BadRequest(new { Result = "InvalidPdf", Errors = "Nao foi possivel ler o PDF enviado." });
+        }
+
+        var batch = new BoletoBatchDTO
+        {
+            Id = Guid.NewGuid(),
+            LicenseId = licenseId,
+            Reference = form.Reference.Trim(),
+            DueDate = AsUtcDate(form.DueDate),
+            UploadedByUserId = actorId,
+            UploadedByName = actorName,
+            Status = BoletoBatchStatusEnum.Published,
+            SourceFileName = Path.GetFileName(form.File.FileName),
+            TotalPages = 1,
+            CreatedAt = now,
+            PublishedAt = now
+        };
+        context.BoletoBatches.Add(batch);
+
+        var document = new BoletoDocumentDTO
+        {
+            Id = Guid.NewGuid(),
+            BatchId = batch.Id,
+            UnitId = form.UnitId,
+            PageNumber = 1,
+            MatchMethod = BoletoMatchMethodEnum.Manual,
+            Ignored = false,
+            StorageReference = reference,
+            ExtractedSnippet = Snippet(SafeExtractText(sourceBytes, 1)),
+            CreatedAt = now
+        };
+        context.BoletoDocuments.Add(document);
+        await context.SaveChangesAsync(cancellationToken);
+
+        // Carrega o vinculo da unidade so para resolver os destinatarios da
+        // notificacao - reaproveita ResolveNotificationTargets em vez de
+        // duplicar a regra de vinculo vigente (mesma logica de Publish).
+        document.Unit = await context.Units.AsNoTracking()
+            .Include(x => x.ResidentLinks)
+            .FirstOrDefaultAsync(x => x.Id == form.UnitId, cancellationToken);
+        foreach (var (residentId, deduplicationKey) in ResolveNotificationTargets(document, now))
+        {
+            await notifier.NotifyResidentAsync(
+                residentId,
+                MobileNotificationCategory.Financial,
+                "Novo boleto disponivel",
+                $"Seu boleto de {batch.Reference} ja esta disponivel.",
+                "/boletos",
+                deduplicationKey,
+                cancellationToken);
+        }
+
+        var detail = await LoadDetailAsync(licenseId, batch.Id, cancellationToken);
+        return detail is null ? NotFound() : Ok(detail);
+    }
+
     [HttpGet("batches")]
     [RequireLicensePermission(LicensePermissionEnum.ManageFinance)]
     public async Task<IActionResult> ListBatches(Guid licenseId, CancellationToken cancellationToken)
