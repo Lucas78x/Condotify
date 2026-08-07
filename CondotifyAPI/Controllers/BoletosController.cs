@@ -34,6 +34,8 @@ public sealed class BoletosController(
             return BadRequest(new { Result = "FileRequired", Errors = "Selecione o PDF com os boletos." });
         if (!string.Equals(form.File.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { Result = "InvalidFileType", Errors = "O arquivo deve ser um PDF." });
+        if (form.DueDate == default)
+            return BadRequest(new { Result = "InvalidDueDate", Errors = "Informe a data de vencimento do lote." });
 
         await using var stream = new MemoryStream();
         await form.File.CopyToAsync(stream, cancellationToken);
@@ -60,7 +62,7 @@ public sealed class BoletosController(
             Id = Guid.NewGuid(),
             LicenseId = licenseId,
             Reference = form.Reference.Trim(),
-            DueDate = form.DueDate,
+            DueDate = AsUtcDate(form.DueDate),
             UploadedByUserId = actorId,
             UploadedByName = actorName,
             Status = BoletoBatchStatusEnum.Processing,
@@ -70,23 +72,34 @@ public sealed class BoletosController(
         };
         context.BoletoBatches.Add(batch);
 
-        // Um candidato por morador: se ele tiver mais de um vinculo ativo nesta
+        // Um candidato por morador: se ele tiver mais de um vinculo valido nesta
         // licenca, usa o vinculo principal (IsPrimary) - nunca gera mais de uma
         // unidade candidata para o mesmo CPF por conta propria.
+        // O vinculo tem que estar VIGENTE (mesma regra de
+        // ResidentAuthorizationService.LinkIsCurrentlyValid, aqui reescrita em
+        // comparacoes escalares para continuar traduzivel pelo EF): um morador
+        // que ja mudou de unidade nao pode ser candidato da unidade antiga.
         var residents = (await context.Residents.AsNoTracking()
-            .Where(x => x.CPF != "" && x.UnitLinks.Any(link => link.IsActive && link.Unit.Block.LicenseId == licenseId))
+            .Where(x => x.CPF != "" && x.UnitLinks.Any(link =>
+                link.IsActive && link.StartsAt <= now && (link.EndsAt == null || link.EndsAt > now) &&
+                link.Unit.Block.LicenseId == licenseId))
             .Select(x => new
             {
                 x.Id,
                 x.CPF,
                 UnitId = x.UnitLinks
-                    .Where(link => link.IsActive && link.Unit.Block.LicenseId == licenseId)
+                    .Where(link =>
+                        link.IsActive && link.StartsAt <= now && (link.EndsAt == null || link.EndsAt > now) &&
+                        link.Unit.Block.LicenseId == licenseId)
                     .OrderByDescending(link => link.IsPrimary)
                     .Select(link => link.UnitId)
                     .First()
             })
             .ToListAsync(cancellationToken))
-            .Select(x => new BoletoPageMatcher.ResidentCandidate(x.Id, x.CPF, x.UnitId))
+            // CPF e gravado formatado ("123.456.789-01") pela maioria dos fluxos de
+            // cadastro; o matcher compara contra digitos extraidos da pagina, entao
+            // normaliza aqui (ja em memoria, fora do IQueryable).
+            .Select(x => new BoletoPageMatcher.ResidentCandidate(x.Id, DigitsOnly(x.CPF), x.UnitId))
             .ToList();
 
         var units = (await context.Units.AsNoTracking()
@@ -96,12 +109,32 @@ public sealed class BoletosController(
             .Select(x => new BoletoPageMatcher.UnitCandidate(x.Id, x.BlockName, x.Number))
             .ToList();
 
+        // Arquivos ja gravados neste lote: se qualquer pagina falhar no meio do
+        // caminho, apaga tudo antes de sair para nao deixar arquivo orfao no disco
+        // (nada foi persistido no banco ainda - SaveChangesAsync so vem depois).
+        var storedReferences = new List<string>(pageCount);
+
         for (var pageNumber = 1; pageNumber <= pageCount; pageNumber++)
         {
             var pageText = SafeExtractText(sourceBytes, pageNumber);
             var match = BoletoPageMatcher.Match(pageText, residents, units);
-            var pagePdf = pdf.ExtractPageAsPdf(sourceBytes, pageNumber);
-            var reference = await store.StoreAsync(licenseId, pagePdf, cancellationToken);
+
+            string reference;
+            try
+            {
+                // PdfPig (CountPages/ExtractPageText) e PDFsharp (ExtractPageAsPdf)
+                // toleram estruturas malformadas de formas diferentes: um PDF que
+                // abriu para contagem ainda pode explodir no split.
+                var pagePdf = pdf.ExtractPageAsPdf(sourceBytes, pageNumber);
+                reference = await store.StoreAsync(licenseId, pagePdf, cancellationToken);
+            }
+            catch (Exception)
+            {
+                foreach (var stored in storedReferences)
+                    await store.DeleteAsync(licenseId, stored, cancellationToken);
+                return BadRequest(new { Result = "InvalidPdf", Errors = "Nao foi possivel ler o PDF enviado." });
+            }
+            storedReferences.Add(reference);
 
             context.BoletoDocuments.Add(new BoletoDocumentDTO
             {
@@ -218,13 +251,10 @@ public sealed class BoletosController(
         batch.PublishedAt = DateTime.UtcNow;
         await context.SaveChangesAsync(cancellationToken);
 
+        var notifiedAt = DateTime.UtcNow;
         foreach (var document in toPublish)
         {
-            var residentIds = document.Unit?.ResidentLinks
-                .Where(link => link.IsActive)
-                .Select(link => link.ResidentId)
-                .Distinct() ?? [];
-            foreach (var residentId in residentIds)
+            foreach (var (residentId, deduplicationKey) in ResolveNotificationTargets(document, notifiedAt))
             {
                 await notifier.NotifyResidentAsync(
                     residentId,
@@ -232,7 +262,7 @@ public sealed class BoletosController(
                     "Novo boleto disponivel",
                     $"Seu boleto de {batch.Reference} ja esta disponivel.",
                     "/boletos",
-                    $"boleto-published:{document.Id:N}",
+                    deduplicationKey,
                     cancellationToken);
             }
         }
@@ -251,10 +281,19 @@ public sealed class BoletosController(
         if (batch.Status != BoletoBatchStatusEnum.PendingReview)
             return Conflict(new { Result = "BatchNotCancellable", Errors = "So e possivel cancelar um lote em revisao." });
 
-        foreach (var document in batch.Documents)
+        // Materializado antes de remover: marcar as entidades como Deleted dispara
+        // fixup que pode mexer em batch.Documents no meio da iteracao.
+        var documents = batch.Documents.ToList();
+        foreach (var document in documents)
             await store.DeleteAsync(licenseId, document.StorageReference, cancellationToken);
 
-        context.BoletoBatches.Remove(batch);
+        // Cancelamento e logico, nao apaga o lote: as paginas e os arquivos somem
+        // (nunca foram visiveis para o morador), mas a linha do lote fica como
+        // Cancelled. Isso preserva o historico e mantem o explicativo animado de
+        // primeiro acesso escondido - o gatilho dele e a existencia de QUALQUER
+        // lote, "mesmo que so criado e depois cancelado" (spec).
+        context.BoletoDocuments.RemoveRange(documents);
+        batch.Status = BoletoBatchStatusEnum.Cancelled;
         await context.SaveChangesAsync(cancellationToken);
         return Ok(new { Result = "Cancelled" });
     }
@@ -317,6 +356,47 @@ public sealed class BoletosController(
         Ignored = document.Ignored,
         ExtractedSnippet = document.ExtractedSnippet
     };
+
+    /// <summary>
+    /// CPF é gravado ora só com dígitos (importação CSV), ora formatado
+    /// ("123.456.789-01") por todos os outros fluxos de cadastro. O matcher compara
+    /// contra dígitos extraídos do texto da página, então o candidato tem que chegar
+    /// normalizado. Aplicado depois da materialização da query (LINQ em memória).
+    /// </summary>
+    internal static string DigitsOnly(string value) => new(value.Where(char.IsDigit).ToArray());
+
+    /// <summary>
+    /// Datas vindas do date picker do portal chegam com Kind=Unspecified (o cliente
+    /// serializa "O" sem offset) e a coluna DueDate é 'timestamp with time zone', que
+    /// o Npgsql recusa para Kind != Utc. É uma data de calendário sem fuso relevante,
+    /// então SpecifyKind (e não ToUniversalTime) é o correto: reinterpreta o mesmo dia
+    /// como UTC sem deslocá-lo. Mesma convenção de AmenitiesController.AsUtcDate.
+    /// </summary>
+    internal static DateTime AsUtcDate(DateTime value) => DateTime.SpecifyKind(value.Date, DateTimeKind.Utc);
+
+    /// <summary>
+    /// Quem deve ser notificado sobre um boleto recém-publicado e com qual chave de
+    /// deduplicação. Só entram moradores com vínculo VIGENTE na unidade — mesma regra
+    /// de <see cref="ResidentAuthorizationService.LinkIsCurrentlyValid"/>: um morador
+    /// que já saiu da unidade (link ainda IsActive mas com EndsAt no passado) não pode
+    /// receber push de um boleto que ele nem consegue abrir. Puro e recebendo
+    /// <paramref name="now"/> explicitamente para ser testável sem banco.
+    /// </summary>
+    internal static IEnumerable<(Guid ResidentId, string DeduplicationKey)> ResolveNotificationTargets(
+        BoletoDocumentDTO document,
+        DateTime now)
+    {
+        var links = document.Unit?.ResidentLinks;
+        if (links is null) return [];
+
+        var deduplicationKey = $"boleto-published:{document.Id:N}";
+        return links
+            .Where(link => ResidentAuthorizationService.LinkIsCurrentlyValid(link, now))
+            .Select(link => link.ResidentId)
+            .Distinct()
+            .Select(residentId => (residentId, deduplicationKey))
+            .ToList();
+    }
 
     private string SafeExtractText(byte[] sourceBytes, int pageNumber)
     {
