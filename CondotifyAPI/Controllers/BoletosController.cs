@@ -1,9 +1,11 @@
 using System.Security.Claims;
 using CondotifyAPI.Data.Finance;
 using CondotifyAPI.Domain.DTO.Finance;
+using CondotifyAPI.Domain.Enums.Mobile;
 using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.Finance;
+using CondotifyAPI.Services.Mobile;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +18,8 @@ namespace CondotifyAPI.Controllers;
 public sealed class BoletosController(
     DatabaseContext context,
     IBoletoDocumentStore store,
-    IBoletoPdfProcessor pdf) : ControllerBase
+    IBoletoPdfProcessor pdf,
+    IPlatformPushNotifier notifier) : ControllerBase
 {
     private const int MaxPages = 600;
 
@@ -152,6 +155,125 @@ public sealed class BoletosController(
 
         var bytes = await store.ReadAsync(licenseId, document.StorageReference, cancellationToken);
         return bytes is null ? NotFound() : File(bytes, "application/pdf");
+    }
+
+    [HttpPut("documents/{documentId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageFinance)]
+    public async Task<IActionResult> UpdateDocument(Guid licenseId, Guid documentId, [FromBody] BoletoDocumentUpdateIn input, CancellationToken cancellationToken)
+    {
+        var document = await context.BoletoDocuments
+            .Include(x => x.Batch)
+            .FirstOrDefaultAsync(x => x.Id == documentId && x.Batch.LicenseId == licenseId, cancellationToken);
+        if (document is null) return NotFound();
+        if (document.Batch.Status != BoletoBatchStatusEnum.PendingReview)
+            return Conflict(new { Result = "BatchNotEditable", Errors = "So e possivel editar um lote em revisao." });
+
+        if (input.UnitId.HasValue)
+        {
+            var unitExists = await context.Units.AsNoTracking().AnyAsync(x => x.Id == input.UnitId && x.Block.LicenseId == licenseId, cancellationToken);
+            if (!unitExists) return BadRequest(new { Result = "InvalidUnit", Errors = "Unidade invalida para esta licenca." });
+        }
+
+        document.UnitId = input.Ignored ? null : input.UnitId;
+        document.Ignored = input.Ignored;
+        if (input.UnitId.HasValue && !input.Ignored) document.MatchMethod = BoletoMatchMethodEnum.Manual;
+        await context.SaveChangesAsync(cancellationToken);
+
+        var detail = await LoadDetailAsync(licenseId, document.BatchId, cancellationToken);
+        return detail is null ? NotFound() : Ok(detail);
+    }
+
+    [HttpPost("batches/{batchId:guid}/publish")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageFinance)]
+    public async Task<IActionResult> Publish(Guid licenseId, Guid batchId, CancellationToken cancellationToken)
+    {
+        var batch = await context.BoletoBatches
+            .Include(x => x.Documents).ThenInclude(x => x.Unit).ThenInclude(x => x!.ResidentLinks)
+            .FirstOrDefaultAsync(x => x.Id == batchId && x.LicenseId == licenseId, cancellationToken);
+        if (batch is null) return NotFound();
+        if (batch.Status != BoletoBatchStatusEnum.PendingReview)
+            return Conflict(new { Result = "BatchNotReady", Errors = "Este lote nao esta aguardando revisao." });
+
+        var pending = batch.Documents.Where(x => !x.Ignored && !x.UnitId.HasValue).ToList();
+        if (pending.Count > 0)
+            return UnprocessableEntity(new { Result = "PendingPages", Errors = $"{pending.Count} pagina(s) ainda sem unidade definida." });
+
+        var toPublish = batch.Documents.Where(x => !x.Ignored).ToList();
+        var duplicateUnits = toPublish
+            .GroupBy(x => x.UnitId!.Value)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToList();
+        if (duplicateUnits.Count > 0)
+            return UnprocessableEntity(new { Result = "DuplicateUnits", Errors = $"{duplicateUnits.Count} unidade(s) com mais de um boleto neste lote. Corrija antes de publicar." });
+
+        var toIgnore = batch.Documents.Where(x => x.Ignored).ToList();
+        foreach (var document in toIgnore)
+        {
+            await store.DeleteAsync(licenseId, document.StorageReference, cancellationToken);
+            context.BoletoDocuments.Remove(document);
+        }
+
+        batch.Status = BoletoBatchStatusEnum.Published;
+        batch.PublishedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync(cancellationToken);
+
+        foreach (var document in toPublish)
+        {
+            var residentIds = document.Unit?.ResidentLinks
+                .Where(link => link.IsActive)
+                .Select(link => link.ResidentId)
+                .Distinct() ?? [];
+            foreach (var residentId in residentIds)
+            {
+                await notifier.NotifyResidentAsync(
+                    residentId,
+                    MobileNotificationCategory.Financial,
+                    "Novo boleto disponivel",
+                    $"Seu boleto de {batch.Reference} ja esta disponivel.",
+                    "/boletos",
+                    $"boleto-published:{document.Id:N}",
+                    cancellationToken);
+            }
+        }
+
+        return Ok(new BoletoPublishResultOut { PublishedCount = toPublish.Count, IgnoredCount = toIgnore.Count });
+    }
+
+    [HttpPost("batches/{batchId:guid}/cancel")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageFinance)]
+    public async Task<IActionResult> Cancel(Guid licenseId, Guid batchId, CancellationToken cancellationToken)
+    {
+        var batch = await context.BoletoBatches
+            .Include(x => x.Documents)
+            .FirstOrDefaultAsync(x => x.Id == batchId && x.LicenseId == licenseId, cancellationToken);
+        if (batch is null) return NotFound();
+        if (batch.Status != BoletoBatchStatusEnum.PendingReview)
+            return Conflict(new { Result = "BatchNotCancellable", Errors = "So e possivel cancelar um lote em revisao." });
+
+        foreach (var document in batch.Documents)
+            await store.DeleteAsync(licenseId, document.StorageReference, cancellationToken);
+
+        context.BoletoBatches.Remove(batch);
+        await context.SaveChangesAsync(cancellationToken);
+        return Ok(new { Result = "Cancelled" });
+    }
+
+    [HttpDelete("documents/{documentId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageFinance)]
+    public async Task<IActionResult> DeleteDocument(Guid licenseId, Guid documentId, CancellationToken cancellationToken)
+    {
+        var document = await context.BoletoDocuments
+            .Include(x => x.Batch)
+            .FirstOrDefaultAsync(x => x.Id == documentId && x.Batch.LicenseId == licenseId, cancellationToken);
+        if (document is null) return NotFound();
+        if (document.Batch.Status != BoletoBatchStatusEnum.Published)
+            return Conflict(new { Result = "BatchNotPublished", Errors = "Use cancelar o lote para remover paginas antes da publicacao." });
+
+        await store.DeleteAsync(licenseId, document.StorageReference, cancellationToken);
+        context.BoletoDocuments.Remove(document);
+        await context.SaveChangesAsync(cancellationToken);
+        return Ok(new { Result = "Deleted" });
     }
 
     private async Task<BoletoBatchDetailOut?> LoadDetailAsync(Guid licenseId, Guid batchId, CancellationToken cancellationToken)

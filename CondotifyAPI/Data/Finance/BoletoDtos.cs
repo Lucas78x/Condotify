@@ -43,3 +43,9 @@ public sealed class BoletoDocumentUpdateIn
     public Guid? UnitId { get; set; }
     public bool Ignored { get; set; }
 }
+
+public sealed class BoletoPublishResultOut
+{
+    public int PublishedCount { get; set; }
+    public int IgnoredCount { get; set; }
+}

@@ -21,6 +21,10 @@ public sealed class BoletosControllerTests
     [InlineData(nameof(BoletosController.ListBatches), typeof(HttpGetAttribute), "batches")]
     [InlineData(nameof(BoletosController.GetBatch), typeof(HttpGetAttribute), "batches/{batchId:guid}")]
     [InlineData(nameof(BoletosController.GetDocumentFile), typeof(HttpGetAttribute), "documents/{documentId:guid}/file")]
+    [InlineData(nameof(BoletosController.UpdateDocument), typeof(HttpPutAttribute), "documents/{documentId:guid}")]
+    [InlineData(nameof(BoletosController.Publish), typeof(HttpPostAttribute), "batches/{batchId:guid}/publish")]
+    [InlineData(nameof(BoletosController.Cancel), typeof(HttpPostAttribute), "batches/{batchId:guid}/cancel")]
+    [InlineData(nameof(BoletosController.DeleteDocument), typeof(HttpDeleteAttribute), "documents/{documentId:guid}")]
     public void Actions_UseExpectedRouteAndVerb(string actionName, Type httpAttributeType, string route)
     {
         var method = typeof(BoletosController).GetMethod(actionName);
