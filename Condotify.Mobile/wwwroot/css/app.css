@@ -216,8 +216,8 @@ button.list-row:last-child { border-bottom: 0; }
 .login-form .mud-alert { border-radius: 8px; }
 .login-submit.mud-button-root { min-height: 48px; border-radius: 22px; font-weight: 700; box-shadow: 0 8px 16px rgba(49, 86, 211, .24); }
 .login-submit .mud-button-label { text-transform: none; font-size: .92rem; }
-.login-submit .mud-button-icon-root { transition: transform 160ms ease; }
-.login-submit:not(:disabled):hover .mud-button-icon-root { transform: translateX(3px); }
+.login-submit .mud-button-icon-end { transition: transform 160ms ease; }
+.login-submit:not(:disabled):hover .mud-button-icon-end { transform: translateX(3px); }
 .login-fp { display: block; width: 100%; text-align: right; margin: -6px 0 4px; padding: 0; border: 0; background: none; color: #3156d3; font-size: .76rem; font-weight: 700; cursor: pointer; }
 .login-fp:hover { text-decoration: underline; }
 .login-lead { margin-bottom: 16px; color: #647188; font-size: .8rem; line-height: 1.55; }
@@ -405,7 +405,7 @@ body { color: var(--condotify-ink); background: var(--condotify-soft); }
 .profile-hero { margin: -22px -22px 0; padding: 24px 22px; border: 0; border-radius: var(--condotify-radius-md) var(--condotify-radius-md) 22px 22px; background: linear-gradient(145deg, var(--condotify-blue), var(--condotify-navy)); color: #ffffff; }
 .profile-hero .mud-typography { color: #ffffff; }
 .profile-hero .mud-typography-body2 { color: rgba(255, 255, 255, .75); }
-.profile-hero .mud-chip-root { border-color: rgba(255, 255, 255, .42); color: #ffffff; }
+.profile-hero .mud-chip { border-color: rgba(255, 255, 255, .42); color: #ffffff; }
 .profile-fields { gap: 12px; padding-top: 18px; }
 .profile-fields div { padding: 14px; border-radius: 14px; background: #f6f8fc; }
 .person-hero { border: 1px solid #e7ebf2; background: linear-gradient(145deg, #ffffff, #f7f9ff); box-shadow: 0 9px 28px rgba(31, 48, 78, .07); }
@@ -422,8 +422,8 @@ body { color: var(--condotify-ink); background: var(--condotify-soft); }
 .camera-live-status { position: absolute; top: 11px; left: 11px; display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 999px; background: rgba(10, 16, 29, .7); color: #ffffff; font-size: .68rem; font-weight: 700; backdrop-filter: blur(8px); }
 .camera-live-status > span { width: 7px; height: 7px; border-radius: 50%; background: #8c96a7; }
 .camera-live-status.online > span { background: #4ed7a4; box-shadow: 0 0 0 3px rgba(78, 215, 164, .14); }
-.camera-play.mud-icon-button-root { position: absolute; right: 11px; bottom: 11px; width: 42px; height: 42px; border-radius: 14px; background: rgba(255, 255, 255, .92); color: var(--condotify-blue); backdrop-filter: blur(8px); }
-.camera-play.mud-icon-button-root:disabled { background: rgba(255, 255, 255, .6); }
+.camera-play.mud-icon-button { position: absolute; right: 11px; bottom: 11px; width: 42px; height: 42px; border-radius: 14px; background: rgba(255, 255, 255, .92); color: var(--condotify-blue); backdrop-filter: blur(8px); }
+.camera-play.mud-icon-button:disabled { background: rgba(255, 255, 255, .6); }
 .camera-card-body { min-height: 68px; display: flex; align-items: center; gap: 12px; padding: 13px 15px; }
 .notification-tabs .mud-tabs-panels { padding-top: 16px; }
 .mobile-dialog { border-radius: 24px !important; overflow: hidden; }
