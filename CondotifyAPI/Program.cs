@@ -76,6 +76,7 @@ builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
 builder.Services.AddScoped<IPlatformPushNotifier, PlatformPushNotifier>();
 builder.Services.AddSingleton<IPrivateMediaStore, PrivateMediaStore>();
 builder.Services.AddSingleton<IBoletoDocumentStore, BoletoDocumentStore>();
+builder.Services.AddSingleton<IBoletoPdfProcessor, BoletoPdfProcessor>();
 builder.Services.AddSingleton<StructureImportCsvParser>();
 builder.Services.AddScoped<IRecycleBinService, RecycleBinService>();
 builder.Services.AddScoped<IConfigurationBackupService, ConfigurationBackupService>();
