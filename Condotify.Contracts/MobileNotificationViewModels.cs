@@ -79,7 +79,7 @@ public static class MobileDeepLinks
 {
     public const string CanonicalHost = "app.condotify.com.br";
 
-    private static readonly string[] StaticRoutes = ["/home", "/profile", "/boletos"];
+    private static readonly string[] StaticRoutes = ["/home", "/profile", "/boletos", "/documentos"];
     private static readonly HashSet<string> EntityRoutes = new(StringComparer.OrdinalIgnoreCase)
     {
         "visitors", "deliveries", "bookings", "alerts", "cameras"

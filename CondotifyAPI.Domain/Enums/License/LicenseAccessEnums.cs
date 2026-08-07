@@ -35,7 +35,9 @@ public enum LicensePermissionEnum : long
     ManageVehicles = 1L << 30,
     ViewFinance = 1L << 31,
     ManageFinance = 1L << 32,
-    All = (1L << 33) - 1
+    ViewDocuments = 1L << 33,
+    ManageDocuments = 1L << 34,
+    All = (1L << 35) - 1
 }
 
 public enum LicenseAccessRoleEnum
@@ -97,6 +99,7 @@ public static class LicenseAccessDefaults
         if (permissions.HasFlag(LicensePermissionEnum.ManageAutomations)) permissions |= LicensePermissionEnum.ViewAutomations;
         if (permissions.HasFlag(LicensePermissionEnum.ManageEmergency)) permissions |= LicensePermissionEnum.ViewEmergency | LicensePermissionEnum.ViewIncidents;
         if (permissions.HasFlag(LicensePermissionEnum.ManageFinance)) permissions |= LicensePermissionEnum.ViewFinance;
+        if (permissions.HasFlag(LicensePermissionEnum.ManageDocuments)) permissions |= LicensePermissionEnum.ViewDocuments;
         return permissions;
     }
 }

@@ -457,7 +457,9 @@ namespace Condotify.Models
         ManageEmergency = 1L << 28,
         ViewFinance = 1L << 31,
         ManageFinance = 1L << 32,
-        All = (1L << 33) - 1
+        ViewDocuments = 1L << 33,
+        ManageDocuments = 1L << 34,
+        All = (1L << 35) - 1
     }
 
     public class LicenseAdministrationViewModel
