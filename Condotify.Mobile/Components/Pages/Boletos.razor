@@ -18,7 +18,7 @@
                     <div class="list-title">@boleto.Reference</div>
                     <div class="list-meta">@boleto.UnitLabel · Vencimento @boleto.DueDate.ToString("dd/MM/yyyy")</div>
                 </div>
-                <MudIconButton Icon="@Icons.Material.Outlined.Download" Disabled="@(_opening == boleto.DocumentId)" OnClick="() => OpenAsync(boleto.DocumentId)" aria-label="@($"Abrir boleto {boleto.Reference}")" />
+                <MudIconButton Icon="@Icons.Material.Outlined.Download" Disabled="@(_opening == boleto.DocumentId)" OnClick="() => OpenAsync(boleto)" aria-label="@($"Abrir boleto {boleto.Reference}")" />
             </div>
         }
     </section>
@@ -42,16 +42,51 @@
         else _error = result.Error ?? "Não foi possível carregar seus boletos.";
     }
 
-    private async Task OpenAsync(Guid documentId)
+    private async Task OpenAsync(ResidentBoletoViewModel boleto)
     {
-        _opening = documentId;
-        var result = await Api.GetResidentBoletoFileAsync(documentId);
+        _opening = boleto.DocumentId;
+        var result = await Api.GetResidentBoletoFileAsync(boleto.DocumentId);
         _opening = null;
         if (!result.Success || string.IsNullOrWhiteSpace(result.Value))
         {
             Snackbar.Add(result.Error ?? "Não foi possível abrir o boleto.", Severity.Error);
             return;
         }
-        await JS.InvokeVoidAsync("open", result.Value, "_blank");
+
+        // window.open com URL data: é no-op na WebView do MAUI (e bloqueado nos
+        // navegadores desktop). js/file-download.js faz blob + <a download>, mesmo
+        // padrão de portalInterop.downloadBase64 no portal web.
+        var base64 = StripDataUrlPrefix(result.Value!);
+        if (base64 is null)
+        {
+            Snackbar.Add("Não foi possível abrir o boleto.", Severity.Error);
+            return;
+        }
+        await JS.InvokeVoidAsync(
+            "condotifyFileDownload.downloadBase64",
+            $"boleto-{SanitizeFileName(boleto.Reference)}.pdf",
+            base64,
+            "application/pdf");
+    }
+
+    /// <summary>
+    /// A API client devolve o PDF como data URL ("data:application/pdf;base64,XXXX");
+    /// downloadBase64 espera só a carga base64.
+    /// </summary>
+    private static string? StripDataUrlPrefix(string dataUrl)
+    {
+        var separator = dataUrl.IndexOf("base64,", StringComparison.OrdinalIgnoreCase);
+        return separator < 0 ? null : dataUrl[(separator + "base64,".Length)..];
+    }
+
+    /// <summary>
+    /// A referência do lote é livre e tipicamente "Agosto/2026" — a barra (e qualquer
+    /// outro caractere inválido em nome de arquivo) viraria um caminho no download.
+    /// </summary>
+    private static string SanitizeFileName(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars().Concat(['/', '\\', ':']).ToHashSet();
+        var cleaned = new string(value.Select(c => invalid.Contains(c) ? '-' : c).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(cleaned) ? "documento" : cleaned;
     }
 }

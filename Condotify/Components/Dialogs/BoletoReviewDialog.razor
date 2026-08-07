@@ -34,7 +34,7 @@
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Página">
-                        <MudLink Disabled="@(_opening == context.Id)" OnClick="@(() => OpenPageAsync(context.Id))">#@context.PageNumber</MudLink>
+                        <MudLink Disabled="@(_opening == context.Id)" OnClick="@(() => OpenPageAsync(context))">#@context.PageNumber</MudLink>
                     </MudTd>
                     <MudTd DataLabel="Trecho"><small class="audit-summary">@context.ExtractedSnippet</small></MudTd>
                     <MudTd DataLabel="Unidade">
@@ -116,17 +116,42 @@
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
-    private async Task OpenPageAsync(Guid documentId)
+    private async Task OpenPageAsync(BoletoDocumentViewModel document)
     {
-        _opening = documentId;
-        var result = await Api.GetBoletoDocumentFileAsync(LicenseId, documentId);
+        _opening = document.Id;
+        var result = await Api.GetBoletoDocumentFileAsync(LicenseId, document.Id);
         _opening = null;
         if (!result.Success || string.IsNullOrWhiteSpace(result.Value))
         {
             Snackbar.Add(result.Error ?? "Não foi possível abrir a página.", Severity.Error);
             return;
         }
-        await JS.InvokeVoidAsync("open", result.Value, "_blank");
+
+        // window.open com URL data: é bloqueado por Chrome/Firefox/Edge (navegação
+        // de topo para data: não é permitida). O caminho que funciona é blob +
+        // createObjectURL + clique num <a download>, que portalInterop.downloadBase64
+        // já implementa e o resto do portal usa.
+        var base64 = StripDataUrlPrefix(result.Value!);
+        if (base64 is null)
+        {
+            Snackbar.Add("Não foi possível abrir a página.", Severity.Error);
+            return;
+        }
+        await JS.InvokeVoidAsync(
+            "portalInterop.downloadBase64",
+            $"boleto-pagina-{document.PageNumber}.pdf",
+            base64,
+            "application/pdf");
+    }
+
+    /// <summary>
+    /// A API client devolve o PDF como data URL ("data:application/pdf;base64,XXXX");
+    /// downloadBase64 espera só a carga base64.
+    /// </summary>
+    private static string? StripDataUrlPrefix(string dataUrl)
+    {
+        var separator = dataUrl.IndexOf("base64,", StringComparison.OrdinalIgnoreCase);
+        return separator < 0 ? null : dataUrl[(separator + "base64,".Length)..];
     }
 
     private async Task LoadAsync()
