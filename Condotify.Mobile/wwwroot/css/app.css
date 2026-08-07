@@ -942,4 +942,6 @@ body { color: var(--condotify-ink); background: var(--condotify-soft); }
 .profile-security-panel { margin-top: 16px; }
 .app-lock-timeout-select { width: 105px; }
 .offline-cache-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 13px; border: 1px solid #e2c47e; border-radius: 13px; background: #fff8e8; color: #79520c; font-size: .76rem; }
+.boletos-list { display: grid; gap: 1px; background: var(--line-soft); border-radius: 16px; overflow: hidden; }
+.boletos-row { background: var(--surface); padding: 13px 15px; }
 .dark-mode .offline-cache-notice { border-color: #6d5728; background: #382f1d; color: #f0ce88; }

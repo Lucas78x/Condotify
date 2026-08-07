@@ -1,0 +1,57 @@
+@page "/boletos"
+@inject CondotifyApiClient Api
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<PageTitle>Boletos | Condotify</PageTitle>
+<PageHeader Eyebrow="FINANCEIRO" Title="Boletos" Subtitle="Boletos disponibilizados pela administração para suas unidades.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_boletos.Count == 0)" EmptyTitle="Nenhum boleto disponível" EmptyText="Quando a administração publicar um boleto para sua unidade, ele aparece aqui." Retry="LoadAsync">
+    <section class="list-group boletos-list">
+        @foreach (var boleto in _boletos)
+        {
+            <div class="list-row boletos-row">
+                <span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" /></span>
+                <div class="list-main">
+                    <div class="list-title">@boleto.Reference</div>
+                    <div class="list-meta">@boleto.UnitLabel · Vencimento @boleto.DueDate.ToString("dd/MM/yyyy")</div>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Outlined.Download" Disabled="@(_opening == boleto.DocumentId)" OnClick="() => OpenAsync(boleto.DocumentId)" aria-label="@($"Abrir boleto {boleto.Reference}")" />
+            </div>
+        }
+    </section>
+</PageState>
+
+@code {
+    private List<ResidentBoletoViewModel> _boletos = [];
+    private bool _loading;
+    private Guid? _opening;
+    private string _error = string.Empty;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = string.Empty;
+        var result = await Api.GetResidentBoletosAsync();
+        _loading = false;
+        if (result.Success) _boletos = result.Value ?? [];
+        else _error = result.Error ?? "Não foi possível carregar seus boletos.";
+    }
+
+    private async Task OpenAsync(Guid documentId)
+    {
+        _opening = documentId;
+        var result = await Api.GetResidentBoletoFileAsync(documentId);
+        _opening = null;
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Value))
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível abrir o boleto.", Severity.Error);
+            return;
+        }
+        await JS.InvokeVoidAsync("open", result.Value, "_blank");
+    }
+}
