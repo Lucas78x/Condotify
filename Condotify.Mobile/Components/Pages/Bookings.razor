@@ -1,11 +1,13 @@
 @page "/bookings"
 @page "/bookings/{EntityId:guid}"
+@implements IDisposable
 @inject MobileSessionCoordinator Session
 @inject MobileAppState AppState
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
 @inject IDialogService Dialogs
 @inject MobileDeviceActions DeviceActions
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Reservas | Condotify</PageTitle>
 <PageHeader Eyebrow="ÁREAS COMUNS" Title="Reservas" Subtitle="Agenda das áreas comuns.">
@@ -101,7 +103,12 @@
                 new CalendarDay(date, date.Month == _visibleMonth.Month, _rows.Count(row => row.Date.Date == date.Date)));
         }
     }
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        return LoadAsync();
+    }
+    public void Dispose() => PullToRefresh.Unregister(LoadAsync);
     private async Task LoadAsync()
     {
         _loading = true; _error = string.Empty;

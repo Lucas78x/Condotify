@@ -1,10 +1,12 @@
 @page "/deliveries"
 @page "/deliveries/{EntityId:guid}"
+@implements IDisposable
 @inject MobileAppState AppState
 @inject MobileSessionCoordinator Session
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
 @inject IDialogService Dialogs
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Encomendas | Condotify</PageTitle>
 <PageHeader Eyebrow="RECEBIMENTOS" Title="Encomendas" Subtitle="Recebimentos registrados na portaria.">
@@ -61,7 +63,12 @@
     private string DeliveryOverviewText => Session.Current?.Principal == MobilePrincipalKind.Resident
         ? "Apresente-se na portaria quando o volume estiver disponível"
         : "Mantenha os recebimentos atualizados para avisar os moradores";
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        return LoadAsync();
+    }
+    public void Dispose() => PullToRefresh.Unregister(LoadAsync);
     private async Task LoadAsync()
     {
         _loading = true; _error = string.Empty;

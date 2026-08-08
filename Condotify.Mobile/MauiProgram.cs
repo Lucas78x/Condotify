@@ -73,6 +73,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<MobileBiometricService>();
         builder.Services.AddSingleton<MobileOfflineCache>();
         builder.Services.AddSingleton<MobileDeviceActions>();
+        builder.Services.AddSingleton<MobilePullToRefreshState>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

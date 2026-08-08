@@ -8,6 +8,8 @@
 @inject MobileAppLockService AppLock
 @inject MobileBiometricService Biometrics
 @inject NavigationManager Navigation
+@inject MobilePullToRefreshState PullToRefresh
+@inject IJSRuntime JS
 
 <MudThemeProvider Theme="@Condotify.UI.CondotifyTheme.Default" IsDarkMode="@Appearance.IsDarkMode" />
 <MudPopoverProvider />
@@ -72,6 +74,8 @@ else
             </div>
         }
 
+        <div id="ptr-indicator" class="ptr-indicator" aria-hidden="true"><span class="ptr-icon">&#8635;</span></div>
+
         <MudMainContent Class="app-content">
             <div class="page-frame">
                 <div class="page-transition" @key="@Navigation.Uri">
@@ -135,12 +139,23 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            _pullToRefreshRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("condotifyPullToRefresh.attach", _pullToRefreshRef);
+        }
+
         if (_lockChecked || !Session.IsAuthenticated || !AppLock.NeedsUnlock) return;
         _lockChecked = true;
         _locked = true;
         await InvokeAsync(StateHasChanged);
         await UnlockAsync();
     }
+
+    private DotNetObjectReference<MainLayout>? _pullToRefreshRef;
+
+    [JSInvokable]
+    public async Task OnPullToRefreshAsync() => await PullToRefresh.RefreshAsync();
 
     private async Task UnlockAsync()
     {
@@ -215,5 +230,7 @@ else
         Navigation.LocationChanged -= OnLocationChanged;
         _lockMonitorCts.Cancel();
         _lockMonitorCts.Dispose();
+        _ = JS.InvokeVoidAsync("condotifyPullToRefresh.detach");
+        _pullToRefreshRef?.Dispose();
     }
 }

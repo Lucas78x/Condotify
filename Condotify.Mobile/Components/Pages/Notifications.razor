@@ -1,6 +1,8 @@
 @page "/notifications"
+@implements IDisposable
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Notificações | Condotify</PageTitle>
 <PageHeader Eyebrow="CENTRAL DE AVISOS" Title="Notificações" Subtitle="Atualizações importantes da sua rotina.">
@@ -61,7 +63,12 @@
     private string _preferenceError = string.Empty;
     private int UnreadCount => _page?.Items.Count(x => !x.IsRead) ?? 0;
 
-    protected override async Task OnInitializedAsync() => await Task.WhenAll(LoadAsync(), LoadPreferencesAsync());
+    protected override async Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        await Task.WhenAll(LoadAsync(), LoadPreferencesAsync());
+    }
+    public void Dispose() => PullToRefresh.Unregister(LoadAsync);
 
     private async Task LoadAsync()
     {
