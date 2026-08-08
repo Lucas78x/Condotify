@@ -953,13 +953,41 @@ E em `Clear()` (linha 37-43), resetar para o default:
 
 - [ ] **Step 2: `Home.razor` — alimentar o AppState após carregar o perfil do morador**
 
-Abra `Condotify.Mobile/Components/Pages/Home.razor` e localize onde `Api.GetResidentProfileAsync()`/equivalente é chamado e o resultado é atribuído (mesmo carregamento citado no relatório de auditoria mobile, linhas ~32-36 e ~148-167 do arquivo). Logo após a atribuição bem-sucedida do perfil (ex.: `_profile = result.Value;`), adicionar:
+`AppState` (`MobileAppState`) já está `@inject`ado em `Home.razor:5` — não precisa adicionar nada no topo do arquivo.
+
+Em `Condotify.Mobile/Components/Pages/Home.razor`, dentro do método `LoadAsync()`, confirmado hoje assim (linhas 138-156):
 
 ```csharp
-        if (result.Success && result.Value is not null) AppState.SetResidentModules(result.Value.EnabledModules);
+        if (Session.Current?.Principal == MobilePrincipalKind.Resident)
+        {
+            var profileTask = Api.GetResidentProfileAsync(cancellationToken);
+            var notificationsTask = Api.GetMobileNotificationsAsync(1, 5, cancellationToken);
+            await Task.WhenAll(profileTask, notificationsTask);
+            if (cancellationToken.IsCancellationRequested) return;
+            var profile = await profileTask;
+            var notifications = await notificationsTask;
+            _resident = profile.Value;
+            _notifications = notifications.Value;
+            if (profile.Success && profile.Value is not null)
+                await OfflineCache.SaveAsync(ResidentCacheKey, new ResidentHomeCache(profile.Value, notifications.Value));
+            else
+            {
+                var cached = await OfflineCache.LoadAsync<ResidentHomeCache>(ResidentCacheKey, TimeSpan.FromHours(24));
+                if (cached is not null) { _resident = cached.Value.Profile; _notifications = cached.Value.Notifications; _cachedAt = cached.StoredAt; }
+                else _error = profile.Error ?? "Não foi possível carregar seu cadastro.";
+            }
+        }
 ```
 
-(`AppState` já precisa estar `@inject`ado em `Home.razor` — se ainda não estiver, adicionar `@inject MobileAppState AppState` no topo do arquivo.)
+A variável é `profile` (não `result`) e o campo é `_resident` (não `_profile`) — confirme isso lendo o arquivo atual antes de editar, mas use esses nomes. Adicionar a chamada ao `AppState` dentro do primeiro `if`, junto da linha que já salva o cache (mesma condição `profile.Success && profile.Value is not null`, já que só faz sentido atualizar o bitmask quando o perfil veio da rede — se caiu no fallback de cache, o bitmask salvo anteriormente já está certo e não precisa mudar):
+
+```csharp
+            if (profile.Success && profile.Value is not null)
+            {
+                await OfflineCache.SaveAsync(ResidentCacheKey, new ResidentHomeCache(profile.Value, notifications.Value));
+                AppState.SetResidentModules(profile.Value.EnabledModules);
+            }
+```
 
 - [ ] **Step 3: `MainLayout.razor` — passar o bitmask certo para `MobileNavigation.For`**
 
