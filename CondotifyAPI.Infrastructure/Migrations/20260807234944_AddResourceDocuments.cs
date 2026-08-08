@@ -41,11 +41,30 @@ namespace CondotifyAPI.Infrastructure.Migrations
                 name: "IX_ResourceDocuments_LicenseId_Category_PublishedAt",
                 table: "ResourceDocuments",
                 columns: new[] { "LicenseId", "Category", "PublishedAt" });
+
+            // Backfill: LicenseUserAccesses.Permissions e um bitmask PERSISTIDO, gravado
+            // uma unica vez na criacao/edicao do acesso - nunca re-derivado do Role. Sem
+            // isto, todo sindico (Administrator = 0) e gerente (Manager = 1) ja existente
+            // ficaria sem os bits novos e o modulo Documentos simplesmente nao apareceria
+            // para ele. Concierge/Operator/Viewer nao recebem acesso a documentos.
+            // ViewDocuments = 1<<33 = 8589934592, ManageDocuments = 1<<34 = 17179869184
+            // (LicensePermissionEnum), somados = 25769803776.
+            migrationBuilder.Sql("""
+                UPDATE "LicenseUserAccesses"
+                SET "Permissions" = "Permissions" | 25769803776
+                WHERE "Role" IN (0, 1);
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("""
+                UPDATE "LicenseUserAccesses"
+                SET "Permissions" = "Permissions" & ~25769803776
+                WHERE "Role" IN (0, 1);
+                """);
+
             migrationBuilder.DropTable(
                 name: "ResourceDocuments");
         }

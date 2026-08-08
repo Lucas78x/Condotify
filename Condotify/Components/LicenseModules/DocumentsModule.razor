@@ -39,7 +39,13 @@ else
                     <MudTh></MudTh>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd DataLabel="Título"><div class="list-main"><div class="list-title">@context.Title</div>@if (!string.IsNullOrWhiteSpace(context.Description)) { <div class="list-meta">@context.Description</div> }</div></MudTd>
+                    <MudTd DataLabel="Título">
+                        <MudText Typo="Typo.body1">@context.Title</MudText>
+                        @if (!string.IsNullOrWhiteSpace(context.Description))
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">@context.Description</MudText>
+                        }
+                    </MudTd>
                     <MudTd DataLabel="Categoria">@CategoryLabel(context.Category)</MudTd>
                     <MudTd DataLabel="Publicado em">@context.PublishedAt.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
                     <MudTd DataLabel="Enviado por">@context.UploadedByName</MudTd>
@@ -113,11 +119,19 @@ else
             Snackbar.Add("Não foi possível abrir o documento.", Severity.Error);
             return;
         }
-        await JS.InvokeVoidAsync("portalInterop.downloadBase64", "documento.pdf", base64, "application/pdf");
+        var document = _documents.FirstOrDefault(x => x.Id == documentId);
+        await JS.InvokeVoidAsync("portalInterop.downloadBase64", $"{SanitizeFileName(document?.Title)}.pdf", base64, "application/pdf");
     }
 
     private async Task DeleteAsync(Guid documentId)
     {
+        var document = _documents.FirstOrDefault(x => x.Id == documentId);
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Excluir documento",
+            $"Excluir \"{document?.Title}\"? O arquivo não poderá ser recuperado.",
+            yesText: "Excluir", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
         var result = await Api.DeleteDocumentAsync(LicenseId, documentId);
         if (!result.Success)
         {
@@ -134,4 +148,12 @@ else
     }
 
     private static string CategoryLabel(string category) => CategoryOptions.FirstOrDefault(x => x.Value == category).Label is { Length: > 0 } label ? label : category;
+
+    private static string SanitizeFileName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "documento";
+        var invalid = Path.GetInvalidFileNameChars().Concat(['/', '\\', ':']).ToHashSet();
+        var cleaned = new string(value.Select(c => invalid.Contains(c) ? '-' : c).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(cleaned) ? "documento" : cleaned;
+    }
 }

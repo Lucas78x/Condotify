@@ -8,14 +8,25 @@
 </PageHeader>
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_documents.Count == 0)" EmptyTitle="Nenhum documento disponível" EmptyText="Quando a administração publicar um documento, ele aparece aqui." Retry="LoadAsync">
+    <MudSelect T="string" Label="Filtrar por categoria" Value="_categoryFilter" ValueChanged="OnCategoryFilterChanged" Class="mb-3" Clearable Dense>
+        @foreach (var option in CategoryOptions)
+        {
+            <MudSelectItem T="string" Value="option.Value">@option.Label</MudSelectItem>
+        }
+    </MudSelect>
+
     <section class="list-group documents-list">
-        @foreach (var document in _documents)
+        @foreach (var document in FilteredDocuments)
         {
             <div class="list-row documents-row">
                 <span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Description" /></span>
                 <div class="list-main">
                     <div class="list-title">@document.Title</div>
                     <div class="list-meta">@CategoryLabel(document.Category) · @document.PublishedAt.ToLocalTime().ToString("dd/MM/yyyy")</div>
+                    @if (!string.IsNullOrWhiteSpace(document.Description))
+                    {
+                        <div class="list-meta">@document.Description</div>
+                    }
                 </div>
                 <MudIconButton Icon="@Icons.Material.Outlined.Download" Disabled="@(_opening == document.Id)" OnClick="() => OpenAsync(document)" aria-label="@($"Abrir {document.Title}")" />
             </div>
@@ -35,11 +46,18 @@
     ];
 
     private List<ResidentResourceDocumentViewModel> _documents = [];
+    private string _categoryFilter = string.Empty;
     private bool _loading;
     private Guid? _opening;
     private string _error = string.Empty;
 
+    private List<ResidentResourceDocumentViewModel> FilteredDocuments => string.IsNullOrWhiteSpace(_categoryFilter)
+        ? _documents
+        : _documents.Where(x => x.Category == _categoryFilter).ToList();
+
     protected override Task OnInitializedAsync() => LoadAsync();
+
+    private void OnCategoryFilterChanged(string value) => _categoryFilter = value;
 
     private async Task LoadAsync()
     {
