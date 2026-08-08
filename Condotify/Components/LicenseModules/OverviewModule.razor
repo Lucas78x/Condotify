@@ -37,7 +37,7 @@
             <div class="panel-toolbar"><MudText Typo="Typo.subtitle1" Class="panel-title">Detalhes da licença</MudText></div>
             <div class="panel-body">
                 <div class="info-row"><span>Tipo</span><strong>@License.Type</strong></div>
-                <div class="info-row"><span>Cidade / UF</span><strong>@License.City / @License.State</strong></div>
+                <div class="info-row"><span>Cidade / País</span><strong>@License.City / @License.State</strong></div>
                 <div class="info-row"><span>Criada em</span><strong>@License.CreatedAt.ToString("dd/MM/yyyy")</strong></div>
             </div>
         </MudPaper>
@@ -48,7 +48,10 @@
                 <a class="qa-item" href="/licencas/@LicenseId/estrutura"><MudIcon Icon="@Icons.Material.Outlined.AddHomeWork" />Novo bloco<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
                 <a class="qa-item" href="/licencas/@LicenseId/estrutura"><MudIcon Icon="@Icons.Material.Outlined.Groups" />Ver moradores<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
                 <a class="qa-item" href="/licencas/@LicenseId/credenciais"><MudIcon Icon="@Icons.Material.Outlined.Badge" />Configurar acessos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
-                <a class="qa-item" href="/licencas/@LicenseId/documentos"><MudIcon Icon="@Icons.Material.Outlined.Description" />Ver documentos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                @if (CanViewDocuments)
+                {
+                    <a class="qa-item" href="/licencas/@LicenseId/documentos"><MudIcon Icon="@Icons.Material.Outlined.Description" />Ver documentos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                }
             </div>
         </MudPaper>
     </div>
@@ -57,4 +60,5 @@
 @code {
     [Parameter, EditorRequired] public LicenseFullViewModel License { get; set; } = new();
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanViewDocuments { get; set; }
 }
