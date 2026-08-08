@@ -214,6 +214,15 @@ html, body {
 .status-dot.offline { background: #9ca5b4; }
 .empty-state { min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; border: 1px solid #e2e6ec; border-radius: 6px; }
 .compact-empty { min-height: 240px; border: 0; }
+.category-badge { width: 38px; height: 38px; border-radius: 9px; display: grid; place-items: center; flex: none; }
+.category-badge-lg { width: 56px; height: 56px; border-radius: 16px; }
+.category-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; padding: 4px 9px 4px 7px; border-radius: 999px; white-space: nowrap; }
+.category-primary { color: var(--ds-primary-strong); background: var(--ds-primary-soft); }
+.category-teal     { color: var(--ds-teal); background: var(--ds-teal-soft); }
+.category-amber    { color: var(--ds-amber); background: var(--ds-amber-soft); }
+.category-green    { color: #08715f; background: #e8f5f1; }
+.category-neutral  { color: var(--ds-muted); background: var(--ds-surface-muted); }
+.documents-empty-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 2px; max-width: 460px; }
 .loading-state { min-height: 300px; display: grid; place-items: center; }
 .license-name-cell { display: flex; align-items: center; gap: 12px; }
 .license-monogram { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 6px; background: #edf1ff; color: #3156d3; font-weight: 700; }

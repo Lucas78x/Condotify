@@ -27,9 +27,22 @@ else
         @if (FilteredDocuments.Count == 0)
         {
             <div class="empty-state compact-empty">
-                <MudIcon Icon="@(string.IsNullOrWhiteSpace(_categoryFilter) ? Icons.Material.Outlined.FolderOpen : CategoryIcon(_categoryFilter))" Size="Size.Large" Color="Color.Primary" />
+                <span class="category-badge category-badge-lg category-primary">
+                    <MudIcon Icon="@Icons.Material.Outlined.Description" Size="Size.Large" />
+                </span>
                 <MudText Typo="Typo.subtitle1">@EmptyStateTitle</MudText>
                 <MudText Typo="Typo.body2" Color="Color.Secondary">@EmptyStateHint</MudText>
+                @if (string.IsNullOrWhiteSpace(_categoryFilter))
+                {
+                    <div class="documents-empty-legend">
+                        @foreach (var option in CategoryOptions)
+                        {
+                            <span class="category-chip @CategoryClass(option.Value)">
+                                <MudIcon Icon="@CategoryIcon(option.Value)" Size="Size.Small" />@option.Label
+                            </span>
+                        }
+                    </div>
+                }
             </div>
         }
         else
@@ -50,7 +63,7 @@ else
                             <MudText Typo="Typo.body2" Color="Color.Secondary">@context.Description</MudText>
                         }
                     </MudTd>
-                    <MudTd DataLabel="Categoria"><MudChip T="string" Size="Size.Small" Color="@CategoryColor(context.Category)" Variant="Variant.Outlined" Icon="@CategoryIcon(context.Category)">@CategoryLabel(context.Category)</MudChip></MudTd>
+                    <MudTd DataLabel="Categoria"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@CategoryIcon(context.Category)" Class="@($"category-chip {CategoryClass(context.Category)}")">@CategoryLabel(context.Category)</MudChip></MudTd>
                     <MudTd DataLabel="Publicado em">@context.PublishedAt.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
                     <MudTd DataLabel="Enviado por">@context.UploadedByName</MudTd>
                     <MudTd>
@@ -161,13 +174,13 @@ else
 
     private static string CategoryLabel(string category) => CategoryOptions.FirstOrDefault(x => x.Value == category).Label is { Length: > 0 } label ? label : category;
 
-    private static Color CategoryColor(string category) => category switch
+    private static string CategoryClass(string category) => category switch
     {
-        "Minutes" => Color.Primary,
-        "Covenant" => Color.Info,
-        "Announcement" => Color.Warning,
-        "FinancialStatement" => Color.Success,
-        _ => Color.Default
+        "Minutes" => "category-primary",
+        "Covenant" => "category-teal",
+        "Announcement" => "category-amber",
+        "FinancialStatement" => "category-green",
+        _ => "category-neutral"
     };
 
     private static string CategoryIcon(string category) => category switch
