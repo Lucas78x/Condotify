@@ -456,6 +456,57 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<string>> GetBoletoDocumentFileAsync(Guid licenseId, Guid documentId, CancellationToken cancellationToken = default) =>
         GetPdfDataUrlAsync($"api/access/licenses/{licenseId}/boletos/documents/{documentId}/file", cancellationToken);
 
+    public Task<ApiResult<List<ResourceDocumentViewModel>>> GetDocumentsAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<ResourceDocumentViewModel>>($"api/access/licenses/{licenseId}/documents", cancellationToken);
+
+    public async Task<ApiResult<ResourceDocumentViewModel>> UploadDocumentAsync(
+        Guid licenseId,
+        string category,
+        string title,
+        string description,
+        string fileName,
+        byte[] fileBytes,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var client = await CreateClientAsync(cancellationToken);
+            using var content = new MultipartFormDataContent
+            {
+                { new StringContent(category), "Category" },
+                { new StringContent(title), "Title" },
+                { new StringContent(description ?? string.Empty), "Description" }
+            };
+            var fileContent = new ByteArrayContent(fileBytes);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+            content.Add(fileContent, "File", fileName);
+
+            using var response = await client.PostAsync(BuildApiUrl($"api/access/licenses/{licenseId}/documents"), content, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return ApiResult<ResourceDocumentViewModel>.Fail(await ReadErrorAsync(response, "Nao foi possivel enviar o documento."), response.StatusCode);
+
+            var value = await response.Content.ReadFromJsonAsync<ResourceDocumentViewModel>(GetJsonOptions, cancellationToken);
+            return value is null
+                ? ApiResult<ResourceDocumentViewModel>.Fail("Nao foi possivel interpretar a resposta da API.", response.StatusCode)
+                : ApiResult<ResourceDocumentViewModel>.Ok(value, response.StatusCode);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return ApiResult<ResourceDocumentViewModel>.Fail("Operação cancelada.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falha ao enviar documento para a licenca {LicenseId}", licenseId);
+            return ApiResult<ResourceDocumentViewModel>.Fail("A API está indisponível. Tente novamente em instantes.");
+        }
+    }
+
+    public Task<ApiResult<bool>> DeleteDocumentAsync(Guid licenseId, Guid documentId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/documents/{documentId}", cancellationToken);
+
+    public Task<ApiResult<string>> GetDocumentFileAsync(Guid licenseId, Guid documentId, CancellationToken cancellationToken = default) =>
+        GetPdfDataUrlAsync($"api/access/licenses/{licenseId}/documents/{documentId}/file", cancellationToken);
+
     private async Task<ApiResult<string>> GetPdfDataUrlAsync(string path, CancellationToken cancellationToken)
     {
         try

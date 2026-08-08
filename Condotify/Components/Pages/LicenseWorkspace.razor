@@ -43,6 +43,7 @@ else
         @if (Has(LicensePermission.ViewDeliveries)) { @NavButton("encomendas", "Encomendas", Icons.Material.Outlined.Inventory2) }
         @if (Has(LicensePermission.ViewBookings)) { @NavButton("agendamento", "Agendamento", Icons.Material.Outlined.Deck) }
         @if (Has(LicensePermission.ManageFinance)) { @NavButton("boletos", "Boletos", Icons.Material.Outlined.ReceiptLong) }
+        @if (Has(LicensePermission.ManageDocuments)) { @NavButton("documentos", "Documentos", Icons.Material.Outlined.Description) }
         @if (Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts)) { @NavButton("administracao", "Administração", Icons.Material.Outlined.AdminPanelSettings) }
         </nav>
         <MudIconButton Icon="@Icons.Material.Outlined.ChevronRight" Class="workspace-nav-control" OnClick="@(() => ScrollWorkspaceNavAsync(1))" aria-label="Ver próximos módulos" />
@@ -76,6 +77,9 @@ else
                 break;
             case "boletos":
                 <BoletosModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageFinance)" />
+                break;
+            case "documentos":
+                <DocumentsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDocuments)" />
                 break;
             case "credenciais":
                 <CredentialsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageCredentials)" />
@@ -126,6 +130,7 @@ else
         : Has(LicensePermission.ViewDeliveries) ? "encomendas"
         : Has(LicensePermission.ViewBookings) ? "agendamento"
         : Has(LicensePermission.ManageFinance) ? "boletos"
+        : Has(LicensePermission.ManageDocuments) ? "documentos"
         : Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts) ? "administracao"
         : "sem-acesso";
 
@@ -195,6 +200,7 @@ else
         "encomendas" => Has(LicensePermission.ViewDeliveries),
         "agendamento" => Has(LicensePermission.ViewBookings),
         "boletos" => Has(LicensePermission.ManageFinance),
+        "documentos" => Has(LicensePermission.ManageDocuments),
         "administracao" => Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts),
         _ => false
     };

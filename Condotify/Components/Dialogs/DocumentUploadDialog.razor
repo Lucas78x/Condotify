@@ -1,0 +1,115 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.Description" />
+            <div>
+                <strong>Novo documento</strong>
+                <span>Fica visível pra todos os moradores desta licença assim que enviado.</span>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+
+        <MudSelect T="string" Label="Categoria" @bind-Value="_category" Class="mb-3">
+            @foreach (var option in CategoryOptions)
+            {
+                <MudSelectItem T="string" Value="option.Value">@option.Label</MudSelectItem>
+            }
+        </MudSelect>
+        <MudTextField T="string" Label="Título" @bind-Value="_title" Class="mb-3" MaxLength="160" />
+        <MudTextField T="string" Label="Descrição (opcional)" @bind-Value="_description" Class="mb-3" Lines="2" MaxLength="1000" />
+
+        <div class="import-source">
+            <div class="import-source-copy">
+                <MudIcon Icon="@Icons.Material.Outlined.PictureAsPdf" />
+                <div>
+                    <strong>@(string.IsNullOrWhiteSpace(_fileName) ? "Selecione o PDF" : _fileName)</strong>
+                    <span>Limite de 2 MB.</span>
+                </div>
+            </div>
+            <label class="file-button @(_submitting ? "disabled" : null)">
+                <MudIcon Icon="@Icons.Material.Outlined.UploadFile" />
+                <span>@(_fileBytes is null ? "Selecionar PDF" : "Trocar arquivo")</span>
+                <InputFile OnChange="ReadFileAsync" accept=".pdf,application/pdf" disabled="@_submitting" />
+            </label>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Disabled="_submitting" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.CloudUpload"
+                   Disabled="@(!CanSubmit || _submitting)" OnClick="SubmitAsync">
+            @(_submitting ? "Enviando..." : "Publicar documento")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+
+    private const long MaxFileSize = 2_000_000;
+    private static readonly (string Value, string Label)[] CategoryOptions =
+    [
+        ("Minutes", "Ata"),
+        ("ByLaws", "Regimento Interno"),
+        ("Covenant", "Convenção"),
+        ("Announcement", "Comunicado"),
+        ("FinancialStatement", "Prestação de Contas"),
+        ("Other", "Outro")
+    ];
+
+    private string _category = "Announcement";
+    private string _title = string.Empty;
+    private string _description = string.Empty;
+    private string _fileName = string.Empty;
+    private byte[]? _fileBytes;
+    private bool _submitting;
+    private string? _error;
+
+    private bool CanSubmit => !string.IsNullOrWhiteSpace(_title) && _fileBytes is { Length: > 0 };
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task ReadFileAsync(InputFileChangeEventArgs args)
+    {
+        _error = null;
+        var file = args.File;
+        if (file.Size > MaxFileSize)
+        {
+            _error = "O arquivo excede o limite de 2 MB.";
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(MaxFileSize);
+        await using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+        _fileBytes = buffer.ToArray();
+        _fileName = file.Name;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (!CanSubmit) return;
+        _submitting = true;
+        _error = null;
+        try
+        {
+            var result = await Api.UploadDocumentAsync(LicenseId, _category, _title.Trim(), _description.Trim(), _fileName, _fileBytes!);
+            if (!result.Success || result.Value is null)
+            {
+                _error = result.Error ?? "Não foi possível enviar o documento.";
+                return;
+            }
+            Dialog.Close(DialogResult.Ok(result.Value));
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

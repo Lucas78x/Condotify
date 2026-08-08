@@ -1,0 +1,137 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+@if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+
+@if (_loading)
+{
+    <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+}
+else
+{
+    <section class="content-panel">
+        <div class="panel-heading">
+            <div><MudText Typo="Typo.h5">Documentos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Visíveis a todos os moradores desta licença</MudText></div>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.UploadFile" OnClick="OpenUploadAsync" Disabled="!CanManage">Novo documento</MudButton>
+        </div>
+
+        <MudSelect T="string" Label="Filtrar por categoria" Value="_categoryFilter" ValueChanged="OnCategoryFilterChanged" Class="mb-3" Clearable Dense>
+            @foreach (var option in CategoryOptions)
+            {
+                <MudSelectItem T="string" Value="option.Value">@option.Label</MudSelectItem>
+            }
+        </MudSelect>
+
+        @if (FilteredDocuments.Count == 0)
+        {
+            <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.Description" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum documento @(string.IsNullOrWhiteSpace(_categoryFilter) ? "publicado" : "nesta categoria")</MudText></div>
+        }
+        else
+        {
+            <MudTable Items="FilteredDocuments" Hover Dense Elevation="0">
+                <HeaderContent>
+                    <MudTh>Título</MudTh>
+                    <MudTh>Categoria</MudTh>
+                    <MudTh>Publicado em</MudTh>
+                    <MudTh>Enviado por</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Título"><div class="list-main"><div class="list-title">@context.Title</div>@if (!string.IsNullOrWhiteSpace(context.Description)) { <div class="list-meta">@context.Description</div> }</div></MudTd>
+                    <MudTd DataLabel="Categoria">@CategoryLabel(context.Category)</MudTd>
+                    <MudTd DataLabel="Publicado em">@context.PublishedAt.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
+                    <MudTd DataLabel="Enviado por">@context.UploadedByName</MudTd>
+                    <MudTd>
+                        <MudTooltip Text="Abrir"><MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Size="Size.Small" OnClick="() => OpenFileAsync(context.Id)" /></MudTooltip>
+                        <MudTooltip Text="Excluir"><MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" Disabled="!CanManage" OnClick="() => DeleteAsync(context.Id)" /></MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+
+    private static readonly (string Value, string Label)[] CategoryOptions =
+    [
+        ("Minutes", "Ata"),
+        ("ByLaws", "Regimento Interno"),
+        ("Covenant", "Convenção"),
+        ("Announcement", "Comunicado"),
+        ("FinancialStatement", "Prestação de Contas"),
+        ("Other", "Outro")
+    ];
+
+    private List<ResourceDocumentViewModel> _documents = [];
+    private string _categoryFilter = string.Empty;
+    private bool _loading;
+    private string? _error;
+
+    private List<ResourceDocumentViewModel> FilteredDocuments => string.IsNullOrWhiteSpace(_categoryFilter)
+        ? _documents
+        : _documents.Where(x => x.Category == _categoryFilter).ToList();
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        var result = await Api.GetDocumentsAsync(LicenseId);
+        _loading = false;
+        if (result.Success) _documents = result.Value ?? [];
+        else _error = result.Error;
+    }
+
+    private void OnCategoryFilterChanged(string value) => _categoryFilter = value;
+
+    private async Task OpenUploadAsync()
+    {
+        var parameters = new DialogParameters { [nameof(DocumentUploadDialog.LicenseId)] = LicenseId };
+        var dialog = await DialogService.ShowAsync<DocumentUploadDialog>("Novo documento", parameters,
+            new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) await LoadAsync();
+    }
+
+    private async Task OpenFileAsync(Guid documentId)
+    {
+        var result = await Api.GetDocumentFileAsync(LicenseId, documentId);
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Value))
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível abrir o documento.", Severity.Error);
+            return;
+        }
+        var base64 = StripDataUrlPrefix(result.Value!);
+        if (base64 is null)
+        {
+            Snackbar.Add("Não foi possível abrir o documento.", Severity.Error);
+            return;
+        }
+        await JS.InvokeVoidAsync("portalInterop.downloadBase64", "documento.pdf", base64, "application/pdf");
+    }
+
+    private async Task DeleteAsync(Guid documentId)
+    {
+        var result = await Api.DeleteDocumentAsync(LicenseId, documentId);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível excluir o documento.", Severity.Error);
+            return;
+        }
+        await LoadAsync();
+    }
+
+    private static string? StripDataUrlPrefix(string dataUrl)
+    {
+        var separator = dataUrl.IndexOf("base64,", StringComparison.OrdinalIgnoreCase);
+        return separator < 0 ? null : dataUrl[(separator + "base64,".Length)..];
+    }
+
+    private static string CategoryLabel(string category) => CategoryOptions.FirstOrDefault(x => x.Value == category).Label is { Length: > 0 } label ? label : category;
+}
