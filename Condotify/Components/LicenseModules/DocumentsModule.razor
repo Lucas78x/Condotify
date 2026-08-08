@@ -26,7 +26,11 @@ else
 
         @if (FilteredDocuments.Count == 0)
         {
-            <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.Description" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum documento @(string.IsNullOrWhiteSpace(_categoryFilter) ? "publicado" : "nesta categoria")</MudText></div>
+            <div class="empty-state compact-empty">
+                <MudIcon Icon="@(string.IsNullOrWhiteSpace(_categoryFilter) ? Icons.Material.Outlined.FolderOpen : CategoryIcon(_categoryFilter))" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.subtitle1">@EmptyStateTitle</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@EmptyStateHint</MudText>
+            </div>
         }
         else
         {
@@ -46,7 +50,7 @@ else
                             <MudText Typo="Typo.body2" Color="Color.Secondary">@context.Description</MudText>
                         }
                     </MudTd>
-                    <MudTd DataLabel="Categoria">@CategoryLabel(context.Category)</MudTd>
+                    <MudTd DataLabel="Categoria"><MudChip T="string" Size="Size.Small" Color="@CategoryColor(context.Category)" Variant="Variant.Outlined" Icon="@CategoryIcon(context.Category)">@CategoryLabel(context.Category)</MudChip></MudTd>
                     <MudTd DataLabel="Publicado em">@context.PublishedAt.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
                     <MudTd DataLabel="Enviado por">@context.UploadedByName</MudTd>
                     <MudTd>
@@ -81,6 +85,14 @@ else
     private List<ResourceDocumentViewModel> FilteredDocuments => string.IsNullOrWhiteSpace(_categoryFilter)
         ? _documents
         : _documents.Where(x => x.Category == _categoryFilter).ToList();
+
+    private string EmptyStateTitle => string.IsNullOrWhiteSpace(_categoryFilter)
+        ? "Nenhum documento publicado"
+        : $"Nenhum documento em \"{CategoryLabel(_categoryFilter)}\"";
+
+    private string EmptyStateHint => string.IsNullOrWhiteSpace(_categoryFilter)
+        ? "Atas, regimento, convenção e comunicados publicados aqui ficam visíveis a todos os moradores."
+        : "Publique um documento nesta categoria ou troque o filtro para ver as outras.";
 
     protected override Task OnParametersSetAsync() => LoadAsync();
 
@@ -148,6 +160,25 @@ else
     }
 
     private static string CategoryLabel(string category) => CategoryOptions.FirstOrDefault(x => x.Value == category).Label is { Length: > 0 } label ? label : category;
+
+    private static Color CategoryColor(string category) => category switch
+    {
+        "Minutes" => Color.Primary,
+        "Covenant" => Color.Info,
+        "Announcement" => Color.Warning,
+        "FinancialStatement" => Color.Success,
+        _ => Color.Default
+    };
+
+    private static string CategoryIcon(string category) => category switch
+    {
+        "Minutes" => Icons.Material.Outlined.Article,
+        "ByLaws" => Icons.Material.Outlined.Gavel,
+        "Covenant" => Icons.Material.Outlined.Handshake,
+        "Announcement" => Icons.Material.Outlined.Campaign,
+        "FinancialStatement" => Icons.Material.Outlined.ReceiptLong,
+        _ => Icons.Material.Outlined.InsertDriveFile
+    };
 
     private static string SanitizeFileName(string? value)
     {

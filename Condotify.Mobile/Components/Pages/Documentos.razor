@@ -15,23 +15,33 @@
         }
     </MudSelect>
 
-    <section class="list-group documents-list">
-        @foreach (var document in FilteredDocuments)
-        {
-            <div class="list-row documents-row">
-                <span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Description" /></span>
-                <div class="list-main">
-                    <div class="list-title">@document.Title</div>
-                    <div class="list-meta">@CategoryLabel(document.Category) · @document.PublishedAt.ToLocalTime().ToString("dd/MM/yyyy")</div>
-                    @if (!string.IsNullOrWhiteSpace(document.Description))
-                    {
-                        <div class="list-meta">@document.Description</div>
-                    }
+    @if (FilteredDocuments.Count == 0)
+    {
+        <div class="empty-state compact-empty">
+            <MudIcon Icon="@CategoryIcon(_categoryFilter)" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.subtitle1">Nenhum documento em "@CategoryLabel(_categoryFilter)"</MudText>
+        </div>
+    }
+    else
+    {
+        <section class="list-group documents-list">
+            @foreach (var document in FilteredDocuments)
+            {
+                <div class="list-row documents-row">
+                    <span class="settings-icon @CategoryColorClass(document.Category)"><MudIcon Icon="@CategoryIcon(document.Category)" /></span>
+                    <div class="list-main">
+                        <div class="list-title">@document.Title</div>
+                        <div class="list-meta">@CategoryLabel(document.Category) · @document.PublishedAt.ToLocalTime().ToString("dd/MM/yyyy")</div>
+                        @if (!string.IsNullOrWhiteSpace(document.Description))
+                        {
+                            <div class="list-meta">@document.Description</div>
+                        }
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Outlined.Download" Disabled="@(_opening == document.Id)" OnClick="() => OpenAsync(document)" aria-label="@($"Abrir {document.Title}")" />
                 </div>
-                <MudIconButton Icon="@Icons.Material.Outlined.Download" Disabled="@(_opening == document.Id)" OnClick="() => OpenAsync(document)" aria-label="@($"Abrir {document.Title}")" />
-            </div>
-        }
-    </section>
+            }
+        </section>
+    }
 </PageState>
 
 @code {
@@ -117,4 +127,23 @@
     }
 
     private static string CategoryLabel(string category) => CategoryOptions.FirstOrDefault(x => x.Value == category).Label is { Length: > 0 } label ? label : category;
+
+    private static string CategoryColorClass(string category) => category switch
+    {
+        "Minutes" => "primary",
+        "Covenant" => "info",
+        "Announcement" => "warning",
+        "FinancialStatement" => "success",
+        _ => "neutral"
+    };
+
+    private static string CategoryIcon(string category) => category switch
+    {
+        "Minutes" => Icons.Material.Outlined.Article,
+        "ByLaws" => Icons.Material.Outlined.Gavel,
+        "Covenant" => Icons.Material.Outlined.Handshake,
+        "Announcement" => Icons.Material.Outlined.Campaign,
+        "FinancialStatement" => Icons.Material.Outlined.ReceiptLong,
+        _ => Icons.Material.Outlined.InsertDriveFile
+    };
 }
