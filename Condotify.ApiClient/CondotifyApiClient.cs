@@ -617,6 +617,12 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<string>> GetResidentBoletoFileAsync(Guid documentId, CancellationToken cancellationToken = default) =>
         GetPdfDataUrlAsync($"api/resident/boletos/{documentId}/file", cancellationToken);
 
+    public Task<ApiResult<List<ResidentResourceDocumentViewModel>>> GetResidentDocumentsAsync(CancellationToken cancellationToken = default) =>
+        GetAsync<List<ResidentResourceDocumentViewModel>>("api/resident/documents", cancellationToken);
+
+    public Task<ApiResult<string>> GetResidentDocumentFileAsync(Guid documentId, CancellationToken cancellationToken = default) =>
+        GetPdfDataUrlAsync($"api/resident/documents/{documentId}/file", cancellationToken);
+
     public Task<ApiResult<ConciergeDashboardViewModel>> GetConciergeDashboardAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
         GetAsync<ConciergeDashboardViewModel>($"api/access/licenses/{licenseId}/concierge", cancellationToken);
 

@@ -1,0 +1,102 @@
+@page "/documentos"
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Documentos | Condotify</PageTitle>
+<PageHeader Eyebrow="CONDOMÍNIO" Title="Documentos" Subtitle="Atas, regimento, convenção e comunicados publicados pela administração.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_documents.Count == 0)" EmptyTitle="Nenhum documento disponível" EmptyText="Quando a administração publicar um documento, ele aparece aqui." Retry="LoadAsync">
+    <section class="list-group documents-list">
+        @foreach (var document in _documents)
+        {
+            <div class="list-row documents-row">
+                <span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Description" /></span>
+                <div class="list-main">
+                    <div class="list-title">@document.Title</div>
+                    <div class="list-meta">@CategoryLabel(document.Category) · @document.PublishedAt.ToLocalTime().ToString("dd/MM/yyyy")</div>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Outlined.Download" Disabled="@(_opening == document.Id)" OnClick="() => OpenAsync(document)" aria-label="@($"Abrir {document.Title}")" />
+            </div>
+        }
+    </section>
+</PageState>
+
+@code {
+    private static readonly (string Value, string Label)[] CategoryOptions =
+    [
+        ("Minutes", "Ata"),
+        ("ByLaws", "Regimento Interno"),
+        ("Covenant", "Convenção"),
+        ("Announcement", "Comunicado"),
+        ("FinancialStatement", "Prestação de Contas"),
+        ("Other", "Outro")
+    ];
+
+    private List<ResidentResourceDocumentViewModel> _documents = [];
+    private bool _loading;
+    private Guid? _opening;
+    private string _error = string.Empty;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = string.Empty;
+        var result = await Api.GetResidentDocumentsAsync();
+        _loading = false;
+        if (result.Success) _documents = result.Value ?? [];
+        else _error = result.Error ?? "Não foi possível carregar os documentos.";
+    }
+
+    private async Task OpenAsync(ResidentResourceDocumentViewModel document)
+    {
+        _opening = document.Id;
+        var result = await Api.GetResidentDocumentFileAsync(document.Id);
+        _opening = null;
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Value))
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível abrir o documento.", Severity.Error);
+            return;
+        }
+
+        var base64 = StripDataUrlPrefix(result.Value!);
+        if (base64 is null)
+        {
+            Snackbar.Add("Não foi possível abrir o documento.", Severity.Error);
+            return;
+        }
+
+        try
+        {
+            var path = Path.Combine(FileSystem.CacheDirectory, $"{SanitizeFileName(document.Title)}.pdf");
+            await File.WriteAllBytesAsync(path, Convert.FromBase64String(base64));
+            await Share.Default.RequestAsync(new ShareFileRequest
+            {
+                Title = document.Title,
+                File = new ShareFile(path)
+            });
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("Não foi possível abrir o documento.", Severity.Error);
+        }
+    }
+
+    private static string? StripDataUrlPrefix(string dataUrl)
+    {
+        var separator = dataUrl.IndexOf("base64,", StringComparison.OrdinalIgnoreCase);
+        return separator < 0 ? null : dataUrl[(separator + "base64,".Length)..];
+    }
+
+    private static string SanitizeFileName(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars().Concat(['/', '\\', ':']).ToHashSet();
+        var cleaned = new string(value.Select(c => invalid.Contains(c) ? '-' : c).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(cleaned) ? "documento" : cleaned;
+    }
+
+    private static string CategoryLabel(string category) => CategoryOptions.FirstOrDefault(x => x.Value == category).Label is { Length: > 0 } label ? label : category;
+}
