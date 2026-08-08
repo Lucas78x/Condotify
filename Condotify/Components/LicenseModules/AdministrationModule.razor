@@ -1,6 +1,7 @@
 @inject CondotifyApiClient Api
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
 
 @if (_loading) { <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div> }
 else if (_data is null) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@(_error ?? "Não foi possível carregar a administração.")</MudAlert> }
@@ -46,6 +47,18 @@ else
                         <AlertNotificationsPanel LicenseId="LicenseId" CanManage="CanManageAlerts" CanViewSettings="CanViewSettings" CanManageSettings="CanManageSettings" />
                     </MudTabPanel>
                 }
+                @if (_isPlatformAdmin)
+                {
+                    <MudTabPanel Text="Módulos" Icon="@Icons.Material.Outlined.ToggleOn">
+                        <div class="admin-tab-head"><div><strong>Módulos ativos deste condomínio</strong><span>Controle exclusivo da plataforma — o síndico não vê nem altera esta lista.</span></div></div>
+                        <div class="policy-switches">
+                            @foreach (var option in ModuleOptions)
+                            {
+                                <MudSwitch T="bool" Value="@IsModuleOn(option.Module)" ValueChanged="@(value => ToggleModuleAsync(option.Module, value))" Disabled="_savingModules" Label="@option.Label" Color="Color.Primary" />
+                            }
+                        </div>
+                    </MudTabPanel>
+                }
             </MudTabs>
         </MudPaper>
     </section>
@@ -54,9 +67,13 @@ else
 @code {
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
     [Parameter] public LicenseAdministrationViewModel? InitialData { get; set; }
+    [Parameter] public long EnabledModules { get; set; }
+    [Parameter] public EventCallback<long> OnModulesChanged { get; set; }
     private LicenseAdministrationViewModel? _data;
     private bool _loading = true;
     private bool _savingPolicy;
+    private bool _isPlatformAdmin;
+    private bool _savingModules;
     private string? _error;
     private bool CanViewUsers => _data?.CurrentAccess.Has(LicensePermission.ViewUsers) == true;
     private bool CanManageUsers => _data?.CurrentAccess.Has(LicensePermission.ManageUsers) == true;
@@ -66,11 +83,44 @@ else
     private bool CanManageBackups => _data?.CurrentAccess.Has(LicensePermission.ManageBackups) == true;
     private bool CanViewAlerts => _data?.CurrentAccess.Has(LicensePermission.ViewAlerts) == true;
     private bool CanManageAlerts => _data?.CurrentAccess.Has(LicensePermission.ManageAlerts) == true;
-    protected override async Task OnInitializedAsync() { if (InitialData is not null) { _data = InitialData; _loading = false; } else await LoadAsync(); }
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
+        _isPlatformAdmin = user.FindFirst("access_type")?.Value is "Admin" or "Developer";
+        if (InitialData is not null) { _data = InitialData; _loading = false; } else await LoadAsync();
+    }
     private async Task LoadAsync() { _loading = true; var result = await Api.GetLicenseAdministrationAsync(LicenseId); _loading = false; if (result.Success) _data = result.Value; else _error = result.Error; }
     private async Task OpenUserAsync(LicenseUserAccessViewModel? user) { var parameters = new DialogParameters { [nameof(LicenseUserDialog.LicenseId)] = LicenseId, [nameof(LicenseUserDialog.Existing)] = user }; var dialog = await DialogService.ShowAsync<LicenseUserDialog>(user is null ? "Novo usuário" : "Editar acesso", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium }); var result = await dialog.Result; if (result?.Canceled != false) return; await LoadAsync(); Snackbar.Add("Acesso atualizado.", Severity.Success); }
     private async Task SavePolicyAsync() { if (_data is null || !CanManageSettings) return; _savingPolicy = true; var result = await Api.UpdateCredentialPolicyAsync(LicenseId, _data.Policy); _savingPolicy = false; if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao salvar as políticas.", Severity.Error); return; } _data.Policy = result.Value ?? _data.Policy; Snackbar.Add("Políticas de credenciais atualizadas.", Severity.Success); }
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
     private static int PermissionCount(long value) => LicensePermissionCatalog.Options.Count(x => (value & (long)x.Permission) == (long)x.Permission);
     private static string RoleLabel(string role) => role switch { "Administrator" => "Administrador", "Manager" => "Gestor", "Concierge" => "Portaria", "Operator" => "Operador", "Viewer" => "Somente leitura", _ => role };
+
+    private static readonly (Condotify.Models.LicenseModuleEnum Module, string Label)[] ModuleOptions =
+    [
+        (Condotify.Models.LicenseModuleEnum.Cameras, "Câmeras"),
+        (Condotify.Models.LicenseModuleEnum.Devices, "Equipamentos"),
+        (Condotify.Models.LicenseModuleEnum.Routes, "Rotas"),
+        (Condotify.Models.LicenseModuleEnum.Incidents, "Ocorrências"),
+        (Condotify.Models.LicenseModuleEnum.Automations, "Automações"),
+        (Condotify.Models.LicenseModuleEnum.Emergency, "Emergência"),
+        (Condotify.Models.LicenseModuleEnum.Deliveries, "Encomendas"),
+        (Condotify.Models.LicenseModuleEnum.Bookings, "Agendamento"),
+        (Condotify.Models.LicenseModuleEnum.Finance, "Boletos"),
+        (Condotify.Models.LicenseModuleEnum.Documents, "Documentos"),
+    ];
+
+    private bool IsModuleOn(Condotify.Models.LicenseModuleEnum module) => (EnabledModules & (long)module) != 0;
+
+    private async Task ToggleModuleAsync(Condotify.Models.LicenseModuleEnum module, bool value)
+    {
+        var next = value ? EnabledModules | (long)module : EnabledModules & ~(long)module;
+        _savingModules = true;
+        var result = await Api.UpdateLicenseModulesAsync(LicenseId, next);
+        _savingModules = false;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao atualizar os módulos.", Severity.Error); return; }
+        EnabledModules = result.Value?.EnabledModules ?? next;
+        await OnModulesChanged.InvokeAsync(EnabledModules);
+        Snackbar.Add("Módulos atualizados.", Severity.Success);
+    }
 }

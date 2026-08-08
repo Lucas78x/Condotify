@@ -96,7 +96,7 @@ else
                 <EmergencyModule LicenseId="LicenseId" LicenseCode="@_license.Code" CanManage="@Has(LicensePermission.ManageEmergency)" />
                 break;
             case "administracao":
-                <AdministrationModule LicenseId="LicenseId" InitialData="_administration" />
+                <AdministrationModule LicenseId="LicenseId" InitialData="_administration" EnabledModules="_license.EnabledModules" OnModulesChanged="@(value => _license.EnabledModules = value)" />
                 break;
             default:
                 <OverviewModule License="_license" LicenseId="LicenseId" CanViewDocuments="@Has(LicensePermission.ManageDocuments)" />
