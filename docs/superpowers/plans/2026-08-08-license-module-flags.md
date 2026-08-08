@@ -357,7 +357,6 @@ public sealed class UpdateLicenseModulesIn
 // CondotifyAPI.Tests/LicenseAccessControllerTests.cs
 using CondotifyAPI.Controllers;
 using CondotifyAPI.Domain.DTO.Users;
-using CondotifyAPI.Domain.Enums.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -423,7 +422,9 @@ Expected: FAIL — `UpdateModules`/`CanManageModules` ainda não existem.
 
 - [ ] **Step 4: Implementar o endpoint**
 
-Em `CondotifyAPI/Controllers/LicenseAccessController.cs`, adicionar logo após o método `CreateByEnterprise` (que termina por volta da linha 140, antes do fechamento da classe). Confirme os `using` já existentes no topo do arquivo (`System.Security.Claims`, `Microsoft.EntityFrameworkCore` — `CreateByEnterprise` já os usa, então já devem estar presentes):
+Em `CondotifyAPI/Controllers/LicenseAccessController.cs`, adicionar logo após o método `CreateByEnterprise` (que termina por volta da linha 140, antes do fechamento da classe). Confirme os `using` já existentes no topo do arquivo (`System.Security.Claims`, `Microsoft.EntityFrameworkCore` — `CreateByEnterprise` já os usa, então já devem estar presentes).
+
+`AccessTypeEnum` (`CondotifyAPI.Domain/Enums/Users/AccessTypeEnum.cs`) **não tem namespace declarado** — vive no namespace global. Referencie-o sem qualificação (`AccessTypeEnum.Admin`, não `CondotifyAPI.Domain.Enums.Users.AccessTypeEnum.Admin`), exatamente como `CreateByEnterprise` já faz na linha 114 do mesmo arquivo. Qualificar com um namespace que o tipo não tem quebra a build; NÃO tente "corrigir" isso adicionando `namespace CondotifyAPI.Domain.Enums.Users;` ao arquivo do enum — esse tipo é usado sem qualificação em dezenas de arquivos do solution hoje, e mudar isso é um refactor de escopo bem maior que este task, fora de escopo aqui:
 
 ```csharp
     [HttpPut("{id:guid}/modules")]
@@ -453,7 +454,7 @@ Em `CondotifyAPI/Controllers/LicenseAccessController.cs`, adicionar logo após o
     internal static bool CanManageModules(CondotifyAPI.Domain.DTO.Users.UserAccessDTO? user, Guid enterpriseId) =>
         user is not null &&
         user.EnterpriseId == enterpriseId &&
-        user.AccessType is CondotifyAPI.Domain.Enums.Users.AccessTypeEnum.Admin or CondotifyAPI.Domain.Enums.Users.AccessTypeEnum.Developer;
+        user.AccessType is AccessTypeEnum.Admin or AccessTypeEnum.Developer;
 ```
 
 - [ ] **Step 5: Rodar os testes de novo**
