@@ -9,5 +9,6 @@ namespace Condotify.Models
         public string Cidade { get; set; } = string.Empty;
         public string Estado { get; set; } = string.Empty;
         public int ProjetoId { get; set; }
+        public long EnabledModules { get; set; }
     }
 }

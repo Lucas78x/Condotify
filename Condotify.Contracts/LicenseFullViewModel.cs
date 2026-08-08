@@ -15,6 +15,7 @@ namespace Condotify.Models
         public DateTime CreatedAt { get; set; }
         public DateTime ExpireDate { get; set; }
         public bool IsExpired { get; set; }
+        public long EnabledModules { get; set; }
         public List<BlockFrontViewModel> Blocks { get; set; } = new();
     }
 
