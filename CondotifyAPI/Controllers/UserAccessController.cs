@@ -7,16 +7,21 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DigitalWorldOnline.Management.Api.Controllers;
 
+// Rota de bootstrap: cria contas de staff, inclusive a primeira de uma nova
+// empresa, entao nao ha JWT possivel para autenticar a chamada. Protegida por
+// rede (porta interna, ver InternalRouteGuard) em vez de credencial de usuario.
 [ApiController]
-[Route("api/access/users")]
+[Route("api/internal/users")]
 public sealed class UserAccessController : ControllerBase
 {
     private readonly ISender _sender;
     private readonly string? _apiKey;
+    private readonly ILogger<UserAccessController> _logger;
 
-    public UserAccessController(ISender sender)
+    public UserAccessController(ISender sender, ILogger<UserAccessController> logger)
     {
         _sender = sender;
+        _logger = logger;
         _apiKey = ApiKeySecurity.GetConfiguredKey();
     }
 
@@ -26,7 +31,10 @@ public sealed class UserAccessController : ControllerBase
         [FromBody] CreateUserAccessIn user)
     {
         if (!ApiKeySecurity.IsValid(_apiKey, apiKey))
+        {
+            _logger.LogWarning("Tentativa de criar usuario rejeitada: API key invalida. RemoteIp={RemoteIp}", HttpContext.Connection.RemoteIpAddress);
             return Unauthorized();
+        }
 
         var command = user.ToCommand();
         var validator = await new CreateUserAccessCommandValidator().ValidateAsync(command);
@@ -43,7 +51,10 @@ public sealed class UserAccessController : ControllerBase
         var result = await _sender.Send(command);
 
         if (result == UserAccessCreateResult.Created)
+        {
+            _logger.LogInformation("Usuario staff criado via bootstrap interno. Email={Email} EnterpriseId={EnterpriseId} Type={Type} RemoteIp={RemoteIp}", user.Email, user.EnterpriseId, user.Type, HttpContext.Connection.RemoteIpAddress);
             return Created("", new CreateUserAccessOut { Result = result });
+        }
 
         return Conflict(new CreateUserAccessOut
         {
@@ -58,7 +69,10 @@ public sealed class UserAccessController : ControllerBase
         [FromBody] CreateUserAccessByEnterpriseIn user)
     {
         if (!ApiKeySecurity.IsValid(_apiKey, apiKey))
+        {
+            _logger.LogWarning("Tentativa de criar usuario (by-enterprise) rejeitada: API key invalida. RemoteIp={RemoteIp}", HttpContext.Connection.RemoteIpAddress);
             return Unauthorized();
+        }
 
         var command = user.ToCommand();
         var validator = await new CreateUserAccessByEnterpriseCommandValidator().ValidateAsync(command);
@@ -75,7 +89,10 @@ public sealed class UserAccessController : ControllerBase
         var result = await _sender.Send(command);
 
         if (result == UserAccessCreateResult.Created)
+        {
+            _logger.LogInformation("Usuario staff criado via bootstrap interno (by-enterprise). Email={Email} EnterpriseId={EnterpriseId} Type={Type} RemoteIp={RemoteIp}", user.Email, user.EnterpriseId, user.Type, HttpContext.Connection.RemoteIpAddress);
             return Created("", new CreateUserAccessOut { Result = result });
+        }
 
         return Conflict(new CreateUserAccessOut
         {

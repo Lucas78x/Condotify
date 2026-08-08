@@ -1,11 +1,11 @@
 namespace CondotifyAPI.Services.Security;
 
 /// <summary>
-/// As rotas api/internal/* existem para comunicacao servidor-a-servidor,
-/// hoje apenas o callback de autorizacao do MediaMTX. Elas nao podem ser
-/// protegidas por cabecalho, porque o MediaMTX nao envia cabecalhos
-/// customizados no authHTTPAddress. A protecao e de rede: a API escuta em
-/// duas portas e apenas a publica sai do contentor.
+/// As rotas api/internal/* existem para comunicacao servidor-a-servidor: o
+/// callback de autorizacao do MediaMTX (que nao envia cabecalhos
+/// customizados) e o bootstrap de empresas/usuarios de staff (que nao pode
+/// exigir JWT porque ainda nao existe conta para autenticar). A protecao e
+/// de rede: a API escuta em duas portas e apenas a publica sai do contentor.
 /// </summary>
 public static class InternalRouteGuard
 {
