@@ -20,6 +20,7 @@ namespace CondotifyAPI.ViewModels
         public DateTime CreatedAt { get; set; }
         public DateTime ExpireDate { get; set; }
         public bool IsExpired { get; set; }
+        public long EnabledModules { get; set; }
 
         public List<BlockSummaryViewModel> Blocks { get; set; } = new();
 
@@ -54,6 +55,7 @@ namespace CondotifyAPI.ViewModels
                 CreatedAt = license.CreatedAt,
                 ExpireDate = license.ExpireDate,
                 IsExpired = license.IsExpired(),
+                EnabledModules = (long)license.EnabledModules,
 
                 Blocks = blocks
             };

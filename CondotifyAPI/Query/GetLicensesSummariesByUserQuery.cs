@@ -48,7 +48,8 @@ namespace CondotifyAPI.Query
                     )
                     ) ?? 0,
                 Cidade = license.City,
-                Estado = license.Country
+                Estado = license.Country,
+                EnabledModules = (long)license.EnabledModules
             };
     }
 

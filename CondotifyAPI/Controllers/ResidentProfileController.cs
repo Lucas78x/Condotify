@@ -66,11 +66,17 @@ public sealed class ResidentProfileController : ControllerBase
                 .FirstOrDefaultAsync(cancellationToken)
             ?? string.Empty;
 
+        var enabledModules = await _context.Licenses.AsNoTracking()
+            .Where(x => x.Id == grant.LicenseId)
+            .Select(x => (long)x.EnabledModules)
+            .FirstOrDefaultAsync(cancellationToken);
+
         return Ok(new ResidentMeOut
         {
             ResidentId = resident.Id,
             LicenseId = grant.LicenseId,
             LicenseName = licenseName,
+            EnabledModules = enabledModules,
             AllowResidentDigitalPass = await ResidentDigitalPassAllowedAsync(grant.LicenseId, cancellationToken),
             Name = resident.Name,
             Email = resident.Email,

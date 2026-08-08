@@ -14,6 +14,7 @@ public sealed class ResidentMeOut
     public ResidentAccessTypeEnum AccessType { get; set; }
     public bool IsResponsible { get; set; }
     public bool AllowResidentDigitalPass { get; set; } = true;
+    public long EnabledModules { get; set; }
     public IReadOnlyCollection<ResidentUnitOut> Units { get; set; } = [];
 }
 
