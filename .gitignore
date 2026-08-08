@@ -377,3 +377,4 @@ FodyWeavers.xsd
 **/google-services.json
 **/GoogleService-Info.plist
 *firebase*service-account*.json
+client_secret_*.json
