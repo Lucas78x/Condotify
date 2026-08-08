@@ -47,31 +47,29 @@ else
         }
         else
         {
-            <MudTable Items="FilteredDocuments" Hover Dense Elevation="0">
-                <HeaderContent>
-                    <MudTh>Título</MudTh>
-                    <MudTh>Categoria</MudTh>
-                    <MudTh>Publicado em</MudTh>
-                    <MudTh>Enviado por</MudTh>
-                    <MudTh></MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="Título">
-                        <MudText Typo="Typo.body1">@context.Title</MudText>
-                        @if (!string.IsNullOrWhiteSpace(context.Description))
-                        {
-                            <MudText Typo="Typo.body2" Color="Color.Secondary">@context.Description</MudText>
-                        }
-                    </MudTd>
-                    <MudTd DataLabel="Categoria"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@CategoryIcon(context.Category)" Class="@($"category-chip {CategoryClass(context.Category)}")">@CategoryLabel(context.Category)</MudChip></MudTd>
-                    <MudTd DataLabel="Publicado em">@context.PublishedAt.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
-                    <MudTd DataLabel="Enviado por">@context.UploadedByName</MudTd>
-                    <MudTd>
-                        <MudTooltip Text="Abrir"><MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Size="Size.Small" OnClick="() => OpenFileAsync(context.Id)" /></MudTooltip>
-                        <MudTooltip Text="Excluir"><MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" Disabled="!CanManage" OnClick="() => DeleteAsync(context.Id)" /></MudTooltip>
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
+            <div class="document-list">
+                @foreach (var document in FilteredDocuments)
+                {
+                    <div class="document-row">
+                        <span class="category-badge @CategoryClass(document.Category)"><MudIcon Icon="@CategoryIcon(document.Category)" /></span>
+                        <div class="document-row-body">
+                            <div class="document-row-top">
+                                <span class="document-row-title">@document.Title</span>
+                                <span class="category-chip @CategoryClass(document.Category)">@CategoryLabel(document.Category)</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(document.Description))
+                            {
+                                <div class="document-row-desc">@document.Description</div>
+                            }
+                            <div class="document-row-meta">Publicado em @document.PublishedAt.ToLocalTime().ToString("dd/MM/yyyy") · @document.UploadedByName</div>
+                        </div>
+                        <div class="document-row-actions">
+                            <MudTooltip Text="Abrir"><MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Size="Size.Small" OnClick="() => OpenFileAsync(document.Id)" /></MudTooltip>
+                            <MudTooltip Text="Excluir"><MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" Disabled="!CanManage" OnClick="() => DeleteAsync(document.Id)" /></MudTooltip>
+                        </div>
+                    </div>
+                }
+            </div>
         }
     </section>
 }
