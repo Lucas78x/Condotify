@@ -139,4 +139,33 @@ public class LicenseAccessController : ControllerBase
             Errors = "Licença já existente"
         });
     }
+
+    [HttpPut("{id:guid}/modules")]
+    [Authorize]
+    public async Task<IActionResult> UpdateModules(Guid id, [FromBody] CondotifyAPI.Data.Licenses.UpdateLicenseModulesIn input)
+    {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) ||
+            !Guid.TryParse(User.FindFirstValue("enterprise_id"), out var enterpriseId))
+            return Forbid();
+
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId);
+        if (!CanManageModules(user, enterpriseId))
+            return Forbid();
+
+        var license = await _context.Licenses.FirstOrDefaultAsync(x => x.Id == id);
+        if (license is null) return NotFound();
+
+        license.EnabledModules = (CondotifyAPI.Domain.Enums.License.LicenseModuleEnum)input.EnabledModules;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { EnabledModules = (long)license.EnabledModules });
+    }
+
+    // Extraido para ser testavel sem banco: CreateByEnterprise faz a mesma
+    // checagem inline (unico outro lugar que restringe uma acao a Developer/
+    // Admin da propria enterprise); aqui vira um predicado puro reutilizavel.
+    internal static bool CanManageModules(CondotifyAPI.Domain.DTO.Users.UserAccessDTO? user, Guid enterpriseId) =>
+        user is not null &&
+        user.EnterpriseId == enterpriseId &&
+        user.AccessType is AccessTypeEnum.Admin or AccessTypeEnum.Developer;
 }

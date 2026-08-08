@@ -353,6 +353,9 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<LicenseStructureViewModel>> GetStructureAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
         GetAsync<LicenseStructureViewModel>($"api/access/licenses/{licenseId}/structure", cancellationToken);
 
+    public Task<ApiResult<UpdateLicenseModulesOut>> UpdateLicenseModulesAsync(Guid licenseId, long enabledModules, CancellationToken cancellationToken = default) =>
+        SendForAsync<UpdateLicenseModulesOut>(HttpMethod.Put, $"api/access/licenses/{licenseId}/modules", new { EnabledModules = enabledModules }, cancellationToken);
+
     public Task<ApiResult<List<BoletoBatchViewModel>>> GetBoletoBatchesAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
         GetAsync<List<BoletoBatchViewModel>>($"api/access/licenses/{licenseId}/boletos/batches", cancellationToken);
 
