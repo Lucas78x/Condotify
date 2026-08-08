@@ -148,12 +148,12 @@ public class LicenseAccessController : ControllerBase
             !Guid.TryParse(User.FindFirstValue("enterprise_id"), out var enterpriseId))
             return Forbid();
 
-        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId);
-        if (!CanManageModules(user, enterpriseId))
-            return Forbid();
-
         var license = await _context.Licenses.FirstOrDefaultAsync(x => x.Id == id);
         if (license is null) return NotFound();
+
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId);
+        if (!CanManageModules(user, enterpriseId, license.EnterpriseId))
+            return Forbid();
 
         license.EnabledModules = (CondotifyAPI.Domain.Enums.License.LicenseModuleEnum)input.EnabledModules;
         await _context.SaveChangesAsync();
@@ -161,11 +161,14 @@ public class LicenseAccessController : ControllerBase
         return Ok(new { EnabledModules = (long)license.EnabledModules });
     }
 
-    // Extraido para ser testavel sem banco: CreateByEnterprise faz a mesma
-    // checagem inline (unico outro lugar que restringe uma acao a Developer/
-    // Admin da propria enterprise); aqui vira um predicado puro reutilizavel.
-    internal static bool CanManageModules(CondotifyAPI.Domain.DTO.Users.UserAccessDTO? user, Guid enterpriseId) =>
+    // Extraido para ser testavel sem banco: CreateByEnterprise faz uma checagem
+    // parecida (mesmo unico outro lugar que restringe uma acao a Developer/
+    // Admin da propria enterprise), mas so cria uma licenca nova -- sempre
+    // dentro da propria enterprise por construcao, entao nao precisa comparar
+    // contra a enterprise de uma licenca alheia como aqui.
+    internal static bool CanManageModules(CondotifyAPI.Domain.DTO.Users.UserAccessDTO? user, Guid callerEnterpriseId, Guid licenseEnterpriseId) =>
         user is not null &&
-        user.EnterpriseId == enterpriseId &&
+        user.EnterpriseId == callerEnterpriseId &&
+        callerEnterpriseId == licenseEnterpriseId &&
         user.AccessType is AccessTypeEnum.Admin or AccessTypeEnum.Developer;
 }
