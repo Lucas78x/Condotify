@@ -21,5 +21,6 @@ public class VehicleConfiguration : IEntityTypeConfiguration<VehicleDTO>
         builder.Property(x => x.UpdatedAt).IsRequired();
         builder.HasIndex(x => new { x.UnitId, x.Plate }).IsUnique();
         builder.HasIndex(x => x.TagIdentifier);
+        builder.HasIndex(x => x.ResidentId);
     }
 }
