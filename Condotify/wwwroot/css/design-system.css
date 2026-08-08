@@ -354,12 +354,8 @@ body {
     position: sticky;
     top: 76px;
     z-index: 8;
-    display: grid;
-    grid-template-columns: 34px minmax(0, 1fr) 34px;
-    align-items: center;
-    gap: 3px;
+    padding: 8px;
     margin-bottom: 22px;
-    padding: 5px;
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-lg);
     background: rgba(255, 255, 255, .97);
@@ -368,27 +364,10 @@ body {
 }
 
 .workspace-nav {
-    position: static;
-    z-index: auto;
-    min-width: 0;
     display: flex;
-    gap: 3px;
-    margin: 0;
-    padding: 2px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    scrollbar-width: none;
-    overscroll-behavior-inline: contain;
-    scroll-behavior: smooth;
-    scroll-snap-type: x proximity;
-}
-
-.workspace-nav::-webkit-scrollbar {
-    display: none;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 4px;
 }
 
 .workspace-nav .mud-button-root {
@@ -397,26 +376,37 @@ body {
     padding-inline: 12px;
     border-radius: var(--ds-radius-sm);
     font-size: .72rem;
-    scroll-snap-align: center;
 }
 
 .workspace-nav .mud-button-filled {
     animation: motion-nav-active var(--motion-base) var(--motion-enter);
 }
 
-.workspace-nav-control {
-    width: 32px;
-    height: 32px;
-    color: var(--ds-muted) !important;
-    border: 1px solid transparent;
-    border-radius: var(--ds-radius-sm) !important;
+.workspace-nav-pinned {
+    display: flex;
 }
 
-.workspace-nav-control:hover,
-.workspace-nav-control:focus-visible {
-    color: var(--ds-primary) !important;
-    border-color: #d9e1f8;
-    background: var(--ds-primary-soft) !important;
+.workspace-nav-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+}
+
+.workspace-nav-group-label {
+    padding: 0 8px 0 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--ds-subtle);
+}
+
+.workspace-nav-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 4px 6px;
+    background: var(--ds-border);
 }
 
 /* Shared operational surfaces */
@@ -1218,8 +1208,7 @@ details[open] > :not(summary) {
     .workspace-nav-shell {
         top: 72px;
         margin-inline: -4px;
-        grid-template-columns: 32px minmax(0, 1fr) 32px;
-        padding: 4px;
+        padding: 6px;
     }
 
     .mud-dialog-title {

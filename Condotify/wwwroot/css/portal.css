@@ -202,19 +202,6 @@ html, body {
 .route-simulation-targets article { display: grid; grid-template-columns: 38px 1fr auto; gap: 11px; align-items: center; padding: 12px; border-top: 1px solid #e7ebf1; }.route-simulation-targets article:first-child { border-top: 0; }
 .route-simulation-targets article > div { display: grid; gap: 3px; }.route-simulation-targets article small { color: #778399; }.route-simulation-targets article .mud-chip { margin: 5px 5px 0 0; }
 
-.workspace-nav {
-    display: flex;
-    gap: 4px;
-    overflow-x: auto;
-    padding: 6px;
-    margin-bottom: 20px;
-    border: 1px solid #e2e6ec;
-    border-radius: 6px;
-    background: white;
-    box-shadow: 0 2px 8px rgba(32,37,50,.035);
-}
-.workspace-nav .mud-button-root { min-width: max-content; flex: 1 1 auto; }
-
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .form-grid .full { grid-column: 1 / -1; }
 .profile-readonly-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
@@ -684,7 +671,6 @@ html, body {
     .route-simulation-summary { grid-template-columns: 1fr; }
     .route-simulation-targets article { grid-template-columns: 34px minmax(0, 1fr); }
     .route-simulation-targets article > .mud-chip { grid-column: 2; justify-self: start; }
-    .workspace-nav .mud-button-root { flex: 0 0 auto; }
     .form-grid { grid-template-columns: 1fr; }
     .form-grid-three { grid-template-columns: 1fr; }
     .form-grid .full { grid-column: auto; }
