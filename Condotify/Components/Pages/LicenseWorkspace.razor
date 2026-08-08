@@ -150,6 +150,8 @@ else
     private string DefaultSection => Has(LicensePermission.ViewDashboard) ? "visao-geral"
         : Has(LicensePermission.ViewStructure) ? "estrutura"
         : Has(LicensePermission.ViewDevices) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Devices) ? "equipamentos"
+        : Has(LicensePermission.ViewDevices) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Cameras) ? "cameras"
+        : Has(LicensePermission.ViewDevices) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Routes) ? "rotas"
         : Has(LicensePermission.ViewCredentials) ? "credenciais"
         : Has(LicensePermission.ViewEvents) ? "acessos"
         : Has(LicensePermission.ViewIncidents) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Incidents) ? "ocorrencias"
