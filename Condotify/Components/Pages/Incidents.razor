@@ -18,6 +18,6 @@ else { <MudPaper Class="content-panel" Elevation="0"><div class="empty-state com
 
 @code {
     private List<LicenseViewModel> _licenses = []; private Guid? _licenseId; private bool _loading = true; private bool _canManage; private string? _error;
-    protected override async Task OnInitializedAsync() { var result = await Api.GetLicensesAsync(); _loading = false; if (!result.Success) { _error = result.Error; return; } _licenses = result.Value ?? []; if (_licenses.Count == 1 && Guid.TryParse(_licenses[0].Id, out var id)) await SelectLicenseAsync(id); }
+    protected override async Task OnInitializedAsync() { var result = await Api.GetLicensesAsync(); _loading = false; if (!result.Success) { _error = result.Error; return; } _licenses = (result.Value ?? []).Where(l => (l.EnabledModules & (long)LicenseModuleEnum.Incidents) != 0).ToList(); if (_licenses.Count == 1 && Guid.TryParse(_licenses[0].Id, out var id)) await SelectLicenseAsync(id); }
     private async Task SelectLicenseAsync(Guid? value) { _licenseId = value; _canManage = false; if (!value.HasValue) return; var result = await Api.GetLicenseAdministrationAsync(value.Value); _canManage = result.Success && result.Value?.CurrentAccess.Has(LicensePermission.ManageIncidents) == true; }
 }

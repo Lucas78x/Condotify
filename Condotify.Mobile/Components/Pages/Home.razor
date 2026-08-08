@@ -46,7 +46,10 @@
             <div class="home-section-heading"><MudText Typo="Typo.h5">Seu dia</MudText><a href="/more">Ver tudo</a></div>
             <div class="home-highlight-grid">
                 <a class="home-highlight warning" href="/notifications"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" /></span><strong>@(_notifications?.Unread ?? 0) novidade(s)</strong><small>Veja as atualizações da sua rotina</small></a>
-                <a class="home-highlight success" href="/bookings"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><strong>@(_resident?.Units.Count ?? 0) unidade(s)</strong><small>Reservas e áreas comuns</small></a>
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Bookings))
+                {
+                    <a class="home-highlight success" href="/bookings"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><strong>@(_resident?.Units.Count ?? 0) unidade(s)</strong><small>Reservas e áreas comuns</small></a>
+                }
             </div>
         </section>
 
@@ -73,8 +76,14 @@
         <section class="home-section">
             <div class="home-section-heading"><MudText Typo="Typo.h5">Operação agora</MudText><a href="/more">Ver tudo</a></div>
             <div class="home-highlight-grid">
-                <a class="home-highlight warning" href="/alerts"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></span><strong>@(_dashboard?.Alerts.Count ?? 0) alerta(s)</strong><small>Ocorrências que pedem atenção</small></a>
-                <a class="home-highlight success" href="/devices"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.Sensors" /></span><strong>@(_dashboard?.OnlineDeviceCount ?? 0)/@(_dashboard?.DeviceCount ?? 0) online</strong><small>Estado dos equipamentos</small></a>
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Incidents))
+                {
+                    <a class="home-highlight warning" href="/alerts"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></span><strong>@(_dashboard?.Alerts.Count ?? 0) alerta(s)</strong><small>Ocorrências que pedem atenção</small></a>
+                }
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Devices))
+                {
+                    <a class="home-highlight success" href="/devices"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.Sensors" /></span><strong>@(_dashboard?.OnlineDeviceCount ?? 0)/@(_dashboard?.DeviceCount ?? 0) online</strong><small>Estado dos equipamentos</small></a>
+                }
             </div>
         </section>
 
@@ -110,6 +119,10 @@
         ? "O que você precisa hoje?"
         : "Como está a operação agora?";
     private string CurrentDateLabel => DateTime.Now.ToString("dd/MM · HH:mm");
+    private long EnabledModules => Session.Current?.Principal == MobilePrincipalKind.Resident
+        ? AppState.ResidentEnabledModules
+        : AppState.SelectedLicense?.EnabledModules ?? (long)Condotify.Models.LicenseModuleEnum.All;
+    private bool ModuleOn(Condotify.Models.LicenseModuleEnum module) => (EnabledModules & (long)module) != 0;
 
     protected override async Task OnInitializedAsync()
     {

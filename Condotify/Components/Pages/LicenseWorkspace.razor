@@ -99,7 +99,7 @@ else
                 <AdministrationModule LicenseId="LicenseId" InitialData="_administration" EnabledModules="_license.EnabledModules" OnModulesChanged="@(value => _license.EnabledModules = value)" />
                 break;
             default:
-                <OverviewModule License="_license" LicenseId="LicenseId" CanViewDocuments="@Has(LicensePermission.ManageDocuments)" />
+                <OverviewModule License="_license" LicenseId="LicenseId" CanViewDocuments="@(Has(LicensePermission.ManageDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents))" />
                 break;
         }
     }
