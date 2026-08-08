@@ -33,7 +33,7 @@ else
             }
             @foreach (var (groupLabel, tabs) in TabGroups)
             {
-                var visible = tabs.Where(t => t.Section == "administracao" ? AdministracaoVisible : Has(t.Permission)).ToList();
+                var visible = tabs.Where(t => (t.Section == "administracao" ? AdministracaoVisible : Has(t.Permission)) && IsModuleEnabled(t.Module)).ToList();
                 if (visible.Count > 0)
                 {
                     <div class="workspace-nav-group">
@@ -109,7 +109,7 @@ else
     [Parameter] public Guid LicenseId { get; set; }
     [Parameter] public string? Section { get; set; }
 
-    private sealed record WorkspaceTab(string Section, string Label, string Icon, LicensePermission Permission);
+    private sealed record WorkspaceTab(string Section, string Label, string Icon, LicensePermission Permission, Condotify.Models.LicenseModuleEnum? Module = null);
 
     private static readonly WorkspaceTab PinnedTab =
         new("visao-geral", "Visão geral", Icons.Material.Outlined.Dashboard, LicensePermission.ViewDashboard);
@@ -117,21 +117,21 @@ else
     private static readonly (string GroupLabel, WorkspaceTab[] Tabs)[] TabGroups =
     [
         ("Monitoramento", [
-            new("cameras", "Câmeras", Icons.Material.Outlined.Videocam, LicensePermission.ViewDevices),
-            new("equipamentos", "Equipamentos", Icons.Material.Outlined.Sensors, LicensePermission.ViewDevices),
-            new("rotas", "Rotas", Icons.Material.Outlined.AltRoute, LicensePermission.ViewDevices),
+            new("cameras", "Câmeras", Icons.Material.Outlined.Videocam, LicensePermission.ViewDevices, Condotify.Models.LicenseModuleEnum.Cameras),
+            new("equipamentos", "Equipamentos", Icons.Material.Outlined.Sensors, LicensePermission.ViewDevices, Condotify.Models.LicenseModuleEnum.Devices),
+            new("rotas", "Rotas", Icons.Material.Outlined.AltRoute, LicensePermission.ViewDevices, Condotify.Models.LicenseModuleEnum.Routes),
             new("acessos", "Acessos", Icons.Material.Outlined.FactCheck, LicensePermission.ViewEvents),
         ]),
         ("Operação", [
-            new("ocorrencias", "Ocorrências", Icons.Material.Outlined.AssignmentLate, LicensePermission.ViewIncidents),
-            new("automacoes", "Automações", Icons.Material.Outlined.AutoAwesome, LicensePermission.ViewAutomations),
-            new("emergencia", "Emergência", Icons.Material.Outlined.HealthAndSafety, LicensePermission.ViewEmergency),
-            new("encomendas", "Encomendas", Icons.Material.Outlined.Inventory2, LicensePermission.ViewDeliveries),
-            new("agendamento", "Agendamento", Icons.Material.Outlined.Deck, LicensePermission.ViewBookings),
+            new("ocorrencias", "Ocorrências", Icons.Material.Outlined.AssignmentLate, LicensePermission.ViewIncidents, Condotify.Models.LicenseModuleEnum.Incidents),
+            new("automacoes", "Automações", Icons.Material.Outlined.AutoAwesome, LicensePermission.ViewAutomations, Condotify.Models.LicenseModuleEnum.Automations),
+            new("emergencia", "Emergência", Icons.Material.Outlined.HealthAndSafety, LicensePermission.ViewEmergency, Condotify.Models.LicenseModuleEnum.Emergency),
+            new("encomendas", "Encomendas", Icons.Material.Outlined.Inventory2, LicensePermission.ViewDeliveries, Condotify.Models.LicenseModuleEnum.Deliveries),
+            new("agendamento", "Agendamento", Icons.Material.Outlined.Deck, LicensePermission.ViewBookings, Condotify.Models.LicenseModuleEnum.Bookings),
         ]),
         ("Financeiro & Documentos", [
-            new("boletos", "Boletos", Icons.Material.Outlined.ReceiptLong, LicensePermission.ManageFinance),
-            new("documentos", "Documentos", Icons.Material.Outlined.Description, LicensePermission.ManageDocuments),
+            new("boletos", "Boletos", Icons.Material.Outlined.ReceiptLong, LicensePermission.ManageFinance, Condotify.Models.LicenseModuleEnum.Finance),
+            new("documentos", "Documentos", Icons.Material.Outlined.Description, LicensePermission.ManageDocuments, Condotify.Models.LicenseModuleEnum.Documents),
         ]),
         ("Configuração", [
             new("estrutura", "Estrutura", Icons.Material.Outlined.AccountTree, LicensePermission.ViewStructure),
@@ -149,16 +149,16 @@ else
         : Section.ToLowerInvariant() is "blocos" or "unidades" or "moradores" ? "estrutura" : Section.ToLowerInvariant();
     private string DefaultSection => Has(LicensePermission.ViewDashboard) ? "visao-geral"
         : Has(LicensePermission.ViewStructure) ? "estrutura"
-        : Has(LicensePermission.ViewDevices) ? "equipamentos"
+        : Has(LicensePermission.ViewDevices) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Devices) ? "equipamentos"
         : Has(LicensePermission.ViewCredentials) ? "credenciais"
         : Has(LicensePermission.ViewEvents) ? "acessos"
-        : Has(LicensePermission.ViewIncidents) ? "ocorrencias"
-        : Has(LicensePermission.ViewAutomations) ? "automacoes"
-        : Has(LicensePermission.ViewEmergency) ? "emergencia"
-        : Has(LicensePermission.ViewDeliveries) ? "encomendas"
-        : Has(LicensePermission.ViewBookings) ? "agendamento"
-        : Has(LicensePermission.ManageFinance) ? "boletos"
-        : Has(LicensePermission.ManageDocuments) ? "documentos"
+        : Has(LicensePermission.ViewIncidents) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Incidents) ? "ocorrencias"
+        : Has(LicensePermission.ViewAutomations) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Automations) ? "automacoes"
+        : Has(LicensePermission.ViewEmergency) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Emergency) ? "emergencia"
+        : Has(LicensePermission.ViewDeliveries) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Deliveries) ? "encomendas"
+        : Has(LicensePermission.ViewBookings) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Bookings) ? "agendamento"
+        : Has(LicensePermission.ManageFinance) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Finance) ? "boletos"
+        : Has(LicensePermission.ManageDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents) ? "documentos"
         : Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts) ? "administracao"
         : "sem-acesso";
 
@@ -190,11 +190,14 @@ else
 
     private bool Has(LicensePermission permission) => _administration?.CurrentAccess.Has(permission) == true;
 
+    private bool IsModuleEnabled(Condotify.Models.LicenseModuleEnum? module) =>
+        module is null || (_license?.EnabledModules & (long)module.Value) != 0;
+
     private bool AdministracaoVisible =>
         Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) ||
         Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts);
 
-    private bool SectionAllowed(string section) => section switch
+    private bool SectionAllowed(string section) => IsModuleEnabled(ModuleFor(section)) && section switch
     {
         "visao-geral" => Has(LicensePermission.ViewDashboard),
         "equipamentos" or "rotas" or "cameras" => Has(LicensePermission.ViewDevices),
@@ -210,5 +213,20 @@ else
         "documentos" => Has(LicensePermission.ManageDocuments),
         "administracao" => Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts),
         _ => false
+    };
+
+    private static Condotify.Models.LicenseModuleEnum? ModuleFor(string section) => section switch
+    {
+        "cameras" => Condotify.Models.LicenseModuleEnum.Cameras,
+        "equipamentos" => Condotify.Models.LicenseModuleEnum.Devices,
+        "rotas" => Condotify.Models.LicenseModuleEnum.Routes,
+        "ocorrencias" => Condotify.Models.LicenseModuleEnum.Incidents,
+        "automacoes" => Condotify.Models.LicenseModuleEnum.Automations,
+        "emergencia" => Condotify.Models.LicenseModuleEnum.Emergency,
+        "encomendas" => Condotify.Models.LicenseModuleEnum.Deliveries,
+        "agendamento" => Condotify.Models.LicenseModuleEnum.Bookings,
+        "boletos" => Condotify.Models.LicenseModuleEnum.Finance,
+        "documentos" => Condotify.Models.LicenseModuleEnum.Documents,
+        _ => null
     };
 }
