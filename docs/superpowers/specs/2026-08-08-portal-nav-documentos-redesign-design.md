@@ -89,57 +89,96 @@ tratada como caso especial dentro do loop de renderização do grupo
 acesso direto por URL) **não muda** — continua sua própria função de
 mapeamento, independente da estrutura de renderização do menu.
 
-`SectionAllowed(string section)` (usada para bloquear acesso direto por URL)
-**não muda** — continua sua própria função de mapeamento, independente da
-estrutura de renderização do menu.
-
 ### Markup
 
+O `<div class="workspace-nav-shell">` que envolve a `<nav>` **continua
+existindo** — é ele quem hoje desenha a caixa branca com borda/sombra/
+`position: sticky` que aparece no print (ver seção CSS abaixo); só os dois
+`MudIconButton` de seta saem de dentro dele:
+
 ```razor
-<nav class="workspace-nav" aria-label="Módulos do condomínio">
-    @if (Has(LicensePermission.ViewDashboard))
-    {
-        <div class="workspace-nav-pinned">@NavButton(PinnedTab.Section, PinnedTab.Label, PinnedTab.Icon)</div>
-        <span class="workspace-nav-sep"></span>
-    }
-    @foreach (var (groupLabel, tabs) in TabGroups)
-    {
-        var visible = tabs.Where(t => t.Section == "administracao" ? AdministracaoVisible : Has(t.Permission)).ToList();
-        if (visible.Count > 0)
+<div class="workspace-nav-shell">
+    <nav class="workspace-nav" aria-label="Módulos do condomínio">
+        @if (Has(LicensePermission.ViewDashboard))
         {
-            <div class="workspace-nav-group">
-                <span class="workspace-nav-group-label">@groupLabel</span>
-                @foreach (var tab in visible)
-                {
-                    @NavButton(tab.Section, tab.Label, tab.Icon)
-                }
-            </div>
+            <div class="workspace-nav-pinned">@NavButton(PinnedTab.Section, PinnedTab.Label, PinnedTab.Icon)</div>
+            <span class="workspace-nav-sep"></span>
         }
-    }
-</nav>
+        @foreach (var (groupLabel, tabs) in TabGroups)
+        {
+            var visible = tabs.Where(t => t.Section == "administracao" ? AdministracaoVisible : Has(t.Permission)).ToList();
+            if (visible.Count > 0)
+            {
+                <div class="workspace-nav-group">
+                    <span class="workspace-nav-group-label">@groupLabel</span>
+                    @foreach (var tab in visible)
+                    {
+                        @NavButton(tab.Section, tab.Label, tab.Icon)
+                    }
+                </div>
+            }
+        }
+    </nav>
+</div>
 ```
 
 `NavButton` (o `RenderFragment` que builda o `MudButton` via
 `RenderTreeBuilder`) **não muda** — mesmo Filled/Text por seção ativa.
 
-### CSS (`portal.css`)
+### CSS
 
-Remove o scroll horizontal; vira wrap:
+Achado importante ao investigar o CSS existente: a caixa visual (borda,
+fundo, sombra, `position: sticky`) que aparece no print **não vem de
+`portal.css`**, vem de `.workspace-nav-shell` em **`design-system.css:353-368`**
+— esse arquivo é carregado depois de `portal.css` (ver `Components/App.razor`)
+e por isso vence a cascata. O bloco `.workspace-nav` que existe em
+`portal.css:205-216` (border/background/box-shadow próprios) está **morto
+hoje** — é inteiramente sobrescrito por `design-system.css:370-388`, que
+zera `border`/`background`/`box-shadow` e ativa o `overflow-x: auto` +
+`scroll-snap-type` que faz a rolagem atual. Todas as edições de CSS deste
+redesign vão em **`design-system.css`**; os blocos mortos em `portal.css`
+são removidos para não confundir quem ler depois.
+
+Editar em `design-system.css:353-420` (substitui `.workspace-nav-shell`,
+`.workspace-nav`, `.workspace-nav::-webkit-scrollbar`,
+`.workspace-nav .mud-button-root`, remove `.workspace-nav-control` por
+completo — mantém `.workspace-nav .mud-button-filled` com a animação
+`motion-nav-active`, que continua válida para destacar a aba ativa):
 
 ```css
+.workspace-nav-shell {
+    position: sticky;
+    top: 76px;
+    z-index: 8;
+    padding: 8px;
+    margin-bottom: 22px;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-lg);
+    background: rgba(255, 255, 255, .97);
+    box-shadow: var(--ds-shadow-xs);
+    backdrop-filter: blur(12px);
+}
+
 .workspace-nav {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 4px;
-    padding: 8px;
-    margin-bottom: 20px;
-    border: 1px solid #e2e6ec;
-    border-radius: 6px;
-    background: white;
-    box-shadow: 0 2px 8px rgba(32,37,50,.035);
 }
-.workspace-nav-pinned .mud-button-root,
+
+.workspace-nav .mud-button-root {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding-inline: 12px;
+    border-radius: var(--ds-radius-sm);
+    font-size: .72rem;
+}
+
+.workspace-nav .mud-button-filled {
+    animation: motion-nav-active var(--motion-base) var(--motion-enter);
+}
+
+.workspace-nav-pinned { display: flex; }
 .workspace-nav-group { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
 .workspace-nav-group-label {
     padding: 0 8px 0 6px;
@@ -147,24 +186,39 @@ Remove o scroll horizontal; vira wrap:
     font-weight: 700;
     letter-spacing: .07em;
     text-transform: uppercase;
-    color: #8a94a5; /* var(--ds-subtle) */
+    color: var(--ds-subtle);
 }
-.workspace-nav-sep { width: 1px; align-self: stretch; margin: 4px 6px; background: #dde3ea; /* var(--ds-border) */ }
+.workspace-nav-sep { width: 1px; align-self: stretch; margin: 4px 6px; background: var(--ds-border); }
 ```
 
-Remove `.workspace-nav-control` (botão de seta) e a regra responsiva em
-`portal.css:687` (`.workspace-nav .mud-button-root { flex: 0 0 auto; }`) —
-sem scroll, não faz sentido impedir o `min-width: max-content` de encolher;
-o `flex-wrap` cuida do comportamento em telas estreitas.
+E a regra responsiva em `design-system.css:1218-1223` (dentro do media
+query de viewport estreito que já existe) perde o `grid-template-columns`
+— não há mais 3 colunas (seta/nav/seta), só a caixa encolhendo:
+
+```css
+.workspace-nav-shell {
+    top: 72px;
+    margin-inline: -4px;
+    padding: 6px;
+}
+```
+
+Em `portal.css`: remove o bloco morto `.workspace-nav { ... }` (linhas
+205-216) e a regra responsiva `.workspace-nav .mud-button-root { flex: 0 0
+auto; }` (linha 687) — ambos sobrescritos e sem efeito hoje, viram lixo se
+ficarem.
 
 ### Componente (`LicenseWorkspace.razor`)
 
 Remove por completo (não ficam "desligados", são deletados — este redesign
 elimina a necessidade deles):
-- Os dois `MudIconButton` de seta e a `<div class="workspace-nav-shell">`
-  que os envolve (a `<nav>` deixa de precisar do wrapper).
-- `ElementReference _workspaceNav`, `ScrollWorkspaceNavAsync`, e a chamada
-  `portalInterop.centerActiveNavItem` em `OnAfterRenderAsync`.
+- Os dois `MudIconButton` de seta (a `<div class="workspace-nav-shell">`
+  continua existindo, só perde os dois botões — ver Markup acima).
+- `ElementReference _workspaceNav`, `_lastCenteredSection`,
+  `ScrollWorkspaceNavAsync`, e o override inteiro de `OnAfterRenderAsync`
+  (linhas 137-149) — sua única função era chamar
+  `portalInterop.centerActiveNavItem` para centralizar a aba ativa depois
+  de rolar; sem scroll, não há o que centralizar.
 - Em `portal-interop.js`: `scrollHorizontal` e `centerActiveNavItem` —
   confirmado por busca no repositório que **nenhum outro componente** usa
   essas duas funções.
