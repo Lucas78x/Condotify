@@ -497,7 +497,7 @@ namespace CondotifyAPI.Tests
                 | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Finance
                 | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Documents;
 
-            Assert.Equal(expected, CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.All);
+            Assert.Equal(CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.All, expected);
             Assert.Equal(1023L, (long)CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.All);
         }
 
