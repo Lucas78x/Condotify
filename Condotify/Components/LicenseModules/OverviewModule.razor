@@ -5,23 +5,56 @@
     <StatTile Label="Validade" Value="@License.ExpireDate.ToString("dd/MM/yyyy")" Icon="@Icons.Material.Outlined.EventAvailable" Tone="red" />
 </div>
 
-<MudPaper Class="content-panel" Elevation="0">
-    <div class="panel-toolbar">
-        <div><MudText Typo="Typo.h5" Class="panel-title">Estrutura do condomínio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Distribuição cadastrada por bloco</MudText></div>
+<div class="overview-grid">
+    <MudPaper Class="content-panel" Elevation="0">
+        <div class="panel-toolbar">
+            <div><MudText Typo="Typo.h5" Class="panel-title">Estrutura do condomínio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Distribuição cadastrada por bloco</MudText></div>
+        </div>
+        @if (License.Blocks.Count == 0)
+        {
+            <div class="panel-body"><MudAlert Severity="Severity.Info" Variant="Variant.Outlined">A estrutura ainda não foi cadastrada. Comece criando o primeiro bloco.</MudAlert></div>
+        }
+        else
+        {
+            <div class="panel-body">
+                <div class="hierarchy-grid group-card-grid">
+                    @foreach (var block in License.Blocks)
+                    {
+                        <div class="hierarchy-card group-card">
+                            <span class="hierarchy-card-icon"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span>
+                            <span class="hierarchy-card-main"><strong>@block.Name</strong><small>Bloco</small></span>
+                            <span class="hierarchy-card-stats"><span><strong>@block.TotalUnits</strong>unidade@(block.TotalUnits == 1 ? "" : "s")</span><span><strong>@block.TotalResidents</strong>pessoas</span></span>
+                            <a href="/licencas/@LicenseId/estrutura" class="hierarchy-card-action"><span>Ver estrutura</span><MudIcon Icon="@Icons.Material.Outlined.ArrowForward" /></a>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </MudPaper>
+
+    <div class="overview-side">
+        <MudPaper Class="content-panel" Elevation="0">
+            <div class="panel-toolbar"><MudText Typo="Typo.subtitle1" Class="panel-title">Detalhes da licença</MudText></div>
+            <div class="panel-body">
+                <div class="info-row"><span>Tipo</span><strong>@License.Type</strong></div>
+                <div class="info-row"><span>Cidade / UF</span><strong>@License.City / @License.State</strong></div>
+                <div class="info-row"><span>Criada em</span><strong>@License.CreatedAt.ToString("dd/MM/yyyy")</strong></div>
+            </div>
+        </MudPaper>
+
+        <MudPaper Class="content-panel" Elevation="0">
+            <div class="panel-toolbar"><MudText Typo="Typo.subtitle1" Class="panel-title">Ações rápidas</MudText></div>
+            <div class="panel-body quick-actions">
+                <a class="qa-item" href="/licencas/@LicenseId/estrutura"><MudIcon Icon="@Icons.Material.Outlined.AddHomeWork" />Novo bloco<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                <a class="qa-item" href="/licencas/@LicenseId/estrutura"><MudIcon Icon="@Icons.Material.Outlined.Groups" />Ver moradores<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                <a class="qa-item" href="/licencas/@LicenseId/credenciais"><MudIcon Icon="@Icons.Material.Outlined.Badge" />Configurar acessos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                <a class="qa-item" href="/licencas/@LicenseId/documentos"><MudIcon Icon="@Icons.Material.Outlined.Description" />Ver documentos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+            </div>
+        </MudPaper>
     </div>
-    @if (License.Blocks.Count == 0)
-    {
-        <div class="panel-body"><MudAlert Severity="Severity.Info" Variant="Variant.Outlined">A estrutura ainda não foi cadastrada. Comece criando o primeiro bloco.</MudAlert></div>
-    }
-    else
-    {
-        <MudTable Items="License.Blocks" Hover Dense Elevation="0">
-            <HeaderContent><MudTh>Bloco</MudTh><MudTh>Unidades</MudTh><MudTh>Moradores</MudTh></HeaderContent>
-            <RowTemplate><MudTd DataLabel="Bloco">@context.Name</MudTd><MudTd DataLabel="Unidades">@context.TotalUnits</MudTd><MudTd DataLabel="Moradores">@context.TotalResidents</MudTd></RowTemplate>
-        </MudTable>
-    }
-</MudPaper>
+</div>
 
 @code {
     [Parameter, EditorRequired] public LicenseFullViewModel License { get; set; } = new();
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
 }
