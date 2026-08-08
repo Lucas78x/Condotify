@@ -26,6 +26,13 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.License
             builder.Property(l => l.UnitLabelSingular).IsRequired().HasMaxLength(40).HasDefaultValue("Unidade");
             builder.Property(l => l.UnitLabelPlural).IsRequired().HasMaxLength(40).HasDefaultValue("Unidades");
 
+            builder.Property(l => l.EnabledModules)
+                .HasConversion(new ValueConverter<CondotifyAPI.Domain.Enums.License.LicenseModuleEnum, long>(
+                    x => (long)x,
+                    x => (CondotifyAPI.Domain.Enums.License.LicenseModuleEnum)x))
+                .HasDefaultValue(CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.All)
+                .IsRequired();
+
             builder.Property(l => l.ExpireDate)
                 .IsRequired();
 

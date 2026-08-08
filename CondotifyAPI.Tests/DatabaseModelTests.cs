@@ -482,5 +482,35 @@ namespace CondotifyAPI.Tests
             return entity.GetIndexes().Any(index =>
                 index.Properties.Select(property => property.Name).SequenceEqual(propertyNames));
         }
+
+        [Fact]
+        public void LicenseModuleEnum_AllCoversExactlyTheTenOptionalModules()
+        {
+            var expected = CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Cameras
+                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Devices
+                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Routes
+                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Incidents
+                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Automations
+                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Emergency
+                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Deliveries
+                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Bookings
+                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Finance
+                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Documents;
+
+            Assert.Equal(expected, CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.All);
+            Assert.Equal(1023L, (long)CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.All);
+        }
+
+        [Fact]
+        public void License_EnabledModulesDefaultsToAllOptionalModules()
+        {
+            using var context = CreateContext();
+            var entity = context.Model.FindEntityType(typeof(CondotifyAPI.Domain.DTO.License.LicenseDTO));
+
+            Assert.NotNull(entity);
+            var property = entity!.FindProperty(nameof(CondotifyAPI.Domain.DTO.License.LicenseDTO.EnabledModules));
+            Assert.NotNull(property);
+            Assert.Equal(CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.All, property!.GetDefaultValue());
+        }
     }
 }

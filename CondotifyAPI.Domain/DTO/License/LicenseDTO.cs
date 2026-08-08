@@ -28,6 +28,7 @@ namespace CondotifyAPI.Domain.DTO.License
         public string City { get; set; } = string.Empty;
         public string Country { get; set; } = string.Empty;
         public string Code { get; set; } = string.Empty;
+        public CondotifyAPI.Domain.Enums.License.LicenseModuleEnum EnabledModules { get; set; } = CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.All;
         public string GroupLabelSingular { get; set; } = "Bloco";
         public string GroupLabelPlural { get; set; } = "Blocos";
         public string UnitLabelSingular { get; set; } = "Unidade";
