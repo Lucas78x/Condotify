@@ -396,21 +396,33 @@ public sealed class LicenseAccessControllerTests
         var enterpriseId = Guid.NewGuid();
         var user = User(enterpriseId, type);
 
-        Assert.Equal(expected, LicenseAccessController.CanManageModules(user, enterpriseId));
+        Assert.Equal(expected, LicenseAccessController.CanManageModules(user, enterpriseId, enterpriseId));
     }
 
     [Fact]
-    public void CanManageModules_RejectsDifferentEnterprise()
+    public void CanManageModules_RejectsWhenCallerEnterpriseDoesNotMatchTheirOwnRecord()
     {
         var user = User(Guid.NewGuid(), AccessTypeEnum.Admin);
 
-        Assert.False(LicenseAccessController.CanManageModules(user, Guid.NewGuid()));
+        Assert.False(LicenseAccessController.CanManageModules(user, Guid.NewGuid(), user.EnterpriseId));
+    }
+
+    [Fact]
+    public void CanManageModules_RejectsLicenseFromAnotherEnterprise()
+    {
+        // Developer/Admin legitimo da propria enterprise, mas a licenca (id
+        // arbitrario na rota) pertence a uma enterprise diferente -- este e o
+        // caso que a checagem cruzada existe para bloquear.
+        var callerEnterpriseId = Guid.NewGuid();
+        var user = User(callerEnterpriseId, AccessTypeEnum.Admin);
+
+        Assert.False(LicenseAccessController.CanManageModules(user, callerEnterpriseId, Guid.NewGuid()));
     }
 
     [Fact]
     public void CanManageModules_RejectsNullUser()
     {
-        Assert.False(LicenseAccessController.CanManageModules(null, Guid.NewGuid()));
+        Assert.False(LicenseAccessController.CanManageModules(null, Guid.NewGuid(), Guid.NewGuid()));
     }
 }
 ```
@@ -424,7 +436,9 @@ Expected: FAIL — `UpdateModules`/`CanManageModules` ainda não existem.
 
 Em `CondotifyAPI/Controllers/LicenseAccessController.cs`, adicionar logo após o método `CreateByEnterprise` (que termina por volta da linha 140, antes do fechamento da classe). Confirme os `using` já existentes no topo do arquivo (`System.Security.Claims`, `Microsoft.EntityFrameworkCore` — `CreateByEnterprise` já os usa, então já devem estar presentes).
 
-`AccessTypeEnum` (`CondotifyAPI.Domain/Enums/Users/AccessTypeEnum.cs`) **não tem namespace declarado** — vive no namespace global. Referencie-o sem qualificação (`AccessTypeEnum.Admin`, não `CondotifyAPI.Domain.Enums.Users.AccessTypeEnum.Admin`), exatamente como `CreateByEnterprise` já faz na linha 114 do mesmo arquivo. Qualificar com um namespace que o tipo não tem quebra a build; NÃO tente "corrigir" isso adicionando `namespace CondotifyAPI.Domain.Enums.Users;` ao arquivo do enum — esse tipo é usado sem qualificação em dezenas de arquivos do solution hoje, e mudar isso é um refactor de escopo bem maior que este task, fora de escopo aqui:
+`AccessTypeEnum` (`CondotifyAPI.Domain/Enums/Users/AccessTypeEnum.cs`) **não tem namespace declarado** — vive no namespace global. Referencie-o sem qualificação (`AccessTypeEnum.Admin`, não `CondotifyAPI.Domain.Enums.Users.AccessTypeEnum.Admin`), exatamente como `CreateByEnterprise` já faz na linha 114 do mesmo arquivo. Qualificar com um namespace que o tipo não tem quebra a build; NÃO tente "corrigir" isso adicionando `namespace CondotifyAPI.Domain.Enums.Users;` ao arquivo do enum — esse tipo é usado sem qualificação em dezenas de arquivos do solution hoje, e mudar isso é um refactor de escopo bem maior que este task, fora de escopo aqui.
+
+**Checagem de enterprise cruzada.** `CanManageModules` não pode se limitar a confirmar que quem chama é Developer/Admin da PRÓPRIA enterprise — também precisa confirmar que a licença sendo alterada (`id` da rota, arbitrário) pertence a essa mesma enterprise. Sem essa segunda checagem, um Developer/Admin da Enterprise A poderia alterar `EnabledModules` de uma licença da Enterprise B só sabendo/adivinhando o GUID. `LicenseDTO.EnterpriseId` (`CondotifyAPI.Domain/DTO/License/LicenseDTO.cs`, comentado "Reference Owner") existe exatamente para isso. Por isso `CanManageModules` recebe também a enterprise da licença (buscada antes da checagem de autorização, não depois) e vira o único lugar que decide a permissão — nada de `if` solto no meio do controller:
 
 ```csharp
     [HttpPut("{id:guid}/modules")]
@@ -435,12 +449,12 @@ Em `CondotifyAPI/Controllers/LicenseAccessController.cs`, adicionar logo após o
             !Guid.TryParse(User.FindFirstValue("enterprise_id"), out var enterpriseId))
             return Forbid();
 
-        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId);
-        if (!CanManageModules(user, enterpriseId))
-            return Forbid();
-
         var license = await _context.Licenses.FirstOrDefaultAsync(x => x.Id == id);
         if (license is null) return NotFound();
+
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId);
+        if (!CanManageModules(user, enterpriseId, license.EnterpriseId))
+            return Forbid();
 
         license.EnabledModules = (CondotifyAPI.Domain.Enums.License.LicenseModuleEnum)input.EnabledModules;
         await _context.SaveChangesAsync();
@@ -448,12 +462,15 @@ Em `CondotifyAPI/Controllers/LicenseAccessController.cs`, adicionar logo após o
         return Ok(new { EnabledModules = (long)license.EnabledModules });
     }
 
-    // Extraido para ser testavel sem banco: CreateByEnterprise faz a mesma
-    // checagem inline (unico outro lugar que restringe uma acao a Developer/
-    // Admin da propria enterprise); aqui vira um predicado puro reutilizavel.
-    internal static bool CanManageModules(CondotifyAPI.Domain.DTO.Users.UserAccessDTO? user, Guid enterpriseId) =>
+    // Extraido para ser testavel sem banco: CreateByEnterprise faz uma checagem
+    // parecida (mesmo unico outro lugar que restringe uma acao a Developer/
+    // Admin da propria enterprise), mas so cria uma licenca nova -- sempre
+    // dentro da propria enterprise por construcao, entao nao precisa comparar
+    // contra a enterprise de uma licenca alheia como aqui.
+    internal static bool CanManageModules(CondotifyAPI.Domain.DTO.Users.UserAccessDTO? user, Guid callerEnterpriseId, Guid licenseEnterpriseId) =>
         user is not null &&
-        user.EnterpriseId == enterpriseId &&
+        user.EnterpriseId == callerEnterpriseId &&
+        callerEnterpriseId == licenseEnterpriseId &&
         user.AccessType is AccessTypeEnum.Admin or AccessTypeEnum.Developer;
 ```
 
