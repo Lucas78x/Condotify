@@ -672,6 +672,7 @@ html, body {
     .device-grid { grid-template-columns: 1fr; }
     .group-card-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
     .unit-card-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    .overview-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 1250px) {
@@ -682,7 +683,6 @@ html, body {
 
 @media (max-width: 980px) {
     .appbar-search { display: none; }
-    .overview-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 760px) {
