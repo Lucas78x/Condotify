@@ -21,16 +21,16 @@
             @if (Session.Current?.Principal == MobilePrincipalKind.Staff)
             {
                 <a href="/concierge"><span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" /></span><strong>Portaria</strong></a>
-                <a href="/cameras"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><strong>Câmeras</strong></a>
-                <a href="/deliveries"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><strong>Encomendas</strong></a>
-                <a href="/bookings"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><strong>Reservas</strong></a>
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Cameras)) { <a href="/cameras"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><strong>Câmeras</strong></a> }
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Deliveries)) { <a href="/deliveries"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><strong>Encomendas</strong></a> }
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Bookings)) { <a href="/bookings"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><strong>Reservas</strong></a> }
             }
             else
             {
                 <a href="/visitors"><span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" /></span><strong>Visitantes</strong></a>
-                <a href="/cameras"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><strong>Câmeras</strong></a>
-                <a href="/deliveries"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><strong>Encomendas</strong></a>
-                <a href="/bookings"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><strong>Reservas</strong></a>
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Cameras)) { <a href="/cameras"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><strong>Câmeras</strong></a> }
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Deliveries)) { <a href="/deliveries"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><strong>Encomendas</strong></a> }
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Bookings)) { <a href="/bookings"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><strong>Reservas</strong></a> }
             }
         </div>
     </section>
@@ -42,17 +42,17 @@
             <div class="settings-group">
                 <a class="list-row" href="/people"><span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><div class="list-main"><div class="list-title">Pessoas e unidades</div><div class="list-meta">Moradores, prestadores, veículos e credenciais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
                 <a class="list-row" href="/visitors"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" /></span><div class="list-main"><div class="list-title">Visitantes</div><div class="list-meta">Autorizações e movimentações</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-                <a class="list-row" href="/devices"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><div class="list-main"><div class="list-title">Equipamentos</div><div class="list-meta">Estado e acionamentos</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Devices)) { <a class="list-row" href="/devices"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><div class="list-main"><div class="list-title">Equipamentos</div><div class="list-meta">Estado e acionamentos</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
                 <a class="list-row" href="/audit"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span><div class="list-main"><div class="list-title">Auditoria de acesso</div><div class="list-meta">Histórico de ações, entradas e credenciais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-                <a class="list-row" href="/alerts"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></span><div class="list-main"><div class="list-title">Alertas operacionais</div><div class="list-meta">Ocorrências que exigem atenção</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Incidents)) { <a class="list-row" href="/alerts"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></span><div class="list-main"><div class="list-title">Alertas operacionais</div><div class="list-meta">Ocorrências que exigem atenção</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
             </div>
         </section>
 
         <section class="settings-section">
             <span class="settings-label">Condomínio</span>
             <div class="settings-group">
-                <a class="list-row" href="/deliveries"><span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><div class="list-main"><div class="list-title">Encomendas</div><div class="list-meta">Recebimentos e entregas</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-                <a class="list-row" href="/bookings"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><div class="list-main"><div class="list-title">Reservas</div><div class="list-meta">Aprovações e agenda de áreas comuns</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Deliveries)) { <a class="list-row" href="/deliveries"><span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><div class="list-main"><div class="list-title">Encomendas</div><div class="list-meta">Recebimentos e entregas</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Bookings)) { <a class="list-row" href="/bookings"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><div class="list-main"><div class="list-title">Reservas</div><div class="list-meta">Aprovações e agenda de áreas comuns</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
                 <a class="list-row" href="/licenses"><span class="settings-icon neutral"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span><div class="list-main"><div class="list-title">Trocar condomínio</div><div class="list-meta">Selecionar ambiente de trabalho</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
             </div>
         </section>
@@ -62,10 +62,10 @@
         <section class="settings-section">
             <span class="settings-label">Condomínio</span>
             <div class="settings-group">
-                <a class="list-row" href="/deliveries"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><div class="list-main"><div class="list-title">Minhas encomendas</div><div class="list-meta">Volumes destinados às suas unidades</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-                <a class="list-row" href="/boletos"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" /></span><div class="list-main"><div class="list-title">Meus boletos</div><div class="list-meta">Boletos disponibilizados pela administração</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-                <a class="list-row" href="/documentos"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Description" /></span><div class="list-main"><div class="list-title">Documentos</div><div class="list-meta">Atas, regimento, comunicados e mais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-                <a class="list-row" href="/cameras"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><div class="list-main"><div class="list-title">Câmeras compartilhadas</div><div class="list-meta">Visualização autorizada pelo condomínio</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Deliveries)) { <a class="list-row" href="/deliveries"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><div class="list-main"><div class="list-title">Minhas encomendas</div><div class="list-meta">Volumes destinados às suas unidades</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Finance)) { <a class="list-row" href="/boletos"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" /></span><div class="list-main"><div class="list-title">Meus boletos</div><div class="list-meta">Boletos disponibilizados pela administração</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Documents)) { <a class="list-row" href="/documentos"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Description" /></span><div class="list-main"><div class="list-title">Documentos</div><div class="list-meta">Atas, regimento, comunicados e mais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Cameras)) { <a class="list-row" href="/cameras"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span><div class="list-main"><div class="list-title">Câmeras compartilhadas</div><div class="list-meta">Visualização autorizada pelo condomínio</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
             </div>
         </section>
     }
@@ -88,6 +88,11 @@
     private string ContextLabel => Session.Current?.Principal == MobilePrincipalKind.Resident
         ? Session.Current?.LicenseName ?? "Meu condomínio"
         : AppState.SelectedLicense?.Nome ?? "Central operacional";
+
+    private long EnabledModules => Session.Current?.Principal == MobilePrincipalKind.Resident
+        ? AppState.ResidentEnabledModules
+        : AppState.SelectedLicense?.EnabledModules ?? (long)Condotify.Models.LicenseModuleEnum.All;
+    private bool ModuleOn(Condotify.Models.LicenseModuleEnum module) => (EnabledModules & (long)module) != 0;
 
     private async Task LogoutAsync()
     {

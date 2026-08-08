@@ -11,6 +11,15 @@ public sealed class MobileAppState(CondotifyApiClient api)
     public LicenseViewModel? SelectedLicense => Licenses.FirstOrDefault(x => Guid.TryParse(x.Id, out var id) && id == SelectedLicenseId);
     public event Action? Changed;
 
+    public long ResidentEnabledModules { get; private set; } = (long)Condotify.Models.LicenseModuleEnum.All;
+
+    public void SetResidentModules(long enabledModules)
+    {
+        if (ResidentEnabledModules == enabledModules) return;
+        ResidentEnabledModules = enabledModules;
+        Changed?.Invoke();
+    }
+
     public async Task<ApiResult<IReadOnlyList<LicenseViewModel>>> LoadLicensesAsync(CancellationToken cancellationToken = default)
     {
         var result = await api.GetLicensesAsync(cancellationToken);
@@ -38,6 +47,7 @@ public sealed class MobileAppState(CondotifyApiClient api)
     {
         Licenses = [];
         SelectedLicenseId = null;
+        ResidentEnabledModules = (long)Condotify.Models.LicenseModuleEnum.All;
         Preferences.Default.Remove(LicenseKey);
         Changed?.Invoke();
     }

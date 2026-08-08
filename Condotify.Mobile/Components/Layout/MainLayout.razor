@@ -109,7 +109,11 @@ else
 }
 
 @code {
-    private IReadOnlyList<MobileNavigationItem> NavigationItems => MobileNavigation.For(Session.Current?.Principal ?? MobilePrincipalKind.Staff);
+    private IReadOnlyList<MobileNavigationItem> NavigationItems => MobileNavigation.For(
+        Session.Current?.Principal ?? MobilePrincipalKind.Staff,
+        Session.Current?.Principal == MobilePrincipalKind.Resident
+            ? AppState.ResidentEnabledModules
+            : AppState.SelectedLicense?.EnabledModules ?? (long)Condotify.Models.LicenseModuleEnum.All);
     private string TopbarTitle => Session.Current?.Principal == MobilePrincipalKind.Resident
         ? Session.Current?.LicenseName ?? "Meu condomínio"
         : AppState.SelectedLicense?.Nome ?? "Central operacional";
