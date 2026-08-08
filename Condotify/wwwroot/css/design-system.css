@@ -409,6 +409,10 @@ body {
     background: var(--ds-border);
 }
 
+.workspace-nav-sep:last-child {
+    display: none;
+}
+
 /* Shared operational surfaces */
 .stats-grid {
     gap: 12px;
