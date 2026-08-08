@@ -620,12 +620,14 @@ Em `SectionAllowed` (linhas 197-213), envolver o `switch` existente:
 
 - [ ] **Step 4: Ajustar `DefaultSection` para pular módulos desativados**
 
-Em `DefaultSection` (linhas 150-163), cada ramo já testado por `Has(...)` também precisa checar `IsModuleEnabled(ModuleFor(...))`. Reescrever:
+Em `DefaultSection` (linhas 150-163), cada ramo já testado por `Has(...)` também precisa checar `IsModuleEnabled(ModuleFor(...))`. **Atenção**: `equipamentos`/`cameras`/`rotas` compartilham a mesma permissão (`ViewDevices`), mas agora têm bits de módulo independentes (`Devices`/`Cameras`/`Routes`) — antes deste task isso era seguro porque as três abas eram gated só por permissão; agora, um usuário com `ViewDevices` mas só o módulo `Cameras` ligado (e `Devices`/`Routes` desligados) precisa cair em `cameras`, não em `sem-acesso`. `DefaultSection` precisa de um ramo por módulo dentro desse grupo, não um só:
 
 ```csharp
     private string DefaultSection => Has(LicensePermission.ViewDashboard) ? "visao-geral"
         : Has(LicensePermission.ViewStructure) ? "estrutura"
         : Has(LicensePermission.ViewDevices) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Devices) ? "equipamentos"
+        : Has(LicensePermission.ViewDevices) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Cameras) ? "cameras"
+        : Has(LicensePermission.ViewDevices) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Routes) ? "rotas"
         : Has(LicensePermission.ViewCredentials) ? "credenciais"
         : Has(LicensePermission.ViewEvents) ? "acessos"
         : Has(LicensePermission.ViewIncidents) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Incidents) ? "ocorrencias"
@@ -638,8 +640,6 @@ Em `DefaultSection` (linhas 150-163), cada ramo já testado por `Has(...)` tamb�
         : Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts) ? "administracao"
         : "sem-acesso";
 ```
-
-(`equipamentos`/`rotas`/`cameras` compartilham `ViewDevices`; `DefaultSection` só precisa de um caminho de entrada então mantém apenas `equipamentos` como já fazia — sem mudança de comportamento aí além do novo filtro de módulo.)
 
 - [ ] **Step 5: Build**
 
