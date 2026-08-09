@@ -8,9 +8,9 @@ Hoje o isolamento entre licenças (condomínios) depende inteiramente de discipl
 
 A investigação para este design (agente de pesquisa, ver histórico da conversa) revelou que a recomendação original ("filtro de uma licença por requisição") **quebraria** partes centrais do sistema: o Dashboard multi-condomínio, a Busca Global, Alertas Operacionais e o próprio `LicenseAuthorizationService` dependem de consultar **várias licenças por requisição** — o modelo de acesso real é "conjunto de licenças que o usuário pode ver", não "uma licença por chamada". O design abaixo é a versão corrigida: filtra pelo **conjunto de licenças acessíveis**, não por uma única licença — o que não quebra nenhum desses fluxos porque o conjunto amplo sempre contém (ou iguala) qualquer subconjunto mais estreito que uma consulta já usa explicitamente.
 
-Levantamento exato (não estimativa) das entidades afetadas: **28 classes** em `CondotifyAPI.Domain/DTO/**` têm uma propriedade `LicenseId` direta. Duas exigem tratamento especial:
-- `OperationalAlertDTO.LicenseId` é `Guid?` — alertas podem existir sem licença (`DeleteBehavior.SetNull` na FK), e esses alertas "órfãos"/de sistema devem continuar visíveis a quem tem permissão de alerta, não desaparecer.
-- `LicenseCredentialPolicyDTO.LicenseId` é a própria chave primária (política 1:1 por licença) — o filtro funciona do mesmo jeito, só é bom documentar que aqui "escondido pelo filtro" e "não existe" coincidem.
+Levantamento exato (não estimativa, verificado duas vezes após a primeira contagem ter perdido 2 classes escondidas no mesmo arquivo de `OperationalAlertDTO`) das entidades afetadas: **30 classes** em `CondotifyAPI.Domain/DTO/**` têm uma propriedade `LicenseId` direta. Três exigem tratamento especial:
+- `OperationalAlertDTO.LicenseId` é `Guid?` — alertas podem existir sem licença (`DeleteBehavior.SetNull` na FK), e esses alertas "órfãos"/de sistema devem continuar visíveis a quem tem permissão de alerta, não desaparecer. Como esta classe também tem `EnterpriseId` (obrigatório, `Cascade`), o filtro precisa checar a enterprise sempre e a licença só quando ela existir — sem isso, um alerta sem licença de uma OUTRA empresa vazaria para qualquer usuário. Por isso `ICurrentTenantAccessor` também guarda `AccessibleEnterpriseId`, não só o conjunto de licenças.
+- `LicenseCredentialPolicyDTO.LicenseId` e `AlertNotificationPolicyDTO.LicenseId` são a própria chave primária (política 1:1 por licença) — o filtro funciona do mesmo jeito, só é bom documentar que aqui "escondido pelo filtro" e "não existe" coincidem.
 
 ## Escopo
 
@@ -35,15 +35,23 @@ Fora do escopo (v1):
 public interface ICurrentTenantAccessor
 {
     HashSet<Guid>? AccessibleLicenseIds { get; }
-    void SetAccessibleLicenseIds(HashSet<Guid> licenseIds);
+    Guid? AccessibleEnterpriseId { get; }
+    void SetAccessibleScope(HashSet<Guid> licenseIds, Guid? enterpriseId);
 }
 
 public sealed class CurrentTenantAccessor : ICurrentTenantAccessor
 {
     public HashSet<Guid>? AccessibleLicenseIds { get; private set; }
-    public void SetAccessibleLicenseIds(HashSet<Guid> licenseIds) => AccessibleLicenseIds = licenseIds;
+    public Guid? AccessibleEnterpriseId { get; private set; }
+    public void SetAccessibleScope(HashSet<Guid> licenseIds, Guid? enterpriseId)
+    {
+        AccessibleLicenseIds = licenseIds;
+        AccessibleEnterpriseId = enterpriseId;
+    }
 }
 ```
+
+(`AccessibleEnterpriseId` existe só para o caso especial de `OperationalAlertDTO` abaixo — nenhuma das 29 entidades com `LicenseId` direto precisa dele.)
 
 Registrado como `Scoped` (uma instância por requisição, igual ao `DatabaseContext`).
 
@@ -68,12 +76,14 @@ public sealed class TenantScopeActionFilter(
             if (principalType == "resident")
             {
                 var grant = await residentAuth.GetGrantAsync(user, context.HttpContext.RequestAborted);
-                tenant.SetAccessibleLicenseIds(grant is null ? [] : [grant.LicenseId]);
+                var enterpriseId = Guid.TryParse(user.FindFirstValue("enterprise_id"), out var eid) ? eid : (Guid?)null;
+                tenant.SetAccessibleScope(grant is null ? [] : [grant.LicenseId], enterpriseId);
             }
             else
             {
                 var ids = await licenseAuth.GetAccessibleLicenseIdsAsync(user, context.HttpContext.RequestAborted);
-                tenant.SetAccessibleLicenseIds(ids);
+                var enterpriseId = Guid.TryParse(user.FindFirstValue("enterprise_id"), out var eid) ? eid : (Guid?)null;
+                tenant.SetAccessibleScope(ids, enterpriseId);
             }
         }
 
@@ -81,6 +91,8 @@ public sealed class TenantScopeActionFilter(
     }
 }
 ```
+
+Moradores não têm claim `enterprise_id` no token (o conceito de Enterprise é só do lado staff/administradora) — para o ramo morador, `enterpriseId` fica `null`. Isso é seguro (fail-closed: um alerta sem licença nunca aparece para morador), e não é uma restrição real observável, porque nenhum fluxo de morador consulta `OperationalAlertDTO` hoje (alertas operacionais são só do módulo de Administração, staff-only). Se isso mudar no futuro, quem construir esse fluxo vai precisar decidir a regra certa para morador — não é este subsistema que deve adivinhar agora.
 
 Rodar isso em TODA requisição autenticada tem um custo: uma consulta extra (a mesma que `GetAccessibleLicenseIdsAsync` já faz) antes de cada action, mesmo em endpoints que nunca tocam uma entidade filtrada (ex.: `GET /api/auth/me`). Aceito deliberadamente — é o preço da rede de segurança ser automática em vez de depender de cada controller lembrar de ativá-la; qualquer coisa mais seletiva (rodar só nos controllers que precisam) reintroduz exatamente o tipo de "esquecimento manual" que este design existe para eliminar.
 
@@ -127,7 +139,8 @@ public sealed class NullCurrentTenantAccessor : ICurrentTenantAccessor
 {
     public static readonly NullCurrentTenantAccessor Instance = new();
     public HashSet<Guid>? AccessibleLicenseIds => null;
-    public void SetAccessibleLicenseIds(HashSet<Guid> licenseIds) =>
+    public Guid? AccessibleEnterpriseId => null;
+    public void SetAccessibleScope(HashSet<Guid> licenseIds, Guid? enterpriseId) =>
         throw new InvalidOperationException("NullCurrentTenantAccessor e somente leitura (usado fora do pipeline de requisicao).");
 }
 ```
@@ -150,16 +163,19 @@ A terceira sobrecarga é a que a injeção de dependência real usa em produçã
 
 Padrão já usado no EF Core para "mesmo filtro em N tipos via marker interface" — não é uma técnica inventada para este projeto.
 
-`OperationalAlertDTO` **não** implementa `ILicenseScoped** (por causa do `Guid?`) — recebe um `HasQueryFilter` próprio, escrito à mão, na sua `IEntityTypeConfiguration`:
+`OperationalAlertDTO` **não** implementa `ILicenseScoped` (por causa do `Guid?` e da checagem extra de `EnterpriseId`) — recebe um `HasQueryFilter` próprio, escrito à mão, na sua `IEntityTypeConfiguration`:
 
 ```csharp
 builder.HasQueryFilter(x =>
-    x.LicenseId == null || (_tenant.AccessibleLicenseIds != null && _tenant.AccessibleLicenseIds.Contains(x.LicenseId.Value)));
+    x.EnterpriseId == _tenant.AccessibleEnterpriseId &&
+    (x.LicenseId == null || (_tenant.AccessibleLicenseIds != null && _tenant.AccessibleLicenseIds.Contains(x.LicenseId.Value))));
 ```
 
-### As 27 entidades `ILicenseScoped` (lista exata, levantada por grep, não estimada)
+### As 29 entidades `ILicenseScoped` (lista exata, levantada por grep e conferida linha a linha, não estimada)
 
-`AccessRouteDTO`, `AccessOperationAuditDTO`, `AccessBatchOperationDTO`, `AccessInventoryItemDTO`, `AccessEventRecordDTO`, `AmenityDTO`, `AmenityBookingDTO`, `ConfigurationBackupDTO`, `BackupAutomationPolicyDTO`, `BlockDTO`, `DeliveryDTO`, `ResourceDocumentDTO`, `AccessControlDeviceDTO`, `CFTVDeviceDTO`, `BoletoBatchDTO`, `AccessVisitDTO`, `AccessWatchlistEntryDTO`, `RegistrationInviteDTO`, `LicenseCredentialPolicyDTO`, `LicenseUserAccessDTO`, `IncidentDTO`, `AutomationRuleDTO`, `AutomationExecutionDTO`, `EmergencySessionDTO`, `DigitalPassDTO`, `RecycleBinItemDTO`, `TicketDTO`.
+`AccessRouteDTO`, `AccessOperationAuditDTO`, `AccessBatchOperationDTO`, `AccessInventoryItemDTO`, `AccessEventRecordDTO`, `AmenityDTO`, `AmenityBookingDTO`, `ConfigurationBackupDTO`, `BackupAutomationPolicyDTO`, `BlockDTO`, `DeliveryDTO`, `ResourceDocumentDTO`, `AccessControlDeviceDTO`, `CFTVDeviceDTO`, `BoletoBatchDTO`, `AccessVisitDTO`, `AccessWatchlistEntryDTO`, `RegistrationInviteDTO`, `LicenseCredentialPolicyDTO`, `LicenseUserAccessDTO`, `AlertNotificationPolicyDTO`, `AlertNotificationDeliveryDTO`, `IncidentDTO`, `AutomationRuleDTO`, `AutomationExecutionDTO`, `EmergencySessionDTO`, `DigitalPassDTO`, `RecycleBinItemDTO`, `TicketDTO`.
+
+`OperationalAlertDTO` (a 30ª) fica de fora desta lista — recebe filtro próprio (`LicenseId` anulável + checagem de `EnterpriseId`), não implementa `ILicenseScoped`.
 
 ### Quebrando a circularidade: as duas exceções deliberadas
 
