@@ -2,7 +2,7 @@ using CondotifyAPI.Domain.DTO.Users;
 
 namespace CondotifyAPI.Domain.DTO.License;
 
-public class LicenseUserAccessDTO
+public class LicenseUserAccessDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }

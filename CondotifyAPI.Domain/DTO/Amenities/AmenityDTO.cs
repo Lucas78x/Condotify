@@ -5,7 +5,7 @@ using CondotifyAPI.Domain.Enums.Amenities;
 
 namespace CondotifyAPI.Domain.DTO.Amenities;
 
-public class AmenityDTO
+public class AmenityDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }
@@ -51,7 +51,7 @@ public class AmenityBlackoutDTO
     public string Reason { get; set; } = string.Empty;
 }
 
-public class AmenityBookingDTO
+public class AmenityBookingDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid AmenityId { get; set; }

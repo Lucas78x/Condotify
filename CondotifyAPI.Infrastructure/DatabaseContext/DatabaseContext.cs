@@ -4,9 +4,15 @@ namespace CondotifyAPI.Infrastructure;
 
 public partial class DatabaseContext : DbContext
 {
-    public DatabaseContext() { }
+    private readonly CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor _tenant;
 
-    public DatabaseContext(DbContextOptions<DatabaseContext> options) : base(options) { }
+    public DatabaseContext() => _tenant = CondotifyAPI.Domain.Services.NullCurrentTenantAccessor.Instance;
+
+    public DatabaseContext(DbContextOptions<DatabaseContext> options) : base(options) =>
+        _tenant = CondotifyAPI.Domain.Services.NullCurrentTenantAccessor.Instance;
+
+    public DatabaseContext(DbContextOptions<DatabaseContext> options, CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor tenant) : base(options) =>
+        _tenant = tenant;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -61,5 +67,21 @@ public partial class DatabaseContext : DbContext
                     property.SetDefaultValueSql("NOW()");
             }
         }
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (!typeof(CondotifyAPI.Domain.Interfaces.ILicenseScoped).IsAssignableFrom(entityType.ClrType)) continue;
+            var method = SetLicenseScopedFilterMethod.MakeGenericMethod(entityType.ClrType);
+            method.Invoke(this, [modelBuilder]);
+        }
+    }
+
+    private static readonly System.Reflection.MethodInfo SetLicenseScopedFilterMethod =
+        typeof(DatabaseContext).GetMethod(nameof(SetLicenseScopedFilter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+    private void SetLicenseScopedFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class, CondotifyAPI.Domain.Interfaces.ILicenseScoped
+    {
+        modelBuilder.Entity<TEntity>().HasQueryFilter(x =>
+            _tenant.AccessibleLicenseIds != null && _tenant.AccessibleLicenseIds.Contains(x.LicenseId));
     }
 }

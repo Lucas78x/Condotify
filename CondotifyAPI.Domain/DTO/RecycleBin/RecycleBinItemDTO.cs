@@ -2,7 +2,7 @@ using CondotifyAPI.Domain.DTO.License;
 
 namespace CondotifyAPI.Domain.DTO.RecycleBin;
 
-public sealed class RecycleBinItemDTO
+public sealed class RecycleBinItemDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }

@@ -3,7 +3,7 @@ using CondotifyAPI.Domain.DTO.Unit;
 
 namespace CondotifyAPI.Domain.DTO.Finance;
 
-public sealed class BoletoBatchDTO
+public sealed class BoletoBatchDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }

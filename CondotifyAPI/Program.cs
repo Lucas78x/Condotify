@@ -212,6 +212,7 @@ builder.Services.AddScoped<IAccessRouteResolver, AccessRouteResolver>();
 builder.Services.AddScoped<ICredentialReconciliationService, CredentialReconciliationService>();
 builder.Services.AddScoped<IDeviceInventoryService, DeviceInventoryService>();
 builder.Services.AddScoped<ILicenseAuthorizationService, LicenseAuthorizationService>();
+builder.Services.AddScoped<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor, CondotifyAPI.Domain.Services.CurrentTenantAccessor>();
 builder.Services.AddScoped<IResidentAuthorizationService, ResidentAuthorizationService>();
 builder.Services.AddScoped<IIncidentService, IncidentService>();
 builder.Services.AddScoped<IAutomationRuleEvaluationService, AutomationRuleEvaluationService>();

@@ -5,7 +5,7 @@ using CondotifyAPI.Domain.Enums.AccessControl;
 
 namespace CondotifyAPI.Domain.DTO.AccessControl;
 
-public class AccessRouteDTO
+public class AccessRouteDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }
@@ -37,7 +37,7 @@ public class AccessRouteResidentOverrideDTO
     public DateTime UpdatedAt { get; set; }
 }
 
-public class AccessOperationAuditDTO
+public class AccessOperationAuditDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }
@@ -53,7 +53,7 @@ public class AccessOperationAuditDTO
     public DateTime CreatedAt { get; set; }
 }
 
-public class AccessBatchOperationDTO
+public class AccessBatchOperationDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }
@@ -101,7 +101,7 @@ public class AccessOperationItemDTO
     public DateTime? FinishedAt { get; set; }
 }
 
-public class AccessInventoryItemDTO
+public class AccessInventoryItemDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }
@@ -122,7 +122,7 @@ public class AccessInventoryItemDTO
     public DateTime ObservedAt { get; set; }
 }
 
-public class AccessEventRecordDTO
+public class AccessEventRecordDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }

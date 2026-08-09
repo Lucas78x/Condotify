@@ -5,7 +5,7 @@ using CondotifyAPI.Domain.DTO.License;
 
 namespace CondotifyAPI.Domain.DTO.Ticket
 {
-    public class TicketDTO
+    public class TicketDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
     {
         public Guid Id { get; set; }
 

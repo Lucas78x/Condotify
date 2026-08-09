@@ -2,7 +2,7 @@ using CondotifyAPI.Domain.DTO.License;
 
 namespace CondotifyAPI.Domain.DTO.Documents;
 
-public sealed class ResourceDocumentDTO
+public sealed class ResourceDocumentDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }

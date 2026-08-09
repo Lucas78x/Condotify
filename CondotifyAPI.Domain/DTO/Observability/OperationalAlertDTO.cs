@@ -73,7 +73,7 @@ public enum NotificationDeliveryStatus
     Cancelled = 5
 }
 
-public sealed class AlertNotificationPolicyDTO
+public sealed class AlertNotificationPolicyDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid LicenseId { get; set; }
     public LicenseDTO License { get; set; } = null!;
@@ -97,7 +97,7 @@ public sealed class AlertNotificationPolicyDTO
     public DateTime UpdatedAt { get; set; }
 }
 
-public sealed class AlertNotificationDeliveryDTO
+public sealed class AlertNotificationDeliveryDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid AlertId { get; set; }

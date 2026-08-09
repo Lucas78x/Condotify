@@ -9,7 +9,7 @@ public enum IncidentSourceEnum { Manual = 0, Automation = 1, Emergency = 2, Syst
 public enum IncidentCategoryEnum { Access = 0, Visitor = 1, Vehicle = 2, Device = 3, Delivery = 4, Safety = 5, Other = 6 }
 public enum IncidentTimelineTypeEnum { Created = 0, Comment = 1, StatusChanged = 2, Assignment = 3, Evidence = 4, Automation = 5, Emergency = 6 }
 
-public sealed class IncidentDTO
+public sealed class IncidentDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }
@@ -57,7 +57,7 @@ public enum AutomationTriggerTypeEnum { DeviceOffline = 0, AccessDeniedThreshold
 [Flags]
 public enum AutomationActionEnum { None = 0, CreateIncident = 1, CreateAlert = 2 }
 
-public sealed class AutomationRuleDTO
+public sealed class AutomationRuleDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }
@@ -80,7 +80,7 @@ public sealed class AutomationRuleDTO
     public ICollection<AutomationExecutionDTO> Executions { get; set; } = new List<AutomationExecutionDTO>();
 }
 
-public sealed class AutomationExecutionDTO
+public sealed class AutomationExecutionDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid RuleId { get; set; }
@@ -99,7 +99,7 @@ public sealed class AutomationExecutionDTO
 public enum EmergencyTypeEnum { Lockdown = 0, Evacuation = 1, Panic = 2, Fire = 3, Medical = 4, Other = 5 }
 public enum EmergencyStatusEnum { Active = 0, Resolved = 1, Cancelled = 2 }
 
-public sealed class EmergencySessionDTO
+public sealed class EmergencySessionDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }
@@ -123,7 +123,7 @@ public sealed class EmergencySessionDTO
 
 public enum DigitalPassStatusEnum { Active = 0, Revoked = 1, Expired = 2 }
 
-public sealed class DigitalPassDTO
+public sealed class DigitalPassDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }

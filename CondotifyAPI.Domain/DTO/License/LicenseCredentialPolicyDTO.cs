@@ -1,6 +1,6 @@
 namespace CondotifyAPI.Domain.DTO.License;
 
-public class LicenseCredentialPolicyDTO
+public class LicenseCredentialPolicyDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid LicenseId { get; set; }
     public LicenseDTO License { get; set; } = null!;

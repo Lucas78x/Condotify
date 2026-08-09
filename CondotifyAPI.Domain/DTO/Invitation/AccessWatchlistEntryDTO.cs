@@ -2,7 +2,7 @@ using CondotifyAPI.Domain.DTO.License;
 
 namespace CondotifyAPI.Domain.DTO.Invitation;
 
-public sealed class AccessWatchlistEntryDTO
+public sealed class AccessWatchlistEntryDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }

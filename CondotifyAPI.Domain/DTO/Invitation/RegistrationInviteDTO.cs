@@ -4,7 +4,7 @@ using CondotifyAPI.Domain.Enums.Invitation;
 
 namespace CondotifyAPI.Domain.DTO.Invitation;
 
-public class RegistrationInviteDTO
+public class RegistrationInviteDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }

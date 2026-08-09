@@ -6,7 +6,7 @@ using CondotifyAPI.Domain.DTO.Unit;
 
 namespace CondotifyAPI.Domain.DTO.Delivers
 {
-    public class DeliveryDTO
+    public class DeliveryDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
     {
         public Guid Id { get; set; }
 

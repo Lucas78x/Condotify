@@ -3,7 +3,7 @@ using CondotifyAPI.Domain.DTO.License;
 
 namespace CondotifyAPI.Domain.DTO.Equipments
 {
-    public class CFTVDeviceDTO
+    public class CFTVDeviceDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
     {
         public Guid Id { get; set; }
 

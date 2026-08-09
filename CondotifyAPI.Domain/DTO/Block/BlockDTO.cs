@@ -4,7 +4,7 @@ using CondotifyAPI.Domain.DTO.Unit;
 
 namespace CondotifyAPI.Domain.DTO.Block
 {
-    public class BlockDTO
+    public class BlockDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;

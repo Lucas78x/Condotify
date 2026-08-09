@@ -6,7 +6,7 @@ using CondotifyAPI.Domain.Enums.Equipments;
 
 namespace CondotifyAPI.Domain.DTO.Equipments
 {
-    public class AccessControlDeviceDTO
+    public class AccessControlDeviceDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;

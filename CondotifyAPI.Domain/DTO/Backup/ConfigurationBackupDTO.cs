@@ -2,7 +2,7 @@ using CondotifyAPI.Domain.DTO.License;
 
 namespace CondotifyAPI.Domain.DTO.Backup;
 
-public sealed class ConfigurationBackupDTO
+public sealed class ConfigurationBackupDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid Id { get; set; }
     public Guid LicenseId { get; set; }
@@ -23,7 +23,7 @@ public sealed class ConfigurationBackupDTO
     public string LastRestoredBy { get; set; } = string.Empty;
 }
 
-public sealed class BackupAutomationPolicyDTO
+public sealed class BackupAutomationPolicyDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 {
     public Guid LicenseId { get; set; }
     public LicenseDTO License { get; set; } = null!;
