@@ -37,6 +37,7 @@ public sealed class LprPollingService(IServiceScopeFactory scopes, IConfiguratio
         {
             using var scope = scopes.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             var processor = scope.ServiceProvider.GetRequiredService<LprDeviceProcessor>();
 
             var devices = await context.Devices

@@ -82,6 +82,6 @@ public partial class DatabaseContext : DbContext
     private void SetLicenseScopedFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class, CondotifyAPI.Domain.Interfaces.ILicenseScoped
     {
         modelBuilder.Entity<TEntity>().HasQueryFilter(x =>
-            _tenant.AccessibleLicenseIds != null && _tenant.AccessibleLicenseIds.Contains(x.LicenseId));
+            _tenant.IsUnrestricted || (_tenant.AccessibleLicenseIds != null && _tenant.AccessibleLicenseIds.Contains(x.LicenseId)));
     }
 }

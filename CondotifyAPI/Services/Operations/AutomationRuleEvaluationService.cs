@@ -180,6 +180,7 @@ public sealed class AutomationRuleWorker(
         try
         {
             await using var scope = scopes.CreateAsyncScope();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             await scope.ServiceProvider.GetRequiredService<IAutomationRuleEvaluationService>().EvaluateAsync(null, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }

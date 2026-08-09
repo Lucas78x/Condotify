@@ -9,12 +9,15 @@ public sealed class CurrentTenantAccessor : ICurrentTenantAccessor
 {
     public HashSet<Guid>? AccessibleLicenseIds { get; private set; }
     public Guid? AccessibleEnterpriseId { get; private set; }
+    public bool IsUnrestricted { get; private set; }
 
     public void SetAccessibleScope(HashSet<Guid> licenseIds, Guid? enterpriseId)
     {
         AccessibleLicenseIds = licenseIds;
         AccessibleEnterpriseId = enterpriseId;
     }
+
+    public void MarkUnrestricted() => IsUnrestricted = true;
 }
 
 // Usado como valor padrao nos construtores de DatabaseContext que nao
@@ -29,8 +32,12 @@ public sealed class NullCurrentTenantAccessor : ICurrentTenantAccessor
     public static readonly NullCurrentTenantAccessor Instance = new();
     public HashSet<Guid>? AccessibleLicenseIds => null;
     public Guid? AccessibleEnterpriseId => null;
+    public bool IsUnrestricted => false;
 
     public void SetAccessibleScope(HashSet<Guid> licenseIds, Guid? enterpriseId) =>
         throw new InvalidOperationException(
             "NullCurrentTenantAccessor e somente leitura (usado fora do pipeline de requisicao HTTP).");
+
+    public void MarkUnrestricted() =>
+        throw new InvalidOperationException("NullCurrentTenantAccessor e somente leitura (usado fora do pipeline de requisicao HTTP).");
 }

@@ -24,6 +24,7 @@ public sealed class DeviceHealthMonitoringWorker(IServiceScopeFactory scopes, IC
         {
             using var scope = scopes.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             var accessControl = scope.ServiceProvider.GetRequiredService<IAccessControlService>();
             var mapper = scope.ServiceProvider.GetRequiredService<IMapper>();
             var thresholdMs = Math.Clamp(configuration.GetValue("DeviceMonitoring:ResponseWarningMs", 2500), 100, 30000);

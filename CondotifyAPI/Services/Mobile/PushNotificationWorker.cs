@@ -29,6 +29,7 @@ public sealed class PushNotificationWorker(
         {
             await using var scope = scopes.CreateAsyncScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             var transport = scope.ServiceProvider.GetRequiredService<IPushTransport>();
             await DeactivateStaleAsync(context, cancellationToken);
             await FanoutAsync(context, cancellationToken);

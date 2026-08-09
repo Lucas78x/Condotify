@@ -38,6 +38,7 @@ public sealed class CftvHealthMonitoringWorker(
         {
             using var scope = scopes.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
 
             var devices = await context.CFTVDevices.ToListAsync(cancellationToken);
             foreach (var device in devices)

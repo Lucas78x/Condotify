@@ -21,6 +21,7 @@ public sealed class RecycleBinCleanupService(
         {
             using var scope = scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             var recycleBin = scope.ServiceProvider.GetRequiredService<IRecycleBinService>();
             var now = DateTime.UtcNow;
             var expired = await context.RecycleBinItems.AsNoTracking()

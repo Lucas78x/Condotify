@@ -36,6 +36,7 @@ public sealed class CredentialReconciliationWorker : BackgroundService
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             var reconciliation = scope.ServiceProvider.GetRequiredService<ICredentialReconciliationService>();
             var routeResolver = scope.ServiceProvider.GetRequiredService<IAccessRouteResolver>();
             var batch = await TryClaimBatchAsync(context, cancellationToken);

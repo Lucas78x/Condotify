@@ -32,6 +32,7 @@ public sealed class AlertNotificationWorker(
         {
             await using var scope = scopes.CreateAsyncScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             await ScheduleAsync(context, cancellationToken);
             var push = scope.ServiceProvider.GetRequiredService<IPlatformPushNotifier>();
             await SchedulePushAsync(context, push, cancellationToken);

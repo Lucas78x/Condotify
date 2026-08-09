@@ -22,6 +22,7 @@ public sealed class OperationalAlertWorker(
         try
         {
             await using var scope = scopes.CreateAsyncScope();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             var evaluator = scope.ServiceProvider.GetRequiredService<IOperationalAlertEvaluationService>();
             await evaluator.EvaluateAsync(cancellationToken);
         }

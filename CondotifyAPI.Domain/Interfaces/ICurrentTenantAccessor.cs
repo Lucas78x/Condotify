@@ -5,4 +5,6 @@ public interface ICurrentTenantAccessor
     HashSet<Guid>? AccessibleLicenseIds { get; }
     Guid? AccessibleEnterpriseId { get; }
     void SetAccessibleScope(HashSet<Guid> licenseIds, Guid? enterpriseId);
+    bool IsUnrestricted { get; }
+    void MarkUnrestricted();
 }

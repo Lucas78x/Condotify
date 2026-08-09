@@ -27,6 +27,7 @@ public sealed class AutomaticBackupWorker(
             using (var scope = scopeFactory.CreateScope())
             {
                 var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+                scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
                 var now = DateTime.UtcNow;
                 due = await context.BackupAutomationPolicies.AsNoTracking()
                     .Where(x => x.Enabled &&
@@ -56,6 +57,7 @@ public sealed class AutomaticBackupWorker(
         {
             using var scope = scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             var now = DateTime.UtcNow;
             var claimed = await context.BackupAutomationPolicies
                 .Where(x => x.LicenseId == licenseId &&
@@ -111,6 +113,7 @@ public sealed class AutomaticBackupWorker(
         {
             using var scope = scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             var now = DateTime.UtcNow;
             await context.BackupAutomationPolicies
                 .Where(x => x.LicenseId == licenseId && x.LeaseOwner == WorkerId)

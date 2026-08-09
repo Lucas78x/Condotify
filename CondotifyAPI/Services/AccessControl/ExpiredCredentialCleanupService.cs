@@ -34,6 +34,7 @@ public sealed class ExpiredCredentialCleanupService : BackgroundService
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+            scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             var accessControl = scope.ServiceProvider.GetRequiredService<IAccessControlService>();
             var mapper = scope.ServiceProvider.GetRequiredService<IMapper>();
             var now = DateTime.UtcNow;
