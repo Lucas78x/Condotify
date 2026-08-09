@@ -49,7 +49,10 @@ public sealed class DigitalPassesController(
     {
         if (string.IsNullOrWhiteSpace(token) || token.Length > 200) return NotFound();
         var hash = DigitalPassIssuanceService.Hash(token);
-        var pass = await context.DigitalPasses.Include(x => x.License)
+        // IgnoreQueryFilters() deliberado: passe publico e AllowAnonymous (autenticado
+        // pelo token na URL), sem principal para popular o accessor. Consulta ja restrita
+        // a um hash de token especifico -- ver Task 7 do plano de filtro de tenant.
+        var pass = await context.DigitalPasses.IgnoreQueryFilters().Include(x => x.License)
             .Include(x => x.Visit).ThenInclude(x => x.Credential)
             .Include(x => x.Visit).ThenInclude(x => x.HostResident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .FirstOrDefaultAsync(x => x.TokenHash == hash, HttpContext.RequestAborted);
@@ -68,7 +71,10 @@ public sealed class DigitalPassesController(
     {
         if (!appleWallet.IsConfigured) return NotFound();
         if (string.IsNullOrWhiteSpace(token) || token.Length > 200) return NotFound();
-        var pass = await context.DigitalPasses.AsNoTracking().Include(x => x.License)
+        // IgnoreQueryFilters() deliberado: passe publico (Apple Wallet) e AllowAnonymous
+        // (autenticado pelo token na URL), sem principal para popular o accessor. Consulta
+        // ja restrita a um hash de token especifico -- ver Task 7 do plano de filtro de tenant.
+        var pass = await context.DigitalPasses.AsNoTracking().IgnoreQueryFilters().Include(x => x.License)
             .Include(x => x.Visit).ThenInclude(x => x.Credential)
             .Include(x => x.Visit).ThenInclude(x => x.HostResident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .FirstOrDefaultAsync(x => x.TokenHash == DigitalPassIssuanceService.Hash(token), HttpContext.RequestAborted);

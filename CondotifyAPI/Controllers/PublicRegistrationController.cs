@@ -87,7 +87,10 @@ public class PublicRegistrationController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(token) || token.Length > 200) return null;
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token.Trim())));
-        return await _context.RegistrationInvites
+        // IgnoreQueryFilters() deliberado: aceitar convite e AllowAnonymous (autenticado
+        // pelo token na URL, nao por JWT), sem principal para popular o accessor. Consulta
+        // ja restrita a um hash de token especifico -- ver Task 7 do plano de filtro de tenant.
+        return await _context.RegistrationInvites.IgnoreQueryFilters()
             .Include(x => x.License)
             .Include(x => x.Resident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .FirstOrDefaultAsync(x => x.TokenHash == hash);

@@ -38,11 +38,13 @@ public sealed class LicenseAuthorizationService : ILicenseAuthorizationService
     public async Task<LicenseAccessGrant?> GetGrantAsync(ClaimsPrincipal principal, Guid licenseId, CancellationToken cancellationToken = default)
     {
         if (!TryUser(principal, out var userId, out var enterpriseId)) return null;
-        // IgnoreQueryFilters() deliberado: este metodo CALCULA o conjunto de
-        // licencas acessiveis que o filtro global usa. Sem isso, a consulta
-        // dependeria circularmente do resultado que ainda nao existe.
-        // Unicas duas excecoes esperadas neste projeto -- ver
-        // docs/superpowers/plans/2026-08-08-ef-core-tenant-filter.md.
+        // IgnoreQueryFilters() deliberado: este metodo CALCULA o conjunto de licencas
+        // acessiveis que o filtro global usa (ou, para GetGrantAsync, confirma acesso a
+        // uma licenca especifica ja indicada explicitamente pelo chamador). Cada uso de
+        // IgnoreQueryFilters() neste arquivo (ver LicenseAuthorizationService.cs por
+        // inteiro) e um destes dois casos -- nunca uma consulta de listagem sem filtro
+        // explicito equivalente. Ver docs/superpowers/plans/2026-08-08-ef-core-tenant-filter.md,
+        // Tasks 4 e 7.
         var user = await _context.Users.AsNoTracking().IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == userId && x.EnterpriseId == enterpriseId, cancellationToken);
         if (user is null) return null;
         if (!await _context.Licenses.AsNoTracking().IgnoreQueryFilters().AnyAsync(x => x.Id == licenseId && x.EnterpriseId == enterpriseId, cancellationToken)) return null;
@@ -50,7 +52,11 @@ public sealed class LicenseAuthorizationService : ILicenseAuthorizationService
         if (user.AccessType is AccessTypeEnum.Developer or AccessTypeEnum.Admin)
             return new LicenseAccessGrant(licenseId, userId, LicenseAccessRoleEnum.Administrator, LicensePermissionEnum.All, true);
 
-        var access = await _context.LicenseUserAccesses.AsNoTracking()
+        // IgnoreQueryFilters() deliberado, defesa em profundidade: mesmo com o middleware
+        // (Task 7) garantindo que o accessor esta populado antes de qualquer filtro do MVC
+        // rodar, esta consulta ja filtra explicitamente por licenseId+userId -- o filtro
+        // global aqui so poderia CONFIRMAR o que a query ja garante, nunca vazar outro tenant.
+        var access = await _context.LicenseUserAccesses.AsNoTracking().IgnoreQueryFilters()
             .FirstOrDefaultAsync(x => x.LicenseId == licenseId && x.UserId == userId && x.IsActive, cancellationToken);
         return access is null ? null : new LicenseAccessGrant(licenseId, userId, access.Role, LicenseAccessDefaults.Normalize(access.Permissions), false);
     }
@@ -70,11 +76,13 @@ public sealed class LicenseAuthorizationService : ILicenseAuthorizationService
         if (!TryUser(principal, out var userId, out var enterpriseId))
             return new Dictionary<Guid, LicensePermissionEnum>();
 
-        // IgnoreQueryFilters() deliberado: este metodo CALCULA o conjunto de
-        // licencas acessiveis que o filtro global usa. Sem isso, a consulta
-        // dependeria circularmente do resultado que ainda nao existe.
-        // Unicas duas excecoes esperadas neste projeto -- ver
-        // docs/superpowers/plans/2026-08-08-ef-core-tenant-filter.md.
+        // IgnoreQueryFilters() deliberado: este metodo CALCULA o conjunto de licencas
+        // acessiveis que o filtro global usa (ou, para GetGrantAsync, confirma acesso a
+        // uma licenca especifica ja indicada explicitamente pelo chamador). Cada uso de
+        // IgnoreQueryFilters() neste arquivo (ver LicenseAuthorizationService.cs por
+        // inteiro) e um destes dois casos -- nunca uma consulta de listagem sem filtro
+        // explicito equivalente. Ver docs/superpowers/plans/2026-08-08-ef-core-tenant-filter.md,
+        // Tasks 4 e 7.
         var user = await _context.Users.AsNoTracking().IgnoreQueryFilters()
             .FirstOrDefaultAsync(x => x.Id == userId && x.EnterpriseId == enterpriseId, cancellationToken);
         if (user is null)

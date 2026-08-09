@@ -213,9 +213,6 @@ builder.Services.AddScoped<ICredentialReconciliationService, CredentialReconcili
 builder.Services.AddScoped<IDeviceInventoryService, DeviceInventoryService>();
 builder.Services.AddScoped<ILicenseAuthorizationService, LicenseAuthorizationService>();
 builder.Services.AddScoped<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor, CondotifyAPI.Domain.Services.CurrentTenantAccessor>();
-builder.Services.AddScoped<CondotifyAPI.Services.Authorization.TenantScopeActionFilter>();
-builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
-    options.Filters.AddService<CondotifyAPI.Services.Authorization.TenantScopeActionFilter>());
 builder.Services.AddScoped<IResidentAuthorizationService, ResidentAuthorizationService>();
 builder.Services.AddScoped<IIncidentService, IncidentService>();
 builder.Services.AddScoped<IAutomationRuleEvaluationService, AutomationRuleEvaluationService>();
@@ -321,6 +318,10 @@ app.Use(async (context, next) =>
 });
 app.UseRateLimiter();
 app.UseAuthentication();
+// Popula o ICurrentTenantAccessor (filtro global de tenant) logo apos a autenticacao e
+// ANTES de UseAuthorization()/MapControllers, para que filtros de Authorization do MVC
+// (RequireLicensePermissionAttribute) e endpoints minimal API ja encontrem o escopo pronto.
+app.UseMiddleware<CondotifyAPI.Services.Authorization.TenantScopePopulationMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

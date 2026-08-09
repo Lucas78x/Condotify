@@ -154,7 +154,10 @@ public sealed class SessionController : ControllerBase
 
     private async Task<string?> MintResidentAccessTokenAsync(Guid residentId, CancellationToken cancellationToken)
     {
-        var resident = await _context.Residents
+        // IgnoreQueryFilters() deliberado: chamado a partir de um endpoint AllowAnonymous
+        // de refresh de token, sem principal para popular o accessor. Consulta ja restrita
+        // a um residentId especifico -- ver Task 7 do plano de filtro de tenant.
+        var resident = await _context.Residents.IgnoreQueryFilters()
             .Include(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
             .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
             .FirstOrDefaultAsync(x => x.Id == residentId, cancellationToken);

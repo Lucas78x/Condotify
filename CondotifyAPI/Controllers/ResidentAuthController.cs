@@ -62,7 +62,10 @@ public sealed class ResidentAuthController : ControllerBase
         // email does not short-circuit before the hash-comparison work in Decide.
         var resident = string.IsNullOrWhiteSpace(email)
             ? null
-            : await _context.Residents
+            // IgnoreQueryFilters() deliberado: login e AllowAnonymous, nao ha principal
+            // para popular o accessor. A consulta ja e restrita a um email especifico
+            // (nao uma listagem) -- ver Task 7 do plano de filtro de tenant.
+            : await _context.Residents.IgnoreQueryFilters()
                 .Include(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
                 .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
                 .FirstOrDefaultAsync(x => x.Email.ToLower() == email, cancellationToken);

@@ -3,13 +3,10 @@ using CondotifyAPI.Domain.Interfaces;
 using CondotifyAPI.Domain.Services;
 using CondotifyAPI.Services.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.Abstractions;
-using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Routing;
 
 namespace CondotifyAPI.Tests;
 
-public sealed class TenantScopeActionFilterTests
+public sealed class TenantScopePopulationMiddlewareTests
 {
     private sealed class FakeLicenseAuthorizationService(HashSet<Guid> ids) : ILicenseAuthorizationService
     {
@@ -26,13 +23,6 @@ public sealed class TenantScopeActionFilterTests
         public Task<bool> CanAccessUnitAsync(ClaimsPrincipal principal, Guid unitId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
-    private static ActionExecutingContext BuildContext(ClaimsPrincipal user)
-    {
-        var httpContext = new DefaultHttpContext { User = user };
-        var actionContext = new Microsoft.AspNetCore.Mvc.ActionContext(httpContext, new RouteData(), new ActionDescriptor());
-        return new ActionExecutingContext(actionContext, [], new Dictionary<string, object?>(), controller: null!);
-    }
-
     private static ClaimsPrincipal StaffPrincipal(Guid enterpriseId) => new(new ClaimsIdentity(
     [
         new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
@@ -46,17 +36,24 @@ public sealed class TenantScopeActionFilterTests
         new Claim("principal_type", "resident")
     ], "TestAuth"));
 
+    private static async Task<(bool nextCalled, CurrentTenantAccessor tenant)> Run(
+        ClaimsPrincipal user, ILicenseAuthorizationService licenseAuth, IResidentAuthorizationService residentAuth)
+    {
+        var tenant = new CurrentTenantAccessor();
+        var httpContext = new DefaultHttpContext { User = user };
+        var middleware = new TenantScopePopulationMiddleware(_ => Task.CompletedTask);
+        var nextCalled = false;
+        await middleware.InvokeAsync(httpContext, tenant, licenseAuth, residentAuth, async () => { nextCalled = true; await Task.CompletedTask; });
+        return (nextCalled, tenant);
+    }
+
     [Fact]
     public async Task Staff_PopulatesAccessorFromLicenseAuthorizationService()
     {
         var enterpriseId = Guid.NewGuid();
         var licenseIds = new HashSet<Guid> { Guid.NewGuid(), Guid.NewGuid() };
-        var tenant = new CurrentTenantAccessor();
-        var filter = new TenantScopeActionFilter(tenant, new FakeLicenseAuthorizationService(licenseIds), new FakeResidentAuthorizationService(null));
-        var context = BuildContext(StaffPrincipal(enterpriseId));
-        var nextCalled = false;
 
-        await filter.OnActionExecutionAsync(context, () => { nextCalled = true; return Task.FromResult<ActionExecutedContext>(null!); });
+        var (nextCalled, tenant) = await Run(StaffPrincipal(enterpriseId), new FakeLicenseAuthorizationService(licenseIds), new FakeResidentAuthorizationService(null));
 
         Assert.True(nextCalled);
         Assert.Equal(licenseIds, tenant.AccessibleLicenseIds);
@@ -67,11 +64,8 @@ public sealed class TenantScopeActionFilterTests
     public async Task Resident_PopulatesAccessorWithOwnLicenseOnly()
     {
         var grant = new ResidentAccessGrant(Guid.NewGuid(), Guid.NewGuid(), [Guid.NewGuid()], ResidentAccessTypeEnum.Responsible, true);
-        var tenant = new CurrentTenantAccessor();
-        var filter = new TenantScopeActionFilter(tenant, new FakeLicenseAuthorizationService([]), new FakeResidentAuthorizationService(grant));
-        var context = BuildContext(ResidentPrincipal());
 
-        await filter.OnActionExecutionAsync(context, () => Task.FromResult<ActionExecutedContext>(null!));
+        var (_, tenant) = await Run(ResidentPrincipal(), new FakeLicenseAuthorizationService([]), new FakeResidentAuthorizationService(grant));
 
         Assert.Single(tenant.AccessibleLicenseIds!);
         Assert.Contains(grant.LicenseId, tenant.AccessibleLicenseIds!);
@@ -81,11 +75,7 @@ public sealed class TenantScopeActionFilterTests
     [Fact]
     public async Task Resident_WithNoGrant_PopulatesEmptySet_NotNull()
     {
-        var tenant = new CurrentTenantAccessor();
-        var filter = new TenantScopeActionFilter(tenant, new FakeLicenseAuthorizationService([]), new FakeResidentAuthorizationService(null));
-        var context = BuildContext(ResidentPrincipal());
-
-        await filter.OnActionExecutionAsync(context, () => Task.FromResult<ActionExecutedContext>(null!));
+        var (_, tenant) = await Run(ResidentPrincipal(), new FakeLicenseAuthorizationService([]), new FakeResidentAuthorizationService(null));
 
         Assert.NotNull(tenant.AccessibleLicenseIds);
         Assert.Empty(tenant.AccessibleLicenseIds!);
@@ -94,12 +84,9 @@ public sealed class TenantScopeActionFilterTests
     [Fact]
     public async Task UnauthenticatedRequest_LeavesAccessorUnpopulated()
     {
-        var tenant = new CurrentTenantAccessor();
-        var filter = new TenantScopeActionFilter(tenant, new FakeLicenseAuthorizationService([Guid.NewGuid()]), new FakeResidentAuthorizationService(null));
-        var context = BuildContext(new ClaimsPrincipal(new ClaimsIdentity()));
+        var (nextCalled, tenant) = await Run(new ClaimsPrincipal(new ClaimsIdentity()), new FakeLicenseAuthorizationService([Guid.NewGuid()]), new FakeResidentAuthorizationService(null));
 
-        await filter.OnActionExecutionAsync(context, () => Task.FromResult<ActionExecutedContext>(null!));
-
+        Assert.True(nextCalled);
         Assert.Null(tenant.AccessibleLicenseIds);
     }
 }
