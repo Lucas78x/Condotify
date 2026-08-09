@@ -114,8 +114,8 @@ public sealed class LicenseAuthorizationServiceTenantFilterTests : IAsyncLifetim
     [Fact]
     public async Task GetLicensePermissionsAsync_ReturnsLicense_EvenWhenAccessorScopeIsEmpty()
     {
-        // Simula o estado ANTES do TenantScopeActionFilter rodar: nada foi
-        // computado ainda, e e exatamente este metodo que precisa computar.
+        // Simula o estado ANTES do TenantScopePopulationMiddleware rodar: nada
+        // foi computado ainda, e e exatamente este metodo que precisa computar.
         _tenant.SetAccessibleScope([], null);
 
         var authService = new LicenseAuthorizationService(_context);

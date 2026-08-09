@@ -3,8 +3,8 @@ using CondotifyAPI.Domain.Interfaces;
 namespace CondotifyAPI.Domain.Services;
 
 // Uma instancia por requisicao (Scoped, registrada em Program.cs).
-// Populada uma vez, no inicio do pipeline, por TenantScopeActionFilter
-// (Task 5) -- nunca antes disso.
+// Populada uma vez, no inicio do pipeline, por TenantScopePopulationMiddleware
+// (Task 7) -- nunca antes disso.
 public sealed class CurrentTenantAccessor : ICurrentTenantAccessor
 {
     public HashSet<Guid>? AccessibleLicenseIds { get; private set; }
