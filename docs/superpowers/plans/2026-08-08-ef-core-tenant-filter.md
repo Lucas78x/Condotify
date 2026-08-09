@@ -12,7 +12,7 @@
 
 - O filtro nunca deve remover acesso que um usuário já tem hoje — é estritamente uma segunda camada. Qualquer teste que mostre uma consulta existente retornando MENOS dados que antes é uma regressão, não um resultado esperado.
 - `AccessibleLicenseIds == null` (accessor ainda não populado, ou construção fora do pipeline de requisição) deve esconder tudo (fail-closed), nunca revelar tudo.
-- As únicas duas exceções `.IgnoreQueryFilters()` esperadas neste subsistema são as citadas na Task 4 (`LicenseAuthorizationService.GetGrantAsync` e `GetLicensePermissionsAsync`). Qualquer outra ocorrência de `.IgnoreQueryFilters()` introduzida por uma task deste plano é um desvio que precisa de justificativa explícita no relatório da task.
+- As únicas duas exceções `.IgnoreQueryFilters()` esperadas neste subsistema são as citadas na Task 4 (`LicenseAuthorizationService.GetGrantAsync` e `GetLicensePermissionsAsync`). Qualquer outra ocorrência de `.IgnoreQueryFilters()` introduzida por uma task deste plano é um desvio que precisa de justificativa explícita no relatório da task — em particular, os workers de background (Task 2.5) NÃO devem usar `.IgnoreQueryFilters()`; eles usam `ICurrentTenantAccessor.MarkUnrestricted()` no início do próprio escopo, precisamente para não precisar tocar nos serviços compartilhados (`AccessRouteResolver`, `RecycleBinService`, `PlatformPushNotifier`) que também são chamados por controllers HTTP.
 - Lista exata das 29 entidades `ILicenseScoped` (não estimativa — levantada por grep e conferida linha a linha): `AccessRouteDTO`, `AccessOperationAuditDTO`, `AccessBatchOperationDTO`, `AccessInventoryItemDTO`, `AccessEventRecordDTO`, `AmenityDTO`, `AmenityBookingDTO`, `ConfigurationBackupDTO`, `BackupAutomationPolicyDTO`, `BlockDTO`, `DeliveryDTO`, `ResourceDocumentDTO`, `AccessControlDeviceDTO`, `CFTVDeviceDTO`, `BoletoBatchDTO`, `AccessVisitDTO`, `AccessWatchlistEntryDTO`, `RegistrationInviteDTO`, `LicenseCredentialPolicyDTO`, `LicenseUserAccessDTO`, `AlertNotificationPolicyDTO`, `AlertNotificationDeliveryDTO`, `IncidentDTO`, `AutomationRuleDTO`, `AutomationExecutionDTO`, `EmergencySessionDTO`, `DigitalPassDTO`, `RecycleBinItemDTO`, `TicketDTO`. `OperationalAlertDTO` (a 30ª) NÃO está nesta lista — recebe filtro próprio na Task 3.
 - Testes de integração contra banco real (Postgres local, `condotify-postgres`) são deliberados e esperados nas Tasks 4 e 6 — este subsistema é sobre isolamento entre tenants, o risco de um bug aqui é alto o suficiente para justificar sair do padrão usual do repositório (que evita testes de controller com banco real). Cada teste desses cria seus próprios dados com GUIDs únicos e limpa (`RemoveRange` + `SaveChangesAsync`) no fim, em bloco `finally` ou `IAsyncLifetime.DisposeAsync`.
 
@@ -422,6 +422,178 @@ git commit -m "feat(db): apply license-scoped query filter to the 29 ILicenseSco
 
 ---
 
+## Task 2.5: Escopo "sem restrição" para os 13 workers de background
+
+**Por que esta task existe:** a revisão da Task 2 encontrou um problema real que nenhuma task original previa. Os 13 workers registrados como `AddHostedService` em `CondotifyAPI/Program.cs:225-237` criam seu próprio escopo de DI fora do pipeline HTTP (`scopeFactory.CreateScope()`), então `TenantScopeActionFilter` (Task 5) nunca roda para eles — o `ICurrentTenantAccessor` de cada worker fica com `AccessibleLicenseIds = null` para sempre, e o filtro (fail-closed) esconde tudo. Investigação adicional (dois agentes de pesquisa, ver ledger) encontrou **mais de 30 pontos de consulta** afetados nos 13 arquivos de worker, e — mais importante — **três serviços compartilhados** (`AccessRouteResolver`, `RecycleBinService`, `PlatformPushNotifier`) que são chamados tanto por controllers HTTP (onde o filtro TEM que continuar valendo) quanto pelos workers (onde precisa ser ignorado). Adicionar `.IgnoreQueryFilters()` direto nesses três serviços compartilhados seria uma **regressão de segurança** no caminho HTTP — removeria o isolamento entre tenants exatamente onde ele mais importa.
+
+**Desenho da correção:** em vez de `.IgnoreQueryFilters()` espalhado por dezenas de pontos de consulta (incluindo três que não podem receber isso incondicionalmente), o worker marca o **accessor da sua própria instância de `DatabaseContext`** como "sem restrição" uma vez, no início do seu escopo. Como cada requisição HTTP e cada execução de worker tem sua própria instância de `ICurrentTenantAccessor` (ambos são *Scoped*), isso não vaza para o caminho HTTP — é uma propriedade da instância do accessor, não do método chamado. `AccessRouteResolver`/`RecycleBinService`/`PlatformPushNotifier` não precisam de nenhuma alteração: eles simplesmente herdam o comportamento de qualquer `DatabaseContext` que receberem.
+
+**Files:**
+- Modify: `CondotifyAPI.Domain/Interfaces/ICurrentTenantAccessor.cs`
+- Modify: `CondotifyAPI.Domain/Services/CurrentTenantAccessor.cs`
+- Modify: `CondotifyAPI.Infrastructure/DatabaseContext/DatabaseContext.cs`
+- Modify (adicionar `tenant.MarkUnrestricted();` logo após resolver `DatabaseContext` do escopo): `CondotifyAPI/Services/AccessControl/ExpiredCredentialCleanupService.cs`, `CondotifyAPI/Services/AccessControl/CredentialReconciliationWorker.cs`, `CondotifyAPI/Services/AccessControl/AccessEventIngestionWorker.cs`, `CondotifyAPI/Services/AccessControl/DeviceHealthMonitoringWorker.cs`, `CondotifyAPI/Services/CFTV/CftvHealthMonitoringWorker.cs`, `CondotifyAPI/Services/RecycleBin/RecycleBinCleanupService.cs`, `CondotifyAPI/Services/Backups/AutomaticBackupWorker.cs`, `CondotifyAPI/Services/Observability/OperationalAlertWorker.cs`, `CondotifyAPI/Services/Observability/AlertNotificationWorker.cs`, `CondotifyAPI/Services/Mobile/PushNotificationWorker.cs`, `CondotifyAPI/Services/Operations/AutomationRuleEvaluationService.cs` (a classe `AutomationRuleWorker`, não `AutomationRuleEvaluationService`, vive neste arquivo), `CondotifyAPI/Services/Lpr/LprPollingService.cs`
+- Create: `CondotifyAPI.Tests/CurrentTenantAccessorUnrestrictedTests.cs`
+
+**NÃO modificar:** `CondotifyAPI/Services/CFTV/CftvPathReaperWorker.cs` — confirmado por pesquisa que este worker nunca injeta `DatabaseContext`/`IServiceScopeFactory`, só fala com `IMediaGatewayClient` por HTTP. Nada a fazer aqui.
+
+**NÃO modificar:** `AccessRouteResolver.cs`, `RecycleBinService.cs`, `PlatformPushNotifier.cs`, `CredentialReconciliationService.cs`, ou qualquer outro serviço "delegado" chamado pelos workers — o desenho desta task deliberadamente evita tocar neles. Se algum teste mostrar que um desses ainda retorna vazio quando chamado por um worker, o bug está em o worker não ter chamado `MarkUnrestricted()` no `DatabaseContext` certo antes de invocar o serviço, não no serviço em si.
+
+**Interfaces:**
+- Consumes: `ICurrentTenantAccessor`, `CurrentTenantAccessor`, `NullCurrentTenantAccessor` (Task 1), a `DatabaseContext` da Task 2.
+- Produces: `ICurrentTenantAccessor.IsUnrestricted` (bool) + `void MarkUnrestricted()`. Consumido pela Task 3 (o filtro de `OperationalAlertDTO` precisa do mesmo tratamento) e implicitamente por toda consulta feita através de um `DatabaseContext` de worker.
+
+- [ ] **Step 1: Escrever os testes (falham primeiro)**
+
+```csharp
+// CondotifyAPI.Tests/CurrentTenantAccessorUnrestrictedTests.cs
+using CondotifyAPI.Domain.DTO.Delivers;
+using CondotifyAPI.Domain.DTO.Enterprise;
+using CondotifyAPI.Domain.DTO.License;
+using CondotifyAPI.Domain.Interfaces;
+using CondotifyAPI.Domain.Services;
+using CondotifyAPI.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+
+namespace CondotifyAPI.Tests;
+
+public sealed class CurrentTenantAccessorUnrestrictedTests
+{
+    [Fact]
+    public void CurrentTenantAccessor_StartsNotUnrestricted()
+    {
+        var accessor = new CurrentTenantAccessor();
+
+        Assert.False(accessor.IsUnrestricted);
+    }
+
+    [Fact]
+    public void CurrentTenantAccessor_MarkUnrestricted_SetsFlag()
+    {
+        var accessor = new CurrentTenantAccessor();
+
+        accessor.MarkUnrestricted();
+
+        Assert.True(accessor.IsUnrestricted);
+    }
+
+    [Fact]
+    public void NullCurrentTenantAccessor_IsNeverUnrestricted()
+    {
+        Assert.False(NullCurrentTenantAccessor.Instance.IsUnrestricted);
+    }
+
+    [Fact]
+    public void NullCurrentTenantAccessor_MarkUnrestricted_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => NullCurrentTenantAccessor.Instance.MarkUnrestricted());
+    }
+}
+```
+
+E um teste de integração (banco real, mesmo padrão da Task 4/6) provando o comportamento fim-a-fim, adicionado a `CondotifyAPI.Tests/TenantIsolationIntegrationTests.cs` (mesma fixture já criada na Task 6 — se a Task 6 ainda não rodou quando esta task for executada, criar a fixture aqui mesmo, com o mesmo formato já usado nas Tasks 4/6, e a Task 6 reaproveita):
+
+```csharp
+[Fact]
+public async Task UnrestrictedAccessor_SeesAllLicensesRegardlessOfAccessibleSet()
+{
+    // Simula um worker: nunca chama SetAccessibleScope, so MarkUnrestricted.
+    _tenant.MarkUnrestricted();
+
+    var visible = await _context.Deliveries
+        .Where(x => x.Id == _accessibleDeliveryId || x.Id == _inaccessibleDeliveryId)
+        .ToListAsync();
+
+    var visibleIds = visible.Select(x => x.Id).ToHashSet();
+    Assert.Contains(_accessibleDeliveryId, visibleIds);
+    Assert.Contains(_inaccessibleDeliveryId, visibleIds);
+}
+```
+
+(Se esta task rodar antes da Task 6 existir, crie `CondotifyAPI.Tests/TenantIsolationIntegrationTests.cs` com a fixture completa como descrita na Task 6 deste mesmo plano — leia a Task 6 abaixo para o `InitializeAsync`/`DisposeAsync` exatos antes de duplicar esforço.)
+
+- [ ] **Step 2: Rodar e confirmar falha**
+
+Run: `dotnet test CondotifyAPI.Tests --filter "FullyQualifiedName~CurrentTenantAccessorUnrestrictedTests"`
+Expected: FAIL — `IsUnrestricted`/`MarkUnrestricted` ainda não existem.
+
+- [ ] **Step 3: Estender `ICurrentTenantAccessor` e as duas implementações**
+
+Em `CondotifyAPI.Domain/Interfaces/ICurrentTenantAccessor.cs`, adicionar à interface:
+
+```csharp
+    bool IsUnrestricted { get; }
+    void MarkUnrestricted();
+```
+
+Em `CondotifyAPI.Domain/Services/CurrentTenantAccessor.cs`, em `CurrentTenantAccessor`:
+
+```csharp
+    public bool IsUnrestricted { get; private set; }
+    public void MarkUnrestricted() => IsUnrestricted = true;
+```
+
+E em `NullCurrentTenantAccessor`:
+
+```csharp
+    public bool IsUnrestricted => false;
+    public void MarkUnrestricted() =>
+        throw new InvalidOperationException("NullCurrentTenantAccessor e somente leitura (usado fora do pipeline de requisicao HTTP).");
+```
+
+- [ ] **Step 4: Atualizar o filtro em `DatabaseContext.cs` para checar `IsUnrestricted`**
+
+Em `SetLicenseScopedFilter<TEntity>` (adicionada na Task 2), trocar:
+
+```csharp
+        modelBuilder.Entity<TEntity>().HasQueryFilter(x =>
+            _tenant.AccessibleLicenseIds != null && _tenant.AccessibleLicenseIds.Contains(x.LicenseId));
+```
+
+por:
+
+```csharp
+        modelBuilder.Entity<TEntity>().HasQueryFilter(x =>
+            _tenant.IsUnrestricted || (_tenant.AccessibleLicenseIds != null && _tenant.AccessibleLicenseIds.Contains(x.LicenseId)));
+```
+
+- [ ] **Step 5: Marcar cada worker como "sem restrição" no início do seu escopo**
+
+Para cada um dos 12 arquivos de worker listados em **Files** (todos os 13 registrados em `Program.cs`, exceto `CftvPathReaperWorker`), localizar onde o escopo de DI é criado — o padrão já confirmado (idêntico em `RecycleBinCleanupService.cs:22-23`) é:
+
+```csharp
+using var scope = scopeFactory.CreateScope();
+var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+```
+
+Logo depois dessa linha (antes de qualquer consulta), adicionar:
+
+```csharp
+scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
+```
+
+Ler cada arquivo antes de editar — a maioria segue esse padrão exato, mas confirme a variável real usada para o escopo (`scope` vs outro nome) e o ponto exato antes de inserir. Para os dois workers cuja lógica real vive numa classe "delegada" no mesmo arquivo (`AutomationRuleEvaluationService.cs`: a classe `AutomationRuleWorker` cria o escopo; `OperationalAlertWorker.cs`/`LprPollingService.cs`: idem), o `MarkUnrestricted()` vai no ponto onde o `BackgroundService` (não o delegado) cria o escopo — a instância de `DatabaseContext`/`ICurrentTenantAccessor` resolvida ali é a mesma passada adiante para `OperationalAlertEvaluationService`/`AutomationRuleEvaluationService`/`LprDeviceProcessor`, então marcar uma vez no ponto de criação do escopo cobre tudo que é chamado a partir dali.
+
+- [ ] **Step 6: Rodar os testes de novo**
+
+Run: `dotnet test CondotifyAPI.Tests --filter "FullyQualifiedName~CurrentTenantAccessorUnrestrictedTests|FullyQualifiedName~UnrestrictedAccessor_SeesAllLicensesRegardlessOfAccessibleSet"`
+Expected: PASS.
+
+- [ ] **Step 7: Build + suíte completa**
+
+Run: `dotnet build CondotifyAPI/CondotifyAPI.csproj -o /tmp/tenantfilter-task2b-check && rm -rf /tmp/tenantfilter-task2b-check`
+Run: `dotnet test CondotifyAPI.Tests`
+Expected: build limpo, toda a suíte passa.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add CondotifyAPI.Domain/Interfaces/ICurrentTenantAccessor.cs CondotifyAPI.Domain/Services/CurrentTenantAccessor.cs CondotifyAPI.Infrastructure/DatabaseContext/DatabaseContext.cs CondotifyAPI/Services/AccessControl/ExpiredCredentialCleanupService.cs CondotifyAPI/Services/AccessControl/CredentialReconciliationWorker.cs CondotifyAPI/Services/AccessControl/AccessEventIngestionWorker.cs CondotifyAPI/Services/AccessControl/DeviceHealthMonitoringWorker.cs CondotifyAPI/Services/CFTV/CftvHealthMonitoringWorker.cs CondotifyAPI/Services/RecycleBin/RecycleBinCleanupService.cs CondotifyAPI/Services/Backups/AutomaticBackupWorker.cs CondotifyAPI/Services/Observability/OperationalAlertWorker.cs CondotifyAPI/Services/Observability/AlertNotificationWorker.cs CondotifyAPI/Services/Mobile/PushNotificationWorker.cs CondotifyAPI/Services/Operations/AutomationRuleEvaluationService.cs CondotifyAPI/Services/Lpr/LprPollingService.cs CondotifyAPI.Tests/CurrentTenantAccessorUnrestrictedTests.cs CondotifyAPI.Tests/TenantIsolationIntegrationTests.cs
+git commit -m "fix(api): let background workers mark their own scope unrestricted instead of filtering out their data"
+```
+
+---
+
 ## Task 3: Filtro especial de `OperationalAlertDTO`
 
 **Files:**
@@ -429,7 +601,7 @@ git commit -m "feat(db): apply license-scoped query filter to the 29 ILicenseSco
 - Modify: `CondotifyAPI.Tests/LicenseScopedFilterModelTests.cs`
 
 **Interfaces:**
-- Consumes: `ICurrentTenantAccessor` (Task 1), passado à classe de configuração via construtor.
+- Consumes: `ICurrentTenantAccessor` (Task 1), passado à classe de configuração via construtor. Também consome `IsUnrestricted` (Task 2.5) — o filtro abaixo já inclui o bypass de worker desde o início, para não precisar de um terceiro patch quando os workers que leem `OperationalAlertDTO` (`AlertNotificationWorker`, `OperationalAlertWorker`/`OperationalAlertEvaluationService`, `LprPollingService`/`LprDeviceProcessor`) forem marcados como sem restrição na Task 2.5.
 
 - [ ] **Step 1: Escrever o teste (falha primeiro)**
 
@@ -466,8 +638,9 @@ public sealed class OperationalAlertConfiguration(CondotifyAPI.Domain.Interfaces
         // ... (todo o conteudo existente do metodo Configure permanece igual, sem remover nada) ...
 
         builder.HasQueryFilter(x =>
-            x.EnterpriseId == tenant.AccessibleEnterpriseId &&
-            (x.LicenseId == null || (tenant.AccessibleLicenseIds != null && tenant.AccessibleLicenseIds.Contains(x.LicenseId.Value))));
+            tenant.IsUnrestricted ||
+            (x.EnterpriseId == tenant.AccessibleEnterpriseId &&
+             (x.LicenseId == null || (tenant.AccessibleLicenseIds != null && tenant.AccessibleLicenseIds.Contains(x.LicenseId.Value)))));
     }
 }
 ```
