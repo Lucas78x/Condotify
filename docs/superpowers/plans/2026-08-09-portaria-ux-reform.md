@@ -330,14 +330,23 @@ public sealed class DeliveryPhotoTests : IAsyncLifetime
         _context.Licenses.Where(x => x.Id == _licenseId).ExecuteDelete();
         _context.Enterprises.Where(x => x.Id == _enterpriseId).ExecuteDelete();
         await _context.DisposeAsync();
+        if (Directory.Exists(_mediaRoot)) Directory.Delete(_mediaRoot, recursive: true);
     }
 
     private const string OnePixelPngDataUri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    private readonly string _mediaRoot = Path.Combine(Path.GetTempPath(), $"condotify-media-tests-{Guid.NewGuid():N}");
+
+    private PrivateMediaStore BuildMediaStore()
+    {
+        Environment.SetEnvironmentVariable("CONDOTIFY_MEDIA_SECRET", "test-media-secret-with-enough-entropy");
+        Environment.SetEnvironmentVariable("CONDOTIFY_PRIVATE_MEDIA_PATH", _mediaRoot);
+        return new PrivateMediaStore(new ConfigurationBuilder().Build());
+    }
 
     [Fact]
     public async Task CreateDeliveryCore_WithPhotoBase64_StoresPhotoUrlViaMediaStore()
     {
-        var media = new LocalDiskMediaStore();
+        var media = BuildMediaStore();
         var input = new CreateDeliveryIn { Name = "Encomenda com foto", PhotoBase64 = OnePixelPngDataUri };
 
         var delivery = await LicenseStructureController.CreateDeliveryCore(_context, media, _licenseId, input, CancellationToken.None);
@@ -349,7 +358,7 @@ public sealed class DeliveryPhotoTests : IAsyncLifetime
     [Fact]
     public async Task CreateDeliveryCore_WithoutPhoto_LeavesPhotoUrlEmpty()
     {
-        var media = new LocalDiskMediaStore();
+        var media = BuildMediaStore();
         var input = new CreateDeliveryIn { Name = "Encomenda sem foto" };
 
         var delivery = await LicenseStructureController.CreateDeliveryCore(_context, media, _licenseId, input, CancellationToken.None);
@@ -359,7 +368,7 @@ public sealed class DeliveryPhotoTests : IAsyncLifetime
 }
 ```
 
-Antes de escrever isto, ler `CondotifyAPI/Services/Security/PrivateMediaStore.cs` para confirmar o nome exato da implementação usada em testes (`LocalDiskMediaStore` é um palpite razoável dado o padrão de nomes do projeto — confirme e ajuste o teste se o nome real for outro; o construtor pode exigir parâmetros, ajuste conforme necessário. Se a classe real não puder ser instanciada facilmente fora de DI, use a implementação real registrada em `Program.cs` — `AddSingleton<IPrivateMediaStore, PrivateMediaStore>()` — e adapte o nome no teste).
+`PrivateMediaStore` (a classe concreta real, não uma interface fake) exige um `IConfiguration` no construtor e as variáveis de ambiente `CONDOTIFY_MEDIA_SECRET`/`CONDOTIFY_PRIVATE_MEDIA_PATH` (senão lança `InvalidOperationException`) — o padrão acima (`BuildMediaStore`, com `ConfigurationBuilder().Build()` vazio) é copiado verbatim do teste já existente `CondotifyAPI.Tests/SecurityServicesTests.cs` (~linha 126-129), que já exercita esta mesma classe com sucesso. Adicionar `using Microsoft.Extensions.Configuration;` ao topo do arquivo de teste.
 
 - [ ] **Step 2: Rodar e confirmar falha**
 
