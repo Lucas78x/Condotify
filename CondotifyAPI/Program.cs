@@ -276,6 +276,7 @@ app.UseSerilogRequestLogging(options =>
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+    scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
     db.Database.Migrate();
 
     var legacyAccessDevices = await db.Devices
