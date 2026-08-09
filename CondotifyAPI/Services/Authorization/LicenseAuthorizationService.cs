@@ -38,9 +38,14 @@ public sealed class LicenseAuthorizationService : ILicenseAuthorizationService
     public async Task<LicenseAccessGrant?> GetGrantAsync(ClaimsPrincipal principal, Guid licenseId, CancellationToken cancellationToken = default)
     {
         if (!TryUser(principal, out var userId, out var enterpriseId)) return null;
-        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId && x.EnterpriseId == enterpriseId, cancellationToken);
+        // IgnoreQueryFilters() deliberado: este metodo CALCULA o conjunto de
+        // licencas acessiveis que o filtro global usa. Sem isso, a consulta
+        // dependeria circularmente do resultado que ainda nao existe.
+        // Unicas duas excecoes esperadas neste projeto -- ver
+        // docs/superpowers/plans/2026-08-08-ef-core-tenant-filter.md.
+        var user = await _context.Users.AsNoTracking().IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == userId && x.EnterpriseId == enterpriseId, cancellationToken);
         if (user is null) return null;
-        if (!await _context.Licenses.AsNoTracking().AnyAsync(x => x.Id == licenseId && x.EnterpriseId == enterpriseId, cancellationToken)) return null;
+        if (!await _context.Licenses.AsNoTracking().IgnoreQueryFilters().AnyAsync(x => x.Id == licenseId && x.EnterpriseId == enterpriseId, cancellationToken)) return null;
 
         if (user.AccessType is AccessTypeEnum.Developer or AccessTypeEnum.Admin)
             return new LicenseAccessGrant(licenseId, userId, LicenseAccessRoleEnum.Administrator, LicensePermissionEnum.All, true);
@@ -65,19 +70,24 @@ public sealed class LicenseAuthorizationService : ILicenseAuthorizationService
         if (!TryUser(principal, out var userId, out var enterpriseId))
             return new Dictionary<Guid, LicensePermissionEnum>();
 
-        var user = await _context.Users.AsNoTracking()
+        // IgnoreQueryFilters() deliberado: este metodo CALCULA o conjunto de
+        // licencas acessiveis que o filtro global usa. Sem isso, a consulta
+        // dependeria circularmente do resultado que ainda nao existe.
+        // Unicas duas excecoes esperadas neste projeto -- ver
+        // docs/superpowers/plans/2026-08-08-ef-core-tenant-filter.md.
+        var user = await _context.Users.AsNoTracking().IgnoreQueryFilters()
             .FirstOrDefaultAsync(x => x.Id == userId && x.EnterpriseId == enterpriseId, cancellationToken);
         if (user is null)
             return new Dictionary<Guid, LicensePermissionEnum>();
 
         if (user.AccessType is AccessTypeEnum.Developer or AccessTypeEnum.Admin)
         {
-            return await _context.Licenses.AsNoTracking()
+            return await _context.Licenses.AsNoTracking().IgnoreQueryFilters()
                 .Where(x => x.EnterpriseId == enterpriseId)
                 .ToDictionaryAsync(x => x.Id, _ => LicensePermissionEnum.All, cancellationToken);
         }
 
-        var grants = await _context.LicenseUserAccesses.AsNoTracking()
+        var grants = await _context.LicenseUserAccesses.AsNoTracking().IgnoreQueryFilters()
             .Where(x => x.UserId == userId && x.IsActive && x.License.EnterpriseId == enterpriseId)
             .Select(x => new { x.LicenseId, x.Permissions })
             .ToListAsync(cancellationToken);
