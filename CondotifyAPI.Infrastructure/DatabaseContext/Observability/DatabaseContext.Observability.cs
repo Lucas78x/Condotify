@@ -10,9 +10,9 @@ public partial class DatabaseContext
     public DbSet<AlertNotificationPolicyDTO> AlertNotificationPolicies { get; set; }
     public DbSet<AlertNotificationDeliveryDTO> AlertNotificationDeliveries { get; set; }
 
-    internal static void ObservabilityEntityConfiguration(ModelBuilder builder)
+    internal void ObservabilityEntityConfiguration(ModelBuilder builder)
     {
-        builder.ApplyConfiguration(new OperationalAlertConfiguration());
+        builder.ApplyConfiguration(new OperationalAlertConfiguration(_tenant));
         builder.ApplyConfiguration(new AlertNotificationPolicyConfiguration());
         builder.ApplyConfiguration(new AlertNotificationDeliveryConfiguration());
     }

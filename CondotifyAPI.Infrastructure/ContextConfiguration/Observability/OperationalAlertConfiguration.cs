@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace CondotifyAPI.Infrastructure.ContextConfiguration.Observability;
 
-public sealed class OperationalAlertConfiguration : IEntityTypeConfiguration<OperationalAlertDTO>
+public sealed class OperationalAlertConfiguration(CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor tenant) : IEntityTypeConfiguration<OperationalAlertDTO>
 {
     public void Configure(EntityTypeBuilder<OperationalAlertDTO> builder)
     {
@@ -37,6 +37,11 @@ public sealed class OperationalAlertConfiguration : IEntityTypeConfiguration<Ope
         builder.HasIndex(x => new { x.EnterpriseId, x.Fingerprint }).IsUnique();
         builder.HasIndex(x => new { x.EnterpriseId, x.Status, x.Severity, x.LastOccurredAt });
         builder.HasIndex(x => new { x.LicenseId, x.Status, x.LastOccurredAt });
+
+        builder.HasQueryFilter(x =>
+            tenant.IsUnrestricted ||
+            (x.EnterpriseId == tenant.AccessibleEnterpriseId &&
+             (x.LicenseId == null || (tenant.AccessibleLicenseIds != null && tenant.AccessibleLicenseIds.Contains(x.LicenseId.Value)))));
     }
 }
 

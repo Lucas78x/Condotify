@@ -56,4 +56,15 @@ public sealed class LicenseScopedFilterModelTests
         Assert.Equal(29, licenseScopedTypes.Count);
         Assert.All(licenseScopedTypes, entityType => Assert.NotNull(entityType.GetQueryFilter()));
     }
+
+    [Fact]
+    public void OperationalAlertDTO_HasAQueryFilterRegistered()
+    {
+        using var context = CreateContext();
+        var entityType = context.Model.FindEntityType(typeof(OperationalAlertDTO));
+
+        Assert.NotNull(entityType);
+        Assert.False(typeof(ILicenseScoped).IsAssignableFrom(typeof(OperationalAlertDTO)), "OperationalAlertDTO nao deve implementar ILicenseScoped (LicenseId e anulavel).");
+        Assert.NotNull(entityType!.GetQueryFilter());
+    }
 }
