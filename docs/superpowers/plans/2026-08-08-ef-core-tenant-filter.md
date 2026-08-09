@@ -1260,9 +1260,437 @@ git commit -m "test(api): end-to-end proof the tenant filter isolates licenses w
 
 ---
 
+## Task 7: Corrigir dois gaps críticos achados na revisão final de todo o branch
+
+**Por que esta task existe:** a revisão final de todo o branch (Tasks 1-6 combinadas, modelo mais capaz disponível) achou dois defeitos Críticos que nenhuma revisão por task poderia ter achado, porque cada uma olhou só para o próprio diff:
+
+1. **`TenantScopeActionFilter` roda tarde demais.** É um `IAsyncActionFilter` do MVC. O pipeline de filtros do MVC roda Authorization filters ANTES de Action filters. `RequireLicensePermissionAttribute`/`LicensePermissionFilter` é um `IAsyncAuthorizationFilter` — usado em 122 rotas em 17 controllers — e chama `LicenseAuthorizationService.GetGrantAsync`, que por sua vez consulta `LicenseUserAccesses` (`ILicenseScoped`) sem `.IgnoreQueryFilters()`. Resultado: para qualquer usuário não-Admin/Developer, o accessor ainda está vazio quando essa consulta roda → filtro global esconde a linha → `GetGrantAsync` retorna `null` → `ForbidResult` (403) em toda rota protegida por `[RequireLicensePermission]`, para todo usuário que não seja Admin/Developer da enterprise. Endpoints anônimos/públicos com token de URL (nenhum principal autenticado) nunca são cobertos por este filtro de qualquer forma — ver item 2.
+2. **Fluxos anônimos autenticados por token de URL, não por JWT, quebram porque nunca há um principal para o accessor derivar escopo.** Quatro endpoints fazem consultas que atravessam entidades `ILicenseScoped` (diretamente ou via `Include`/navegação com JOIN obrigatório) sem nenhum `.IgnoreQueryFilters()`, e como o request é `[AllowAnonymous]` (sem principal autenticado), o accessor nunca é populado — mesmo depois do fix do item 1 — e a consulta retorna vazio:
+   - `ResidentAuthController.Login` (`CondotifyAPI/Controllers/ResidentAuthController.cs`) — login de morador quebrado (100%).
+   - `SessionController.MintResidentAccessTokenAsync` (`CondotifyAPI/Controllers/SessionController.cs`) — refresh de sessão de morador quebrado (100%).
+   - `PublicRegistrationController.FindInviteAsync` (`CondotifyAPI/Controllers/PublicRegistrationController.cs`) — aceitar convite de cadastro quebrado (100%).
+   - `DigitalPassesController.Public` e `.Apple` (`CondotifyAPI/Controllers/DigitalPassesController.cs`) — link público de passe e Apple Wallet quebrados (100%).
+
+   Estes quatro são, pela mesma lógica já aceita para `LicenseAuthorizationService` (a "excecao das duas" da Task 4): consultas que ESTABELECEM a identidade do chamador a partir de um segredo (senha, token de URL) — não podem depender de um escopo de tenant que só existe DEPOIS que a identidade é conhecida. É a mesma classe de circularidade, em um lugar diferente.
+
+   Ambos os defeitos falham fechado (nenhum vazamento cross-tenant), mas são quebras totais de disponibilidade em fluxos centrais: nenhum morador consegue logar, nenhum síndico/porteiro/zelador não-admin consegue usar qualquer rota protegida por permissão, nenhum convite ou passe público funciona.
+
+**Correção estrutural escolhida:** mover a população do accessor de um MVC action filter para middleware do ASP.NET Core, registrado logo após `app.UseAuthentication()` e antes de `app.UseAuthorization()`. Middleware roda antes de QUALQUER filtro do MVC (Authorization, Resource, Action) e antes de endpoints minimal API — resolve o item 1 pela raiz, não só para `RequireLicensePermissionAttribute`, e cobre qualquer minimal API futura que venha a consultar uma entidade `ILicenseScoped`. Adicionalmente, mantemos o `.IgnoreQueryFilters()` na consulta de `LicenseUserAccesses` dentro de `GetGrantAsync` como defesa em profundidade (mesmo raciocínio já usado nas outras consultas do mesmo método) — não depende do middleware para estar correto.
+
+**Files:**
+- Delete: `CondotifyAPI/Services/Authorization/TenantScopeActionFilter.cs`
+- Create: `CondotifyAPI/Services/Authorization/TenantScopePopulationMiddleware.cs`
+- Modify: `CondotifyAPI/Program.cs`
+- Modify: `CondotifyAPI/Services/Authorization/LicenseAuthorizationService.cs`
+- Modify: `CondotifyAPI/Controllers/ResidentAuthController.cs`
+- Modify: `CondotifyAPI/Controllers/SessionController.cs`
+- Modify: `CondotifyAPI/Controllers/PublicRegistrationController.cs`
+- Modify: `CondotifyAPI/Controllers/DigitalPassesController.cs`
+- Delete: `CondotifyAPI.Tests/TenantScopeActionFilterTests.cs`
+- Create: `CondotifyAPI.Tests/TenantScopePopulationMiddlewareTests.cs`
+- Create: `CondotifyAPI.Tests/RequireLicensePermissionCrossFilterStageTests.cs`
+
+**Interfaces:**
+- Consumes: `ICurrentTenantAccessor`, `ILicenseAuthorizationService`, `IResidentAuthorizationService` (todas já existentes, inalteradas).
+- Produces: `TenantScopePopulationMiddleware`, registrado como middleware global. Substitui `TenantScopeActionFilter` (que deixa de existir).
+
+- [ ] **Step 1: Escrever os testes da nova middleware (falham primeiro — a classe ainda não existe)**
+
+```csharp
+// CondotifyAPI.Tests/TenantScopePopulationMiddlewareTests.cs
+using System.Security.Claims;
+using CondotifyAPI.Domain.Interfaces;
+using CondotifyAPI.Domain.Services;
+using CondotifyAPI.Services.Authorization;
+using Microsoft.AspNetCore.Http;
+
+namespace CondotifyAPI.Tests;
+
+public sealed class TenantScopePopulationMiddlewareTests
+{
+    private sealed class FakeLicenseAuthorizationService(HashSet<Guid> ids) : ILicenseAuthorizationService
+    {
+        public Task<LicenseAccessGrant?> GetGrantAsync(ClaimsPrincipal principal, Guid licenseId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> HasPermissionAsync(ClaimsPrincipal principal, Guid licenseId, LicensePermissionEnum permission, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HashSet<Guid>> GetAccessibleLicenseIdsAsync(ClaimsPrincipal principal, CancellationToken cancellationToken = default) => Task.FromResult(ids);
+        public Task<IReadOnlyDictionary<Guid, LicensePermissionEnum>> GetLicensePermissionsAsync(ClaimsPrincipal principal, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HashSet<Guid>> GetLicenseIdsWithPermissionAsync(ClaimsPrincipal principal, LicensePermissionEnum permission, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class FakeResidentAuthorizationService(ResidentAccessGrant? grant) : IResidentAuthorizationService
+    {
+        public Task<ResidentAccessGrant?> GetGrantAsync(ClaimsPrincipal principal, CancellationToken cancellationToken = default) => Task.FromResult(grant);
+        public Task<bool> CanAccessUnitAsync(ClaimsPrincipal principal, Guid unitId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private static ClaimsPrincipal StaffPrincipal(Guid enterpriseId) => new(new ClaimsIdentity(
+    [
+        new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+        new Claim("enterprise_id", enterpriseId.ToString()),
+        new Claim("principal_type", "user")
+    ], "TestAuth"));
+
+    private static ClaimsPrincipal ResidentPrincipal() => new(new ClaimsIdentity(
+    [
+        new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+        new Claim("principal_type", "resident")
+    ], "TestAuth"));
+
+    private static async Task<(bool nextCalled, CurrentTenantAccessor tenant)> Run(
+        ClaimsPrincipal user, ILicenseAuthorizationService licenseAuth, IResidentAuthorizationService residentAuth)
+    {
+        var tenant = new CurrentTenantAccessor();
+        var httpContext = new DefaultHttpContext { User = user };
+        var middleware = new TenantScopePopulationMiddleware(_ => Task.CompletedTask);
+        var nextCalled = false;
+        await middleware.InvokeAsync(httpContext, tenant, licenseAuth, residentAuth, async () => { nextCalled = true; await Task.CompletedTask; });
+        return (nextCalled, tenant);
+    }
+
+    [Fact]
+    public async Task Staff_PopulatesAccessorFromLicenseAuthorizationService()
+    {
+        var enterpriseId = Guid.NewGuid();
+        var licenseIds = new HashSet<Guid> { Guid.NewGuid(), Guid.NewGuid() };
+
+        var (nextCalled, tenant) = await Run(StaffPrincipal(enterpriseId), new FakeLicenseAuthorizationService(licenseIds), new FakeResidentAuthorizationService(null));
+
+        Assert.True(nextCalled);
+        Assert.Equal(licenseIds, tenant.AccessibleLicenseIds);
+        Assert.Equal(enterpriseId, tenant.AccessibleEnterpriseId);
+    }
+
+    [Fact]
+    public async Task Resident_PopulatesAccessorWithOwnLicenseOnly()
+    {
+        var grant = new ResidentAccessGrant(Guid.NewGuid(), Guid.NewGuid(), [Guid.NewGuid()], ResidentAccessTypeEnum.Responsible, true);
+
+        var (_, tenant) = await Run(ResidentPrincipal(), new FakeLicenseAuthorizationService([]), new FakeResidentAuthorizationService(grant));
+
+        Assert.Single(tenant.AccessibleLicenseIds!);
+        Assert.Contains(grant.LicenseId, tenant.AccessibleLicenseIds!);
+        Assert.Null(tenant.AccessibleEnterpriseId);
+    }
+
+    [Fact]
+    public async Task Resident_WithNoGrant_PopulatesEmptySet_NotNull()
+    {
+        var (_, tenant) = await Run(ResidentPrincipal(), new FakeLicenseAuthorizationService([]), new FakeResidentAuthorizationService(null));
+
+        Assert.NotNull(tenant.AccessibleLicenseIds);
+        Assert.Empty(tenant.AccessibleLicenseIds!);
+    }
+
+    [Fact]
+    public async Task UnauthenticatedRequest_LeavesAccessorUnpopulated()
+    {
+        var (nextCalled, tenant) = await Run(new ClaimsPrincipal(new ClaimsIdentity()), new FakeLicenseAuthorizationService([Guid.NewGuid()]), new FakeResidentAuthorizationService(null));
+
+        Assert.True(nextCalled);
+        Assert.Null(tenant.AccessibleLicenseIds);
+    }
+}
+```
+
+Isto assume que `TenantScopePopulationMiddleware.InvokeAsync` aceita um parâmetro extra `Func<Task> next` além da assinatura convencional `HttpContext, RequestDelegate` — ver Step 3 abaixo para o motivo (facilita testar sem precisar de um `RequestDelegate` real). Ajustar a assinatura do teste acima se a assinatura real da Step 3 divergir ligeiramente (o importante é: consegue instanciar sem ASP.NET Core hosting completo, consegue verificar se `next` foi chamado, consegue inspecionar o `tenant` depois).
+
+- [ ] **Step 2: Rodar e confirmar falha**
+
+Run: `dotnet test CondotifyAPI.Tests --filter "FullyQualifiedName~TenantScopePopulationMiddlewareTests"`
+Expected: FAIL — a classe ainda não existe.
+
+- [ ] **Step 3: Implementar `TenantScopePopulationMiddleware`, apagar `TenantScopeActionFilter`**
+
+```csharp
+// CondotifyAPI/Services/Authorization/TenantScopePopulationMiddleware.cs
+using System.Security.Claims;
+using CondotifyAPI.Domain.Interfaces;
+using Microsoft.AspNetCore.Http;
+
+namespace CondotifyAPI.Services.Authorization;
+
+// Middleware global (registrado em Program.cs logo apos UseAuthentication(), antes de
+// UseAuthorization()) que popula o ICurrentTenantAccessor escopado por requisicao.
+// Substitui um IAsyncActionFilter anterior (TenantScopeActionFilter) que rodava tarde
+// demais no pipeline: filtros de Authorization do MVC (ex.: RequireLicensePermissionAttribute)
+// rodam ANTES de Action filters, entao qualquer consulta feita durante a autorizacao via MVC
+// via um accessor ainda vazio. Middleware roda antes de QUALQUER filtro do MVC e antes de
+// endpoints minimal API -- ver docs/superpowers/plans/2026-08-08-ef-core-tenant-filter.md, Task 7.
+// Endpoints [AllowAnonymous] continuam sem escopo algum (accessor fica nulo) -- consultas que
+// precisam rodar sem um principal autenticado (login de morador, aceitar convite, passe publico)
+// usam .IgnoreQueryFilters() explicitamente no proprio controller, pela mesma razao que
+// LicenseAuthorizationService usa: elas ESTABELECEM a identidade, nao podem depender de um
+// escopo que so existe depois que a identidade e conhecida.
+public sealed class TenantScopePopulationMiddleware(RequestDelegate next)
+{
+    public Task InvokeAsync(HttpContext context) =>
+        InvokeAsync(
+            context,
+            context.RequestServices.GetRequiredService<ICurrentTenantAccessor>(),
+            context.RequestServices.GetRequiredService<ILicenseAuthorizationService>(),
+            context.RequestServices.GetRequiredService<IResidentAuthorizationService>(),
+            () => next(context));
+
+    internal async Task InvokeAsync(
+        HttpContext context,
+        ICurrentTenantAccessor tenant,
+        ILicenseAuthorizationService licenseAuth,
+        IResidentAuthorizationService residentAuth,
+        Func<Task> next)
+    {
+        var user = context.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var principalType = user.FindFirstValue("principal_type");
+            if (principalType == "resident")
+            {
+                var grant = await residentAuth.GetGrantAsync(user, context.RequestAborted);
+                tenant.SetAccessibleScope(grant is null ? [] : [grant.LicenseId], null);
+            }
+            else
+            {
+                var ids = await licenseAuth.GetAccessibleLicenseIdsAsync(user, context.RequestAborted);
+                var enterpriseId = Guid.TryParse(user.FindFirstValue("enterprise_id"), out var eid) ? eid : (Guid?)null;
+                tenant.SetAccessibleScope(ids, enterpriseId);
+            }
+        }
+
+        await next();
+    }
+}
+```
+
+(`using Microsoft.Extensions.DependencyInjection;` para `GetRequiredService` — conferir ao compilar.)
+
+Apagar `CondotifyAPI/Services/Authorization/TenantScopeActionFilter.cs` e `CondotifyAPI.Tests/TenantScopeActionFilterTests.cs` (substituídos pelos arquivos acima).
+
+- [ ] **Step 4: Atualizar `Program.cs`**
+
+Remover as duas linhas da Task 5 (registro do filtro MVC):
+```csharp
+builder.Services.AddScoped<CondotifyAPI.Services.Authorization.TenantScopeActionFilter>();
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
+    options.Filters.AddService<CondotifyAPI.Services.Authorization.TenantScopeActionFilter>());
+```
+
+`ICurrentTenantAccessor` continua registrado (linha da Task 2, não mexer).
+
+Logo após `app.UseAuthentication();` (linha 323 hoje) e antes de `app.UseAuthorization();` (linha 324 hoje), adicionar:
+```csharp
+app.UseMiddleware<CondotifyAPI.Services.Authorization.TenantScopePopulationMiddleware>();
+```
+
+- [ ] **Step 5: Rodar os testes da middleware de novo**
+
+Run: `dotnet test CondotifyAPI.Tests --filter "FullyQualifiedName~TenantScopePopulationMiddlewareTests"`
+Expected: PASS (4/4).
+
+- [ ] **Step 6: Defesa em profundidade em `GetGrantAsync` — consulta de `LicenseUserAccesses`**
+
+Em `CondotifyAPI/Services/Authorization/LicenseAuthorizationService.cs`, a linha (hoje):
+```csharp
+        var access = await _context.LicenseUserAccesses.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.LicenseId == licenseId && x.UserId == userId && x.IsActive, cancellationToken);
+```
+
+Passa a:
+```csharp
+        // IgnoreQueryFilters() deliberado, defesa em profundidade: mesmo com o middleware
+        // (Task 7) garantindo que o accessor esta populado antes de qualquer filtro do MVC
+        // rodar, esta consulta já filtra explicitamente por licenseId+userId — o filtro global
+        // aqui só poderia CONFIRMAR o que a query já garante, nunca vazar outro tenant.
+        var access = await _context.LicenseUserAccesses.AsNoTracking().IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.LicenseId == licenseId && x.UserId == userId && x.IsActive, cancellationToken);
+```
+
+Atualizar os dois comentários existentes em `GetGrantAsync` (linha ~41-45) e `GetLicensePermissionsAsync` (linha ~73-77) que dizem "Unicas duas excecoes esperadas neste projeto" — esse número está desatualizado desde antes desta task (são 5 chamadas de `.IgnoreQueryFilters()` neste arquivo, embora 3 sejam sobre `Users`/`Licenses`, que nunca tiveram filtro de qualquer forma, e agora mais uma nesta step). Trocar por algo como:
+
+```csharp
+        // IgnoreQueryFilters() deliberado: este metodo CALCULA o conjunto de licencas
+        // acessiveis que o filtro global usa (ou, para GetGrantAsync, confirma acesso a
+        // uma licenca especifica ja indicada explicitamente pelo chamador). Cada uso de
+        // IgnoreQueryFilters() neste arquivo (ver LicenseAuthorizationService.cs por
+        // inteiro) e um destes dois casos -- nunca uma consulta de listagem sem filtro
+        // explicito equivalente. Ver docs/superpowers/plans/2026-08-08-ef-core-tenant-filter.md,
+        // Tasks 4 e 7.
+```
+
+(Aplicar o mesmo texto de comentário nos dois lugares, mantendo o texto específico de cada método fora deste bloco se já houver.)
+
+- [ ] **Step 7: `.IgnoreQueryFilters()` nos quatro endpoints anônimos autenticados por token**
+
+Em `CondotifyAPI/Controllers/ResidentAuthController.cs`, método `Login`, a consulta (hoje):
+```csharp
+            : await _context.Residents
+                .Include(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
+                .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
+                .FirstOrDefaultAsync(x => x.Email.ToLower() == email, cancellationToken);
+```
+Passa a (adicionar `.IgnoreQueryFilters()` logo depois de `_context.Residents`, com um comentário de uma linha acima explicando por quê — este endpoint é `[AllowAnonymous]`, não há principal para derivar escopo, e a consulta já é restrita a um email especifico, não uma listagem):
+```csharp
+            // IgnoreQueryFilters() deliberado: login e AllowAnonymous, nao ha principal
+            // para popular o accessor. A consulta ja e restrita a um email especifico
+            // (nao uma listagem) -- ver Task 7 do plano de filtro de tenant.
+            : await _context.Residents.IgnoreQueryFilters()
+                .Include(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
+                .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
+                .FirstOrDefaultAsync(x => x.Email.ToLower() == email, cancellationToken);
+```
+
+Em `CondotifyAPI/Controllers/SessionController.cs`, método `MintResidentAccessTokenAsync`, a mesma mudança (adicionar `.IgnoreQueryFilters()` após `_context.Residents`, mesmo comentário adaptado — chamado a partir de um endpoint `[AllowAnonymous]` de refresh de token):
+```csharp
+        // IgnoreQueryFilters() deliberado: chamado a partir de um endpoint AllowAnonymous
+        // de refresh de token, sem principal para popular o accessor. Consulta ja restrita
+        // a um residentId especifico -- ver Task 7 do plano de filtro de tenant.
+        var resident = await _context.Residents.IgnoreQueryFilters()
+            .Include(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
+            .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
+            .FirstOrDefaultAsync(x => x.Id == residentId, cancellationToken);
+```
+
+Em `CondotifyAPI/Controllers/PublicRegistrationController.cs`, método `FindInviteAsync`:
+```csharp
+        // IgnoreQueryFilters() deliberado: aceitar convite e AllowAnonymous (autenticado
+        // pelo token na URL, nao por JWT), sem principal para popular o accessor. Consulta
+        // ja restrita a um hash de token especifico -- ver Task 7 do plano de filtro de tenant.
+        return await _context.RegistrationInvites.IgnoreQueryFilters()
+            .Include(x => x.License)
+            .Include(x => x.Resident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
+            .FirstOrDefaultAsync(x => x.TokenHash == hash);
+```
+
+Em `CondotifyAPI/Controllers/DigitalPassesController.cs`, métodos `Public` e `Apple` (duas ocorrências, mesma mudança em cada — adicionar `.IgnoreQueryFilters()` após `context.DigitalPasses`):
+```csharp
+        // IgnoreQueryFilters() deliberado: passe publico e AllowAnonymous (autenticado
+        // pelo token na URL), sem principal para popular o accessor. Consulta ja restrita
+        // a um hash de token especifico -- ver Task 7 do plano de filtro de tenant.
+        var pass = await context.DigitalPasses.IgnoreQueryFilters().Include(x => x.License)
+            .Include(x => x.Visit).ThenInclude(x => x.Credential)
+            .Include(x => x.Visit).ThenInclude(x => x.HostResident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
+            .FirstOrDefaultAsync(x => x.TokenHash == hash, HttpContext.RequestAborted);
+```
+(No método `Apple`, a consulta usa `.AsNoTracking()` antes dos `.Include` — manter, só adicionar `.IgnoreQueryFilters()` na mesma cadeia, ordem entre `AsNoTracking()`/`IgnoreQueryFilters()` não importa.)
+
+- [ ] **Step 8: Escrever o teste de regressão que teria pego o defeito Crítico 2 (falha primeiro contra o código sem o Step 6)**
+
+Este teste prova que `GetGrantAsync` funciona para um usuário não-admin mesmo quando chamado ANTES de qualquer população do accessor — exatamente o cenário de `LicensePermissionFilter` rodando como authorization filter, antes da middleware da Task 7 (a ordem de registro do middleware garante isso na prática, mas o teste teria pego o defeito original mesmo que a ordem de registro estivesse errada, porque testa `GetGrantAsync` isoladamente, sem depender do pipeline HTTP completo):
+
+```csharp
+// CondotifyAPI.Tests/RequireLicensePermissionCrossFilterStageTests.cs
+using System.Security.Claims;
+using CondotifyAPI.Domain.DTO.Enterprise;
+using CondotifyAPI.Domain.DTO.License;
+using CondotifyAPI.Domain.DTO.Users;
+using CondotifyAPI.Domain.Interfaces;
+using CondotifyAPI.Domain.Services;
+using CondotifyAPI.Infrastructure;
+using CondotifyAPI.Services.Authorization;
+using Microsoft.EntityFrameworkCore;
+
+namespace CondotifyAPI.Tests;
+
+// Prova que LicenseAuthorizationService.GetGrantAsync funciona mesmo quando chamado
+// ANTES de qualquer populacao do ICurrentTenantAccessor -- exatamente o que acontece
+// quando RequireLicensePermissionAttribute (um IAsyncAuthorizationFilter) roda, porque
+// filtros de Authorization do MVC rodam antes de qualquer Action filter e, no caso deste
+// projeto, antes mesmo de qualquer middleware customizado que so populasse o accessor via
+// filtro (o defeito original da Task 5). Ver Task 7 do plano de filtro de tenant.
+public sealed class RequireLicensePermissionCrossFilterStageTests : IAsyncLifetime
+{
+    private DatabaseContext _context = null!;
+    private CurrentTenantAccessor _tenant = null!;
+    private Guid _enterpriseId;
+    private Guid _licenseId;
+    private Guid _nonAdminUserId;
+
+    public async Task InitializeAsync()
+    {
+        _tenant = new CurrentTenantAccessor();
+        var options = new DbContextOptionsBuilder<DatabaseContext>()
+            .UseNpgsql(Environment.GetEnvironmentVariable("CONDOTIFY_DB_CONNECTION")
+                ?? "Host=localhost;Port=5432;Database=Condotify;Username=postgres;Password=postgres")
+            .Options;
+        _context = new DatabaseContext(options, _tenant);
+
+        _enterpriseId = Guid.NewGuid();
+        _licenseId = Guid.NewGuid();
+        _nonAdminUserId = Guid.NewGuid();
+
+        _context.Enterprises.Add(new EnterpriseDTO { Id = _enterpriseId, Name = $"Teste crossfilter {_enterpriseId:N}", CNPJ = $"{Random.Shared.NextInt64(10000000000000, 99999999999999)}", Email = $"{_enterpriseId:N}@teste.condotify.local" });
+        _context.Licenses.Add(new LicenseDTO { Id = _licenseId, EnterpriseId = _enterpriseId, Name = "Licenca crossfilter", Code = $"CF-{_licenseId:N}"[..20], ExpireDate = DateTime.UtcNow.AddYears(1), CreatedAt = DateTime.UtcNow });
+        _context.Users.Add(new UserAccessDTO { Id = _nonAdminUserId, EnterpriseId = _enterpriseId, AccessType = AccessTypeEnum.Viewer, Name = "Usuario crossfilter", Email = $"{_nonAdminUserId:N}@teste.condotify.local" });
+        await _context.SaveChangesAsync();
+
+        _context.LicenseUserAccesses.Add(new LicenseUserAccessDTO { Id = Guid.NewGuid(), LicenseId = _licenseId, UserId = _nonAdminUserId, IsActive = true, Role = LicenseAccessRoleEnum.Staff, Permissions = LicensePermissionEnum.ViewDeliveries });
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        _context.LicenseUserAccesses.IgnoreQueryFilters().Where(x => x.UserId == _nonAdminUserId).ExecuteDelete();
+        _context.Users.Where(x => x.Id == _nonAdminUserId).ExecuteDelete();
+        _context.Licenses.IgnoreQueryFilters().Where(x => x.Id == _licenseId).ExecuteDelete();
+        _context.Enterprises.IgnoreQueryFilters().Where(x => x.Id == _enterpriseId).ExecuteDelete();
+        await _context.DisposeAsync();
+    }
+
+    private ClaimsPrincipal NonAdminPrincipal() => new(new ClaimsIdentity(
+    [
+        new Claim(ClaimTypes.NameIdentifier, _nonAdminUserId.ToString()),
+        new Claim("enterprise_id", _enterpriseId.ToString()),
+        new Claim("principal_type", "user")
+    ], "TestAuth"));
+
+    [Fact]
+    public async Task GetGrantAsync_ForNonAdminUser_WorksBeforeAccessorIsEverPopulated()
+    {
+        // _tenant.SetAccessibleScope nunca foi chamado -- simula LicensePermissionFilter
+        // rodando como authorization filter, antes de qualquer middleware/action filter.
+        var authService = new LicenseAuthorizationService(_context);
+
+        var grant = await authService.GetGrantAsync(NonAdminPrincipal(), _licenseId);
+
+        Assert.NotNull(grant);
+        Assert.Equal(_licenseId, grant!.LicenseId);
+        Assert.True(grant.Has(LicensePermissionEnum.ViewDeliveries));
+    }
+}
+```
+
+Antes de escrever isto, ler `CondotifyAPI.Domain/DTO/Access/LicenseUserAccessDTO.cs` (ou onde estiver) para confirmar nomes exatos de propriedades obrigatórias (`Role`, `Permissions`, `IsActive`, `LicenseId`, `UserId`) — ajustar se algum nome divergir.
+
+- [ ] **Step 9: Rodar e confirmar que falha contra o código anterior ao Step 6, depois passa**
+
+Run: `dotnet test CondotifyAPI.Tests --filter "FullyQualifiedName~RequireLicensePermissionCrossFilterStageTests"`
+Expected: se rodado ANTES do Step 6 (comentar temporariamente o `.IgnoreQueryFilters()` adicionado), FAIL. Com o Step 6 aplicado, PASS.
+
+- [ ] **Step 10: Build + suíte completa**
+
+Run: `dotnet build CondotifyAPI/CondotifyAPI.csproj -o /tmp/tenantfilter-task7-check && rm -rf /tmp/tenantfilter-task7-check`
+Run: `dotnet test CondotifyAPI.Tests`
+Expected: build limpo, toda a suíte passa (incluindo os testes antigos de `TenantIsolationIntegrationTests`, `LicenseAuthorizationServiceTenantFilterTests`, que não devem quebrar).
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add CondotifyAPI/Services/Authorization/TenantScopePopulationMiddleware.cs \
+        CondotifyAPI/Program.cs \
+        CondotifyAPI/Services/Authorization/LicenseAuthorizationService.cs \
+        CondotifyAPI/Controllers/ResidentAuthController.cs \
+        CondotifyAPI/Controllers/SessionController.cs \
+        CondotifyAPI/Controllers/PublicRegistrationController.cs \
+        CondotifyAPI/Controllers/DigitalPassesController.cs \
+        CondotifyAPI.Tests/TenantScopePopulationMiddlewareTests.cs \
+        CondotifyAPI.Tests/RequireLicensePermissionCrossFilterStageTests.cs
+git rm CondotifyAPI/Services/Authorization/TenantScopeActionFilter.cs CondotifyAPI.Tests/TenantScopeActionFilterTests.cs
+git commit -m "fix(api): move tenant-scope population to middleware so it runs before MVC authorization filters and minimal APIs; unblock anonymous token-authenticated endpoints"
+```
+
+---
+
 ## Final check (all tasks complete)
 
 - [ ] `dotnet build Condotify.sln` limpo (usar `-o` para pasta temporária se algum `dotnet run` estiver ativo).
 - [ ] `dotnet test CondotifyAPI.Tests` — todos passam, incluindo os novos testes de isolamento/circularidade/filtro.
 - [ ] `MultiLicenseHashSetQuery_MatchesDashboardPattern_ReturnsBothWhenBothAreAccessible` (Task 6) cobre automaticamente o padrão `HashSet<Guid>.Contains` que `OperationsController.GetDashboard` usa — não depende de comparação manual. Se quiser confiança extra, rodar o portal localmente e comparar os números do Dashboard antes/depois deste plano para um usuário com acesso a múltiplas licenças.
-- [ ] Revisar se alguma `.IgnoreQueryFilters()` além das duas da Task 4 apareceu em algum lugar do diff total — se sim, é um desvio que precisa de explicação clara no relatório da task correspondente.
+- [ ] Revisar se alguma `.IgnoreQueryFilters()` além das esperadas apareceu em algum lugar do diff total — se sim, é um desvio que precisa de explicação clara no relatório da task correspondente. Contagem esperada após a Task 7: 6 em `LicenseAuthorizationService.cs` (3 em `GetGrantAsync` — `Users`, `Licenses`, `LicenseUserAccesses` — e 3 em `GetLicensePermissionsAsync`, mesmos três alvos) + 5 nos controllers anônimos (`ResidentAuthController.Login` ×1, `SessionController.MintResidentAccessTokenAsync` ×1, `PublicRegistrationController.FindInviteAsync` ×1, `DigitalPassesController.Public`/`.Apple` ×2) = 11 chamadas em 5 arquivos de produção, cada uma com um comentário de uma linha explicando o motivo.
