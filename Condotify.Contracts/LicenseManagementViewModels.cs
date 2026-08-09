@@ -556,6 +556,14 @@ namespace Condotify.Models
         public bool IsActive { get; set; }
     }
 
+    public class VehiclePlateSearchViewModel
+    {
+        public Guid VehicleId { get; set; }
+        public string Plate { get; set; } = string.Empty;
+        public string ResidentName { get; set; } = string.Empty;
+        public string UnitLabel { get; set; } = string.Empty;
+    }
+
     public class CftvDeviceRowViewModel
     {
         public Guid Id { get; set; }

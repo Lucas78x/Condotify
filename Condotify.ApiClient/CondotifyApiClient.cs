@@ -699,6 +699,9 @@ public sealed class CondotifyApiClient
         return GetAsync<List<GlobalResidentSearchViewModel>>($"api/access/operations/residents/search?{queryString}", cancellationToken);
     }
 
+    public Task<ApiResult<List<VehiclePlateSearchViewModel>>> SearchVehiclesByPlateAsync(Guid licenseId, string plate, CancellationToken cancellationToken = default) =>
+        GetAsync<List<VehiclePlateSearchViewModel>>($"api/access/licenses/{licenseId}/vehicles/search?plate={Uri.EscapeDataString(plate)}", cancellationToken);
+
     public async Task<ApiResult<Guid>> CreateLicenseAsync(CreateLicenseViewModel model, CancellationToken cancellationToken = default)
     {
         var enterpriseId = await _sessionContext.GetEnterpriseIdAsync(cancellationToken);

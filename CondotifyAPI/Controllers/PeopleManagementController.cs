@@ -62,6 +62,34 @@ public class PeopleManagementController : ControllerBase
         });
     }
 
+    [HttpGet("vehicles/search")]
+    [RequireLicensePermission(LicensePermissionEnum.ViewPeople)]
+    public async Task<IActionResult> SearchVehiclesByPlate(Guid licenseId, [FromQuery] string plate)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        if (string.IsNullOrWhiteSpace(plate) || plate.Trim().Length < 2) return Ok(new List<VehiclePlateSearchOut>());
+        var results = await SearchVehiclesByPlateCore(_context, licenseId, plate);
+        return Ok(results);
+    }
+
+    internal static async Task<List<VehiclePlateSearchOut>> SearchVehiclesByPlateCore(DatabaseContext context, Guid licenseId, string plate)
+    {
+        var normalized = NormalizePlate(plate);
+        if (string.IsNullOrWhiteSpace(normalized)) return [];
+        return await context.Vehicles.AsNoTracking()
+            .Where(x => x.IsActive && x.Unit.Block.LicenseId == licenseId && x.Plate.StartsWith(normalized))
+            .OrderBy(x => x.Plate)
+            .Take(10)
+            .Select(x => new VehiclePlateSearchOut
+            {
+                VehicleId = x.Id,
+                Plate = x.Plate,
+                ResidentName = x.Resident != null ? x.Resident.Name : string.Empty,
+                UnitLabel = x.Unit.Block.Name + " / " + x.Unit.Number
+            })
+            .ToListAsync();
+    }
+
     [HttpGet("residents/{residentId:guid}/profile")]
     [RequireLicensePermission(LicensePermissionEnum.ViewPeople)]
     public async Task<IActionResult> GetProfile(Guid licenseId, Guid residentId)
@@ -500,4 +528,12 @@ public class PeopleManagementController : ControllerBase
 public class VehicleStatusIn
 {
     public bool IsActive { get; set; }
+}
+
+public class VehiclePlateSearchOut
+{
+    public Guid VehicleId { get; set; }
+    public string Plate { get; set; } = string.Empty;
+    public string ResidentName { get; set; } = string.Empty;
+    public string UnitLabel { get; set; } = string.Empty;
 }

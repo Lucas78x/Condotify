@@ -30,7 +30,15 @@
                     <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Telefone" Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_form.Company" Label="Empresa" Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_form.Purpose" Label="Motivo da visita" Variant="Variant.Outlined" />
-                    <MudTextField T="string" @bind-Value="_form.VehiclePlate" Label="Placa do veículo" Variant="Variant.Outlined" />
+                    <MudAutocomplete T="string" @bind-Value="_form.VehiclePlate" SearchFunc="SearchPlatesAsync"
+                                     ToStringFunc="@(x => x ?? string.Empty)" CoerceText="true" CoerceValue="true"
+                                     Label="Placa do veículo" Placeholder="Digite ao menos 2 caracteres" Variant="Variant.Outlined"
+                                     Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.DirectionsCar" Clearable="true">
+                        <ItemTemplate Context="plateResult">
+                            <div><strong>@plateResult</strong><br /><small>@_plateOwnerByValue.GetValueOrDefault(plateResult)</small></div>
+                        </ItemTemplate>
+                        <NoItemsTemplate><MudText Typo="Typo.body2" Class="pa-2">Nenhum veículo encontrado — pode digitar a placa manualmente.</MudText></NoItemsTemplate>
+                    </MudAutocomplete>
                 </div>
             </div>
 
@@ -130,6 +138,19 @@
         if (string.IsNullOrWhiteSpace(value) || value.Trim().Length < 2) return [];
         var result = await Api.SearchResidentsAsync(value, null, null, null, null, LicenseId.ToString(), cancellationToken);
         return result.Success ? (result.Value ?? []).Where(x => !x.Temporary).Take(15) : [];
+    }
+
+    private readonly Dictionary<string, string> _plateOwnerByValue = new();
+
+    private async Task<IEnumerable<string>> SearchPlatesAsync(string value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Trim().Length < 2) return [];
+        var result = await Api.SearchVehiclesByPlateAsync(LicenseId, value, cancellationToken);
+        if (!result.Success) return [];
+        _plateOwnerByValue.Clear();
+        foreach (var vehicle in result.Value ?? [])
+            _plateOwnerByValue[vehicle.Plate] = $"{vehicle.ResidentName} - {vehicle.UnitLabel}";
+        return (result.Value ?? []).Select(x => x.Plate);
     }
 
     private void SelectCredential(int type)
