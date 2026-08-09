@@ -594,6 +594,57 @@ git commit -m "fix(api): let background workers mark their own scope unrestricte
 
 ---
 
+## Task 2.6: Marcar o escopo de inicialização do `Program.cs` como sem restrição
+
+**Por que esta task existe:** a revisão da Task 2.5 encontrou mais um lugar com o mesmo problema, fora do escopo dos 13 workers: o bloco de inicialização em `CondotifyAPI/Program.cs` (linhas 276-296) cria seu próprio escopo (`app.Services.CreateScope()`) para rodar `db.Database.Migrate()`, uma passagem de recriptografia de senhas legadas de equipamentos (consulta `db.Devices`/`db.CFTVDevices`, ambas `ILicenseScoped`) e `DevelopmentDataSeeder.SeedAsync` em desenvolvimento. Sem marcar esse escopo, a recriptografia de senha legada para de encontrar dispositivos para sempre (nunca mais migra senhas antigas) e o seeder de desenvolvimento pode não conseguir checar dados já existentes corretamente. Varredura confirmada: este é o único lugar além dos 13 workers que cria um escopo de DI fora do pipeline HTTP em todo o projeto `CondotifyAPI` (`grep -rn "CreateScope()" CondotifyAPI --include=*.cs`, excluindo os arquivos de worker já tratados na Task 2.5, retorna exatamente esta ocorrência).
+
+**Files:**
+- Modify: `CondotifyAPI/Program.cs`
+
+**Interfaces:**
+- Consumes: `ICurrentTenantAccessor.MarkUnrestricted()` (Task 2.5).
+
+- [ ] **Step 1: Editar o bloco de inicialização**
+
+Em `CondotifyAPI/Program.cs`, o bloco atual (linhas 276-296) começa assim:
+
+```csharp
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+    db.Database.Migrate();
+```
+
+Adicionar a marcação logo após resolver `db`, antes de `Migrate()` (a migration em si não é afetada pelo filtro — é DDL bruto — mas as consultas logo depois são):
+
+```csharp
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+    scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
+    db.Database.Migrate();
+```
+
+O resto do bloco (recriptografia de senha legada, `DevelopmentDataSeeder.SeedAsync`) fica exatamente como está — não precisa de nenhuma outra mudança.
+
+- [ ] **Step 2: Build**
+
+Run: `dotnet build CondotifyAPI/CondotifyAPI.csproj -o /tmp/tenantfilter-task2.6-check && rm -rf /tmp/tenantfilter-task2.6-check`
+Expected: build limpo. Este bloco só roda no boot da aplicação (não há como testar automaticamente sem subir o processo inteiro) — a verificação aqui é o build limpo mais a leitura cuidadosa confirmando que a chamada está no lugar certo, antes de qualquer consulta.
+
+- [ ] **Step 3: Verificação manual (opcional, se o ambiente permitir)**
+
+Se for possível rodar `dotnet run --project CondotifyAPI` localmente com o Postgres já populado por uma sessão anterior, confirmar nos logs que a passagem de recriptografia de senha não lança exceção e que o app sobe normalmente. Se não for possível rodar, pular esta etapa e confiar no build limpo.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add CondotifyAPI/Program.cs
+git commit -m "fix(api): mark the app-startup DI scope unrestricted so device password re-encryption and dev seeding still see data"
+```
+
+---
+
 ## Task 3: Filtro especial de `OperationalAlertDTO`
 
 **Files:**
