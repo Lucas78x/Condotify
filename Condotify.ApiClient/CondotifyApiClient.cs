@@ -629,6 +629,14 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<ConciergeDashboardViewModel>> GetConciergeDashboardAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
         GetAsync<ConciergeDashboardViewModel>($"api/access/licenses/{licenseId}/concierge", cancellationToken);
 
+    public Task<ApiResult<List<ConciergeEventViewModel>>> GetConciergeEventsFeedAsync(Guid licenseId, string? search, bool? authorized, int take = 100, CancellationToken cancellationToken = default)
+    {
+        var query = $"take={take}";
+        if (!string.IsNullOrWhiteSpace(search)) query += $"&search={Uri.EscapeDataString(search)}";
+        if (authorized.HasValue) query += $"&authorized={authorized.Value.ToString().ToLowerInvariant()}";
+        return GetAsync<List<ConciergeEventViewModel>>($"api/access/licenses/{licenseId}/concierge/events?{query}", cancellationToken);
+    }
+
     public Task<ApiResult<List<ConciergeVisitViewModel>>> GetConciergeVisitsAsync(
         Guid licenseId,
         DateTime from,

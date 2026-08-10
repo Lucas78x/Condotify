@@ -75,6 +75,29 @@ public sealed class ConciergeController(
         });
     }
 
+    [HttpGet("events")]
+    [RequireLicensePermission(LicensePermissionEnum.ViewEvents)]
+    public async Task<IActionResult> EventsFeed(Guid licenseId, [FromQuery] string? search, [FromQuery] bool? authorized, [FromQuery] int take = 100)
+    {
+        if (!await HasAccessAsync(licenseId)) return NotFound();
+        var events = await GetEventsFeedCore(context, licenseId, search, authorized, take);
+        return Ok(events);
+    }
+
+    internal static async Task<List<ConciergeEventOut>> GetEventsFeedCore(DatabaseContext context, Guid licenseId, string? search, bool? authorized, int take)
+    {
+        var query = context.AccessEventRecords.AsNoTracking().Where(x => x.LicenseId == licenseId);
+        if (authorized.HasValue) query = query.Where(x => x.Authorized == authorized.Value);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var pattern = $"%{search.Trim()}%";
+            query = query.Where(x => EF.Functions.ILike(x.PersonName, pattern) || EF.Functions.ILike(x.Portal, pattern) || EF.Functions.ILike(x.Device.Name, pattern));
+        }
+        return await query.OrderByDescending(x => x.OccurredAt).Take(Math.Clamp(take, 1, 500))
+            .Select(x => new ConciergeEventOut { Id = x.Id, DeviceName = x.Device.Name, PersonName = x.PersonName, Event = x.Event, Authorized = x.Authorized, Portal = x.Portal, OccurredAt = x.OccurredAt })
+            .ToListAsync();
+    }
+
     [HttpGet("visits")]
     [RequireLicensePermission(LicensePermissionEnum.ViewEvents)]
     public async Task<IActionResult> Visits(Guid licenseId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
