@@ -1348,13 +1348,14 @@ public sealed class CondotifyApiClient
             Description = model.Description.Trim(),
             TrackingCode = model.TrackingCode.Trim(),
             PhotoUrl = model.PhotoUrl.Trim(),
+            model.PhotoBase64,
             ReceivedBy = model.ReceivedBy.Trim(),
             model.RecipientResidentId,
             model.UnitId
         }, false, cancellationToken);
 
-    public Task<ApiResult<bool>> UpdateDeliveryStatusAsync(Guid licenseId, Guid deliveryId, int status, string personName, CancellationToken cancellationToken = default) =>
-        PatchAsync($"api/access/licenses/{licenseId}/deliveries/{deliveryId}/status", new { Status = status, PersonName = personName }, cancellationToken);
+    public Task<ApiResult<bool>> UpdateDeliveryStatusAsync(Guid licenseId, Guid deliveryId, int status, string personName, Guid? personId = null, string proofBase64 = "", CancellationToken cancellationToken = default) =>
+        PatchAsync($"api/access/licenses/{licenseId}/deliveries/{deliveryId}/status", new { Status = status, PersonName = personName, PersonId = personId, ProofBase64 = proofBase64 }, cancellationToken);
 
     public Task<ApiResult<IncidentPageViewModel>> GetIncidentsAsync(
         Guid? licenseId = null,

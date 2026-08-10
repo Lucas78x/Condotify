@@ -209,6 +209,7 @@ namespace Condotify.Models
         public string Description { get; set; } = string.Empty;
         public string TrackingCode { get; set; } = string.Empty;
         public string PhotoUrl { get; set; } = string.Empty;
+        public string PhotoBase64 { get; set; } = string.Empty;
         public string ReceivedBy { get; set; } = string.Empty;
         public Guid? RecipientResidentId { get; set; }
         public Guid? UnitId { get; set; }
@@ -220,6 +221,13 @@ namespace Condotify.Models
         public int Status { get; set; }
         public string PersonName { get; set; } = string.Empty;
         public string ProofUrl { get; set; } = string.Empty;
+    }
+
+    public class DeliveryProofFormViewModel
+    {
+        public Guid? PersonId { get; set; }
+        [Required] public string PersonName { get; set; } = string.Empty;
+        public string ProofBase64 { get; set; } = string.Empty;
     }
 
     public class DeliveryRowViewModel

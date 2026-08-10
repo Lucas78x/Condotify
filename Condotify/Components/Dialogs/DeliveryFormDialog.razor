@@ -19,6 +19,18 @@
                 <MudTextField T="string" @bind-Value="_form.TrackingCode" Label="Código de rastreio" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.ReceivedBy" Label="Recebido por" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.Description" Label="Observações" Lines="3" Variant="Variant.Outlined" Class="full" />
+                <div class="visitor-photo-field full">
+                    @if (string.IsNullOrWhiteSpace(_form.PhotoBase64))
+                    {
+                        <div class="visitor-photo-placeholder"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></div>
+                    }
+                    else
+                    {
+                        <img src="@_form.PhotoBase64" alt="Pré-visualização da foto da encomenda" />
+                    }
+                    <div><strong>@(_photoName ?? "Foto da encomenda (opcional)")</strong><small>JPG ou PNG.</small></div>
+                    <label class="file-button"><MudIcon Icon="@Icons.Material.Outlined.AddAPhoto" Size="Size.Small" /> Selecionar foto<InputFile OnChange="ReadPhotoAsync" accept="image/jpeg,image/png" /></label>
+                </div>
             </div>
             <div class="form-actions dialog-form-actions">
                 <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
@@ -35,7 +47,21 @@
     private GlobalResidentSearchViewModel? _recipient;
     private bool _saving;
     private string? _error;
+    private string? _photoName;
     private void Cancel() => Dialog.Cancel();
+
+    private async Task ReadPhotoAsync(InputFileChangeEventArgs args)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            _form.PhotoBase64 = await FacePhotoProcessor.PrepareAsync(args.File, timeout.Token).WaitAsync(timeout.Token);
+            _photoName = args.File.Name;
+            _error = null;
+        }
+        catch (OperationCanceledException) { _error = "O processamento da foto demorou demais. Tente uma imagem menor."; }
+        catch (Exception ex) { _error = ex.Message; }
+    }
     private async Task<IEnumerable<GlobalResidentSearchViewModel>> SearchResidentsAsync(string value, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Trim().Length < 2) return [];

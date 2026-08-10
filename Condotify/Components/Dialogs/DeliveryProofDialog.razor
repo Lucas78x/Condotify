@@ -1,0 +1,66 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.HowToReg" />
+            <div><strong>Confirmar entrega</strong><span>Registre quem retirou a encomenda e, se quiser, uma foto de comprovante.</span></div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <div class="form-grid">
+                <MudTextField T="string" @bind-Value="_form.PersonName" Label="Retirado por" Required Variant="Variant.Outlined" For="@(() => _form.PersonName)" Class="full" />
+                <div class="visitor-photo-field full">
+                    @if (string.IsNullOrWhiteSpace(_form.ProofBase64))
+                    {
+                        <div class="visitor-photo-placeholder"><MudIcon Icon="@Icons.Material.Outlined.HowToReg" /></div>
+                    }
+                    else
+                    {
+                        <img src="@_form.ProofBase64" alt="Pré-visualização do comprovante" />
+                    }
+                    <div><strong>@(_photoName ?? "Foto de comprovante (opcional)")</strong><small>JPG ou PNG.</small></div>
+                    <label class="file-button"><MudIcon Icon="@Icons.Material.Outlined.AddAPhoto" Size="Size.Small" /> Selecionar foto<InputFile OnChange="ReadPhotoAsync" accept="image/jpeg,image/png" /></label>
+                </div>
+            </div>
+            <div class="form-actions dialog-form-actions">
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Outlined.HowToReg" Disabled="_saving">@(_saving ? "Confirmando..." : "Confirmar entrega")</MudButton>
+            </div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public Guid DeliveryId { get; set; }
+    private readonly DeliveryProofFormViewModel _form = new();
+    private bool _saving;
+    private string? _error;
+    private string? _photoName;
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task ReadPhotoAsync(InputFileChangeEventArgs args)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            _form.ProofBase64 = await FacePhotoProcessor.PrepareAsync(args.File, timeout.Token).WaitAsync(timeout.Token);
+            _photoName = args.File.Name;
+            _error = null;
+        }
+        catch (OperationCanceledException) { _error = "O processamento da foto demorou demais. Tente uma imagem menor."; }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true; _error = null;
+        var result = await Api.UpdateDeliveryStatusAsync(LicenseId, DeliveryId, 3, _form.PersonName.Trim(), proofBase64: _form.ProofBase64);
+        _saving = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Dialog.Close(DialogResult.Ok(true));
+    }
+}
