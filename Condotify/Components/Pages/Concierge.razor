@@ -1,11 +1,14 @@
 @page "/portaria"
 @using System.Text.Json
 @using System.Globalization
+@using Microsoft.AspNetCore.SignalR.Client
 @attribute [Authorize]
 @implements IAsyncDisposable
 @inject CondotifyApiClient Api
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject ISessionContextProvider SessionContext
+@inject IConfiguration Configuration
 
 <PageTitle>Portaria | Condotify</PageTitle>
 
@@ -20,7 +23,14 @@
     </MudSelect>
     @if (_dashboard is not null)
     {
-        <span class="live-indicator"><i></i> Atualização automática</span>
+        @if (_reconnecting)
+        {
+            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Icon="@Icons.Material.Outlined.SyncProblem">Reconectando…</MudChip>
+        }
+        else
+        {
+            <span class="live-indicator"><i></i> Atualização automática</span>
+        }
     }
     <MudTooltip Text="Atualizar agora"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Color="Color.Primary" Disabled="@(_loading || !_licenseId.HasValue)" OnClick="LoadDashboardAsync" /></MudTooltip>
     <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Outlined.GppBad" Disabled="@(!_licenseId.HasValue)" OnClick="OpenWatchlistDialogAsync">Restrições</MudButton>
@@ -165,6 +175,8 @@ else if (_dashboard is not null)
     private CancellationTokenSource? _refreshCancellation;
     private ConciergePackagesTab? _packagesTab;
     private ConciergeEventsTab? _eventsTab;
+    private HubConnection? _hubConnection;
+    private bool _reconnecting;
 
     private bool IsModuleEnabled(Condotify.Models.LicenseModuleEnum module) =>
         _licenses.FirstOrDefault(x => Guid.TryParse(x.Id, out var id) && id == _licenseId)?.EnabledModules is not { } enabled || (enabled & (long)module) != 0;
@@ -189,12 +201,77 @@ else if (_dashboard is not null)
         _dashboard = null;
         _error = null;
         StopRefreshLoop();
+        await DisconnectHubAsync();
         if (!licenseId.HasValue) return;
         _loading = true;
         var routesResult = await Api.GetAccessRoutesAsync(licenseId.Value);
         _routes = routesResult.Success ? routesResult.Value ?? [] : [];
         await LoadDashboardAsync();
         StartRefreshLoop();
+        await ConnectHubAsync(licenseId.Value);
+    }
+
+    // A conexao SignalR do Blazor Server e feita pelo processo do servidor do
+    // portal, nao pelo navegador (o @code roda inteiramente no servidor sob o
+    // circuito do Blazor Server). O hub /hubs/concierge esta hospedado no
+    // processo da CondotifyAPI, um servico separado (containers/portas
+    // distintos, ver docker-compose.yml) -- por isso a URL do hub precisa ser
+    // resolvida a partir de CondotifyApi:BaseUrl (a mesma configuracao que
+    // CondotifyApiClient usa para toda chamada HTTP), e nao a partir de
+    // NavigationManager, que resolveria para o endereco do proprio portal e
+    // nunca encontraria o hub.
+    private string BuildHubUrl()
+    {
+        var baseUrl = (Configuration["CondotifyApi:BaseUrl"] ?? "https://localhost:7118").TrimEnd('/');
+        return $"{baseUrl}/hubs/concierge";
+    }
+
+    private async Task ConnectHubAsync(Guid licenseId)
+    {
+        await DisconnectHubAsync();
+        var token = await SessionContext.GetAccessTokenAsync();
+        if (string.IsNullOrWhiteSpace(token)) return;
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(BuildHubUrl(), options => options.AccessTokenProvider = () => Task.FromResult<string?>(token))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.Reconnecting += _ => { _reconnecting = true; return InvokeAsync(StateHasChanged); };
+        _hubConnection.Reconnected += async _ => { _reconnecting = false; await _hubConnection.InvokeAsync("JoinLicenseGroup", licenseId); await InvokeAsync(StateHasChanged); };
+
+        // VisitStatusChanged/DeliveryUpdated disparam um recarregamento local (chamada HTTP
+        // ja existente, GetConciergeDashboardAsync/GetDeliveriesAsync) em vez de mesclar o
+        // payload recebido diretamente no estado -- e uma simplificacao deliberada (evita bugs
+        // sutis de merge de estado parcial) que ainda cumpre o resultado pedido pela spec
+        // ("atualiza a linha e os KPIs"): a diferenca pratica e uma chamada HTTP extra e quase
+        // instantanea, nao mais um dashboard que so atualiza a cada 15-60s. So o
+        // AccessEventRecorded (abaixo) faz merge local de verdade, via ConciergeEventsTab.PrependEvent,
+        // porque inserir uma linha no topo de uma lista e trivial e nao tem risco de
+        // inconsistencia como mesclar uma visita/entrega inteira.
+        _hubConnection.On<ConciergeVisitViewModel>("VisitStatusChanged", async _ => await InvokeAsync(LoadDashboardAsync));
+        _hubConnection.On<DeliveryRowViewModel>("DeliveryUpdated", async _ => { if (_packagesTab is not null) await InvokeAsync(_packagesTab.ReloadAsync); });
+        _hubConnection.On<ConciergeEventViewModel>("AccessEventRecorded", async accessEvent =>
+        {
+            await InvokeAsync(() => { _eventsTab?.PrependEvent(accessEvent); return Task.CompletedTask; });
+        });
+
+        try
+        {
+            await _hubConnection.StartAsync();
+            await _hubConnection.InvokeAsync("JoinLicenseGroup", licenseId);
+        }
+        catch (Exception)
+        {
+            // Falha ao conectar nao bloqueia a tela -- o polling de 60s (fallback) continua funcionando.
+        }
+    }
+
+    private async Task DisconnectHubAsync()
+    {
+        if (_hubConnection is null) return;
+        await _hubConnection.DisposeAsync();
+        _hubConnection = null;
     }
 
     private async Task LoadDashboardAsync()
@@ -278,7 +355,7 @@ else if (_dashboard is not null)
     private void StartRefreshLoop()
     {
         _refreshCancellation = new CancellationTokenSource();
-        _timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(60));
         _ = RefreshLoopAsync(_refreshCancellation.Token);
     }
     private async Task RefreshLoopAsync(CancellationToken cancellationToken)
@@ -287,7 +364,7 @@ else if (_dashboard is not null)
         catch (OperationCanceledException) { }
     }
     private void StopRefreshLoop() { _refreshCancellation?.Cancel(); _refreshCancellation?.Dispose(); _refreshCancellation = null; _timer?.Dispose(); _timer = null; }
-    public ValueTask DisposeAsync() { StopRefreshLoop(); return ValueTask.CompletedTask; }
+    public async ValueTask DisposeAsync() { StopRefreshLoop(); await DisconnectHubAsync(); }
 
     private static string Initials(string name) => string.Join(string.Empty, name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
     private static string StatusLabel(string status) => status switch { "Scheduled" => "Agendada", "CheckedIn" => "No local", "CheckedOut" => "Finalizada", "Canceled" => "Cancelada", "Expired" => "Expirada", "Denied" => "Negada", "PendingApproval" => "Aguardando aprovação", _ => status };
