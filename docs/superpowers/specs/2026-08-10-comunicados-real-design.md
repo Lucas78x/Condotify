@@ -20,7 +20,7 @@ Esta reforma constrói o **MVP** dessa feature — um board de avisos simples, t
 Três frentes sequenciadas (schema/backend precisa vir antes do frontend consumir):
 
 1. **Modelo e permissões**: nova entidade `AnnouncementDTO` (`ILicenseScoped`), nova permissão `LicensePermissionEnum.ManageAnnouncements`, novo bit `LicenseModuleEnum.Announcements` (mesmo padrão aditivo já usado para `Documents`/`Deliveries` — ver `docs/superpowers/plans/2026-08-08-license-module-flags.md`), nova categoria `MobileNotificationCategory.Announcement`.
-2. **Backend**: `AnnouncementsController` (CRUD para a equipe, license-scoped, permission-gated) + endpoint `api/resident/announcements` (leitura para o morador, mesmo padrão de `api/resident/deliveries`/`api/resident/documents`). Criação dispara push via `IPlatformPushNotifier.NotifyLicenseUsersAsync` com a nova categoria. Exclusão usa `IRecycleBinService` (soft-delete, mesmo padrão já usado para outras entidades no sistema).
+2. **Backend**: `AnnouncementsController` (CRUD para a equipe, license-scoped, permission-gated) + endpoint `api/resident/announcements` (leitura para o morador, mesmo padrão de `api/resident/deliveries`/`api/resident/documents`). Criação dispara push via `IPlatformPushNotifier.NotifyLicenseUsersAsync` com a nova categoria. Exclusão é definitiva (hard delete), mesmo padrão já usado por `ResourceDocumentsController.Delete` — ver nota de correção abaixo.
 3. **Frontend**: aba nova "Comunicados" em `LicenseWorkspace.razor` (portal, equipe) + página nova `Comunicados.razor` (mobile, morador) com entrada no menu "Mais".
 
 ## Modelo e permissões
@@ -38,7 +38,9 @@ Novo bit `Announcements` em `LicenseModuleEnum` (`CondotifyAPI.Domain.Enums.Lice
 - `GET` — lista todos os comunicados da licença, mais recentes primeiro, sem paginação nesta rodada (mesmo padrão simples de `DeliveriesModule`/`IncidentsModule` hoje — volume esperado é baixo).
 - `POST` — cria, valida `Title`/`Body` não vazios, dispara `IPlatformPushNotifier.NotifyLicenseUsersAsync(licenseId, MobileNotificationCategory.Announcement, title, body-truncado, deep-link, idempotency-key)` para todo morador ativo da licença (mesmo fan-out que `ResourceDocumentsController.cs:83-96` já faz para Documentos).
 - `PUT /{id}` — edita `Title`/`Body`/`IsUrgent`, **não** reenvia push.
-- `DELETE /{id}` — soft-delete via `IRecycleBinService` (captura antes de remover, mesmo padrão de outras entidades no sistema), some da lista do morador imediatamente.
+- `DELETE /{id}` — exclusão definitiva (hard delete, mesmo padrão de `ResourceDocumentsController.Delete`), some da lista do morador imediatamente.
+
+**Correção pós-aprovação da spec:** a versão original desta seção pedia exclusão via `IRecycleBinService`, com base na suposição de que ele é um helper genérico de soft-delete. Não é — é um conjunto fechado de métodos escritos à mão, um por tipo de entidade (`CaptureBlock`/`CaptureUnit`/`CaptureResident`/`CaptureVehicle`/`CaptureDevice`), cada um com seu próprio snapshot tipado e lógica de restauração dentro de `RecycleBinService.cs`. Integrar Comunicados a ele exigiria escrever um `AnnouncementSnapshot` novo + um caso novo em `RestoreAsync`/`PurgeAsync` — trabalho desproporcional ao MVP desta rodada, especialmente já sabendo que o item #13 da lista original ("lixeira ampliada") vai generalizar essa área depois. Confirmado com o usuário: exclusão definitiva agora, integração com a lixeira fica para quando o item #13 for feito.
 
 Endpoint do morador `api/resident/announcements` (`GET` apenas) — resolve a licença do morador autenticado (mesmo padrão de resolução já usado em `api/resident/deliveries`/`api/resident/documents`) e retorna a lista de comunicados daquela licença, mais recentes primeiro, urgentes destacados no payload (`IsUrgent` já é suficiente — a UI decide como destacar).
 
@@ -56,7 +58,7 @@ Endpoint do morador `api/resident/announcements` (`GET` apenas) — resolve a li
 
 ## Testes
 
-- Backend: testes de integração para o CRUD (criação, edição, exclusão via recycle bin, isolamento de tenant — comunicado de uma licença não pode aparecer para morador de outra), teste de que a criação dispara o push com a categoria correta.
+- Backend: testes de integração para o CRUD (criação, edição, exclusão definitiva, isolamento de tenant — comunicado de uma licença não pode aparecer para morador de outra), teste de que a criação dispara o push com a categoria correta.
 - Frontend: sem testes de UI automatizados (bUnit não é usado neste projeto) — verificação manual.
 
 ## Decisões YAGNI (explicitamente fora de escopo)
