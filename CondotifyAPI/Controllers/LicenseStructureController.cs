@@ -20,6 +20,7 @@ using System.Text.Json;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.RecycleBin;
 using CondotifyAPI.Services.Mobile;
+using CondotifyAPI.Services.Security;
 
 namespace CondotifyAPI.Controllers;
 
@@ -32,6 +33,7 @@ public class LicenseStructureController : ControllerBase
     private readonly IAccessControlService _accessControlService;
     private readonly IMapper _mapper;
     private readonly IRecycleBinService _recycleBin;
+    private readonly IPrivateMediaStore _media;
     private readonly IPlatformPushNotifier? _push;
 
     public LicenseStructureController(
@@ -39,12 +41,14 @@ public class LicenseStructureController : ControllerBase
         IAccessControlService accessControlService,
         IMapper mapper,
         IRecycleBinService recycleBin,
+        IPrivateMediaStore media,
         IPlatformPushNotifier? push = null)
     {
         _context = context;
         _accessControlService = accessControlService;
         _mapper = mapper;
         _recycleBin = recycleBin;
+        _media = media;
         _push = push;
     }
 
@@ -616,6 +620,24 @@ public class LicenseStructureController : ControllerBase
                 return BadRequest(new { Result = "InvalidDestination", Errors = "O destinatario nao possui vinculo ativo com a unidade selecionada." });
         }
 
+        var delivery = await CreateDeliveryCore(_context, _media, licenseId, input, HttpContext.RequestAborted);
+        await _context.SaveChangesAsync();
+
+        await NotifyDeliveryAsync(
+            delivery,
+            "Nova encomenda recebida",
+            $"{delivery.Name} foi registrada na portaria.",
+            $"delivery-created:{delivery.Id:N}");
+
+        return Created("", ToDeliveryOut(delivery));
+    }
+
+    internal static async Task<DeliveryDTO> CreateDeliveryCore(DatabaseContext context, IPrivateMediaStore media, Guid licenseId, CreateDeliveryIn input, CancellationToken cancellationToken)
+    {
+        var photoUrl = string.IsNullOrWhiteSpace(input.PhotoBase64)
+            ? input.PhotoUrl?.Trim() ?? string.Empty
+            : await media.StoreDataUriAsync(licenseId, input.PhotoBase64.Trim(), cancellationToken);
+
         var now = DateTime.UtcNow;
         var delivery = new DeliveryDTO
         {
@@ -626,7 +648,7 @@ public class LicenseStructureController : ControllerBase
             Name = input.Name.Trim(),
             Description = input.Description?.Trim() ?? string.Empty,
             TrackingCode = input.TrackingCode?.Trim() ?? string.Empty,
-            PhotoUrl = input.PhotoUrl?.Trim() ?? string.Empty,
+            PhotoUrl = photoUrl,
             DeliveryProofUrl = string.Empty,
             ReceivedBy = input.ReceivedBy?.Trim() ?? string.Empty,
             ReceivedAt = now,
@@ -637,16 +659,8 @@ public class LicenseStructureController : ControllerBase
             UpdatedAt = now
         };
 
-        _context.Deliveries.Add(delivery);
-        await _context.SaveChangesAsync();
-
-        await NotifyDeliveryAsync(
-            delivery,
-            "Nova encomenda recebida",
-            $"{delivery.Name} foi registrada na portaria.",
-            $"delivery-created:{delivery.Id:N}");
-
-        return Created("", ToDeliveryOut(delivery));
+        context.Deliveries.Add(delivery);
+        return delivery;
     }
 
     [HttpPatch("deliveries/{deliveryId:guid}/status")]
@@ -679,7 +693,9 @@ public class LicenseStructureController : ControllerBase
             delivery.DeliveredToId = input.PersonId;
             delivery.DeliveredTo = input.PersonName?.Trim() ?? string.Empty;
             delivery.DeliveredAt = now;
-            delivery.DeliveryProofUrl = input.ProofUrl?.Trim() ?? delivery.DeliveryProofUrl;
+            delivery.DeliveryProofUrl = string.IsNullOrWhiteSpace(input.ProofBase64)
+                ? (input.ProofUrl?.Trim() ?? delivery.DeliveryProofUrl)
+                : await _media.StoreDataUriAsync(licenseId, input.ProofBase64.Trim(), HttpContext.RequestAborted);
         }
 
         await _context.SaveChangesAsync();
