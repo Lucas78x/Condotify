@@ -19,6 +19,7 @@ public class AuditLogDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
     public string EntityType { get; set; } = string.Empty;
     public Guid? EntityId { get; set; }
     public string Action { get; set; } = string.Empty; // Created | Updated | Trashed | Deleted | Restored | Cancelled | Revoked
+    public string Status { get; set; } = string.Empty; // mantido: carrega valores reais (Success, Queued, Failed, Recovered, Alert, Warning...)
     public string Summary { get; set; } = string.Empty;
     public string DetailsJson { get; set; } = "{}";
     public Guid? UserId { get; set; }   // NOVO: agora de fato preenchido, via ClaimTypes.NameIdentifier
@@ -27,7 +28,7 @@ public class AuditLogDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
 }
 ```
 
-Mudanças em relação a `AccessOperationAuditDTO`: campo `Status` removido (sempre foi `"Success"` em todo lugar — resquício do conceito original de status de processamento do Access Control, peso morto no resto do sistema); `UserId` passa de nunca-preenchido para de fato populado. Migration: rename de tabela + colunas, drop de `Status`, sem período de dupla tabela.
+**Correção pós-aprovação (achado durante a pesquisa para o plano de implementação):** a suposição original de que `Status` era sempre `"Success"` estava errada — o campo carrega valores distintos reais em ~1/3 dos pontos de chamada (`"Queued"`, `"Recorded"`, `"Failed"`, `"Recovered"`, `"Alert"`, `"Warning"`), incluindo o status `"Failed"` de backups automáticos malsucedidos e os estados de alerta de saúde de equipamentos. **`Status` é mantido**, não removido. Mudança real em relação a `AccessOperationAuditDTO`: só `UserId`, que passa de nunca-preenchido para de fato populado. Migration: rename de tabela, sem alteração de colunas, sem período de dupla tabela.
 
 **Retenção:** indefinida — sem expiração automática, sem worker de purga. É o histórico permanente de quem fez o quê.
 
@@ -38,6 +39,7 @@ namespace CondotifyAPI.Services.Audit;
 
 public interface IAuditService
 {
+    // Para controllers HTTP: ator resolvido automaticamente do usuário autenticado da requisição.
     Task LogAsync(
         Guid licenseId,
         string entityType,
@@ -45,17 +47,43 @@ public interface IAuditService
         string action,
         string summary,
         object? details = null,
+        string status = "Success",
+        CancellationToken cancellationToken = default);
+
+    // Para workers/services em background, sem HttpContext: ator informado explicitamente
+    // (ex: "Monitor de equipamentos", "Automação de backup").
+    Task LogSystemAsync(
+        Guid licenseId,
+        string entityType,
+        Guid? entityId,
+        string action,
+        string summary,
+        string actorName,
+        object? details = null,
+        string status = "Success",
         CancellationToken cancellationToken = default);
 }
 ```
 
-Implementação injeta `DatabaseContext` + `IHttpContextAccessor` (este último precisa ser registrado em `Program.cs` se ainda não estiver — os helpers de hoje leem `User` diretamente da propriedade do controller, não via accessor). `LogAsync` apenas adiciona a linha ao `DbContext` rastreado (`_context.AuditLogs.Add(...)`) e NÃO chama `SaveChangesAsync` — a entrada só é persistida quando o `SaveChangesAsync` da própria operação do controller for chamado, garantindo atomicidade: se a operação principal falhar antes de salvar, a entrada de auditoria correspondente também não é gravada.
+**Correção pós-aprovação:** a spec original só previa `LogAsync` resolvendo o ator via `HttpContext.User` — mas ~13 dos 31 pontos de chamada existentes rodam em background workers/services (`DeviceHealthMonitoringWorker`, `AutomaticBackupRunner`, `AccessEventIngestionWorker`, `CredentialReconciliationService`, `DigitalPassIssuanceService`, `ConfigurationBackupService`, `IncidentService`, `DeviceInventoryService`, `RecycleBinService`) sem requisição HTTP em andamento — hoje eles gravam `UserName` com um texto de ator do sistema (`"Monitor de equipamentos"`, etc.), nunca um `UserId`. Por isso o serviço tem dois métodos: `LogAsync` (controllers, resolve `UserId`/`UserName` do `ClaimsPrincipal`) e `LogSystemAsync` (workers, recebe `actorName` explícito, `UserId` sempre nulo). Ambos escrevem na mesma tabela `AuditLogs`.
 
-`UserId` é extraído via `ClaimTypes.NameIdentifier` do `ClaimsPrincipal` atual — a mesma claim já usada em outros ~15 pontos do código, tanto para principals de equipe quanto de morador (`JwtTokenService.cs`).
+Implementação injeta `DatabaseContext` + `IHttpContextAccessor` (este último precisa ser registrado em `Program.cs` — não está registrado hoje; os helpers atuais leem `User` diretamente da propriedade do controller, não via accessor). Nenhum dos dois métodos chama `SaveChangesAsync` — a entrada só é persistida quando o `SaveChangesAsync` do chamador for executado, garantindo atomicidade: se a operação principal falhar antes de salvar, a entrada de auditoria correspondente também não é gravada.
+
+`UserId` em `LogAsync` é extraído via `ClaimTypes.NameIdentifier` do `ClaimsPrincipal` atual — a mesma claim já usada em outros ~15 pontos do código, tanto para principals de equipe quanto de morador (`JwtTokenService.cs`).
 
 ## Escopo de cobertura
 
-**A. Migrar os 12 pontos de chamada já existentes** (mesmos eventos já auditados hoje, só que via serviço central e ganhando `UserId` real): `LicenseStructureController` (Block/Unit/Device — Created/Updated/Trashed), `PeopleManagementController` (Resident/Vehicle), `AutomationRulesController`, `AccessControlOperationsController` (AccessRoute), `CredentialManagementController` (Credential + vínculo credencial-equipamento), `ConciergeController` (entrada de watchlist), `ConfigurationBackupsController`, controller de configuração SMTP.
+**Correção pós-aprovação:** a contagem original ("12 pontos de chamada em 6 controllers") só levou em conta controllers HTTP e subestimou o real. A busca por `AccessOperationAudits.Add(` no código encontrou **31 pontos de chamada reais em 24 arquivos** — 15 controllers e 9 services/workers em background. A tabela abaixo substitui a lista original.
+
+**A. Migrar os 31 pontos de chamada já existentes (24 arquivos)** — mesmos eventos já auditados hoje, refatorados para usar `IAuditService`, ganhando `UserId` real onde houver requisição HTTP:
+
+*Controllers (18 pontos de chamada, 15 arquivos) — usam `LogAsync`:*
+`AlertNotificationsController`, `AutomationRulesController`, `AccessControlOperationsController`, `AccessRoutesController`, `ConfigurationBackupsController` (3 pontos), `ConciergeController`, `DeviceAccessControler`, `EmergencyController`, `IncidentsController`, `LicenseStructureController`, `OperationalAlertsController` (2 pontos), `PeopleManagementController`, `RecycleBinController`, `ResidentProfileController`, `StructureImportsController`.
+
+*Services/workers em background (13 pontos de chamada, 9 arquivos) — usam `LogSystemAsync`:*
+`Services/Backups/ConfigurationBackupService` (3 pontos), `Services/Backups/AutomaticBackupRunner` (2 pontos), `Services/RecycleBin/RecycleBinService`, `Services/Operations/DigitalPassIssuanceService` (2 pontos), `Services/Operations/IncidentService`, `Services/AccessControl/CredentialReconciliationService`, `Services/AccessControl/AccessEventIngestionWorker`, `Services/AccessControl/DeviceHealthMonitoringWorker` (via helper `Alert()`), `Services/AccessControl/DeviceInventoryService`.
+
+Os arquivos e linhas exatos de cada ponto de chamada serão levantados e listados no plano de implementação (task por task), não repetidos aqui.
 
 **B. Cobertura nova — só ações destrutivas** (Create/Update permanecem sem auditoria nestas entidades; só a ação irreversível é registrada):
 
@@ -85,9 +113,9 @@ O `AccessOperationsDialog.razor` ("Processamentos") existente permanece como est
 
 ## Testes
 
-- `AuditServiceTests`: unitário, verifica que `LogAsync` popula todos os campos corretamente (incluindo `UserId` a partir de um `ClaimsPrincipal` fake) e que a entrada só é persistida após o `SaveChangesAsync` do chamador (não commita sozinha).
+- `AuditServiceTests`: unitário, verifica que `LogAsync` popula todos os campos corretamente a partir de um `ClaimsPrincipal` fake (incluindo `UserId`) e que `LogSystemAsync` popula `UserName` a partir do `actorName` informado com `UserId` nulo; ambos só persistem a entrada após o `SaveChangesAsync` do chamador (não commitam sozinhos).
 - Testes de regressão por controller (um por ação destrutiva nova, 9 no total): cada um exercita a ação HTTP real e, em caso de sucesso, verifica que uma linha `AuditLogDTO` foi persistida com `EntityType`/`Action`/`EntityId` corretos — mesmo padrão "exercitar a ação real, verificar linha persistida" usado no teste de regressão de push de Comunicados.
-- Teste de migration: confirma que as linhas existentes de `AccessOperationAudits` sobrevivem ao rename como linhas de `AuditLogs` com `Status` removido (round-trip Postgres, mesma convenção de verificação de migration já usada no projeto).
+- Teste de migration: confirma que as linhas existentes de `AccessOperationAudits` sobrevivem ao rename como linhas de `AuditLogs`, com todas as colunas (incluindo `Status`) intactas (round-trip Postgres, mesma convenção de verificação de migration já usada no projeto).
 - Portal: a nova aba "Auditoria" segue verificação manual/de build, como nos subsistemas anteriores (não há harness de teste de componente Blazor neste projeto ainda).
 
 ## Fora de escopo (deferido para o item #13, parte 2)
