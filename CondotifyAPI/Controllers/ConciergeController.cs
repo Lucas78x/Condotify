@@ -15,6 +15,7 @@ using CondotifyAPI.Services.Security;
 using CondotifyAPI.Services.Mobile;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CondotifyAPI.Controllers;
@@ -25,6 +26,7 @@ namespace CondotifyAPI.Controllers;
 public sealed class ConciergeController(
     DatabaseContext context,
     IPrivateMediaStore media,
+    IHubContext<CondotifyAPI.Hubs.ConciergeHub> hub,
     IPlatformPushNotifier? push = null) : ControllerBase
 {
     [HttpGet]
@@ -261,6 +263,7 @@ public sealed class ConciergeController(
         if (input.Approved) Queue(licenseId, visit.CredentialId, $"approval:{visit.Id:N}", CurrentUser());
         Audit(licenseId, visit.Id, input.Approved ? "VisitApproved" : "VisitRejected", "Success", input.Approved ? "Visita aprovada." : "Visita recusada.", input);
         await context.SaveChangesAsync();
+        await hub.Clients.Group(CondotifyAPI.Hubs.ConciergeHub.GroupName(licenseId)).SendAsync("VisitStatusChanged", ToOut(visit), HttpContext.RequestAborted);
         await NotifyVisitAsync(
             visit,
             input.Approved ? "Visita aprovada" : "Visita recusada",
@@ -330,6 +333,7 @@ public sealed class ConciergeController(
         }
         Audit(licenseId, visit.Id, "VisitStatus", "Success", $"Visita alterada para {input.Status}. {input.Reason}", input);
         await context.SaveChangesAsync();
+        await hub.Clients.Group(CondotifyAPI.Hubs.ConciergeHub.GroupName(licenseId)).SendAsync("VisitStatusChanged", ToOut(visit), HttpContext.RequestAborted);
         await NotifyVisitAsync(
             visit,
             "Atualizacao da visita",
@@ -368,6 +372,7 @@ public sealed class ConciergeController(
         visit.Credential.UpdatedAt = now;
         Audit(licenseId, visit.Id, "VisitQrScanned", "Success", $"Entrada de {visit.VisitorName} validada por QR Code.", new { Code = code });
         await context.SaveChangesAsync();
+        await hub.Clients.Group(CondotifyAPI.Hubs.ConciergeHub.GroupName(licenseId)).SendAsync("VisitStatusChanged", ToOut(visit), HttpContext.RequestAborted);
         await NotifyVisitAsync(visit, "Visitante na portaria", $"A entrada de {visit.VisitorName} foi registrada.", $"visitor-scan:{visit.Id:N}");
         return Ok(ToOut(visit));
     }

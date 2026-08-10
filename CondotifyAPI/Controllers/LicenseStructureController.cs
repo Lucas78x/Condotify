@@ -14,6 +14,7 @@ using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Services.AccessControl;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text.Json;
@@ -34,6 +35,7 @@ public class LicenseStructureController : ControllerBase
     private readonly IMapper _mapper;
     private readonly IRecycleBinService _recycleBin;
     private readonly IPrivateMediaStore _media;
+    private readonly IHubContext<CondotifyAPI.Hubs.ConciergeHub> _hub;
     private readonly IPlatformPushNotifier? _push;
 
     public LicenseStructureController(
@@ -42,6 +44,7 @@ public class LicenseStructureController : ControllerBase
         IMapper mapper,
         IRecycleBinService recycleBin,
         IPrivateMediaStore media,
+        IHubContext<CondotifyAPI.Hubs.ConciergeHub> hub,
         IPlatformPushNotifier? push = null)
     {
         _context = context;
@@ -49,6 +52,7 @@ public class LicenseStructureController : ControllerBase
         _mapper = mapper;
         _recycleBin = recycleBin;
         _media = media;
+        _hub = hub;
         _push = push;
     }
 
@@ -622,6 +626,7 @@ public class LicenseStructureController : ControllerBase
 
         var delivery = await CreateDeliveryCore(_context, _media, licenseId, input, HttpContext.RequestAborted);
         await _context.SaveChangesAsync();
+        await _hub.Clients.Group(CondotifyAPI.Hubs.ConciergeHub.GroupName(licenseId)).SendAsync("DeliveryUpdated", ToDeliveryOut(delivery), HttpContext.RequestAborted);
 
         await NotifyDeliveryAsync(
             delivery,
@@ -699,6 +704,7 @@ public class LicenseStructureController : ControllerBase
         }
 
         await _context.SaveChangesAsync();
+        await _hub.Clients.Group(CondotifyAPI.Hubs.ConciergeHub.GroupName(licenseId)).SendAsync("DeliveryUpdated", ToDeliveryOut(delivery), HttpContext.RequestAborted);
         await NotifyDeliveryAsync(
             delivery,
             "Encomenda atualizada",
