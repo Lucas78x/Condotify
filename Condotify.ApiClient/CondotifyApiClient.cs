@@ -510,6 +510,21 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<string>> GetDocumentFileAsync(Guid licenseId, Guid documentId, CancellationToken cancellationToken = default) =>
         GetPdfDataUrlAsync($"api/access/licenses/{licenseId}/documents/{documentId}/file", cancellationToken);
 
+    public Task<ApiResult<List<AnnouncementViewModel>>> GetAnnouncementsAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AnnouncementViewModel>>($"api/access/licenses/{licenseId}/announcements", cancellationToken);
+
+    public Task<ApiResult<AnnouncementViewModel>> CreateAnnouncementAsync(Guid licenseId, AnnouncementFormViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<AnnouncementViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/announcements", new { model.Title, model.Body, model.IsUrgent }, cancellationToken);
+
+    public Task<ApiResult<AnnouncementViewModel>> UpdateAnnouncementAsync(Guid licenseId, Guid announcementId, AnnouncementFormViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<AnnouncementViewModel>(HttpMethod.Put, $"api/access/licenses/{licenseId}/announcements/{announcementId}", new { model.Title, model.Body, model.IsUrgent }, cancellationToken);
+
+    public Task<ApiResult<bool>> DeleteAnnouncementAsync(Guid licenseId, Guid announcementId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/announcements/{announcementId}", cancellationToken);
+
+    public Task<ApiResult<List<AnnouncementViewModel>>> GetResidentAnnouncementsAsync(CancellationToken cancellationToken = default) =>
+        GetAsync<List<AnnouncementViewModel>>("api/resident/announcements", cancellationToken);
+
     private async Task<ApiResult<string>> GetPdfDataUrlAsync(string path, CancellationToken cancellationToken)
     {
         try
