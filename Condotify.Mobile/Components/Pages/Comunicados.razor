@@ -12,8 +12,8 @@
     <section class="list-group">
         @foreach (var announcement in _announcements)
         {
-            <div class="list-row @(announcement.IsUrgent ? "list-row-urgent" : null)">
-                <span class="settings-icon @(announcement.IsUrgent ? "error" : "info")"><MudIcon Icon="@Icons.Material.Outlined.Campaign" /></span>
+            <div class="list-row">
+                <span class="settings-icon @(announcement.IsUrgent ? "danger" : "info")"><MudIcon Icon="@Icons.Material.Outlined.Campaign" /></span>
                 <div class="list-main">
                     <div class="list-title">
                         @announcement.Title
