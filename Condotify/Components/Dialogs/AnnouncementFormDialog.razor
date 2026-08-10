@@ -1,0 +1,55 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.Campaign" />
+            <div><strong>@(AnnouncementId.HasValue ? "Editar comunicado" : "Novo comunicado")</strong><span>Fica visível para todos os moradores desta licença assim que publicado.</span></div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <div class="form-grid">
+                <MudTextField T="string" @bind-Value="_form.Title" Label="Título" Required Variant="Variant.Outlined" MaxLength="160" Class="full" />
+                <MudTextField T="string" @bind-Value="_form.Body" Label="Texto do comunicado" Required Variant="Variant.Outlined" Lines="5" MaxLength="4000" Class="full" />
+                <MudSwitch T="bool" @bind-Value="_form.IsUrgent" Color="Color.Error" Label="Marcar como urgente" Class="full" />
+            </div>
+            <div class="form-actions dialog-form-actions">
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Campaign" Disabled="_saving">@(_saving ? "Publicando..." : (AnnouncementId.HasValue ? "Salvar alterações" : "Publicar comunicado"))</MudButton>
+            </div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public Guid? AnnouncementId { get; set; }
+    [Parameter] public AnnouncementFormViewModel? Existing { get; set; }
+
+    private readonly AnnouncementFormViewModel _form = new();
+    private bool _saving;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (Existing is null) return;
+        _form.Title = Existing.Title;
+        _form.Body = Existing.Body;
+        _form.IsUrgent = Existing.IsUrgent;
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        _saving = true; _error = null;
+        var result = AnnouncementId.HasValue
+            ? await Api.UpdateAnnouncementAsync(LicenseId, AnnouncementId.Value, _form)
+            : await Api.CreateAnnouncementAsync(LicenseId, _form);
+        _saving = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Dialog.Close(DialogResult.Ok(true));
+    }
+}

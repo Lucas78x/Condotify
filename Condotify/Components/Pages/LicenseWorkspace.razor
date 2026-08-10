@@ -71,6 +71,9 @@ else
             case "agendamento":
                 <AgendamentoModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageBookings)" />
                 break;
+            case "comunicados":
+                <AnnouncementsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageAnnouncements)" />
+                break;
             case "boletos":
                 <BoletosModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageFinance)" />
                 break;
@@ -120,6 +123,7 @@ else
             new("automacoes", "Automações", Icons.Material.Outlined.AutoAwesome, LicensePermission.ViewAutomations, Condotify.Models.LicenseModuleEnum.Automations),
             new("emergencia", "Emergência", Icons.Material.Outlined.HealthAndSafety, LicensePermission.ViewEmergency, Condotify.Models.LicenseModuleEnum.Emergency),
             new("agendamento", "Agendamento", Icons.Material.Outlined.Deck, LicensePermission.ViewBookings, Condotify.Models.LicenseModuleEnum.Bookings),
+            new("comunicados", "Comunicados", Icons.Material.Outlined.Campaign, LicensePermission.ManageAnnouncements, Condotify.Models.LicenseModuleEnum.Announcements),
         ]),
         ("Financeiro & Documentos", [
             new("boletos", "Boletos", Icons.Material.Outlined.ReceiptLong, LicensePermission.ManageFinance, Condotify.Models.LicenseModuleEnum.Finance),
@@ -151,6 +155,7 @@ else
         : Has(LicensePermission.ViewBookings) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Bookings) ? "agendamento"
         : Has(LicensePermission.ManageFinance) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Finance) ? "boletos"
         : Has(LicensePermission.ManageDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents) ? "documentos"
+        : Has(LicensePermission.ManageAnnouncements) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Announcements) ? "comunicados"
         : Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts) ? "administracao"
         : "sem-acesso";
 
@@ -201,6 +206,7 @@ else
         "agendamento" => Has(LicensePermission.ViewBookings),
         "boletos" => Has(LicensePermission.ManageFinance),
         "documentos" => Has(LicensePermission.ManageDocuments),
+        "comunicados" => Has(LicensePermission.ManageAnnouncements),
         "administracao" => Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts),
         _ => false
     };
@@ -216,6 +222,7 @@ else
         "agendamento" => Condotify.Models.LicenseModuleEnum.Bookings,
         "boletos" => Condotify.Models.LicenseModuleEnum.Finance,
         "documentos" => Condotify.Models.LicenseModuleEnum.Documents,
+        "comunicados" => Condotify.Models.LicenseModuleEnum.Announcements,
         _ => null
     };
 }

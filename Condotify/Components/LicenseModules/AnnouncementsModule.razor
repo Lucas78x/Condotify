@@ -1,0 +1,103 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+
+@if (_loading)
+{
+    <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+}
+else
+{
+    <section class="content-panel">
+        <div class="panel-heading">
+            <div><MudText Typo="Typo.h5">Comunicados</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Visíveis a todos os moradores desta licença</MudText></div>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Campaign" OnClick="OpenCreateAsync" Disabled="!CanManage">Publicar comunicado</MudButton>
+        </div>
+
+        @if (_announcements.Count == 0)
+        {
+            <div class="empty-state compact-empty">
+                <MudIcon Icon="@Icons.Material.Outlined.Campaign" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.subtitle1">Nenhum comunicado publicado</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Avisos publicados aqui ficam visíveis a todos os moradores no app.</MudText>
+            </div>
+        }
+        else
+        {
+            <div class="document-list">
+                @foreach (var announcement in _announcements)
+                {
+                    <div class="document-row">
+                        <span class="category-badge @(announcement.IsUrgent ? "category-amber" : "category-primary")"><MudIcon Icon="@Icons.Material.Outlined.Campaign" /></span>
+                        <div class="document-row-body">
+                            <div class="document-row-top">
+                                <span class="document-row-title">@announcement.Title</span>
+                                @if (announcement.IsUrgent) { <span class="category-chip category-amber">Urgente</span> }
+                            </div>
+                            <div class="document-row-desc">@announcement.Body</div>
+                            <div class="document-row-meta">Publicado em @announcement.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @announcement.CreatedBy</div>
+                        </div>
+                        <div class="document-row-actions">
+                            <MudTooltip Text="Editar"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" Disabled="!CanManage" OnClick="() => OpenEditAsync(announcement)" /></MudTooltip>
+                            <MudTooltip Text="Excluir"><MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" Disabled="!CanManage" OnClick="() => DeleteAsync(announcement.Id)" /></MudTooltip>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+
+    private List<AnnouncementViewModel> _announcements = [];
+    private bool _loading;
+    private string? _error;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        var result = await Api.GetAnnouncementsAsync(LicenseId);
+        _loading = false;
+        if (result.Success) _announcements = result.Value ?? [];
+        else _error = result.Error;
+    }
+
+    private async Task OpenCreateAsync()
+    {
+        var parameters = new DialogParameters { [nameof(AnnouncementFormDialog.LicenseId)] = LicenseId };
+        var dialog = await DialogService.ShowAsync<AnnouncementFormDialog>("", parameters, new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) { Snackbar.Add("Comunicado publicado com sucesso.", Severity.Success); await LoadAsync(); }
+    }
+
+    private async Task OpenEditAsync(AnnouncementViewModel announcement)
+    {
+        var existing = new AnnouncementFormViewModel { Title = announcement.Title, Body = announcement.Body, IsUrgent = announcement.IsUrgent };
+        var parameters = new DialogParameters
+        {
+            [nameof(AnnouncementFormDialog.LicenseId)] = LicenseId,
+            [nameof(AnnouncementFormDialog.AnnouncementId)] = announcement.Id,
+            [nameof(AnnouncementFormDialog.Existing)] = existing
+        };
+        var dialog = await DialogService.ShowAsync<AnnouncementFormDialog>("", parameters, new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) { Snackbar.Add("Comunicado atualizado.", Severity.Success); await LoadAsync(); }
+    }
+
+    private async Task DeleteAsync(Guid announcementId)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync("Excluir comunicado", "Excluir este comunicado? Ele deixa de aparecer para os moradores imediatamente.", yesText: "Excluir", cancelText: "Cancelar");
+        if (confirmed != true) return;
+        var result = await Api.DeleteAnnouncementAsync(LicenseId, announcementId);
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível excluir o comunicado.", Severity.Error); return; }
+        Snackbar.Add("Comunicado excluído.", Severity.Success);
+        await LoadAsync();
+    }
+}
