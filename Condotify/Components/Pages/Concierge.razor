@@ -50,93 +50,106 @@ else if (_dashboard is not null)
         <div class="concierge-kpi"><span class="kpi-icon red"><MudIcon Icon="@Icons.Material.Outlined.TimerOff" /></span><div><strong>@_dashboard.Overstays</strong><small>Permanência excedida</small></div></div>
     </div>
 
-    <div class="concierge-workspace">
-        <MudPaper Class="content-panel concierge-visits-panel" Elevation="0">
-            <div class="panel-toolbar">
-                <div><MudText Typo="Typo.h6" Class="panel-title">Agenda de acessos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Visitas de hoje e dos próximos dias</MudText></div>
-                <div class="concierge-filters">
-                    <MudTextField T="string" @bind-Value="_visitSearch" Immediate Placeholder="Buscar visitante, morador ou unidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
-                    <MudSelect T="string" @bind-Value="_visitFilter" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem T="string" Value="@("all")">Todas</MudSelectItem><MudSelectItem T="string" Value="@("Scheduled")">Agendadas</MudSelectItem><MudSelectItem T="string" Value="@("CheckedIn")">No local</MudSelectItem><MudSelectItem T="string" Value="@("finished")">Finalizadas</MudSelectItem></MudSelect>
-                </div>
-            </div>
-            @if (!FilteredVisits.Any())
-            {
-                <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.EventBusy" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhuma visita neste filtro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">As próximas autorizações aparecerão aqui.</MudText></div>
-            }
-            else
-            {
-                <div class="concierge-visit-list">
-                    @foreach (var visit in FilteredVisits)
+    <MudTabs Elevation="0" Rounded PanelClass="pa-0" Class="concierge-tabs">
+        <MudTabPanel Text="Agenda de acessos" Icon="@Icons.Material.Outlined.EventNote">
+            <div class="concierge-workspace">
+                <MudPaper Class="content-panel concierge-visits-panel" Elevation="0">
+                    <div class="panel-toolbar">
+                        <div><MudText Typo="Typo.h6" Class="panel-title">Agenda de acessos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Visitas de hoje e dos próximos dias</MudText></div>
+                        <div class="concierge-filters">
+                            <MudTextField T="string" @bind-Value="_visitSearch" Immediate Placeholder="Buscar visitante, morador ou unidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
+                            <MudSelect T="string" @bind-Value="_visitFilter" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem T="string" Value="@("all")">Todas</MudSelectItem><MudSelectItem T="string" Value="@("Scheduled")">Agendadas</MudSelectItem><MudSelectItem T="string" Value="@("CheckedIn")">No local</MudSelectItem><MudSelectItem T="string" Value="@("finished")">Finalizadas</MudSelectItem></MudSelect>
+                        </div>
+                    </div>
+                    @if (!FilteredVisits.Any())
                     {
-                        <article class="concierge-visit-row">
-                            <div class="visit-avatar">
-                                @if (!string.IsNullOrWhiteSpace(visit.PhotoUrl)) { <img src="@visit.PhotoUrl" alt="" /> }
-                                else { <span>@Initials(visit.VisitorName)</span> }
-                                <i class="@StatusDot(visit.Status)"></i>
-                            </div>
-                            <div class="visit-main"><div><strong>@visit.VisitorName</strong><span class="status-chip @StatusClass(visit.Status)">@StatusLabel(visit.Status)</span></div><small><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Size="Size.Small" /> @visit.HostName - @visit.BlockName / @visit.UnitNumber</small></div>
-                            <div class="visit-purpose"><small>Motivo</small><span>@(string.IsNullOrWhiteSpace(visit.Purpose) ? "Visita" : visit.Purpose)</span></div>
-                            <div class="visit-window"><small>Janela de acesso</small><span>@VisitWindow(visit)</span></div>
-                            <div class="visit-credential"><MudIcon Icon="@(visit.CredentialType == "Face" ? Icons.Material.Outlined.Face : Icons.Material.Outlined.QrCode2)" /><span>@CredentialLabel(visit)</span></div>
-                            <MudMenu Icon="@Icons.Material.Outlined.MoreVert" AriaLabel="Ações da visita" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
-                                <MudMenuItem Icon="@Icons.Material.Outlined.Visibility" OnClick="@(() => OpenVisitDetailsAsync(visit))">Ver autorização</MudMenuItem>
-                                @if (visit.Status == "PendingApproval")
-                                {
-                                    <MudMenuItem Icon="@Icons.Material.Outlined.CheckCircle" OnClick="@(() => DecideVisitAsync(visit, true))">Aprovar visita</MudMenuItem>
-                                    <MudMenuItem Icon="@Icons.Material.Outlined.Cancel" OnClick="@(() => DecideVisitAsync(visit, false))">Recusar visita</MudMenuItem>
-                                }
-                                @if (visit.Status == "Scheduled")
-                                {
-                                    <MudMenuItem Icon="@Icons.Material.Outlined.Login" OnClick="@(() => ChangeVisitStatusAsync(visit, 1, "Entrada confirmada na portaria"))">Registrar entrada</MudMenuItem>
-                                    <MudMenuItem Icon="@Icons.Material.Outlined.Block" OnClick="@(() => ChangeVisitStatusAsync(visit, 5, "Acesso negado pela portaria"))">Negar acesso</MudMenuItem>
-                                    <MudMenuItem Icon="@Icons.Material.Outlined.EventBusy" OnClick="@(() => ChangeVisitStatusAsync(visit, 3, "Visita cancelada"))">Cancelar visita</MudMenuItem>
-                                }
-                                @if (visit.Status == "CheckedIn")
-                                {
-                                    <MudMenuItem Icon="@Icons.Material.Outlined.Logout" OnClick="@(() => ChangeVisitStatusAsync(visit, 2, "Saída confirmada na portaria"))">Registrar saída</MudMenuItem>
-                                }
-                            </MudMenu>
-                        </article>
+                        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.EventBusy" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhuma visita neste filtro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">As próximas autorizações aparecerão aqui.</MudText></div>
                     }
-                </div>
-            }
-        </MudPaper>
-
-        <div class="concierge-side-column">
-            <MudPaper Class="content-panel concierge-devices-panel" Elevation="0">
-                <div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Acionamentos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Portas e terminais</MudText></div></div>
-                <div class="concierge-device-list">
-                    @foreach (var device in _dashboard.Devices)
+                    else
                     {
-                        <div class="concierge-device-row">
-                            <span class="device-health @(device.Online ? "online" : "offline")"><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" /></span>
-                            <div><strong>@device.Name</strong><small>@(device.Online ? "Online" : "Sem comunicação") - @device.Model</small></div>
-                            <MudMenu Icon="@Icons.Material.Outlined.MeetingRoom" AriaLabel="Abrir porta" Disabled="@(!device.Online)">
-                                @foreach (var portal in DevicePortals(device))
-                                {
-                                    <MudMenuItem Icon="@Icons.Material.Outlined.LockOpen" OnClick="@(() => OpenDoorAsync(device, portal.Number, portal.Name))">@portal.Name</MudMenuItem>
-                                }
-                            </MudMenu>
+                        <div class="concierge-visit-list">
+                            @foreach (var visit in FilteredVisits)
+                            {
+                                <article class="concierge-visit-row">
+                                    <div class="visit-avatar">
+                                        @if (!string.IsNullOrWhiteSpace(visit.PhotoUrl)) { <img src="@visit.PhotoUrl" alt="" /> }
+                                        else { <span>@Initials(visit.VisitorName)</span> }
+                                        <i class="@StatusDot(visit.Status)"></i>
+                                    </div>
+                                    <div class="visit-main"><div><strong>@visit.VisitorName</strong><span class="status-chip @StatusClass(visit.Status)">@StatusLabel(visit.Status)</span></div><small><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Size="Size.Small" /> @visit.HostName - @visit.BlockName / @visit.UnitNumber</small></div>
+                                    <div class="visit-purpose"><small>Motivo</small><span>@(string.IsNullOrWhiteSpace(visit.Purpose) ? "Visita" : visit.Purpose)</span></div>
+                                    <div class="visit-window"><small>Janela de acesso</small><span>@VisitWindow(visit)</span></div>
+                                    <div class="visit-credential"><MudIcon Icon="@(visit.CredentialType == "Face" ? Icons.Material.Outlined.Face : Icons.Material.Outlined.QrCode2)" /><span>@CredentialLabel(visit)</span></div>
+                                    <MudMenu Icon="@Icons.Material.Outlined.MoreVert" AriaLabel="Ações da visita" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                        <MudMenuItem Icon="@Icons.Material.Outlined.Visibility" OnClick="@(() => OpenVisitDetailsAsync(visit))">Ver autorização</MudMenuItem>
+                                        @if (visit.Status == "PendingApproval")
+                                        {
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.CheckCircle" OnClick="@(() => DecideVisitAsync(visit, true))">Aprovar visita</MudMenuItem>
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.Cancel" OnClick="@(() => DecideVisitAsync(visit, false))">Recusar visita</MudMenuItem>
+                                        }
+                                        @if (visit.Status == "Scheduled")
+                                        {
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.Login" OnClick="@(() => ChangeVisitStatusAsync(visit, 1, "Entrada confirmada na portaria"))">Registrar entrada</MudMenuItem>
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.Block" OnClick="@(() => ChangeVisitStatusAsync(visit, 5, "Acesso negado pela portaria"))">Negar acesso</MudMenuItem>
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.EventBusy" OnClick="@(() => ChangeVisitStatusAsync(visit, 3, "Visita cancelada"))">Cancelar visita</MudMenuItem>
+                                        }
+                                        @if (visit.Status == "CheckedIn")
+                                        {
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.Logout" OnClick="@(() => ChangeVisitStatusAsync(visit, 2, "Saída confirmada na portaria"))">Registrar saída</MudMenuItem>
+                                        }
+                                    </MudMenu>
+                                </article>
+                            }
                         </div>
                     }
-                </div>
-            </MudPaper>
+                </MudPaper>
 
-            <MudPaper Class="content-panel concierge-events-panel" Elevation="0">
-                <div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Eventos recentes</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Leitura dos controladores</MudText></div></div>
-                <div class="concierge-event-list">
-                    @foreach (var accessEvent in _dashboard.Events.Take(12))
+                <div class="concierge-side-column">
+                    <MudPaper Class="content-panel concierge-devices-panel" Elevation="0">
+                        <div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Acionamentos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Portas e terminais</MudText></div></div>
+                        <div class="concierge-device-list">
+                            @foreach (var device in _dashboard.Devices)
+                            {
+                                <div class="concierge-device-row">
+                                    <span class="device-health @(device.Online ? "online" : "offline")"><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" /></span>
+                                    <div><strong>@device.Name</strong><small>@(device.Online ? "Online" : "Sem comunicação") - @device.Model</small></div>
+                                    <MudMenu Icon="@Icons.Material.Outlined.MeetingRoom" AriaLabel="Abrir porta" Disabled="@(!device.Online)">
+                                        @foreach (var portal in DevicePortals(device))
+                                        {
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.LockOpen" OnClick="@(() => OpenDoorAsync(device, portal.Number, portal.Name))">@portal.Name</MudMenuItem>
+                                        }
+                                    </MudMenu>
+                                </div>
+                            }
+                        </div>
+                    </MudPaper>
+
+                    <MudPaper Class="content-panel concierge-events-panel" Elevation="0">
+                        <div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Eventos recentes</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Leitura dos controladores</MudText></div></div>
+                        <div class="concierge-event-list">
+                            @foreach (var accessEvent in _dashboard.Events.Take(12))
+                            {
+                                <div class="concierge-event-row"><span class="event-result @(accessEvent.Authorized ? "allowed" : "denied")"><MudIcon Icon="@(accessEvent.Authorized ? Icons.Material.Outlined.Check : Icons.Material.Outlined.Close)" /></span><div><strong>@(string.IsNullOrWhiteSpace(accessEvent.PersonName) ? accessEvent.Event : accessEvent.PersonName)</strong><small>@accessEvent.DeviceName @(!string.IsNullOrWhiteSpace(accessEvent.Portal) ? $"- {accessEvent.Portal}" : string.Empty)</small></div><time>@accessEvent.OccurredAt.ToLocalTime().ToString("HH:mm")</time></div>
+                            }
+                        </div>
+                    </MudPaper>
+                    @if (_dashboard.Watchlist.Count > 0)
                     {
-                        <div class="concierge-event-row"><span class="event-result @(accessEvent.Authorized ? "allowed" : "denied")"><MudIcon Icon="@(accessEvent.Authorized ? Icons.Material.Outlined.Check : Icons.Material.Outlined.Close)" /></span><div><strong>@(string.IsNullOrWhiteSpace(accessEvent.PersonName) ? accessEvent.Event : accessEvent.PersonName)</strong><small>@accessEvent.DeviceName @(!string.IsNullOrWhiteSpace(accessEvent.Portal) ? $"- {accessEvent.Portal}" : string.Empty)</small></div><time>@accessEvent.OccurredAt.ToLocalTime().ToString("HH:mm")</time></div>
+                        <MudPaper Class="content-panel concierge-watchlist-panel" Elevation="0"><div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Restrições ativas</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Documentos e veículos monitorados</MudText></div><MudChip T="string" Size="Size.Small" Color="Color.Error">@_dashboard.Watchlist.Count</MudChip></div><div class="concierge-watchlist-list">@foreach (var entry in _dashboard.Watchlist.Take(5)) { <div><MudIcon Icon="@Icons.Material.Outlined.Report" Color="Color.Error" /><span><strong>@(string.IsNullOrWhiteSpace(entry.Name) ? entry.Document : entry.Name)</strong><small>@entry.Reason</small></span><MudTooltip Text="Remover restrição"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(() => RemoveWatchlistAsync(entry))" /></MudTooltip></div> }</div></MudPaper>
                     }
                 </div>
-            </MudPaper>
-            @if (_dashboard.Watchlist.Count > 0)
-            {
-                <MudPaper Class="content-panel concierge-watchlist-panel" Elevation="0"><div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Restrições ativas</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Documentos e veículos monitorados</MudText></div><MudChip T="string" Size="Size.Small" Color="Color.Error">@_dashboard.Watchlist.Count</MudChip></div><div class="concierge-watchlist-list">@foreach (var entry in _dashboard.Watchlist.Take(5)) { <div><MudIcon Icon="@Icons.Material.Outlined.Report" Color="Color.Error" /><span><strong>@(string.IsNullOrWhiteSpace(entry.Name) ? entry.Document : entry.Name)</strong><small>@entry.Reason</small></span><MudTooltip Text="Remover restrição"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(() => RemoveWatchlistAsync(entry))" /></MudTooltip></div> }</div></MudPaper>
-            }
-        </div>
-    </div>
+            </div>
+        </MudTabPanel>
+        @if (IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Deliveries))
+        {
+            <MudTabPanel Text="Encomendas" Icon="@Icons.Material.Outlined.Inventory2">
+                <ConciergePackagesTab @ref="_packagesTab" LicenseId="_licenseId!.Value" CanManage="true" />
+            </MudTabPanel>
+        }
+        <MudTabPanel Text="Eventos" Icon="@Icons.Material.Outlined.FactCheck">
+            <ConciergeEventsTab @ref="_eventsTab" LicenseId="_licenseId!.Value" />
+        </MudTabPanel>
+    </MudTabs>
 }
 
 @code {
@@ -150,6 +163,11 @@ else if (_dashboard is not null)
     private bool _loading = true;
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _refreshCancellation;
+    private ConciergePackagesTab? _packagesTab;
+    private ConciergeEventsTab? _eventsTab;
+
+    private bool IsModuleEnabled(Condotify.Models.LicenseModuleEnum module) =>
+        _licenses.FirstOrDefault(x => Guid.TryParse(x.Id, out var id) && id == _licenseId)?.EnabledModules is not { } enabled || (enabled & (long)module) != 0;
 
     private IEnumerable<ConciergeVisitViewModel> FilteredVisits => (_dashboard?.Visits ?? [])
         .Where(x => _visitFilter == "all" || (_visitFilter == "finished" ? x.Status is "CheckedOut" or "Canceled" or "Expired" or "Denied" : x.Status == _visitFilter))

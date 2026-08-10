@@ -68,9 +68,6 @@ else
             case "estrutura":
                 <StructureModule LicenseId="LicenseId" ActiveSection="estrutura" CanManageStructure="@Has(LicensePermission.ManageStructure)" CanManagePeople="@Has(LicensePermission.ManagePeople)" CanManageCredentials="@Has(LicensePermission.ManageCredentials)" CanManageDevices="@Has(LicensePermission.ManageDevices)" />
                 break;
-            case "encomendas":
-                <DeliveriesModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDeliveries)" />
-                break;
             case "agendamento":
                 <AgendamentoModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageBookings)" />
                 break;
@@ -82,9 +79,6 @@ else
                 break;
             case "credenciais":
                 <CredentialsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageCredentials)" />
-                break;
-            case "acessos":
-                <AccessEventsModule LicenseId="LicenseId" />
                 break;
             case "ocorrencias":
                 <IncidentsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageIncidents)" />
@@ -120,13 +114,11 @@ else
             new("cameras", "Câmeras", Icons.Material.Outlined.Videocam, LicensePermission.ViewDevices, Condotify.Models.LicenseModuleEnum.Cameras),
             new("equipamentos", "Equipamentos", Icons.Material.Outlined.Sensors, LicensePermission.ViewDevices, Condotify.Models.LicenseModuleEnum.Devices),
             new("rotas", "Rotas", Icons.Material.Outlined.AltRoute, LicensePermission.ViewDevices, Condotify.Models.LicenseModuleEnum.Routes),
-            new("acessos", "Acessos", Icons.Material.Outlined.FactCheck, LicensePermission.ViewEvents),
         ]),
         ("Operação", [
             new("ocorrencias", "Ocorrências", Icons.Material.Outlined.AssignmentLate, LicensePermission.ViewIncidents, Condotify.Models.LicenseModuleEnum.Incidents),
             new("automacoes", "Automações", Icons.Material.Outlined.AutoAwesome, LicensePermission.ViewAutomations, Condotify.Models.LicenseModuleEnum.Automations),
             new("emergencia", "Emergência", Icons.Material.Outlined.HealthAndSafety, LicensePermission.ViewEmergency, Condotify.Models.LicenseModuleEnum.Emergency),
-            new("encomendas", "Encomendas", Icons.Material.Outlined.Inventory2, LicensePermission.ViewDeliveries, Condotify.Models.LicenseModuleEnum.Deliveries),
             new("agendamento", "Agendamento", Icons.Material.Outlined.Deck, LicensePermission.ViewBookings, Condotify.Models.LicenseModuleEnum.Bookings),
         ]),
         ("Financeiro & Documentos", [
@@ -153,11 +145,9 @@ else
         : Has(LicensePermission.ViewDevices) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Cameras) ? "cameras"
         : Has(LicensePermission.ViewDevices) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Routes) ? "rotas"
         : Has(LicensePermission.ViewCredentials) ? "credenciais"
-        : Has(LicensePermission.ViewEvents) ? "acessos"
         : Has(LicensePermission.ViewIncidents) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Incidents) ? "ocorrencias"
         : Has(LicensePermission.ViewAutomations) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Automations) ? "automacoes"
         : Has(LicensePermission.ViewEmergency) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Emergency) ? "emergencia"
-        : Has(LicensePermission.ViewDeliveries) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Deliveries) ? "encomendas"
         : Has(LicensePermission.ViewBookings) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Bookings) ? "agendamento"
         : Has(LicensePermission.ManageFinance) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Finance) ? "boletos"
         : Has(LicensePermission.ManageDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents) ? "documentos"
@@ -205,11 +195,9 @@ else
         "equipamentos" or "rotas" or "cameras" => Has(LicensePermission.ViewDevices),
         "estrutura" => Has(LicensePermission.ViewStructure),
         "credenciais" => Has(LicensePermission.ViewCredentials),
-        "acessos" => Has(LicensePermission.ViewEvents),
         "ocorrencias" => Has(LicensePermission.ViewIncidents),
         "automacoes" => Has(LicensePermission.ViewAutomations),
         "emergencia" => Has(LicensePermission.ViewEmergency),
-        "encomendas" => Has(LicensePermission.ViewDeliveries),
         "agendamento" => Has(LicensePermission.ViewBookings),
         "boletos" => Has(LicensePermission.ManageFinance),
         "documentos" => Has(LicensePermission.ManageDocuments),
@@ -225,7 +213,6 @@ else
         "ocorrencias" => Condotify.Models.LicenseModuleEnum.Incidents,
         "automacoes" => Condotify.Models.LicenseModuleEnum.Automations,
         "emergencia" => Condotify.Models.LicenseModuleEnum.Emergency,
-        "encomendas" => Condotify.Models.LicenseModuleEnum.Deliveries,
         "agendamento" => Condotify.Models.LicenseModuleEnum.Bookings,
         "boletos" => Condotify.Models.LicenseModuleEnum.Finance,
         "documentos" => Condotify.Models.LicenseModuleEnum.Documents,

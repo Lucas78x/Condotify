@@ -1,0 +1,77 @@
+@* Condotify/Components/Concierge/ConciergeEventsTab.razor *@
+@inject CondotifyApiClient Api
+
+<section class="module-intro">
+    <div><MudText Typo="Typo.h6" Class="panel-title">Eventos de acesso</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Autorizações e recusas de todos os terminais desta licença.</MudText></div>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+
+<div class="module-kpis">
+    <div class="mini-kpi"><span class="mini-kpi-icon blue"><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" /></span><div><strong>@_events.Count</strong><span>Eventos carregados</span></div></div>
+    <div class="mini-kpi"><span class="mini-kpi-icon green"><MudIcon Icon="@Icons.Material.Outlined.CheckCircle" /></span><div><strong>@_events.Count(x => x.Authorized)</strong><span>Autorizados</span></div></div>
+    <div class="mini-kpi"><span class="mini-kpi-icon amber"><MudIcon Icon="@Icons.Material.Outlined.Block" /></span><div><strong>@_events.Count(x => !x.Authorized)</strong><span>Negados ou alertas</span></div></div>
+</div>
+
+<MudPaper Class="content-panel" Elevation="0">
+    <div class="panel-toolbar">
+        <div><MudText Typo="Typo.h6" Class="panel-title">Linha do tempo</MudText></div>
+        <div class="access-event-filters">
+            <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar pessoa, porta ou terminal" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" OnKeyUp="@(_ => DebouncedReloadAsync())" />
+            <MudSelect T="string" Value="_resultFilter" Label="Resultado" Variant="Variant.Outlined" Margin="Margin.Dense" ValueChanged="@(async value => { _resultFilter = value; await LoadAsync(); })">
+                <MudSelectItem T="string" Value="@("all")">Todos</MudSelectItem>
+                <MudSelectItem T="string" Value="@("authorized")">Autorizados</MudSelectItem>
+                <MudSelectItem T="string" Value="@("denied")">Negados e alertas</MudSelectItem>
+            </MudSelect>
+            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" />
+        </div>
+    </div>
+    @if (_loading) { <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div> }
+    else if (_events.Count == 0) { <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.EventNote" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum evento encontrado</MudText></div> }
+    else
+    {
+        <div class="table-wrap">
+            <MudTable Items="_events" Hover Dense Elevation="0">
+                <HeaderContent><MudTh>Data e hora</MudTh><MudTh>Resultado</MudTh><MudTh>Pessoa</MudTh><MudTh>Porta</MudTh><MudTh>Equipamento</MudTh></HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Data e hora">@context.OccurredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</MudTd>
+                    <MudTd DataLabel="Resultado"><MudChip T="string" Size="Size.Small" Color="@(context.Authorized ? Color.Success : Color.Error)" Variant="Variant.Outlined" Icon="@(context.Authorized ? Icons.Material.Outlined.Check : Icons.Material.Outlined.Close)">@context.Event</MudChip></MudTd>
+                    <MudTd DataLabel="Pessoa">@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : "-")</MudTd>
+                    <MudTd DataLabel="Porta">@(!string.IsNullOrWhiteSpace(context.Portal) ? context.Portal : "-")</MudTd>
+                    <MudTd DataLabel="Equipamento">@context.DeviceName</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    private List<ConciergeEventViewModel> _events = [];
+    private bool _loading = true;
+    private string? _error;
+    private string _search = string.Empty;
+    private string _resultFilter = "all";
+    private CancellationTokenSource? _debounce;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+    public Task ReloadAsync() => LoadAsync();
+    public void PrependEvent(ConciergeEventViewModel newEvent) { _events.Insert(0, newEvent); StateHasChanged(); }
+
+    private async Task DebouncedReloadAsync()
+    {
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        try { await Task.Delay(400, _debounce.Token); await LoadAsync(); }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        bool? authorized = _resultFilter switch { "authorized" => true, "denied" => false, _ => null };
+        var result = await Api.GetConciergeEventsFeedAsync(LicenseId, string.IsNullOrWhiteSpace(_search) ? null : _search, authorized);
+        _loading = false;
+        if (result.Success) _events = result.Value ?? []; else _error = result.Error;
+    }
+}
