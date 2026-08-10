@@ -53,7 +53,7 @@ public sealed class LicenseScopedFilterModelTests
             .Where(x => typeof(ILicenseScoped).IsAssignableFrom(x.ClrType))
             .ToList();
 
-        Assert.Equal(29, licenseScopedTypes.Count);
+        Assert.Equal(30, licenseScopedTypes.Count);
         Assert.All(licenseScopedTypes, entityType => Assert.NotNull(entityType.GetQueryFilter()));
     }
 

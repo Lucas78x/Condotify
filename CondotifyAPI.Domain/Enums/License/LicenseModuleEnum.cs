@@ -16,5 +16,6 @@ public enum LicenseModuleEnum : long
     Bookings = 1L << 7,
     Finance = 1L << 8,
     Documents = 1L << 9,
-    All = (1L << 10) - 1
+    Announcements = 1L << 10,
+    All = (1L << 11) - 1
 }

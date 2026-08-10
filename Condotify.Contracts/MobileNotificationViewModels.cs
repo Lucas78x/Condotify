@@ -17,7 +17,8 @@ public enum MobileNotificationCategory
     Security = 5,
     Operational = 6,
     System = 7,
-    Financial = 8
+    Financial = 8,
+    Announcement = 9
 }
 
 public sealed class MobileInstallationUpsertViewModel

@@ -55,6 +55,7 @@ public partial class DatabaseContext : DbContext
         SafetyOperationsEntityConfiguration(modelBuilder);
         BoletoEntityConfiguration(modelBuilder);
         ResourceDocumentEntityConfiguration(modelBuilder);
+        AnnouncementEntityConfiguration(modelBuilder);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {

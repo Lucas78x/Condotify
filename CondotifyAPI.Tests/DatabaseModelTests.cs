@@ -484,7 +484,7 @@ namespace CondotifyAPI.Tests
         }
 
         [Fact]
-        public void LicenseModuleEnum_AllCoversExactlyTheTenOptionalModules()
+        public void LicenseModuleEnum_AllCoversExactlyTheElevenOptionalModules()
         {
             var expected = CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Cameras
                 | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Devices
@@ -495,10 +495,11 @@ namespace CondotifyAPI.Tests
                 | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Deliveries
                 | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Bookings
                 | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Finance
-                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Documents;
+                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Documents
+                | CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Announcements;
 
             Assert.Equal(CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.All, expected);
-            Assert.Equal(1023L, (long)CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.All);
+            Assert.Equal(2047L, (long)CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.All);
         }
 
         [Fact]
