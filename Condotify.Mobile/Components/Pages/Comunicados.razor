@@ -1,0 +1,51 @@
+@page "/comunicados"
+@implements IDisposable
+@inject CondotifyApiClient Api
+@inject MobilePullToRefreshState PullToRefresh
+
+<PageTitle>Comunicados | Condotify</PageTitle>
+<PageHeader Eyebrow="CONDOMÍNIO" Title="Comunicados" Subtitle="Avisos publicados pela administração.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_announcements.Count == 0)" EmptyTitle="Nenhum comunicado" EmptyText="Quando a administração publicar um aviso, ele aparece aqui." Retry="LoadAsync">
+    <section class="list-group">
+        @foreach (var announcement in _announcements)
+        {
+            <div class="list-row @(announcement.IsUrgent ? "list-row-urgent" : null)">
+                <span class="settings-icon @(announcement.IsUrgent ? "error" : "info")"><MudIcon Icon="@Icons.Material.Outlined.Campaign" /></span>
+                <div class="list-main">
+                    <div class="list-title">
+                        @announcement.Title
+                        @if (announcement.IsUrgent) { <MudChip T="string" Size="Size.Small" Color="Color.Error" Class="ml-2">Urgente</MudChip> }
+                    </div>
+                    <div class="list-meta">@announcement.Body</div>
+                    <div class="list-meta">@announcement.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @announcement.CreatedBy</div>
+                </div>
+            </div>
+        }
+    </section>
+</PageState>
+
+@code {
+    private List<AnnouncementViewModel> _announcements = [];
+    private bool _loading;
+    private string _error = string.Empty;
+
+    protected override Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        return LoadAsync();
+    }
+
+    public void Dispose() => PullToRefresh.Unregister(LoadAsync);
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = string.Empty;
+        var result = await Api.GetResidentAnnouncementsAsync();
+        _loading = false;
+        if (result.Success) _announcements = result.Value ?? [];
+        else _error = result.Error ?? "Não foi possível carregar os comunicados.";
+    }
+}
