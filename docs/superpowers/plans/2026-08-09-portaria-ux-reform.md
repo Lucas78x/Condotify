@@ -917,6 +917,7 @@ git commit -m "feat(concierge): endpoint paginavel de eventos combinando todos o
 **Files:**
 - Create: `Condotify/Components/Concierge/ConciergePackagesTab.razor`
 - Create: `Condotify/Components/Concierge/ConciergeEventsTab.razor`
+- Modify: `Condotify/Components/_Imports.razor`
 - Modify: `Condotify/Components/Pages/Concierge.razor`
 - Modify: `Condotify/Components/Pages/LicenseWorkspace.razor`
 - Delete: `Condotify/Components/LicenseModules/DeliveriesModule.razor`
@@ -924,6 +925,16 @@ git commit -m "feat(concierge): endpoint paginavel de eventos combinando todos o
 
 **Interfaces:**
 - Consumes: `CondotifyApiClient.GetDeliveriesAsync`, `.CreateDeliveryAsync`, `.UpdateDeliveryStatusAsync` (existentes), `.GetConciergeEventsFeedAsync` (Task 4), `DeliveryFormDialog`/`DeliveryProofDialog` (Tasks 2-3).
+
+- [ ] **Step 0: Registrar o namespace dos novos componentes em `_Imports.razor`**
+
+Componentes Blazor só resolvem por tag (`<ConciergePackagesTab .../>`) se o namespace do arquivo estiver em escopo. `Condotify/Components/_Imports.razor` já tem `@using Condotify.Components.Dialogs` (linha 14) para os diálogos, mas não tem uma entrada equivalente para a nova pasta `Condotify/Components/Concierge/` (cujo namespace implícito, pela convenção de pasta do Blazor, é `Condotify.Components.Concierge`). Adicionar uma linha nova ao arquivo, junto das demais entradas de `Condotify.Components.*`:
+
+```razor
+@using Condotify.Components.Concierge
+```
+
+Sem isto, `Concierge.razor` (Step 3 abaixo) não compila — as tags `<ConciergePackagesTab>`/`<ConciergeEventsTab>` ficariam sem namespace resolvido.
 
 - [ ] **Step 1: Criar `ConciergePackagesTab.razor` a partir do `DeliveriesModule.razor` atual, com busca/filtro**
 
@@ -1185,7 +1196,7 @@ Sem suíte de testes de UI: rodar o portal localmente (`dotnet run --project Con
 
 ```bash
 git add Condotify/Components/Concierge/ConciergePackagesTab.razor Condotify/Components/Concierge/ConciergeEventsTab.razor \
-        Condotify/Components/Pages/Concierge.razor Condotify/Components/Pages/LicenseWorkspace.razor
+        Condotify/Components/_Imports.razor Condotify/Components/Pages/Concierge.razor Condotify/Components/Pages/LicenseWorkspace.razor
 git rm Condotify/Components/LicenseModules/DeliveriesModule.razor Condotify/Components/LicenseModules/AccessEventsModule.razor
 git commit -m "feat(concierge): consolidar Encomendas e Eventos como abas dentro de /portaria"
 ```
