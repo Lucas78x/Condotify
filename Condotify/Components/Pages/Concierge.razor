@@ -60,7 +60,7 @@ else if (_dashboard is not null)
         <div class="concierge-kpi"><span class="kpi-icon red"><MudIcon Icon="@Icons.Material.Outlined.TimerOff" /></span><div><strong>@_dashboard.Overstays</strong><small>Permanência excedida</small></div></div>
     </div>
 
-    <MudTabs Elevation="0" Rounded PanelClass="pa-0" Class="concierge-tabs">
+    <MudTabs Elevation="0" Rounded TabPanelsClass="pa-0" Class="concierge-tabs">
         <MudTabPanel Text="Agenda de acessos" Icon="@Icons.Material.Outlined.EventNote">
             <div class="concierge-workspace">
                 <MudPaper Class="content-panel concierge-visits-panel" Elevation="0">
@@ -150,10 +150,10 @@ else if (_dashboard is not null)
                 </div>
             </div>
         </MudTabPanel>
-        @if (IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Deliveries))
+        @if (IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Deliveries) && Has(LicensePermission.ViewDeliveries))
         {
             <MudTabPanel Text="Encomendas" Icon="@Icons.Material.Outlined.Inventory2">
-                <ConciergePackagesTab @ref="_packagesTab" LicenseId="_licenseId!.Value" CanManage="true" />
+                <ConciergePackagesTab @ref="_packagesTab" LicenseId="_licenseId!.Value" CanManage="@Has(LicensePermission.ManageDeliveries)" />
             </MudTabPanel>
         }
         <MudTabPanel Text="Eventos" Icon="@Icons.Material.Outlined.FactCheck">
@@ -177,9 +177,12 @@ else if (_dashboard is not null)
     private ConciergeEventsTab? _eventsTab;
     private HubConnection? _hubConnection;
     private bool _reconnecting;
+    private LicenseAdministrationViewModel? _administration;
 
     private bool IsModuleEnabled(Condotify.Models.LicenseModuleEnum module) =>
         _licenses.FirstOrDefault(x => Guid.TryParse(x.Id, out var id) && id == _licenseId)?.EnabledModules is not { } enabled || (enabled & (long)module) != 0;
+
+    private bool Has(LicensePermission permission) => _administration?.CurrentAccess.Has(permission) == true;
 
     private IEnumerable<ConciergeVisitViewModel> FilteredVisits => (_dashboard?.Visits ?? [])
         .Where(x => _visitFilter == "all" || (_visitFilter == "finished" ? x.Status is "CheckedOut" or "Canceled" or "Expired" or "Denied" : x.Status == _visitFilter))
@@ -200,12 +203,15 @@ else if (_dashboard is not null)
         _licenseId = licenseId;
         _dashboard = null;
         _error = null;
+        _administration = null;
         StopRefreshLoop();
         await DisconnectHubAsync();
         if (!licenseId.HasValue) return;
         _loading = true;
         var routesResult = await Api.GetAccessRoutesAsync(licenseId.Value);
         _routes = routesResult.Success ? routesResult.Value ?? [] : [];
+        var administrationResult = await Api.GetLicenseAdministrationAsync(licenseId.Value);
+        _administration = administrationResult.Success ? administrationResult.Value : null;
         await LoadDashboardAsync();
         StartRefreshLoop();
         await ConnectHubAsync(licenseId.Value);
@@ -233,12 +239,13 @@ else if (_dashboard is not null)
         if (string.IsNullOrWhiteSpace(token)) return;
 
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl(BuildHubUrl(), options => options.AccessTokenProvider = () => Task.FromResult<string?>(token))
+            .WithUrl(BuildHubUrl(), options => options.AccessTokenProvider = () => SessionContext.GetAccessTokenAsync().AsTask())
             .WithAutomaticReconnect()
             .Build();
 
         _hubConnection.Reconnecting += _ => { _reconnecting = true; return InvokeAsync(StateHasChanged); };
         _hubConnection.Reconnected += async _ => { _reconnecting = false; await _hubConnection.InvokeAsync("JoinLicenseGroup", licenseId); await InvokeAsync(StateHasChanged); };
+        _hubConnection.Closed += async _ => { _reconnecting = false; await InvokeAsync(StateHasChanged); };
 
         // VisitStatusChanged/DeliveryUpdated disparam um recarregamento local (chamada HTTP
         // ja existente, GetConciergeDashboardAsync/GetDeliveriesAsync) em vez de mesclar o
@@ -253,7 +260,17 @@ else if (_dashboard is not null)
         _hubConnection.On<DeliveryRowViewModel>("DeliveryUpdated", async _ => { if (_packagesTab is not null) await InvokeAsync(_packagesTab.ReloadAsync); });
         _hubConnection.On<ConciergeEventViewModel>("AccessEventRecorded", async accessEvent =>
         {
-            await InvokeAsync(() => { _eventsTab?.PrependEvent(accessEvent); return Task.CompletedTask; });
+            await InvokeAsync(() =>
+            {
+                _eventsTab?.PrependEvent(accessEvent);
+                if (_dashboard is not null)
+                {
+                    _dashboard.Events.Insert(0, accessEvent);
+                    if (_dashboard.Events.Count > 80) _dashboard.Events.RemoveAt(_dashboard.Events.Count - 1);
+                    StateHasChanged();
+                }
+                return Task.CompletedTask;
+            });
         });
 
         try
@@ -279,9 +296,10 @@ else if (_dashboard is not null)
         if (!_licenseId.HasValue) return;
         var result = await Api.GetConciergeDashboardAsync(_licenseId.Value);
         _loading = false;
-        if (!result.Success) { _error = result.Error; return; }
+        if (!result.Success) { _error = result.Error; StateHasChanged(); return; }
         _dashboard = result.Value;
         _error = null;
+        StateHasChanged();
     }
 
     private async Task OpenVisitDialogAsync()

@@ -55,7 +55,7 @@
 
     protected override Task OnInitializedAsync() => LoadAsync();
     public Task ReloadAsync() => LoadAsync();
-    private async Task LoadAsync() { _loading = true; _error = null; var result = await Api.GetDeliveriesAsync(LicenseId); _loading = false; if (result.Success) _deliveries = result.Value ?? []; else _error = result.Error; }
+    private async Task LoadAsync() { _loading = true; _error = null; var result = await Api.GetDeliveriesAsync(LicenseId); _loading = false; if (result.Success) _deliveries = result.Value ?? []; else _error = result.Error; StateHasChanged(); }
 
     private async Task OpenCreateDialogAsync()
     {

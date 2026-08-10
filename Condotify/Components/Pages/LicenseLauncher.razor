@@ -50,9 +50,9 @@
     private string? _error;
     private bool _loading = true;
     private string Mode => new Uri(Navigation.Uri).AbsolutePath.Trim('/').ToLowerInvariant();
-    private string Title => Mode switch { "portaria" => "Portaria", "credenciais" => "Credenciais", "equipamentos" => "Equipamentos", _ => "Cadastros" };
-    private string Subtitle => Mode switch { "portaria" => "Acesse encomendas e rotinas de atendimento de cada condomínio.", "credenciais" => "Gerencie identificadores e sincronização com os equipamentos.", "equipamentos" => "Configure terminais, conexões e acionamentos de cada condomínio.", _ => "Administre blocos, unidades e moradores." };
-    private string Section => Mode switch { "portaria" => "encomendas", "credenciais" => "credenciais", "equipamentos" => "equipamentos", _ => "moradores" };
+    private string Title => Mode switch { "credenciais" => "Credenciais", "equipamentos" => "Equipamentos", _ => "Cadastros" };
+    private string Subtitle => Mode switch { "credenciais" => "Gerencie identificadores e sincronização com os equipamentos.", "equipamentos" => "Configure terminais, conexões e acionamentos de cada condomínio.", _ => "Administre blocos, unidades e moradores." };
+    private string Section => Mode switch { "credenciais" => "credenciais", "equipamentos" => "equipamentos", _ => "moradores" };
     private IEnumerable<LicenseViewModel> Filtered => string.IsNullOrWhiteSpace(_search) ? _licenses : _licenses.Where(x => $"{x.Nome} {x.Codigo} {x.Cidade} {x.Estado}".Contains(_search, StringComparison.OrdinalIgnoreCase));
 
     protected override async Task OnInitializedAsync()
