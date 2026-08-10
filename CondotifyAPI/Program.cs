@@ -111,6 +111,16 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(key),
         ClockSkew = TimeSpan.Zero
     };
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs/concierge"))
+                context.Token = accessToken;
+            return Task.CompletedTask;
+        }
+    };
 });
 
 // Ponto central: todo [Authorize] sem parametros ja existente na base passa a exigir
@@ -140,6 +150,7 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
+builder.Services.AddSignalR();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddProblemDetails();
 builder.Services.AddRateLimiter(options =>
@@ -325,6 +336,7 @@ app.UseMiddleware<CondotifyAPI.Services.Authorization.TenantScopePopulationMiddl
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<CondotifyAPI.Hubs.ConciergeHub>("/hubs/concierge");
 app.MapGet("/health/live", () => Results.Ok(new { status = "healthy", service = "CondotifyAPI" })).AllowAnonymous();
 app.MapGet("/health/ready", async (DatabaseContext db, CancellationToken cancellationToken) =>
     await db.Database.CanConnectAsync(cancellationToken)
