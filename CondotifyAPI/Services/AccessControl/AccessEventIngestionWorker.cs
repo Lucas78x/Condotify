@@ -2,12 +2,15 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using AutoMapper;
+using CondotifyAPI.Data.Operations;
 using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.DTO.Resident;
 using CondotifyAPI.Domain.Enums.AccessControl;
 using CondotifyAPI.Domain.Enums.Resident;
 using CondotifyAPI.Domain.Models.Equipments;
+using CondotifyAPI.Hubs;
 using CondotifyAPI.Infrastructure;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CondotifyAPI.Services.AccessControl;
@@ -40,15 +43,17 @@ public sealed class AccessEventIngestionWorker : BackgroundService
             scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
             var accessControl = scope.ServiceProvider.GetRequiredService<IAccessControlService>();
             var mapper = scope.ServiceProvider.GetRequiredService<IMapper>();
+            var hub = scope.ServiceProvider.GetRequiredService<IHubContext<ConciergeHub>>();
             var devices = await context.Devices.Where(x => x.IsActive).ToListAsync(cancellationToken);
             var reconciliationByLicense = new Dictionary<Guid, HashSet<Guid>>();
+            var pendingPublish = new List<(Guid LicenseId, ConciergeEventOut Payload)>();
 
             foreach (var device in devices)
             {
                 try
                 {
                     var events = await accessControl.GetAccessEventsAsync(mapper.Map<AccessControlDevice>(device), 200);
-                    await PersistAsync(context, device.Id, device.LicenseId, events, reconciliationByLicense, cancellationToken);
+                    pendingPublish.AddRange(await PersistAsync(context, device.Id, device.LicenseId, device.Name, events, reconciliationByLicense, cancellationToken));
                     device.LastHealthCheckAt = DateTime.UtcNow;
                     device.LastSeenAt = DateTime.UtcNow;
                     device.HealthMessage = "Online; eventos atualizados.";
@@ -71,6 +76,9 @@ public sealed class AccessEventIngestionWorker : BackgroundService
                 });
             }
             await context.SaveChangesAsync(cancellationToken);
+
+            foreach (var (licenseId, payload) in pendingPublish)
+                await hub.Clients.Group(ConciergeHub.GroupName(licenseId)).SendAsync("AccessEventRecorded", payload, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -81,15 +89,17 @@ public sealed class AccessEventIngestionWorker : BackgroundService
         }
     }
 
-    private static async Task PersistAsync(
+    private static async Task<List<(Guid LicenseId, ConciergeEventOut Payload)>> PersistAsync(
         DatabaseContext context,
         Guid deviceId,
         Guid licenseId,
+        string deviceName,
         IReadOnlyList<DeviceAccessEvent> events,
         Dictionary<Guid, HashSet<Guid>> reconciliationByLicense,
         CancellationToken cancellationToken)
     {
-        if (events.Count == 0) return;
+        var published = new List<(Guid, ConciergeEventOut)>();
+        if (events.Count == 0) return published;
         var externalIds = events.Select(x => StableEventId(x)).Distinct().ToList();
         var existingIds = await context.AccessEventRecords.AsNoTracking()
             .Where(x => x.DeviceId == deviceId && externalIds.Contains(x.ExternalEventId))
@@ -105,14 +115,21 @@ public sealed class AccessEventIngestionWorker : BackgroundService
             if (!existingIds.Add(externalId)) continue;
             var binding = ResolveBinding(bindings, accessEvent);
             var credential = binding?.Credential;
+            var recordId = Guid.NewGuid();
             context.AccessEventRecords.Add(new AccessEventRecordDTO
             {
-                Id = Guid.NewGuid(), LicenseId = licenseId, DeviceId = deviceId, CredentialId = credential?.Id,
+                Id = recordId, LicenseId = licenseId, DeviceId = deviceId, CredentialId = credential?.Id,
                 ExternalEventId = externalId, Event = Short(accessEvent.Event, 120), Authorized = accessEvent.Authorized,
                 OccurredAt = Utc(accessEvent.OccurredAt), ExternalUserId = Short(accessEvent.ExternalUserId, 150),
                 PersonName = Short(accessEvent.PersonName, 200), Credential = Short(accessEvent.Credential, 200),
                 Portal = Short(accessEvent.Portal, 120), Details = Short(accessEvent.Details, 1000), CreatedAt = DateTime.UtcNow
             });
+            published.Add((licenseId, new ConciergeEventOut
+            {
+                Id = recordId, DeviceName = deviceName, PersonName = Short(accessEvent.PersonName, 200),
+                Event = Short(accessEvent.Event, 120), Authorized = accessEvent.Authorized,
+                Portal = Short(accessEvent.Portal, 120), OccurredAt = Utc(accessEvent.OccurredAt)
+            }));
 
             if (!accessEvent.Authorized || credential is null || !credential.IsActive) continue;
             credential.UseCount++;
@@ -137,6 +154,7 @@ public sealed class AccessEventIngestionWorker : BackgroundService
                 UserName = "Monitor automatico", CreatedAt = DateTime.UtcNow
             });
         }
+        return published;
     }
 
     private static ResidentAccessDeviceDTO? ResolveBinding(IEnumerable<ResidentAccessDeviceDTO> bindings, DeviceAccessEvent accessEvent)
