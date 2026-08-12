@@ -15,26 +15,30 @@
 <PageHeader Title="Central de portaria" Subtitle="Visitantes, acessos e acionamentos em uma única operação." Eyebrow="OPERAÇÃO AO VIVO" />
 
 <div class="concierge-license-bar">
-    <MudSelect T="Guid?" Value="@_licenseId" ValueChanged="@SelectLicenseAsync" Label="Condomínio" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Apartment">
-        @foreach (var license in _licenses)
+    <div class="concierge-license-selector">
+        <MudSelect T="Guid?" Value="@_licenseId" ValueChanged="@SelectLicenseAsync" Label="Condomínio em operação" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Apartment">
+            @foreach (var license in _licenses)
+            {
+                <MudSelectItem T="Guid?" Value="@(Guid.TryParse(license.Id, out var parsedId) ? parsedId : null)">@license.Nome - @license.Codigo</MudSelectItem>
+            }
+        </MudSelect>
+        @if (_dashboard is not null)
         {
-            <MudSelectItem T="Guid?" Value="@(Guid.TryParse(license.Id, out var parsedId) ? parsedId : null)">@license.Nome - @license.Codigo</MudSelectItem>
+            @if (_reconnecting)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Icon="@Icons.Material.Outlined.SyncProblem">Reconectando…</MudChip>
+            }
+            else
+            {
+                <span class="live-indicator"><i></i> Operação sincronizada</span>
+            }
         }
-    </MudSelect>
-    @if (_dashboard is not null)
-    {
-        @if (_reconnecting)
-        {
-            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Icon="@Icons.Material.Outlined.SyncProblem">Reconectando…</MudChip>
-        }
-        else
-        {
-            <span class="live-indicator"><i></i> Atualização automática</span>
-        }
-    }
-    <MudTooltip Text="Atualizar agora"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Color="Color.Primary" Disabled="@(_loading || !_licenseId.HasValue)" OnClick="LoadDashboardAsync" /></MudTooltip>
-    <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Outlined.GppBad" Disabled="@(!_licenseId.HasValue)" OnClick="OpenWatchlistDialogAsync">Restrições</MudButton>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAddAlt1" Disabled="@(!_licenseId.HasValue)" OnClick="OpenVisitDialogAsync">Nova visita</MudButton>
+    </div>
+    <div class="concierge-command-actions">
+        <MudTooltip Text="Atualizar agora"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Color="Color.Primary" Disabled="@(_loading || !_licenseId.HasValue)" OnClick="LoadDashboardAsync" /></MudTooltip>
+        <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Outlined.GppBad" Disabled="@(!_licenseId.HasValue)" OnClick="OpenWatchlistDialogAsync">Restrições</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAddAlt1" Disabled="@(!_licenseId.HasValue)" OnClick="OpenVisitDialogAsync">Nova visita</MudButton>
+    </div>
 </div>
 
 @if (_loading && _dashboard is null)

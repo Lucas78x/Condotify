@@ -6,11 +6,15 @@ using CondotifyAPI.Domain.DTO.Operations;
 using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.Operations;
+using CondotifyAPI.Services.Mobile;
+using CondotifyAPI.Domain.Enums.Mobile;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace CondotifyAPI.Controllers;
+
+using ApiNotificationCategory = CondotifyAPI.Domain.Enums.Mobile.MobileNotificationCategory;
 
 [ApiController]
 [Authorize]
@@ -18,7 +22,9 @@ namespace CondotifyAPI.Controllers;
 public sealed class IncidentsController(
     DatabaseContext context,
     ILicenseAuthorizationService authorization,
-    IIncidentService incidents) : ControllerBase
+    ILicenseModuleService modules,
+    IIncidentService incidents,
+    IPlatformPushNotifier notifier) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get(
@@ -33,13 +39,20 @@ public sealed class IncidentsController(
             User, LicensePermissionEnum.ViewIncidents, HttpContext.RequestAborted);
         var manageable = await authorization.GetLicenseIdsWithPermissionAsync(
             User, LicensePermissionEnum.ManageIncidents, HttpContext.RequestAborted);
+        if (licenseId.HasValue && visible.Contains(licenseId.Value) &&
+            !await modules.IsEnabledAsync(licenseId.Value, CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Incidents, HttpContext.RequestAborted))
+            return ModuleDisabled();
         if (licenseId.HasValue) visible.IntersectWith([licenseId.Value]);
+        visible = await modules.KeepEnabledAsync(visible, CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Incidents, HttpContext.RequestAborted);
+        manageable.IntersectWith(visible);
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 10, 100);
 
         var query = context.Incidents.AsNoTracking()
             .Include(x => x.License)
             .Include(x => x.Timeline.OrderByDescending(entry => entry.CreatedAt))
+            .Include(x => x.Attachments)
+            .Include(x => x.WorkOrders).ThenInclude(x => x.Provider)
             .Where(x => visible.Contains(x.LicenseId));
         query = status.Trim().ToLowerInvariant() switch
         {
@@ -81,10 +94,14 @@ public sealed class IncidentsController(
     {
         var incident = await context.Incidents.AsNoTracking().Include(x => x.License)
             .Include(x => x.Timeline.OrderByDescending(entry => entry.CreatedAt))
+            .Include(x => x.Attachments)
+            .Include(x => x.WorkOrders).ThenInclude(x => x.Provider)
             .FirstOrDefaultAsync(x => x.Id == incidentId, HttpContext.RequestAborted);
         if (incident is null) return NotFound();
         if (!await authorization.HasPermissionAsync(User, incident.LicenseId, LicensePermissionEnum.ViewIncidents, HttpContext.RequestAborted))
             return Forbid();
+        if (!await modules.IsEnabledAsync(incident.LicenseId, CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Incidents, HttpContext.RequestAborted))
+            return ModuleDisabled();
         var canManage = await authorization.HasPermissionAsync(User, incident.LicenseId, LicensePermissionEnum.ManageIncidents, HttpContext.RequestAborted);
         return Ok(ToOut(incident, canManage));
     }
@@ -94,13 +111,16 @@ public sealed class IncidentsController(
     {
         if (!await authorization.HasPermissionAsync(User, licenseId, LicensePermissionEnum.ManageIncidents, HttpContext.RequestAborted))
             return Forbid();
+        if (!await modules.IsEnabledAsync(licenseId, CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Incidents, HttpContext.RequestAborted))
+            return ModuleDisabled();
         if (string.IsNullOrWhiteSpace(input.Title)) return BadRequest(new { Errors = "Informe o título da ocorrência." });
         if (!Enum.IsDefined(typeof(IncidentCategoryEnum), input.Category) || !Enum.IsDefined(typeof(IncidentSeverityEnum), input.Severity))
             return BadRequest(new { Errors = "Categoria ou gravidade inválida." });
         var incident = await incidents.CreateAsync(new IncidentCreationRequest(
             licenseId, input.Title, input.Description, (IncidentCategoryEnum)input.Category,
             (IncidentSeverityEnum)input.Severity, IncidentSourceEnum.Manual,
-            CurrentActor(), CurrentUserId(), input.RelatedResourceType, input.RelatedResourceId, input.DueAt),
+            CurrentActor(), CurrentUserId(), input.RelatedResourceType, input.RelatedResourceId, input.DueAt,
+            LocationLabel: input.LocationLabel),
             HttpContext.RequestAborted);
         incident.License = await context.Licenses.AsNoTracking().FirstAsync(x => x.Id == licenseId, HttpContext.RequestAborted);
         return CreatedAtAction(nameof(GetById), new { incidentId = incident.Id }, ToOut(incident, true));
@@ -120,11 +140,13 @@ public sealed class IncidentsController(
                 ? IncidentTimelineTypeEnum.Comment : IncidentTimelineTypeEnum.Evidence,
             Message = Short(input.Message.Trim(), 2000), ReferenceType = Short(input.ReferenceType.Trim(), 80),
             ReferenceId = input.ReferenceId, ReferenceUrl = Short(input.ReferenceUrl.Trim(), 1000),
-            ActorUserId = CurrentUserId(), ActorName = CurrentActor(), CreatedAt = now
+            ActorUserId = CurrentUserId(), ActorName = CurrentActor(), VisibleToResident = input.VisibleToResident, CreatedAt = now
         });
         incident.Value.UpdatedAt = now;
         AddAudit(incident.Value, "Commented", "Comentário ou evidência adicionada.", new { input.ReferenceType, input.ReferenceId });
         await context.SaveChangesAsync(HttpContext.RequestAborted);
+        if (input.VisibleToResident && incident.Value.ReportedByResidentId.HasValue)
+            await NotifyResidentAsync(incident.Value, "Nova atualização", "A equipe adicionou uma atualização à sua ocorrência.");
         return await GetById(incidentId);
     }
 
@@ -155,10 +177,12 @@ public sealed class IncidentsController(
         {
             Id = Guid.NewGuid(), IncidentId = incidentId, Type = IncidentTimelineTypeEnum.StatusChanged,
             Message = string.IsNullOrWhiteSpace(input.Note) ? $"Status alterado para {target}." : Short(input.Note.Trim(), 2000),
-            ActorUserId = CurrentUserId(), ActorName = CurrentActor(), CreatedAt = now
+            ActorUserId = CurrentUserId(), ActorName = CurrentActor(), VisibleToResident = true, CreatedAt = now
         });
         AddAudit(incident.Value, target.ToString(), $"Status alterado para {target}.", new { input.Note });
         await context.SaveChangesAsync(HttpContext.RequestAborted);
+        if (incident.Value.ReportedByResidentId.HasValue)
+            await NotifyResidentAsync(incident.Value, "Ocorrência atualizada", target is IncidentStatusEnum.Resolved or IncidentStatusEnum.Closed ? "Seu chamado foi concluído." : "O atendimento do seu chamado foi atualizado.");
         return await GetById(incidentId);
     }
 
@@ -175,10 +199,12 @@ public sealed class IncidentsController(
         {
             Id = Guid.NewGuid(), IncidentId = incidentId, Type = IncidentTimelineTypeEnum.Assignment,
             Message = string.IsNullOrWhiteSpace(input.Name) ? "Responsável removido." : $"Ocorrência atribuída a {input.Name.Trim()}.",
-            ActorUserId = CurrentUserId(), ActorName = CurrentActor(), CreatedAt = DateTime.UtcNow
+            ActorUserId = CurrentUserId(), ActorName = CurrentActor(), VisibleToResident = true, CreatedAt = DateTime.UtcNow
         });
         AddAudit(incident.Value, "Assigned", "Responsável da ocorrência atualizado.", new { input.UserId, input.Name });
         await context.SaveChangesAsync(HttpContext.RequestAborted);
+        if (incident.Value.ReportedByResidentId.HasValue)
+            await NotifyResidentAsync(incident.Value, "Responsável atualizado", "A equipe atualizou o responsável pelo seu chamado.");
         return await GetById(incidentId);
     }
 
@@ -186,6 +212,8 @@ public sealed class IncidentsController(
     {
         var incident = await context.Incidents.FirstOrDefaultAsync(x => x.Id == incidentId, HttpContext.RequestAborted);
         if (incident is null) return (null, NotFound());
+        if (!await modules.IsEnabledAsync(incident.LicenseId, CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Incidents, HttpContext.RequestAborted))
+            return (null, ModuleDisabled());
         return await authorization.HasPermissionAsync(User, incident.LicenseId, LicensePermissionEnum.ManageIncidents, HttpContext.RequestAborted)
             ? (incident, null) : (null, Forbid());
     }
@@ -203,14 +231,24 @@ public sealed class IncidentsController(
         Title = x.Title, Description = x.Description, Category = x.Category.ToString(), Severity = x.Severity.ToString(),
         Status = x.Status.ToString(), Source = x.Source.ToString(), RelatedResourceType = x.RelatedResourceType,
         RelatedResourceId = x.RelatedResourceId, AssignedToName = x.AssignedToName, ReportedByName = x.ReportedByName,
-        DueAt = x.DueAt, ResolvedAt = x.ResolvedAt, Resolution = x.Resolution, CreatedAt = x.CreatedAt,
+        LocationLabel = x.LocationLabel, DueAt = x.DueAt, SlaResponseDueAt = x.SlaResponseDueAt,
+        SlaResolutionDueAt = x.SlaResolutionDueAt, AcknowledgedAt = x.AcknowledgedAt,
+        ResolvedAt = x.ResolvedAt, Resolution = x.Resolution, CreatedAt = x.CreatedAt,
         UpdatedAt = x.UpdatedAt, CanManage = canManage,
         Timeline = x.Timeline.OrderByDescending(entry => entry.CreatedAt).Select(entry => new IncidentTimelineEntryViewModel
         {
             Id = entry.Id, Type = entry.Type.ToString(), Message = entry.Message, ReferenceType = entry.ReferenceType,
-            ReferenceId = entry.ReferenceId, ReferenceUrl = entry.ReferenceUrl, ActorName = entry.ActorName, CreatedAt = entry.CreatedAt
-        }).ToList()
+            ReferenceId = entry.ReferenceId, ReferenceUrl = entry.ReferenceUrl, ActorName = entry.ActorName,
+            VisibleToResident = entry.VisibleToResident, CreatedAt = entry.CreatedAt
+        }).ToList(),
+        Attachments = x.Attachments.Select(MaintenanceController.ToAttachment).ToList(),
+        WorkOrders = x.WorkOrders.Select(order => MaintenanceController.ToWorkOrder(order)).ToList()
     };
+
+    private NotFoundObjectResult ModuleDisabled() => NotFound(new { Code = "ModuleDisabled", Errors = "O módulo de ocorrências e manutenção está desativado neste condomínio." });
+    private Task NotifyResidentAsync(IncidentDTO incident, string title, string body) => notifier.NotifyResidentAsync(
+        incident.ReportedByResidentId!.Value, ApiNotificationCategory.Operational, title, body,
+        $"/ocorrencias/{incident.Id:D}", $"incident-update:{incident.Id:N}:{incident.UpdatedAt.Ticks}", HttpContext.RequestAborted);
 
     private Guid? CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
     private string CurrentActor() => User.Identity?.Name ?? User.FindFirstValue(ClaimTypes.Email) ?? "Usuário";

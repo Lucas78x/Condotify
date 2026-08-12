@@ -43,7 +43,7 @@ else
                     <div class="structure-actions">
                         @if (CanManagePeople)
                         {
-                            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.UploadFile" OnClick="OpenImportAsync">Importar</MudButton>
+                            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.MoveDown" OnClick="OpenImportAsync">Migrar dados</MudButton>
                         }
                         @if (CanManageStructure || CanManagePeople || CanManageDevices)
                         {
@@ -364,7 +364,7 @@ else
     {
         var parameters = new DialogParameters { [nameof(StructureImportDialog.LicenseId)] = LicenseId };
         var dialog = await DialogService.ShowAsync<StructureImportDialog>(
-            "Importação em massa",
+            "Centro de migração",
             parameters,
             new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.ExtraLarge });
         var result = await dialog.Result;

@@ -5,10 +5,21 @@ public sealed class StructureImportIn
     public string FileName { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
     public string IdempotencyKey { get; set; } = string.Empty;
+    public Guid? PreviewId { get; set; }
+    public string PreviewFileSha256 { get; set; } = string.Empty;
+    public string SourceSystem { get; set; } = string.Empty;
+    public string ProcessingBasis { get; set; } = string.Empty;
+    public string AuthorizedBy { get; set; } = string.Empty;
+    public string AuthorizationReference { get; set; } = string.Empty;
+    public bool ControllerAuthorizationConfirmed { get; set; }
+    public bool PurposeLimitationConfirmed { get; set; }
+    public bool NoRestrictedDataConfirmed { get; set; }
 }
 
 public sealed class StructureImportPreviewOut
 {
+    public Guid PreviewId { get; set; }
+    public string FileSha256 { get; set; } = string.Empty;
     public bool CanExecute { get; set; }
     public int TotalRows { get; set; }
     public int ValidRows { get; set; }

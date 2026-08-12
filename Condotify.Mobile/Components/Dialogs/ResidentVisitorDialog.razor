@@ -1,12 +1,12 @@
 @inject CondotifyApiClient Api
 
-<MudDialog Class="mobile-dialog">
+<MudDialog Class="mobile-dialog visitor-create-dialog">
     <TitleContent>
         <div class="mobile-dialog-title">
             <MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" Color="Color.Primary" />
             <div>
                 <MudText Typo="Typo.h6">Autorizar visitante</MudText>
-                <MudText Typo="Typo.caption">Crie um QR Code temporário para a portaria.</MudText>
+                <MudText Typo="Typo.caption">Escolha como o visitante será identificado na entrada.</MudText>
             </div>
         </div>
     </TitleContent>
@@ -16,11 +16,39 @@
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">@_error</MudAlert>
         }
 
-        <div class="mobile-form-grid">
-            <MudSelect T="Guid" @bind-Value="_form.UnitId" Label="Unidade" Variant="Variant.Outlined" Required="true">
-                @foreach (var unit in Profile.Units)
+        <MudText Typo="Typo.subtitle2" Class="mobile-section-label first">Tipo de convite</MudText>
+        <div class="visitor-access-picker">
+            <button type="button" class="visitor-access-choice @(!_facialInvite ? "active" : "")" @onclick="() => SelectAccess(false)">
+                <span class="visitor-access-choice-icon qr"><MudIcon Icon="@Icons.Material.Outlined.QrCode2" /></span>
+                <span><strong>QR Code</strong><small>Pronto para compartilhar</small></span>
+                <MudIcon Icon="@(!_facialInvite ? Icons.Material.Filled.CheckCircle : Icons.Material.Outlined.RadioButtonUnchecked)" />
+            </button>
+            <button type="button" class="visitor-access-choice @(_facialInvite ? "active face" : "")" disabled="@(!_options.FacialInviteAvailable)" @onclick="() => SelectAccess(true)">
+                <span class="visitor-access-choice-icon face"><MudIcon Icon="@Icons.Material.Outlined.FaceRetouchingNatural" /></span>
+                <span><strong>Convite facial</strong><small>@(_options.FacialInviteAvailable ? "Visitante envia a própria foto" : "Sem equipamento facial disponível")</small></span>
+                <MudIcon Icon="@(_facialInvite ? Icons.Material.Filled.CheckCircle : Icons.Material.Outlined.RadioButtonUnchecked)" />
+            </button>
+        </div>
+
+        @if (_facialInvite)
+        {
+            <div class="facial-invite-explainer">
+                <div class="facial-invite-mini-phone" aria-hidden="true">
+                    <span class="facial-invite-mini-face"><MudIcon Icon="@Icons.Material.Outlined.Face" /><i></i></span>
+                    <b><MudIcon Icon="@Icons.Material.Outlined.Check" /></b>
+                </div>
+                <div>
+                    <strong>Você envia o link. O visitante conclui.</strong>
+                    <span>Ele abre uma página segura, recebe orientações para a foto e ativa o acesso facial sem instalar o aplicativo.</span>
+                </div>
+            </div>
+        }
+
+        <div class="mobile-form-grid visitor-form-fields">
+            <MudSelect T="Guid" Value="_form.UnitId" ValueChanged="ChangeUnitAsync" Label="Unidade" Variant="Variant.Outlined" Required="true">
+                @foreach (var unit in AvailableUnits)
                 {
-                    <MudSelectItem T="Guid" Value="unit.UnitId">@unit.BlockName / @unit.Number</MudSelectItem>
+                    <MudSelectItem T="Guid" Value="@unit.UnitId">@unit.BlockName / @unit.Number</MudSelectItem>
                 }
             </MudSelect>
             <MudTextField T="string" @bind-Value="_form.VisitorName" Label="Nome completo" Variant="Variant.Outlined" Required="true" />
@@ -37,12 +65,35 @@
             <MudDatePicker @bind-Date="_toDate" Label="Data final" Variant="Variant.Outlined" MinDate="DateTime.Today" />
             <MudTimePicker @bind-Time="_toTime" Label="Hora final" Variant="Variant.Outlined" />
         </div>
-        <MudNumericField T="int?" @bind-Value="_form.MaxUses" Label="Limite de acessos" Variant="Variant.Outlined" Min="1" Max="100" Class="mt-3" />
+        <MudNumericField T="int?" @bind-Value="_form.MaxUses" Label="Limite de utilizações" Variant="Variant.Outlined" Min="1" Max="100" Class="mt-3" HelperText="O acesso será removido automaticamente ao atingir o limite." />
+
+        @if (_loadingOptions)
+        {
+            <div class="visitor-route-loading"><MudProgressCircular Indeterminate="true" Size="Size.Small" /><span>Carregando rotas permitidas...</span></div>
+        }
+        else if (_options.Routes.Count > 0)
+        {
+            <div class="visitor-route-heading">
+                <div><MudText Typo="Typo.subtitle2">Rotas e horários</MudText><small>Selecione onde este convite será aceito.</small></div>
+                <button type="button" @onclick="ToggleAllRoutes">@(_selectedRoutes.Count == EligibleRoutes.Count ? "Limpar" : "Selecionar todas")</button>
+            </div>
+            <div class="visitor-route-list">
+                @foreach (var route in EligibleRoutes)
+                {
+                    var selected = _selectedRoutes.Contains(route.Id);
+                    <button type="button" class="visitor-route-option @(selected ? "active" : "")" @onclick="() => ToggleRoute(route.Id)">
+                        <span class="visitor-route-check"><MudIcon Icon="@(selected ? Icons.Material.Filled.Check : Icons.Material.Outlined.Add)" /></span>
+                        <span><strong>@route.Name</strong><small>@DaysLabel(route.DaysOfWeekMask) · @route.StartTime.ToString(@"hh\:mm")–@route.EndTime.ToString(@"hh\:mm")</small></span>
+                        <em class="@(route.OnlineDeviceCount < route.DeviceCount ? "warning" : "")"><MudIcon Icon="@(route.OnlineDeviceCount > 0 ? Icons.Material.Outlined.Wifi : Icons.Material.Outlined.WifiOff)" /> @route.OnlineDeviceCount/@route.DeviceCount</em>
+                    </button>
+                }
+            </div>
+        }
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.QrCode2"
-                   Disabled="_saving" OnClick="SaveAsync">@(_saving ? "Autorizando..." : "Gerar acesso")</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@(_facialInvite ? Icons.Material.Outlined.Send : Icons.Material.Outlined.QrCode2)"
+                   Disabled="@(_saving || _loadingOptions)" OnClick="SaveAsync">@(_saving ? "Criando..." : _facialInvite ? "Criar convite facial" : "Gerar QR Code")</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -52,43 +103,112 @@
     [Parameter] public ConciergeVisitViewModel? Template { get; set; }
 
     private readonly ResidentVisitFormViewModel _form = new();
+    private readonly HashSet<Guid> _selectedRoutes = [];
+    private ResidentVisitOptionsViewModel _options = new();
     private DateTime? _fromDate = DateTime.Today;
     private TimeSpan? _fromTime = DateTime.Now.AddMinutes(5).TimeOfDay;
     private DateTime? _toDate = DateTime.Today;
     private TimeSpan? _toTime = DateTime.Now.AddHours(4).TimeOfDay;
+    private bool _facialInvite;
+    private bool _loadingOptions;
     private bool _saving;
     private string _error = string.Empty;
+    private List<ResidentUnitViewModel> AvailableUnits => Profile.Units.Where(unit => unit.UnitId != Guid.Empty).ToList();
+    private List<ResidentVisitRouteViewModel> EligibleRoutes => _options.Routes.Where(route => !_facialInvite || route.SupportsFace).ToList();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        var templateUnit = Template is null ? null : Profile.Units.FirstOrDefault(unit =>
-            unit.Number.Equals(Template.UnitNumber, StringComparison.OrdinalIgnoreCase) &&
-            unit.BlockName.Equals(Template.BlockName, StringComparison.OrdinalIgnoreCase));
-        _form.UnitId = templateUnit?.UnitId ?? Profile.Units.FirstOrDefault(x => x.IsPrimary)?.UnitId ?? Profile.Units.FirstOrDefault()?.UnitId ?? Guid.Empty;
-        if (Template is null) return;
-        _form.VisitorName = Template.VisitorName;
-        _form.Document = Template.Document;
-        _form.PhoneNumber = Template.PhoneNumber;
-        _form.Company = Template.Company;
-        _form.Purpose = Template.Purpose;
-        _form.VehiclePlate = Template.VehiclePlate;
-        _form.MaxUses = Template.MaxUses ?? 1;
-        var start = DateTime.Now.AddMinutes(15);
-        var duration = Template.ValidTo - Template.ValidFrom;
-        if (duration <= TimeSpan.Zero || duration > TimeSpan.FromDays(1)) duration = TimeSpan.FromHours(4);
-        var end = start.Add(duration);
-        _fromDate = start.Date; _fromTime = start.TimeOfDay;
-        _toDate = end.Date; _toTime = end.TimeOfDay;
+        _form.UnitId = MobileVisitorSelection.ResolveUnit(
+            Profile.Units,
+            Template?.BlockName,
+            Template?.UnitNumber);
+        if (Template is not null)
+        {
+            _form.VisitorName = Template.VisitorName;
+            _form.Document = Template.Document;
+            _form.PhoneNumber = Template.PhoneNumber;
+            _form.Company = Template.Company;
+            _form.Purpose = Template.Purpose;
+            _form.VehiclePlate = Template.VehiclePlate;
+            _form.MaxUses = Template.MaxUses ?? 1;
+            _facialInvite = Template.CredentialType.Equals("Face", StringComparison.OrdinalIgnoreCase);
+            var start = DateTime.Now.AddMinutes(15);
+            var duration = Template.ValidTo - Template.ValidFrom;
+            if (duration <= TimeSpan.Zero || duration > TimeSpan.FromDays(1)) duration = TimeSpan.FromHours(4);
+            var end = start.Add(duration);
+            _fromDate = start.Date; _fromTime = start.TimeOfDay;
+            _toDate = end.Date; _toTime = end.TimeOfDay;
+        }
+
+        await LoadOptionsAsync();
+    }
+
+    private async Task ChangeUnitAsync(Guid unitId)
+    {
+        if (unitId == _form.UnitId) return;
+        _form.UnitId = unitId;
+        _error = string.Empty;
+        await LoadOptionsAsync();
+    }
+
+    private async Task LoadOptionsAsync()
+    {
+        _selectedRoutes.Clear();
+        _options = new ResidentVisitOptionsViewModel();
+        if (_form.UnitId == Guid.Empty)
+        {
+            _facialInvite = false;
+            return;
+        }
+
+        _loadingOptions = true;
+        var result = await Api.GetResidentVisitOptionsAsync(_form.UnitId);
+        _loadingOptions = false;
+        if (!result.Success || result.Value is null)
+        {
+            _error = result.Error ?? "Não foi possível carregar as rotas de acesso.";
+            return;
+        }
+
+        _options = result.Value;
+        if (_facialInvite && !_options.FacialInviteAvailable) _facialInvite = false;
+        foreach (var route in EligibleRoutes) _selectedRoutes.Add(route.Id);
+    }
+
+    private void SelectAccess(bool facial)
+    {
+        if (facial && !_options.FacialInviteAvailable) return;
+        _facialInvite = facial;
+        _selectedRoutes.RemoveWhere(id => !EligibleRoutes.Any(route => route.Id == id));
+        if (_selectedRoutes.Count == 0)
+            foreach (var route in EligibleRoutes) _selectedRoutes.Add(route.Id);
+    }
+
+    private void ToggleRoute(Guid routeId)
+    {
+        if (!_selectedRoutes.Add(routeId)) _selectedRoutes.Remove(routeId);
+    }
+
+    private void ToggleAllRoutes()
+    {
+        if (_selectedRoutes.Count == EligibleRoutes.Count) _selectedRoutes.Clear();
+        else foreach (var route in EligibleRoutes) _selectedRoutes.Add(route.Id);
     }
 
     private async Task SaveAsync()
     {
         if (_saving) return;
+        if (_form.UnitId == Guid.Empty)
+            _form.UnitId = MobileVisitorSelection.ResolveUnit(Profile.Units, Template?.BlockName, Template?.UnitNumber);
         _error = Validate();
         if (!string.IsNullOrWhiteSpace(_error)) return;
 
         _form.ValidFrom = _fromDate!.Value.Date.Add(_fromTime ?? TimeSpan.Zero);
         _form.ValidTo = _toDate!.Value.Date.Add(_toTime ?? TimeSpan.Zero);
+        _form.CredentialType = _facialInvite ? 1 : 2;
+        _form.CreateFacialInvite = _facialInvite;
+        _form.RouteIds = _selectedRoutes.ToList();
+        _form.VehiclePlate = _form.VehiclePlate.Trim().ToUpperInvariant();
         _saving = true;
         var result = await Api.CreateResidentVisitAsync(_form);
         _saving = false;
@@ -105,14 +225,23 @@
     {
         if (_form.UnitId == Guid.Empty) return "Selecione a unidade que receberá a visita.";
         if (string.IsNullOrWhiteSpace(_form.VisitorName)) return "Informe o nome do visitante.";
+        if (_facialInvite && !_options.FacialInviteAvailable) return "Nenhuma rota com reconhecimento facial está disponível.";
+        if (EligibleRoutes.Count > 0 && _selectedRoutes.Count == 0) return "Selecione pelo menos uma rota permitida.";
         if (!_fromDate.HasValue || !_toDate.HasValue) return "Informe o início e o fim da autorização.";
         var from = _fromDate.Value.Date.Add(_fromTime ?? TimeSpan.Zero);
         var to = _toDate.Value.Date.Add(_toTime ?? TimeSpan.Zero);
         if (to <= from) return "O término deve ser posterior ao início.";
         if (to <= DateTime.Now) return "A autorização precisa terminar no futuro.";
         if (to > from.AddDays(30)) return "A validade máxima de uma visita é de 30 dias.";
-        if (_form.MaxUses is <= 0 or > 100) return "O limite deve ficar entre 1 e 100 acessos.";
+        if (_form.MaxUses is <= 0 or > 100) return "O limite deve ficar entre 1 e 100 utilizações.";
         return string.Empty;
+    }
+
+    private static string DaysLabel(int mask)
+    {
+        if (mask == 127) return "Todos os dias";
+        var days = new[] { "dom", "seg", "ter", "qua", "qui", "sex", "sáb" };
+        return string.Join(", ", days.Where((_, index) => (mask & (1 << index)) != 0));
     }
 
     private void Cancel() => Dialog.Cancel();

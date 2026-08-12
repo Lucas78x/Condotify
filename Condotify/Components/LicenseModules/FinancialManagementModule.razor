@@ -1,0 +1,239 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<section class="financial-module">
+    <div class="module-intro financial-intro">
+        <div class="module-intro-copy">
+            <span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.AccountBalanceWallet" /></span>
+            <div>
+                <MudText Typo="Typo.h5" HtmlTag="h2">Gestão financeira</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Controle gerencial de cobranças e inadimplência, sem movimentação de dinheiro.</MudText>
+            </div>
+        </div>
+        <div class="module-intro-actions">
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync">Atualizar</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AutoAwesome" OnClick="OpenAutomationAsync">Automação</MudButton>
+            @if (CanManage)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateAsync">Nova cobrança</MudButton>
+            }
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+    }
+    else if (_data is not null)
+    {
+        <div class="financial-summary-grid">
+            <article class="financial-summary-card open">
+                <span><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" /></span>
+                <div><small>Em aberto</small><strong>@Money(_data.Summary.OpenAmount)</strong><em>@_data.Summary.OpenCharges lançamento(s)</em></div>
+            </article>
+            <article class="financial-summary-card overdue">
+                <span><MudIcon Icon="@Icons.Material.Outlined.EventBusy" /></span>
+                <div><small>Vencido</small><strong>@Money(_data.Summary.OverdueAmount)</strong><em>@_data.Summary.DelinquentUnits unidade(s)</em></div>
+            </article>
+            <article class="financial-summary-card paid">
+                <span><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" /></span>
+                <div><small>Baixas neste mês</small><strong>@Money(_data.Summary.PaidThisMonthAmount)</strong><em>Registro administrativo</em></div>
+            </article>
+            <article class="financial-summary-card review">
+                <span><MudIcon Icon="@Icons.Material.Outlined.MarkEmailUnread" /></span>
+                <div><small>Aguardando análise</small><strong>@_data.Summary.PaymentReportsPending</strong><em>Pagamento(s) informado(s)</em></div>
+            </article>
+        </div>
+
+        <section class="financial-aging-panel" aria-label="Faixas de atraso">
+            <div class="financial-section-heading">
+                <div><strong>Faixas de atraso</strong><span>Valores gerenciais vencidos por período</span></div>
+                <span class="financial-no-transaction"><MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" /> Sem transações bancárias</span>
+            </div>
+            <div class="financial-aging-grid">
+                @foreach (var bucket in _data.Summary.Aging)
+                {
+                    <div><small>@bucket.Label</small><strong>@Money(bucket.Amount)</strong><span>@bucket.Count cobrança(s)</span></div>
+                }
+            </div>
+        </section>
+
+        <section class="content-panel financial-list-panel">
+            <div class="financial-filterbar">
+                <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar unidade, referência ou descrição" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Immediate DebounceInterval="350" />
+                <MudSelect T="string" @bind-Value="_status" Label="Situação" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="string" Value="@string.Empty">Todas</MudSelectItem>
+                    @foreach (var option in StatusOptions) { <MudSelectItem T="string" Value="@option.Value">@option.Label</MudSelectItem> }
+                </MudSelect>
+                <MudCheckBox T="bool" @bind-Value="_overdueOnly" Label="Somente vencidas" Color="Color.Error" />
+                <MudButton Variant="Variant.Outlined" OnClick="ApplyFiltersAsync">Filtrar</MudButton>
+            </div>
+
+            <div class="financial-section-heading financial-list-heading">
+                <div><strong>Lançamentos</strong><span>@_data.Total registro(s) encontrado(s)</span></div>
+            </div>
+
+            @if (_data.Charges.Count == 0)
+            {
+                <div class="financial-empty"><span><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" /></span><strong>Nenhuma cobrança encontrada</strong><p>Crie o primeiro lançamento ou ajuste os filtros utilizados.</p></div>
+            }
+            else
+            {
+                <div class="financial-charge-list">
+                    @foreach (var charge in _data.Charges)
+                    {
+                        <article class="financial-charge-row">
+                            <button type="button" class="financial-charge-main" @onclick="() => OpenDetailAsync(charge)">
+                                <span class="financial-unit-mark">@UnitInitial(charge.UnitLabel)</span>
+                                <span class="financial-charge-copy">
+                                    <strong>@charge.UnitLabel <small>@charge.Competence</small></strong>
+                                    <span>@charge.Reference · @charge.Description</span>
+                                </span>
+                            </button>
+                            <div class="financial-charge-due"><small>Vencimento</small><strong>@charge.DueDate.ToString("dd/MM/yyyy")</strong>@if (charge.DaysOverdue > 0) { <span>@charge.DaysOverdue dia(s) em atraso</span> }</div>
+                            <div class="financial-charge-value"><small>Total gerencial</small><strong>@Money(charge.TotalAmount)</strong></div>
+                            <span class="@StatusCss(charge)">@charge.DisplayStatus</span>
+                            <MudMenu Icon="@Icons.Material.Outlined.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" AriaLabel="Ações da cobrança">
+                                <MudMenuItem Icon="@Icons.Material.Outlined.History" OnClick="@(() => OpenDetailAsync(charge))">Ver histórico</MudMenuItem>
+                                @if (CanManage && charge.Status is not FinancialChargeStatus.Paid and not FinancialChargeStatus.Cancelled)
+                                {
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenEditAsync(charge))">Editar cobrança</MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.TaskAlt" OnClick="@(() => OpenActionAsync(charge, FinancialChargeAction.ConfirmPayment))">Registrar como paga</MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.Handshake" OnClick="@(() => OpenActionAsync(charge, FinancialChargeAction.MarkNegotiated))">Registrar negociação</MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.Block" OnClick="@(() => OpenActionAsync(charge, FinancialChargeAction.Cancel))">Cancelar</MudMenuItem>
+                                }
+                                @if (CanManage && charge.Status == FinancialChargeStatus.PaymentReported)
+                                {
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.Undo" OnClick="@(() => OpenActionAsync(charge, FinancialChargeAction.RejectPaymentReport))">Rejeitar informação</MudMenuItem>
+                                }
+                                @if (CanManage && charge.Status != FinancialChargeStatus.Open)
+                                {
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.RestartAlt" OnClick="@(() => OpenActionAsync(charge, FinancialChargeAction.Reopen))">Reabrir cobrança</MudMenuItem>
+                                }
+                            </MudMenu>
+                        </article>
+                    }
+                </div>
+            }
+
+            @if (PageCount > 1)
+            {
+                <div class="financial-pagination"><MudPagination Count="PageCount" Selected="_page" SelectedChanged="ChangePageAsync" /></div>
+            }
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    private FinancialManagementViewModel? _data;
+    private bool _loading = true;
+    private string _error = string.Empty;
+    private string _search = string.Empty;
+    private string _status = string.Empty;
+    private bool _overdueOnly;
+    private int _page = 1;
+    private const int PageSize = 50;
+    private int PageCount => _data is null ? 1 : Math.Max(1, (int)Math.Ceiling(_data.Total / (double)PageSize));
+    private static readonly (string Value, string Label)[] StatusOptions =
+    [
+        (nameof(FinancialChargeStatus.Open), "Em aberto"),
+        (nameof(FinancialChargeStatus.PaymentReported), "Pagamento informado"),
+        (nameof(FinancialChargeStatus.Paid), "Paga"),
+        (nameof(FinancialChargeStatus.Negotiated), "Negociada"),
+        (nameof(FinancialChargeStatus.Disputed), "Contestada"),
+        (nameof(FinancialChargeStatus.Cancelled), "Cancelada")
+    ];
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = string.Empty;
+        var result = await Api.GetFinancialManagementAsync(LicenseId, _search, _status, _overdueOnly, _page, PageSize);
+        _loading = false;
+        if (result.Success) _data = result.Value;
+        else _error = result.Error ?? "Não foi possível carregar a gestão financeira.";
+    }
+
+    private async Task ApplyFiltersAsync() { _page = 1; await LoadAsync(); }
+    private async Task ChangePageAsync(int page) { _page = page; await LoadAsync(); }
+
+    private async Task OpenCreateAsync()
+    {
+        if (_data is null) return;
+        var parameters = new DialogParameters { [nameof(FinancialChargeDialog.Units)] = _data.Units };
+        var dialog = await DialogService.ShowAsync<FinancialChargeDialog>("Nova cobrança gerencial", parameters, DialogOptions());
+        var result = await dialog.Result;
+        if (result?.Canceled != false || result.Data is not CreateFinancialChargesViewModel input) return;
+        var response = await Api.CreateFinancialChargesAsync(LicenseId, input);
+        if (!response.Success) { Snackbar.Add(response.Error ?? "Não foi possível criar a cobrança.", Severity.Error); return; }
+        Snackbar.Add($"{response.Value?.Count ?? 0} cobrança(s) registrada(s).", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task OpenAutomationAsync()
+    {
+        if (_data is null) return;
+        var parameters = new DialogParameters
+        {
+            [nameof(FinancialAutomationDialog.LicenseId)] = LicenseId,
+            [nameof(FinancialAutomationDialog.Units)] = _data.Units,
+            [nameof(FinancialAutomationDialog.CanManage)] = CanManage
+        };
+        await DialogService.ShowAsync<FinancialAutomationDialog>("Automação financeira", parameters,
+            new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Large, BackdropClick = false });
+        await LoadAsync();
+    }
+
+    private async Task OpenEditAsync(FinancialChargeViewModel charge)
+    {
+        var parameters = new DialogParameters { [nameof(FinancialChargeDialog.Existing)] = charge };
+        var dialog = await DialogService.ShowAsync<FinancialChargeDialog>("Editar cobrança", parameters, DialogOptions());
+        var result = await dialog.Result;
+        if (result?.Canceled != false || result.Data is not UpdateFinancialChargeViewModel input) return;
+        var response = await Api.UpdateFinancialChargeAsync(LicenseId, charge.Id, input);
+        if (!response.Success) { Snackbar.Add(response.Error ?? "Não foi possível atualizar a cobrança.", Severity.Error); return; }
+        Snackbar.Add("Cobrança atualizada.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task OpenActionAsync(FinancialChargeViewModel charge, FinancialChargeAction action)
+    {
+        var parameters = new DialogParameters { [nameof(FinancialChargeActionDialog.Charge)] = charge, [nameof(FinancialChargeActionDialog.Action)] = action };
+        var dialog = await DialogService.ShowAsync<FinancialChargeActionDialog>(ActionTitle(action), parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Small });
+        var result = await dialog.Result;
+        if (result?.Canceled != false || result.Data is not FinancialChargeActionViewModel input) return;
+        var response = await Api.ApplyFinancialChargeActionAsync(LicenseId, charge.Id, input);
+        if (!response.Success) { Snackbar.Add(response.Error ?? "Não foi possível atualizar a situação.", Severity.Error); return; }
+        Snackbar.Add("Situação atualizada e registrada no histórico.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task OpenDetailAsync(FinancialChargeViewModel charge)
+    {
+        var parameters = new DialogParameters { [nameof(FinancialChargeDetailDialog.LicenseId)] = LicenseId, [nameof(FinancialChargeDetailDialog.ChargeId)] = charge.Id };
+        await DialogService.ShowAsync<FinancialChargeDetailDialog>(charge.Reference, parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium });
+    }
+
+    private static DialogOptions DialogOptions() => new() { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium, BackdropClick = false };
+    private static string Money(decimal value) => value.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+    private static string UnitInitial(string value) => value.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.FirstOrDefault().ToString().ToUpperInvariant() ?? "U";
+    private static string StatusCss(FinancialChargeViewModel charge) => $"financial-status status-{(charge.IsOverdue && charge.Status == FinancialChargeStatus.Open ? "overdue" : charge.Status.ToString().ToLowerInvariant())}";
+    private static string ActionTitle(FinancialChargeAction action) => action switch
+    {
+        FinancialChargeAction.ConfirmPayment => "Registrar baixa administrativa",
+        FinancialChargeAction.RejectPaymentReport => "Rejeitar pagamento informado",
+        FinancialChargeAction.MarkNegotiated => "Registrar negociação",
+        FinancialChargeAction.Cancel => "Cancelar cobrança",
+        FinancialChargeAction.Reopen => "Reabrir cobrança",
+        _ => "Atualizar situação"
+    };
+}

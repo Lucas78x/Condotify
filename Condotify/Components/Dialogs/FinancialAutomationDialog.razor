@@ -1,0 +1,246 @@
+@using System.Text
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject Microsoft.JSInterop.IJSRuntime JS
+
+<MudDialog Class="entity-dialog entity-dialog-wide financial-automation-dialog">
+    <DialogContent>
+        <header class="financial-automation-hero">
+            <span><MudIcon Icon="@Icons.Material.Outlined.AutoAwesome" /></span>
+            <div><small>AUTOMAÇÃO FINANCEIRA</small><strong>Recorrência, planilhas e comunicação</strong><p>Organize a operação sem receber ou movimentar dinheiro.</p></div>
+            <span class="financial-no-transaction"><MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" /> Sem transações bancárias</span>
+        </header>
+
+        @if (_loading)
+        {
+            <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+        }
+        else if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+        }
+        else if (_data is not null)
+        {
+            <MudTabs Rounded Class="financial-automation-tabs">
+                <MudTabPanel Text="Recorrência" Icon="@Icons.Material.Outlined.EventRepeat">
+                    <div class="automation-section-head">
+                        <div><strong>Cobranças recorrentes</strong><span>Regras mensais com proteção contra duplicidade.</span></div>
+                        @if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenRuleAsync(null))">Nova regra</MudButton> }
+                    </div>
+                    @if (_data.Rules.Count == 0)
+                    {
+                        <div class="financial-automation-empty"><span><MudIcon Icon="@Icons.Material.Outlined.EventRepeat" /></span><strong>Nenhuma regra criada</strong><p>Comece configurando a cobrança mensal do condomínio.</p></div>
+                    }
+                    else
+                    {
+                        <div class="recurring-rule-list">
+                            @foreach (var rule in _data.Rules)
+                            {
+                                <article class="recurring-rule-card @(rule.IsActive ? "active" : "inactive")">
+                                    <span class="recurring-rule-icon"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span>
+                                    <div class="recurring-rule-copy">
+                                        <div><strong>@rule.Name</strong><span class="financial-status @(rule.IsActive ? "status-paid" : "status-cancelled")">@(rule.IsActive ? "Ativa" : "Pausada")</span></div>
+                                        <p>@rule.ReferenceTemplate · @rule.UnitCount unidade(s)</p>
+                                        <small>Gera dia @rule.GenerationDay · vence dia @rule.DueDay · próxima verificação @rule.NextRunAt.ToLocalTime().ToString("dd/MM/yyyy")</small>
+                                    </div>
+                                    <div class="recurring-rule-value"><small>Por unidade</small><strong>@Money(FinancialChargeCalculator.Total(rule.BaseAmount, rule.FineAmount, rule.InterestAmount, rule.DiscountAmount))</strong><span>@(rule.LastRunAt.HasValue ? $"Última: {rule.LastGeneratedCount} lançamento(s)" : "Ainda não executada")</span></div>
+                                    @if (CanManage) { <MudIconButton Icon="@Icons.Material.Outlined.Edit" Color="Color.Primary" OnClick="@(() => OpenRuleAsync(rule))" /> }
+                                </article>
+                            }
+                        </div>
+                    }
+                </MudTabPanel>
+
+                <MudTabPanel Text="Importar planilha" Icon="@Icons.Material.Outlined.UploadFile">
+                    <div class="automation-section-head">
+                        <div><strong>Importação em massa</strong><span>Prévia obrigatória antes de criar qualquer lançamento.</span></div>
+                        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Download" OnClick="DownloadTemplateAsync">Baixar modelo</MudButton>
+                    </div>
+                    <section class="financial-import-dropzone">
+                        <span><MudIcon Icon="@Icons.Material.Outlined.TableView" /></span>
+                        <div><strong>@(string.IsNullOrWhiteSpace(_fileName) ? "Planilha CSV compatível com Excel" : _fileName)</strong><p>Até 1.000 linhas e 2 MB. Aceita separador ponto e vírgula ou vírgula.</p></div>
+                        @if (CanManage)
+                        {
+                            <label class="file-button @(_busy ? "disabled" : null)"><MudIcon Icon="@Icons.Material.Outlined.UploadFile" /><span>@(_preview is null ? "Selecionar CSV" : "Trocar arquivo")</span><InputFile OnChange="ReadImportAsync" accept=".csv,text/csv,text/plain" disabled="@_busy" /></label>
+                        }
+                    </section>
+                    @if (_busy && _preview is null)
+                    {
+                        <div class="loading-state compact"><MudProgressCircular Indeterminate Color="Color.Primary" /><span>Validando planilha...</span></div>
+                    }
+                    else if (_preview is not null)
+                    {
+                        <div class="financial-import-summary">
+                            <div><small>Linhas válidas</small><strong>@_preview.ValidRows</strong></div>
+                            <div class="@(_preview.InvalidRows > 0 ? "has-error" : null)"><small>Com inconsistência</small><strong>@_preview.InvalidRows</strong></div>
+                            <div><small>Total gerencial</small><strong>@Money(_preview.TotalAmount)</strong></div>
+                            <MudChip T="string" Color="@(_preview.CanExecute ? Color.Success : Color.Error)" Variant="Variant.Outlined" Icon="@(_preview.CanExecute ? Icons.Material.Outlined.CheckCircle : Icons.Material.Outlined.ErrorOutline)">@(_preview.CanExecute ? "Pronta para importar" : "Requer correção")</MudChip>
+                        </div>
+                        @if (_preview.Errors.Count > 0) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@string.Join(" ", _preview.Errors)</MudAlert> }
+                        <MudTable Items="_preview.Rows" Dense Hover Elevation="0" Class="financial-import-table">
+                            <HeaderContent><MudTh>Linha</MudTh><MudTh>Unidade</MudTh><MudTh>Competência</MudTh><MudTh>Vencimento</MudTh><MudTh>Total</MudTh><MudTh>Validação</MudTh></HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Linha">@context.RowNumber</MudTd><MudTd DataLabel="Unidade"><strong>@(!string.IsNullOrWhiteSpace(context.UnitLabel) ? context.UnitLabel : $"{context.Block} / {context.Unit}")</strong><small>@context.Reference</small></MudTd>
+                                <MudTd DataLabel="Competência">@context.Competence</MudTd><MudTd DataLabel="Vencimento">@(context.DueDate?.ToString("dd/MM/yyyy") ?? "-")</MudTd><MudTd DataLabel="Total"><strong>@Money(context.TotalAmount)</strong></MudTd>
+                                <MudTd DataLabel="Validação">@if (context.IsValid) { <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Válida</MudChip> } else { <MudTooltip Text="@string.Join(" ", context.Messages)"><MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined">@context.Messages.Count erro(s)</MudChip></MudTooltip> }</MudTd>
+                            </RowTemplate>
+                            <PagerContent><MudTablePager PageSizeOptions="@(new[] { 10, 25, 50 })" RowsPerPageString="Linhas por página" InfoFormat="{first_item}-{last_item} de {all_items}" /></PagerContent>
+                        </MudTable>
+                        @if (CanManage)
+                        {
+                            <div class="financial-import-confirm"><span><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /> A confirmação cria somente registros gerenciais auditáveis.</span><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!_preview.CanExecute || _busy)" StartIcon="@Icons.Material.Outlined.PlaylistAddCheck" OnClick="ExecuteImportAsync">Confirmar importação</MudButton></div>
+                        }
+                    }
+                    @if (_data.Imports.Count > 0)
+                    {
+                        <div class="financial-import-history"><strong>Importações recentes</strong>@foreach (var item in _data.Imports) { <article><span><MudIcon Icon="@Icons.Material.Outlined.Description" /></span><div><strong>@item.FileName</strong><small>@item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @item.CreatedBy</small></div><div><strong>@item.ImportedRows</strong><small>lançamentos</small></div><span class="financial-status status-paid">Concluída</span></article> }</div>
+                    }
+                </MudTabPanel>
+
+                <MudTabPanel Text="Régua de lembretes" Icon="@Icons.Material.Outlined.NotificationsActive">
+                    <div class="automation-section-head"><div><strong>Comunicação automática</strong><span>Mensagens sem valores; detalhes somente no aplicativo autenticado.</span></div>@if (CanManage) { <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.PlayArrow" Disabled="@_busy" OnClick="RunNowAsync">Verificar agora</MudButton> }</div>
+                    <div class="reminder-policy-layout">
+                        <section class="reminder-policy-card">
+                            <div class="reminder-policy-master"><span><MudIcon Icon="@Icons.Material.Outlined.AutoMode" /></span><div><strong>Régua inteligente</strong><small>Ative ou pause todos os lembretes.</small></div><MudSwitch T="bool" @bind-Value="_policy.Enabled" Color="Color.Success" Disabled="@(!CanManage)" /></div>
+                            <div class="reminder-channel-grid">
+                                <label><span><MudIcon Icon="@Icons.Material.Outlined.PhoneAndroid" /></span><div><strong>Push no aplicativo</strong><small>Entrega pela central de notificações.</small></div><MudSwitch T="bool" @bind-Value="_policy.PushEnabled" Color="Color.Primary" Disabled="@(!CanManage)" /></label>
+                                <label class="@(!_data.ReminderPolicy.EmailTransportReady ? "unavailable" : null)"><span><MudIcon Icon="@Icons.Material.Outlined.AlternateEmail" /></span><div><strong>E-mail</strong><small>@(_data.ReminderPolicy.EmailTransportReady ? "SMTP pronto para envio." : "Configure o SMTP para habilitar.")</small></div><MudSwitch T="bool" @bind-Value="_policy.EmailEnabled" Color="Color.Primary" Disabled="@(!CanManage || !_data.ReminderPolicy.EmailTransportReady)" /></label>
+                            </div>
+                        </section>
+                        <section class="reminder-schedule-card">
+                            <div><strong>Quando avisar</strong><span>A sequência é recalculada diariamente.</span></div>
+                            <MudTextField T="string" @bind-Value="_beforeDays" Label="Antes do vencimento" HelperText="Dias separados por vírgula. Ex.: 5, 1" Variant="Variant.Outlined" Disabled="@(!CanManage)" />
+                            <MudCheckBox T="bool" @bind-Value="_policy.OnDueDate" Label="Avisar no dia do vencimento" Color="Color.Primary" Disabled="@(!CanManage)" />
+                            <div class="reminder-number-grid"><MudNumericField T="int" @bind-Value="_policy.FirstOverdueDay" Label="Primeiro aviso vencido" Variant="Variant.Outlined" Min="1" Max="30" Disabled="@(!CanManage)" /><MudNumericField T="int" @bind-Value="_policy.RepeatEveryDays" Label="Repetir a cada" Variant="Variant.Outlined" Min="1" Max="60" Disabled="@(!CanManage)" /><MudNumericField T="int" @bind-Value="_policy.MaxOverdueDays" Label="Parar após" Variant="Variant.Outlined" Min="1" Max="365" Disabled="@(!CanManage)" /></div>
+                            @if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="@_busy" OnClick="SavePolicyAsync">Salvar régua</MudButton> }
+                        </section>
+                    </div>
+                </MudTabPanel>
+
+                <MudTabPanel Text="Histórico" Icon="@Icons.Material.Outlined.History">
+                    <div class="automation-section-head"><div><strong>Histórico de comunicações</strong><span>Canal, destinatário protegido, tentativas e resultado.</span></div><MudChip T="string" Variant="Variant.Outlined">@_data.RecentDeliveries.Count registro(s)</MudChip></div>
+                    @if (_data.RecentDeliveries.Count == 0)
+                    {
+                        <div class="financial-automation-empty"><span><MudIcon Icon="@Icons.Material.Outlined.MarkEmailRead" /></span><strong>Nenhum lembrete processado</strong><p>As entregas aparecerão aqui quando a régua entrar em ação.</p></div>
+                    }
+                    else
+                    {
+                        <div class="financial-delivery-list">
+                            @foreach (var item in _data.RecentDeliveries)
+                            {
+                                <article>
+                                    <span class="delivery-channel @item.Channel.ToString().ToLowerInvariant()"><MudIcon Icon="@(item.Channel == FinancialReminderChannel.Push ? Icons.Material.Outlined.PhoneAndroid : Icons.Material.Outlined.AlternateEmail)" /></span>
+                                    <div><strong>@item.StageLabel · @item.Reference</strong><small>@item.UnitLabel · @item.ResidentName</small><em>@item.DestinationLabel · @item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</em></div>
+                                    <span class="@DeliveryStatusCss(item.Status)">@DeliveryStatusLabel(item.Status)</span>
+                                    @if (!string.IsNullOrWhiteSpace(item.LastError))
+                                    {
+                                        <MudTooltip Text="@item.LastError"><MudIcon Icon="@Icons.Material.Outlined.ErrorOutline" Color="Color.Error" /></MudTooltip>
+                                    }
+                                </article>
+                            }
+                        </div>
+                    }
+                </MudTabPanel>
+            </MudTabs>
+        }
+    </DialogContent>
+    <DialogActions><MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public List<FinancialUnitOptionViewModel> Units { get; set; } = [];
+    [Parameter] public bool CanManage { get; set; }
+    private FinancialAutomationViewModel? _data;
+    private UpdateFinancialReminderPolicyViewModel _policy = new();
+    private FinancialImportPreviewViewModel? _preview;
+    private FinancialImportRequestViewModel? _importRequest;
+    private string _beforeDays = "5, 1";
+    private string _fileName = string.Empty;
+    private string _error = string.Empty;
+    private bool _loading = true;
+    private bool _busy;
+    private const long MaxFileSize = 2_000_000;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = string.Empty;
+        var result = await Api.GetFinancialAutomationAsync(LicenseId);
+        _loading = false;
+        if (!result.Success || result.Value is null) { _error = result.Error ?? "Não foi possível carregar a automação financeira."; return; }
+        _data = result.Value;
+        var current = _data.ReminderPolicy;
+        _policy = new UpdateFinancialReminderPolicyViewModel { Enabled = current.Enabled, PushEnabled = current.PushEnabled, EmailEnabled = current.EmailEnabled, BeforeDueDays = current.BeforeDueDays.ToList(), OnDueDate = current.OnDueDate, FirstOverdueDay = current.FirstOverdueDay, RepeatEveryDays = current.RepeatEveryDays, MaxOverdueDays = current.MaxOverdueDays };
+        _beforeDays = string.Join(", ", current.BeforeDueDays);
+    }
+    private void Close() => Dialog.Close();
+    private async Task OpenRuleAsync(FinancialRecurringRuleViewModel? rule)
+    {
+        var parameters = new DialogParameters { [nameof(FinancialRecurringRuleDialog.Existing)] = rule, [nameof(FinancialRecurringRuleDialog.Units)] = Units };
+        var dialog = await DialogService.ShowAsync<FinancialRecurringRuleDialog>(rule is null ? "Nova regra recorrente" : "Editar regra recorrente", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium, BackdropClick = false });
+        var result = await dialog.Result;
+        if (result?.Canceled != false || result.Data is not UpsertFinancialRecurringRuleViewModel input) return;
+        var response = await Api.SaveFinancialRecurringRuleAsync(LicenseId, rule?.Id, input);
+        if (!response.Success) { Snackbar.Add(response.Error ?? "Não foi possível salvar a regra.", Severity.Error); return; }
+        Snackbar.Add("Regra recorrente salva.", Severity.Success); await LoadAsync();
+    }
+    private async Task ReadImportAsync(InputFileChangeEventArgs args)
+    {
+        _busy = true; _preview = null; _error = string.Empty;
+        try
+        {
+            var file = args.File; _fileName = file.Name;
+            if (file.Size > MaxFileSize) { Snackbar.Add("O arquivo excede o limite de 2 MB.", Severity.Error); return; }
+            await using var stream = file.OpenReadStream(MaxFileSize);
+            using var reader = new StreamReader(stream, Encoding.UTF8, true);
+            _importRequest = new FinancialImportRequestViewModel { FileName = file.Name, Content = await reader.ReadToEndAsync(), IdempotencyKey = Guid.NewGuid().ToString("N") };
+            var response = await Api.PreviewFinancialImportAsync(LicenseId, _importRequest);
+            if (!response.Success || response.Value is null) { Snackbar.Add(response.Error ?? "Não foi possível validar a planilha.", Severity.Error); return; }
+            _preview = response.Value;
+        }
+        catch (IOException) { Snackbar.Add("Não foi possível ler o arquivo.", Severity.Error); }
+        finally { _busy = false; }
+    }
+    private async Task ExecuteImportAsync()
+    {
+        if (_importRequest is null || _preview?.CanExecute != true) return;
+        _busy = true;
+        try
+        {
+            var result = await Api.ExecuteFinancialImportAsync(LicenseId, _importRequest);
+            if (!result.Success || result.Value is null) { Snackbar.Add(result.Error ?? "Não foi possível importar a planilha.", Severity.Error); return; }
+            Snackbar.Add($"{result.Value.CreatedCharges} cobrança(s) importada(s).", Severity.Success); _preview = null; _importRequest = null; _fileName = string.Empty; await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+    private async Task SavePolicyAsync()
+    {
+        _policy.BeforeDueDays = _beforeDays.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => int.TryParse(x, out var day) ? day : -1).Where(x => x > 0).Distinct().ToList();
+        _busy = true;
+        try
+        {
+            var result = await Api.UpdateFinancialReminderPolicyAsync(LicenseId, _policy);
+            if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível salvar a régua.", Severity.Error); return; }
+            Snackbar.Add("Régua de lembretes atualizada.", Severity.Success); await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+    private async Task RunNowAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Api.RunFinancialAutomationAsync(LicenseId);
+            if (!result.Success || result.Value is null) { Snackbar.Add(result.Error ?? "Não foi possível verificar a automação.", Severity.Error); return; }
+            Snackbar.Add($"Verificação concluída: {result.Value.GeneratedCharges} lançamento(s), {result.Value.ScheduledReminders} lembrete(s) agendado(s).", Severity.Success); await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+    private Task DownloadTemplateAsync() => JS.InvokeVoidAsync("portalInterop.downloadText", "modelo-financeiro-condotify.csv", "\uFEFFBloco;Unidade;Competencia;Referencia;Descricao;Vencimento;Valor;Multa;Juros;Desconto;Observacoes\nBloco A;101;2026-08;Condomínio 08/2026;Contribuição condominial;10/08/2026;650,00;0,00;0,00;0,00;Importado pela administradora", "text/csv;charset=utf-8").AsTask();
+    private static string Money(decimal value) => value.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+    private static string DeliveryStatusCss(FinancialReminderDeliveryStatus status) => $"financial-status delivery-{status.ToString().ToLowerInvariant()}";
+    private static string DeliveryStatusLabel(FinancialReminderDeliveryStatus status) => status switch { FinancialReminderDeliveryStatus.Delivered => "Entregue", FinancialReminderDeliveryStatus.Queued => "Na fila", FinancialReminderDeliveryStatus.Sending => "Enviando", FinancialReminderDeliveryStatus.Failed => "Nova tentativa", FinancialReminderDeliveryStatus.DeadLetter => "Falhou", _ => "Cancelado" };
+}

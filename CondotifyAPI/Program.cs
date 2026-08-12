@@ -80,6 +80,9 @@ builder.Services.AddSingleton<IBoletoDocumentStore, BoletoDocumentStore>();
 builder.Services.AddSingleton<IResourceDocumentStore, ResourceDocumentStore>();
 builder.Services.AddSingleton<IBoletoPdfProcessor, BoletoPdfProcessor>();
 builder.Services.AddSingleton<StructureImportCsvParser>();
+builder.Services.AddSingleton<FinancialChargeImportCsvParser>();
+builder.Services.AddScoped<IFinancialReminderEmailSender, FinancialReminderEmailSender>();
+builder.Services.AddScoped<IFinancialAutomationRunner, FinancialAutomationRunner>();
 builder.Services.AddScoped<IRecycleBinService, RecycleBinService>();
 builder.Services.AddScoped<IConfigurationBackupService, ConfigurationBackupService>();
 builder.Services.AddSingleton<IConfigurationBackupArchiveService, ConfigurationBackupArchiveService>();
@@ -166,6 +169,16 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
             AutoReplenishment = true
         }));
+    options.AddPolicy("facial-invite", httpContext => RateLimitPartition.GetSlidingWindowLimiter(
+        $"{httpContext.Connection.RemoteIpAddress}:{httpContext.Request.Path}",
+        _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 12,
+            Window = TimeSpan.FromMinutes(5),
+            SegmentsPerWindow = 5,
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
 });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -220,12 +233,16 @@ builder.Services.AddScoped<ICondotifyQueriesRepository, CondotifyQueriesReposito
 builder.Services.AddScoped<ICFTVService, CFTVService>();
 builder.Services.AddScoped<IAccessControlService, AccessControlService>();
 builder.Services.AddScoped<IAccessRouteResolver, AccessRouteResolver>();
+builder.Services.AddScoped<IOfflineAccessBundleService, OfflineAccessBundleService>();
 builder.Services.AddScoped<ICredentialReconciliationService, CredentialReconciliationService>();
+builder.Services.AddScoped<IVisitFacialInviteService, VisitFacialInviteService>();
 builder.Services.AddScoped<IDeviceInventoryService, DeviceInventoryService>();
 builder.Services.AddScoped<ILicenseAuthorizationService, LicenseAuthorizationService>();
+builder.Services.AddScoped<ILicenseModuleService, LicenseModuleService>();
 builder.Services.AddScoped<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor, CondotifyAPI.Domain.Services.CurrentTenantAccessor>();
 builder.Services.AddScoped<IResidentAuthorizationService, ResidentAuthorizationService>();
 builder.Services.AddScoped<IIncidentService, IncidentService>();
+builder.Services.AddScoped<IMaintenanceService, MaintenanceService>();
 builder.Services.AddScoped<IAutomationRuleEvaluationService, AutomationRuleEvaluationService>();
 builder.Services.AddScoped<IDigitalPassProviderService, DigitalPassProviderService>();
 builder.Services.AddScoped<IAppleWalletPassService, AppleWalletPassService>();
@@ -242,8 +259,10 @@ builder.Services.AddHostedService<CftvPathReaperWorker>();
 builder.Services.AddHostedService<RecycleBinCleanupService>();
 builder.Services.AddHostedService<AutomaticBackupWorker>();
 builder.Services.AddHostedService<OperationalAlertWorker>();
+builder.Services.AddHostedService<PreventiveMaintenanceWorker>();
 builder.Services.AddHostedService<AlertNotificationWorker>();
 builder.Services.AddHostedService<PushNotificationWorker>();
+builder.Services.AddHostedService<FinancialAutomationWorker>();
 builder.Services.AddHostedService<AutomationRuleWorker>();
 builder.Services.AddHostedService<LprPollingService>();
 

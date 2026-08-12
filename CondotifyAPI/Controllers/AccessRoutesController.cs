@@ -385,8 +385,8 @@ public sealed class AccessRoutesController : ControllerBase
         return _context.Residents
             .Include(x => x.Unit)
             .ThenInclude(x => x.Block)
-            .Include(x => x.UnitLinks)
-            .Where(x => x.Unit.Block.LicenseId == licenseId);
+            .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
+            .ForLicense(licenseId);
     }
 
     private async Task<string?> ValidateAsync(

@@ -1,0 +1,38 @@
+<MudDialog>
+    <DialogContent>
+        <div class="financial-action-card">
+            <span><MudIcon Icon="@ActionIcon" /></span>
+            <div><small>@Charge.UnitLabel</small><strong>@Charge.Reference</strong><p>@Charge.TotalAmount.ToString("C2", Culture) · @Charge.DisplayStatus</p></div>
+        </div>
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense Class="mb-4">Este registro não movimenta dinheiro. Ele apenas atualiza o controle administrativo e a auditoria.</MudAlert>
+        @if (Action == FinancialChargeAction.ConfirmPayment)
+        {
+            <MudDatePicker @bind-Date="_paidAt" Label="Data informada do pagamento" Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField T="string" @bind-Value="_paymentReference" Label="Referência externa (opcional)" Variant="Variant.Outlined" Class="mb-3" />
+        }
+        <MudTextField T="string" @bind-Value="_note" Label="@NoteLabel" Placeholder="Registre o contexto para a auditoria" Lines="3" Variant="Variant.Outlined" Required="@NoteRequired" />
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudText Color="Color.Error" Typo="Typo.caption">@_error</MudText> }
+    </DialogContent>
+    <DialogActions><MudButton OnClick="Cancel">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="@ActionColor" OnClick="Submit">Confirmar registro</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter, EditorRequired] public FinancialChargeViewModel Charge { get; set; } = new();
+    [Parameter] public FinancialChargeAction Action { get; set; }
+    private string _note = string.Empty;
+    private string _paymentReference = string.Empty;
+    private DateTime? _paidAt = DateTime.Today;
+    private string _error = string.Empty;
+    private static readonly System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+    private bool NoteRequired => Action is not FinancialChargeAction.ConfirmPayment;
+    private string NoteLabel => NoteRequired ? "Motivo obrigatório" : "Observação de conferência (opcional)";
+    private Color ActionColor => Action == FinancialChargeAction.Cancel ? Color.Error : Color.Primary;
+    private string ActionIcon => Action switch { FinancialChargeAction.ConfirmPayment => Icons.Material.Outlined.TaskAlt, FinancialChargeAction.MarkNegotiated => Icons.Material.Outlined.Handshake, FinancialChargeAction.Cancel => Icons.Material.Outlined.Block, FinancialChargeAction.Reopen => Icons.Material.Outlined.RestartAlt, _ => Icons.Material.Outlined.EditNote };
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit()
+    {
+        if (NoteRequired && string.IsNullOrWhiteSpace(_note)) { _error = "Informe o motivo para manter a trilha de auditoria completa."; return; }
+        MudDialog.Close(DialogResult.Ok(new FinancialChargeActionViewModel { Action = Action, Note = _note, PaidAt = _paidAt, PaymentReference = _paymentReference }));
+    }
+}

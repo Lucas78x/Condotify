@@ -60,7 +60,7 @@
                     <MudTd DataLabel="Moradores">@context.Moradores</MudTd>
                     <MudTd DataLabel="Acesso"><MudButton Href="@($"/licencas/{context.Id}")" Variant="Variant.Text" EndIcon="@Icons.Material.Outlined.ArrowForward">Gerenciar</MudButton></MudTd>
                 </RowTemplate>
-                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 10, 20, 50 })" /></PagerContent>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 10, 20, 50 })" RowsPerPageString="Itens por página" InfoFormat="{first_item}-{last_item} de {all_items}" AllItemsText="Todos" /></PagerContent>
             </MudTable>
         </div>
     }

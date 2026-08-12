@@ -3,47 +3,76 @@
 
 @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
 
+<div class="module-page-heading finance-module-heading">
+    <div class="module-page-heading-copy">
+        <span class="module-heading-icon amber"><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" /></span>
+        <div>
+            <MudText Typo="Typo.h5" HtmlTag="h2">Boletos e cobranças</MudText>
+            <MudText Typo="Typo.body2">Distribua boletos por unidade com conferência antes da publicação.</MudText>
+        </div>
+    </div>
+    @if (_batches.Count > 0)
+    {
+        <div class="module-page-heading-actions">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ReceiptLong" OnClick="OpenSingleUploadAsync" Disabled="!CanManage">Boleto avulso</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.UploadFile" OnClick="OpenUploadAsync" Disabled="!CanManage">Novo lote</MudButton>
+        </div>
+    }
+</div>
+
 @if (_loading)
 {
     <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
 }
 else if (_batches.Count == 0)
 {
-    <div class="boletos-onboard">
-        <div class="boletos-onboard-track"><i></i></div>
-        <div class="boletos-onboard-steps">
-            <div class="boletos-onboard-step boletos-onboard-step-one">
-                <span><MudIcon Icon="@Icons.Material.Outlined.UploadFile" /></span>
-                <div><small>PASSO 1</small><strong>Envie o PDF</strong><span>O lote completo exportado da administradora, uma página por unidade.</span></div>
+    <section class="finance-onboarding">
+        <div class="finance-onboarding-intro">
+            <span class="finance-hero-icon"><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" /></span>
+            <MudText Typo="Typo.overline">PRIMEIRA PUBLICAÇÃO</MudText>
+            <MudText Typo="Typo.h4" HtmlTag="h3">Entregue cada boleto à unidade certa</MudText>
+            <MudText Typo="Typo.body2">Envie o PDF completo da administradora. O Condotify separa as páginas, sugere as unidades e só publica depois da sua revisão.</MudText>
+            <div class="finance-trust-list">
+                <span><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /> Revisão antes de enviar</span>
+                <span><MudIcon Icon="@Icons.Material.Outlined.History" /> Histórico de cada lote</span>
             </div>
-            <div class="boletos-onboard-step boletos-onboard-step-two">
-                <span><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span>
-                <div><small>PASSO 2</small><strong>Conferência automática</strong><span>O sistema já casa cada página com a unidade certa.</span></div>
-            </div>
-            <div class="boletos-onboard-step boletos-onboard-step-three">
-                <span><MudIcon Icon="@Icons.Material.Outlined.Send" /></span>
-                <div><small>PASSO 3</small><strong>Publique pros moradores</strong><span>Um clique libera tudo de uma vez.</span></div>
+            <div class="finance-onboarding-actions">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.UploadFile" OnClick="OpenUploadAsync" Disabled="!CanManage">Enviar primeiro lote</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ReceiptLong" OnClick="OpenSingleUploadAsync" Disabled="!CanManage">Enviar boleto avulso</MudButton>
             </div>
         </div>
-        <div class="boletos-onboard-cta-group">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.UploadFile" OnClick="OpenUploadAsync" Disabled="!CanManage">
-                Enviar primeiro lote
-            </MudButton>
-            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ReceiptLong" OnClick="OpenSingleUploadAsync" Disabled="!CanManage">
-                Ou enviar um boleto avulso
-            </MudButton>
+
+        <div class="finance-flow" aria-label="Como publicar um lote de boletos">
+            <div class="finance-flow-head">
+                <span>Como funciona</span>
+                <small>Leva poucos minutos</small>
+            </div>
+            <ol>
+                <li>
+                    <span>01</span>
+                    <div><strong>Envie o PDF</strong><small>Uma página por unidade, em um único arquivo.</small></div>
+                    <MudIcon Icon="@Icons.Material.Outlined.UploadFile" />
+                </li>
+                <li>
+                    <span>02</span>
+                    <div><strong>Confira as associações</strong><small>Revise as unidades identificadas automaticamente.</small></div>
+                    <MudIcon Icon="@Icons.Material.Outlined.FactCheck" />
+                </li>
+                <li>
+                    <span>03</span>
+                    <div><strong>Publique para os moradores</strong><small>Os documentos aparecem no aplicativo imediatamente.</small></div>
+                    <MudIcon Icon="@Icons.Material.Outlined.Send" />
+                </li>
+            </ol>
         </div>
-    </div>
+    </section>
 }
 else
 {
     <section class="content-panel">
         <div class="panel-heading">
             <div><MudText Typo="Typo.h5">Lotes de boletos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Histórico de envios para esta licença</MudText></div>
-            <div class="panel-heading-actions">
-                <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ReceiptLong" OnClick="OpenSingleUploadAsync" Disabled="!CanManage">Boleto avulso</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.UploadFile" OnClick="OpenUploadAsync" Disabled="!CanManage">Novo lote</MudButton>
-            </div>
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_batches.Count lote(s)</MudChip>
         </div>
         <MudTable Items="_batches" Hover Dense Elevation="0">
             <HeaderContent>

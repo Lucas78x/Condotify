@@ -81,6 +81,8 @@ public sealed class CreateReconciliationBatchIn
 public sealed class AccessBatchOperationOut
 {
     public Guid Id { get; set; }
+    public Guid LicenseId { get; set; }
+    public string LicenseName { get; set; } = string.Empty;
     public string Operation { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public int TotalItems { get; set; }
@@ -110,6 +112,7 @@ public sealed class AccessOperationItemOut
     public string Status { get; set; } = string.Empty;
     public int AttemptCount { get; set; }
     public string Error { get; set; } = string.Empty;
+    public DateTime? FinishedAt { get; set; }
     public DateTime? NextAttemptAt { get; set; }
 }
 

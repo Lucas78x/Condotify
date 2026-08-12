@@ -33,6 +33,25 @@ public sealed class AccessVisitConfiguration : IEntityTypeConfiguration<AccessVi
     }
 }
 
+public sealed class VisitFacialInviteConfiguration : IEntityTypeConfiguration<VisitFacialInviteDTO>
+{
+    public void Configure(EntityTypeBuilder<VisitFacialInviteDTO> builder)
+    {
+        builder.ToTable("VisitFacialInvites");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.TokenHash).IsRequired().HasMaxLength(128);
+        builder.Property(x => x.Status).HasConversion<int>().IsRequired();
+        builder.Property(x => x.CreatedBy).HasMaxLength(150);
+        builder.Property(x => x.CreatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
+        builder.Property(x => x.UpdatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
+        builder.HasOne(x => x.License).WithMany().HasForeignKey(x => x.LicenseId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.Visit).WithOne(x => x.FacialInvite).HasForeignKey<VisitFacialInviteDTO>(x => x.VisitId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(x => x.TokenHash).IsUnique();
+        builder.HasIndex(x => x.VisitId).IsUnique();
+        builder.HasIndex(x => new { x.LicenseId, x.Status, x.ExpiresAt });
+    }
+}
+
 public sealed class AccessWatchlistEntryConfiguration : IEntityTypeConfiguration<AccessWatchlistEntryDTO>
 {
     public void Configure(EntityTypeBuilder<AccessWatchlistEntryDTO> builder)

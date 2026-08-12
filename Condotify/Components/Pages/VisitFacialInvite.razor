@@ -1,0 +1,178 @@
+@page "/convite/facial/{Token}"
+@layout PublicLayout
+@inject CondotifyApiClient Api
+
+<PageTitle>Convite facial | Condotify</PageTitle>
+
+<MudPaper Class="invite-public-card facial-public-card" Elevation="0">
+    @if (_loading)
+    {
+        <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+    }
+    else if (_invite is null)
+    {
+        <div class="public-result error"><MudIcon Icon="@Icons.Material.Outlined.LinkOff" /><MudText Typo="Typo.h5">Convite indisponível</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@(_error ?? "O link é inválido ou não está mais disponível.")</MudText></div>
+    }
+    else if (_completed || _invite.Status == "Completed")
+    {
+        <div class="facial-public-result">
+            <div class="facial-success-orbit"><span><MudIcon Icon="@Icons.Material.Outlined.Face" /></span><b><MudIcon Icon="@Icons.Material.Outlined.Check" /></b><i></i><i></i></div>
+            <span class="facial-result-eyebrow">CADASTRO CONCLUÍDO</span>
+            <MudText Typo="Typo.h4">Tudo pronto, @_invite.VisitorName!</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Seu acesso facial foi preparado para @_invite.LicenseName. Agora é só chegar no período autorizado.</MudText>
+            <div class="facial-result-validity"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" /><span><small>PERÍODO DA VISITA</small><strong>@_invite.ValidFrom.ToLocalTime().ToString("dd/MM HH:mm") até @_invite.ValidTo.ToLocalTime().ToString("dd/MM HH:mm")</strong></span></div>
+            <div class="facial-result-safe"><MudIcon Icon="@Icons.Material.Outlined.Shield" /> A credencial expira automaticamente ao fim da visita.</div>
+        </div>
+    }
+    else if (_invite.Status is "Expired" or "Canceled")
+    {
+        <div class="public-result error"><MudIcon Icon="@Icons.Material.Outlined.EventBusy" /><MudText Typo="Typo.h5">Convite expirado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Peça ao morador ou à portaria um novo link para @_invite.LicenseName.</MudText></div>
+    }
+    else
+    {
+        <div class="invite-public-layout facial-public-layout">
+            <aside class="invite-guide facial-public-guide">
+                <div class="invite-guide-copy">
+                    <span class="invite-guide-eyebrow"><MudIcon Icon="@Icons.Material.Outlined.FaceRetouchingNatural" Size="Size.Small" /> CONVITE FACIAL</span>
+                    <h2>Seu rosto será sua chave de entrada</h2>
+                    <p>Uma foto bem enquadrada é suficiente. Você conclui agora e chega com o acesso pronto.</p>
+                </div>
+
+                <div class="facial-public-demo" role="img" aria-label="Animação demonstrando como enquadrar o rosto para a foto facial">
+                    <div class="facial-demo-phone">
+                        <span class="facial-demo-speaker"></span>
+                        <div class="facial-demo-camera"><MudIcon Icon="@Icons.Material.Outlined.Face" /><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span><i></i></div>
+                        <div class="facial-demo-feedback"><b><MudIcon Icon="@Icons.Material.Outlined.LightMode" /> Boa iluminação</b><b><MudIcon Icon="@Icons.Material.Outlined.CenterFocusStrong" /> Olhe de frente</b></div>
+                        <div class="facial-demo-button"><MudIcon Icon="@Icons.Material.Outlined.PhotoCamera" /></div>
+                    </div>
+                    <span class="facial-demo-ok"><MudIcon Icon="@Icons.Material.Outlined.Check" /></span>
+                </div>
+
+                <ol class="invite-guide-steps">
+                    <li><span>1</span><div><strong>Escolha uma foto nítida</strong><small>Rosto de frente e ambiente iluminado.</small></div></li>
+                    <li><span>2</span><div><strong>Confira o enquadramento</strong><small>Sem óculos escuros, boné ou outras pessoas.</small></div></li>
+                    <li><span>3</span><div><strong>Envie com segurança</strong><small>A foto será usada somente para este acesso.</small></div></li>
+                </ol>
+
+                <div class="invite-guide-expiry"><MudIcon Icon="@Icons.Material.Outlined.Schedule" /><span><small>Este convite é pessoal</small><strong>Válido até @_invite.ExpiresAt.ToLocalTime().ToString("dd/MM 'às' HH:mm")</strong></span></div>
+            </aside>
+
+            <section class="invite-form-panel facial-form-panel">
+                <header class="invite-public-head">
+                    <span class="invite-public-icon"><MudIcon Icon="@Icons.Material.Outlined.AddAPhoto" /></span>
+                    <div><MudText Typo="Typo.h5">Olá, @_invite.VisitorName</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_invite.LicenseName · @_invite.BlockName / Unidade @_invite.UnitNumber</MudText></div>
+                </header>
+
+                <div class="facial-visit-summary">
+                    <span><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /><small>ENTRADA</small><strong>@_invite.ValidFrom.ToLocalTime().ToString("dd/MM · HH:mm")</strong></span>
+                    <span><MudIcon Icon="@Icons.Material.Outlined.EventBusy" /><small>EXPIRA</small><strong>@_invite.ValidTo.ToLocalTime().ToString("dd/MM · HH:mm")</strong></span>
+                    <span><MudIcon Icon="@Icons.Material.Outlined.Pin" /><small>UTILIZAÇÕES</small><strong>@(_invite.MaxUses.HasValue ? $"Até {_invite.MaxUses}" : "Sem limite")</strong></span>
+                </div>
+
+                @if (_invite.Routes.Count > 0)
+                {
+                    <div class="facial-public-routes">
+                        <div class="facial-form-caption"><span>ACESSOS PERMITIDOS</span><small>Seu convite funciona somente nestas rotas e horários.</small></div>
+                        @foreach (var route in _invite.Routes)
+                        {
+                            <div class="facial-route-chip"><span><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" /></span><div><strong>@route.Name</strong><small>@DaysLabel(route.DaysOfWeekMask) · @route.StartTime.ToString(@"hh\:mm")–@route.EndTime.ToString(@"hh\:mm")</small></div><MudIcon Icon="@Icons.Material.Outlined.CheckCircle" /></div>
+                        }
+                    </div>
+                }
+
+                <div class="facial-form-caption"><span>SUA FOTO</span><small>Você poderá conferir antes de enviar.</small></div>
+                <label class="facial-public-upload @(!string.IsNullOrWhiteSpace(_form.ImageBase64) ? "ready" : "") @(_processing ? "processing" : "")">
+                    @if (!string.IsNullOrWhiteSpace(_form.ImageBase64))
+                    {
+                        <img src="@_form.ImageBase64" alt="Prévia da foto facial selecionada" />
+                        <span class="facial-upload-confirm"><MudIcon Icon="@Icons.Material.Outlined.Check" /></span>
+                    }
+                    else
+                    {
+                        <div class="facial-upload-placeholder"><span><MudIcon Icon="@Icons.Material.Outlined.Face" /><i></i></span><strong>@(_processing ? "Preparando sua foto..." : "Toque para tirar ou escolher a foto")</strong><small>JPG ou PNG · até 5 MB</small></div>
+                    }
+                    <InputFile OnChange="PreparePhotoAsync" accept="image/jpeg,image/png" capture="user" disabled="@(_processing || _saving)" />
+                </label>
+
+                <div class="facial-photo-tips"><span><MudIcon Icon="@Icons.Material.Outlined.WbSunny" /><small>Ambiente claro</small></span><span><MudIcon Icon="@Icons.Material.Outlined.Face" /><small>Rosto de frente</small></span><span><MudIcon Icon="@Icons.Material.Outlined.PersonOff" /><small>Apenas você</small></span></div>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-3">@_error</MudAlert>
+                }
+
+                <div class="facial-consent-row">
+                    <MudCheckBox T="bool" @bind-Value="_form.Consent" Color="Color.Primary" />
+                    <span><strong>Autorizo o uso desta foto para controle de acesso.</strong><small>A imagem será protegida e vinculada somente a esta visita temporária.</small></span>
+                </div>
+
+                <MudButton FullWidth Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Outlined.Lock" Disabled="@(_saving || _processing || string.IsNullOrWhiteSpace(_form.ImageBase64) || !_form.Consent)" OnClick="CompleteAsync">@(_saving ? "Ativando acesso..." : "Enviar foto e ativar acesso")</MudButton>
+                <div class="facial-security-note"><MudIcon Icon="@Icons.Material.Outlined.EnhancedEncryption" /> Envio criptografado · link pessoal · expiração automática</div>
+            </section>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+    private PublicVisitFacialInviteViewModel? _invite;
+    private readonly CompleteVisitFacialInviteViewModel _form = new();
+    private bool _loading = true;
+    private bool _processing;
+    private bool _saving;
+    private bool _completed;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+        var result = await Api.GetPublicVisitFacialInviteAsync(Token);
+        _loading = false;
+        if (!result.Success || result.Value is null) { _error = result.Error; return; }
+        _invite = result.Value;
+    }
+
+    private async Task PreparePhotoAsync(InputFileChangeEventArgs args)
+    {
+        _processing = true;
+        _error = null;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+            _form.ImageBase64 = await FacePhotoProcessor.PrepareAsync(args.File, timeout.Token).WaitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            _error = "O processamento demorou demais. Tente uma foto menor.";
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private async Task CompleteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_form.ImageBase64)) { _error = "Tire ou escolha uma foto para continuar."; return; }
+        if (!_form.Consent) { _error = "Confirme a autorização de uso da foto."; return; }
+        _saving = true;
+        _error = null;
+        var result = await Api.CompleteVisitFacialInviteAsync(Token, _form);
+        _saving = false;
+        if (!result.Success || result.Value is null) { _error = result.Error ?? "Não foi possível ativar o acesso facial."; return; }
+        _invite = result.Value;
+        _completed = true;
+    }
+
+    private static string DaysLabel(int mask)
+    {
+        if (mask == 127) return "Todos os dias";
+        var days = new[] { "dom", "seg", "ter", "qua", "qui", "sex", "sáb" };
+        return string.Join(", ", days.Where((_, index) => (mask & (1 << index)) != 0));
+    }
+}

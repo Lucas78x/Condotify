@@ -148,9 +148,35 @@ public sealed class OperationalAlertEvaluationService(
                 $"Tempo de resposta de {x.LastResponseTimeMs} ms; limite configurado em {warningResponseMs} ms.",
                 x.LastHealthCheckAt ?? now, $"/licencas/{x.LicenseId}/equipamentos", "Device", x.Id)));
 
+        var offlineRemovals = await context.ResidentAccessDevices.AsNoTracking()
+            .Where(x => x.SyncStatus == CredentialSyncStatusEnum.RemovalPending && !x.Device.IsActive)
+            .GroupBy(x => new
+            {
+                LicenseId = x.Credential.Resident.Unit.Block.LicenseId,
+                x.Credential.Resident.Unit.Block.License.EnterpriseId,
+                x.DeviceId,
+                DeviceName = x.Device.Name
+            })
+            .Select(group => new
+            {
+                group.Key.LicenseId,
+                group.Key.EnterpriseId,
+                group.Key.DeviceId,
+                group.Key.DeviceName,
+                Count = group.Count(),
+                OccurredAt = group.Max(x => x.LastSyncAt)
+            })
+            .ToListAsync(cancellationToken);
+        signals.AddRange(offlineRemovals.Select(x => Signal(
+            x.EnterpriseId, x.LicenseId, $"credential-removal-offline:{x.DeviceId:N}", "CredentialRemovalOffline",
+            OperationalAlertSeverity.Critical,
+            "Remoção temporária aguardando equipamento",
+            $"{x.Count} credencial(is) expirada(s) aguardam o equipamento {x.DeviceName} voltar a ficar online.",
+            x.OccurredAt, $"/licencas/{x.LicenseId}/credenciais", "Device", x.DeviceId)));
+
         var failedBindings = await context.ResidentAccessDevices.AsNoTracking()
             .Where(x => x.SyncStatus == CredentialSyncStatusEnum.Failed ||
-                        x.SyncStatus == CredentialSyncStatusEnum.RemovalPending)
+                        (x.SyncStatus == CredentialSyncStatusEnum.RemovalPending && x.Device.IsActive))
             .GroupBy(x => new
             {
                 LicenseId = x.Credential.Resident.Unit.Block.LicenseId,

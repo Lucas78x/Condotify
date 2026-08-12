@@ -80,16 +80,15 @@ namespace Condotify.Models
     {
         public List<CftvDeviceRowViewModel> Devices { get; set; } = new();
 
-        [Required]
+        [Required(ErrorMessage = "Informe o nome da câmera ou gravador.")]
         public string Name { get; set; } = string.Empty;
 
-        [Required]
+        [Required(ErrorMessage = "Informe o endereço IP do dispositivo.")]
         public string IpAddress { get; set; } = string.Empty;
 
-        [Required]
+        [Required(ErrorMessage = "Informe o usuário de acesso ao dispositivo.")]
         public string UserName { get; set; } = string.Empty;
 
-        [Required]
         public string Password { get; set; } = string.Empty;
 
         public string HTTPPort { get; set; } = "80";
@@ -580,9 +579,32 @@ namespace Condotify.Models
         public string IpAddress { get; set; } = string.Empty;
         public string HTTPPort { get; set; } = string.Empty;
         public string RTSPPort { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public int IpType { get; set; }
+        public int Proportion { get; set; }
+        public int Mark { get; set; }
+        public int DeviceTypeValue { get; set; }
         public string DeviceType { get; set; } = string.Empty;
         public int MaxChannels { get; set; }
         public bool ResidentVisible { get; set; }
+        public List<CftvAccessActionViewModel> AccessActions { get; set; } = [];
+    }
+
+    public class CftvConnectionDiagnosticViewModel
+    {
+        public bool PingOk { get; set; }
+        public bool TcpRtspOk { get; set; }
+        public bool RtspReady { get; set; }
+        public int ChannelsReady { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class CftvAccessActionViewModel
+    {
+        public Guid DeviceId { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public int Channel { get; set; }
+        public bool IsOnline { get; set; }
     }
 
     public class LicenseStructureViewModel
@@ -755,6 +777,8 @@ namespace Condotify.Models
     public class AccessBatchOperationViewModel
     {
         public Guid Id { get; set; }
+        public Guid LicenseId { get; set; }
+        public string LicenseName { get; set; } = string.Empty;
         public string Operation { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public int TotalItems { get; set; }
@@ -785,6 +809,7 @@ namespace Condotify.Models
         public int AttemptCount { get; set; }
         public string Error { get; set; } = string.Empty;
         public DateTime? NextAttemptAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
     }
 
     public class DeviceInventoryItemViewModel
@@ -885,6 +910,8 @@ namespace Condotify.Models
 
     public class StructureImportPreviewViewModel
     {
+        public Guid PreviewId { get; set; }
+        public string FileSha256 { get; set; } = string.Empty;
         public bool CanExecute { get; set; }
         public int TotalRows { get; set; }
         public int ValidRows { get; set; }
@@ -895,6 +922,17 @@ namespace Condotify.Models
         public int NewVehicles { get; set; }
         public List<string> Errors { get; set; } = [];
         public List<StructureImportRowViewModel> Rows { get; set; } = [];
+    }
+
+    public class AssistedMigrationContextViewModel
+    {
+        public string SourceSystem { get; set; } = string.Empty;
+        public string ProcessingBasis { get; set; } = string.Empty;
+        [MaxLength(150)] public string AuthorizedBy { get; set; } = string.Empty;
+        [MaxLength(180)] public string AuthorizationReference { get; set; } = string.Empty;
+        public bool ControllerAuthorizationConfirmed { get; set; }
+        public bool PurposeLimitationConfirmed { get; set; }
+        public bool NoRestrictedDataConfirmed { get; set; }
     }
 
     public class StructureImportRowViewModel
@@ -1026,6 +1064,8 @@ namespace Condotify.Models
         public bool IsOverstayed { get; set; }
         public int RecurrenceSequence { get; set; }
         public int RecurrenceCount { get; set; }
+        public string FacialInviteStatus { get; set; } = string.Empty;
+        public string FacialInviteUrl { get; set; } = string.Empty;
     }
 
     public class ConciergeEventViewModel
@@ -1060,6 +1100,7 @@ namespace Condotify.Models
         public string VehiclePlate { get; set; } = string.Empty;
         public string ImageBase64 { get; set; } = string.Empty;
         public int CredentialType { get; set; } = 2;
+        public bool CreateFacialInvite { get; set; }
         public DateTime ValidFrom { get; set; } = DateTime.Now;
         public DateTime ValidTo { get; set; } = DateTime.Now.AddHours(4);
         public int? MaxUses { get; set; } = 1;
@@ -1067,6 +1108,42 @@ namespace Condotify.Models
         public bool RequireApproval { get; set; }
         public int RepeatCount { get; set; } = 1;
         public int RepeatEveryDays { get; set; } = 7;
+    }
+
+    public class PublicVisitFacialInviteViewModel
+    {
+        public string VisitorName { get; set; } = string.Empty;
+        public string LicenseName { get; set; } = string.Empty;
+        public string BlockName { get; set; } = string.Empty;
+        public string UnitNumber { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime ValidFrom { get; set; }
+        public DateTime ValidTo { get; set; }
+        public DateTime ExpiresAt { get; set; }
+        public int? MaxUses { get; set; }
+        public List<PublicVisitRouteViewModel> Routes { get; set; } = [];
+    }
+
+    public class PublicVisitRouteViewModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public int DaysOfWeekMask { get; set; }
+        public TimeSpan StartTime { get; set; }
+        public TimeSpan EndTime { get; set; }
+    }
+
+    public class CompleteVisitFacialInviteViewModel
+    {
+        public string ImageBase64 { get; set; } = string.Empty;
+        public bool Consent { get; set; }
+    }
+
+    public class VisitFacialInviteIssuedViewModel
+    {
+        public Guid VisitId { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string InviteUrl { get; set; } = string.Empty;
+        public DateTime ExpiresAt { get; set; }
     }
 
     public class AccessWatchlistEntryViewModel
@@ -1119,6 +1196,8 @@ namespace Condotify.Models
         public bool IncludeDevices { get; set; } = true;
         public bool IncludeRoutes { get; set; } = true;
         public bool IncludeCredentials { get; set; } = true;
+        public bool CompareWithEquipment { get; set; } = true;
+        public List<Guid> TargetDeviceIds { get; set; } = [];
         public string Confirmation { get; set; } = string.Empty;
     }
 
@@ -1132,8 +1211,52 @@ namespace Condotify.Models
         public int UpdateCount { get; set; }
         public int DeactivateCount { get; set; }
         public int ConflictCount { get; set; }
+        public int WarningCount { get; set; }
+        public int SelectedDeviceCount { get; set; }
+        public bool IsMassRestore { get; set; }
+        public DateTime ComparedAt { get; set; }
         public List<ConfigurationRestoreSectionViewModel> Sections { get; set; } = [];
         public List<string> Conflicts { get; set; } = [];
+        public List<ConfigurationRestoreConflictViewModel> ConflictReport { get; set; } = [];
+        public List<ConfigurationEquipmentComparisonViewModel> EquipmentComparisons { get; set; } = [];
+    }
+
+    public class ConfigurationBackupTargetViewModel
+    {
+        public Guid DeviceId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Model { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public int CredentialCount { get; set; }
+        public int RouteCount { get; set; }
+    }
+
+    public class ConfigurationRestoreConflictViewModel
+    {
+        public string Code { get; set; } = string.Empty;
+        public string Severity { get; set; } = string.Empty;
+        public string Section { get; set; } = string.Empty;
+        public Guid? EntityId { get; set; }
+        public string EntityName { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public string SuggestedAction { get; set; } = string.Empty;
+        public bool Blocking { get; set; }
+    }
+
+    public class ConfigurationEquipmentComparisonViewModel
+    {
+        public Guid DeviceId { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public string Model { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public int ExpectedCount { get; set; }
+        public int RemoteCount { get; set; }
+        public int SyncedCount { get; set; }
+        public int DivergentCount { get; set; }
+        public int MissingCount { get; set; }
+        public int OrphanCount { get; set; }
     }
 
     public class ConfigurationRestoreSectionViewModel
@@ -1154,6 +1277,8 @@ namespace Condotify.Models
         public int UpdatedCount { get; set; }
         public int DeactivatedCount { get; set; }
         public int CredentialsQueued { get; set; }
+        public int TargetDeviceCount { get; set; }
+        public bool IsMassRestore { get; set; }
         public Guid? ReconciliationBatchId { get; set; }
         public DateTime RestoredAt { get; set; }
         public string Message { get; set; } = string.Empty;

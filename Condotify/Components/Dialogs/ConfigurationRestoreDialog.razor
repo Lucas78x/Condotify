@@ -1,44 +1,132 @@
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
+@inject Microsoft.JSInterop.IJSRuntime JS
 
-<MudDialog Class="entity-dialog entity-dialog-wide configuration-restore-dialog">
+<MudDialog Class="entity-dialog entity-dialog-wide configuration-restore-dialog safe-restore-dialog">
     <DialogContent>
-        <div class="dialog-description">
-            <MudIcon Icon="@Icons.Material.Outlined.SettingsBackupRestore" />
-            <div>
-                <strong>Restaurar @Backup.Name</strong>
-                <span>Versão @Backup.Version, criada em @Backup.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") por @Backup.CreatedBy.</span>
+        <section class="safe-restore-hero">
+            <div class="safe-restore-hero-icon">
+                <MudIcon Icon="@Icons.Material.Outlined.SettingsBackupRestore" />
+                <span></span>
             </div>
-        </div>
-
-        <div class="restore-option-grid">
-            <MudSelect T="string" @bind-Value="_options.Mode" Label="Estratégia" Variant="Variant.Outlined">
-                <MudSelectItem Value="@("Merge")">Mesclar configurações</MudSelectItem>
-                <MudSelectItem Value="@("Reconcile")">Reconciliar com a versão</MudSelectItem>
-            </MudSelect>
-            <div class="restore-scope">
-                <MudSwitch T="bool" @bind-Value="_options.IncludeDevices" Label="Equipamentos" Color="Color.Primary" />
-                <MudSwitch T="bool" @bind-Value="_options.IncludeRoutes" Label="Rotas" Color="Color.Primary" />
-                <MudSwitch T="bool" @bind-Value="_options.IncludeCredentials" Label="Credenciais" Color="Color.Primary" />
+            <div class="safe-restore-hero-copy">
+                <span class="eyebrow">RESTAURAÇÃO SEGURA</span>
+                <strong>Voltar para @Backup.Name</strong>
+                <p>Snapshot v@(Backup.Version), preservado em @Backup.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy 'às' HH:mm"). Nenhuma alteração será aplicada antes da sua confirmação.</p>
             </div>
+            <div class="safe-restore-version">
+                <small>VERSÃO</small>
+                <b>v@(Backup.Version)</b>
+                <span>@Backup.DeviceCount equipamentos</span>
+            </div>
+        </section>
+
+        <div class="safe-restore-steps">
+            <div class="active"><span>1</span><div><b>Escopo</b><small>Escolha o que recuperar</small></div></div>
+            <i></i>
+            <div class="@(_preview is not null ? "active" : null)"><span>2</span><div><b>Comparação</b><small>Condotify × equipamento</small></div></div>
+            <i></i>
+            <div class="@(_preview?.CanRestore == true && _previewSignature == CurrentSignature ? "active" : null)"><span>3</span><div><b>Confirmação</b><small>Execução transacional</small></div></div>
         </div>
 
-        <MudAlert Severity="@(_options.Mode == "Reconcile" ? Severity.Warning : Severity.Info)" Variant="Variant.Outlined" Class="mb-4">
-            @(_options.Mode == "Reconcile"
-                ? "A reconciliação desativa equipamentos, rotas e credenciais atuais ausentes no snapshot. Nenhum cadastro é excluído."
-                : "A mesclagem cria ou atualiza os itens presentes no snapshot e preserva as demais configurações atuais.")
-        </MudAlert>
+        @if (_loadingTargets)
+        {
+            <div class="loading-state compact"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+        }
+        else if (!string.IsNullOrWhiteSpace(_targetError))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_targetError</MudAlert>
+        }
+        else
+        {
+            <section class="safe-restore-section">
+                <div class="safe-restore-section-head">
+                    <div><span class="section-number">01</span><div><strong>Destino da restauração</strong><small>Restaure toda a operação ou somente os terminais escolhidos.</small></div></div>
+                    <span class="scope-count">@TargetSelectionLabel</span>
+                </div>
 
-        <div class="restore-preview-action">
-            <span>A simulação consulta o estado atual e não altera o banco.</span>
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.FactCheck" Disabled="_busy" OnClick="PreviewAsync">
-                @(_preview is null ? "Simular impacto" : "Atualizar simulação")
-            </MudButton>
-        </div>
+                <div class="restore-target-mode">
+                    <button type="button" class="@(_massSelection ? "selected" : null)" @onclick="@(() => SetMassSelection(true))">
+                        <span><MudIcon Icon="@Icons.Material.Outlined.Hub" /></span>
+                        <div><b>Todos os equipamentos</b><small>Restauração em massa com o snapshot completo</small></div>
+                        <MudIcon Icon="@(_massSelection ? Icons.Material.Filled.CheckCircle : Icons.Material.Outlined.RadioButtonUnchecked)" />
+                    </button>
+                    <button type="button" class="@(!_massSelection ? "selected" : null)" @onclick="@(() => SetMassSelection(false))">
+                        <span><MudIcon Icon="@Icons.Material.Outlined.TouchApp" /></span>
+                        <div><b>Selecionar equipamentos</b><small>Recuperação individual ou em lote controlado</small></div>
+                        <MudIcon Icon="@(!_massSelection ? Icons.Material.Filled.CheckCircle : Icons.Material.Outlined.RadioButtonUnchecked)" />
+                    </button>
+                </div>
+
+                @if (!_massSelection)
+                {
+                    <div class="restore-device-picker">
+                        <div class="restore-device-picker-head">
+                            <span>Selecione até 50 equipamentos</span>
+                            <button type="button" @onclick="ToggleAllTargets">@(_options.TargetDeviceIds.Count == _targets.Count ? "Limpar seleção" : "Selecionar todos")</button>
+                        </div>
+                        <div class="restore-device-grid">
+                            @foreach (var target in _targets)
+                            {
+                                var selected = _options.TargetDeviceIds.Contains(target.DeviceId);
+                                <button type="button" class="restore-device-card @(selected ? "selected" : null)" @onclick="@(() => ToggleTarget(target.DeviceId))">
+                                    <span class="device-check"><MudIcon Icon="@(selected ? Icons.Material.Filled.Check : Icons.Material.Outlined.Sensors)" /></span>
+                                    <div><b>@target.Name</b><small>@(string.IsNullOrWhiteSpace(target.Model) ? target.Type : target.Model)</small></div>
+                                    <span class="device-meta">@target.CredentialCount credenciais<br />@target.RouteCount rotas</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </section>
+
+            <section class="safe-restore-section">
+                <div class="safe-restore-section-head">
+                    <div><span class="section-number">02</span><div><strong>Estratégia e conteúdo</strong><small>Defina como o snapshot será aplicado.</small></div></div>
+                </div>
+                <div class="restore-option-grid safe-options">
+                    <MudSelect T="string" @bind-Value="_options.Mode" Label="Estratégia" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("Merge")">Mesclar e preservar o atual</MudSelectItem>
+                        <MudSelectItem Value="@("Reconcile")">Reconciliar com o snapshot</MudSelectItem>
+                    </MudSelect>
+                    <div class="restore-scope">
+                        <MudSwitch T="bool" @bind-Value="_options.IncludeDevices" Label="Equipamentos" Color="Color.Primary" />
+                        <MudSwitch T="bool" @bind-Value="_options.IncludeRoutes" Label="Rotas" Color="Color.Primary" />
+                        <MudSwitch T="bool" @bind-Value="_options.IncludeCredentials" Label="Credenciais" Color="Color.Primary" />
+                    </div>
+                    <div class="restore-live-comparison">
+                        <MudSwitch T="bool" @bind-Value="_options.CompareWithEquipment" Label="Comparar com equipamentos agora" Color="Color.Success" />
+                        <small>Consulta o inventário respondido pelos terminais sem alterar suas configurações.</small>
+                    </div>
+                </div>
+
+                <MudAlert Severity="@(_options.Mode == "Reconcile" ? Severity.Warning : Severity.Info)" Variant="Variant.Outlined">
+                    @(_options.Mode == "Reconcile"
+                        ? _massSelection
+                            ? "A reconciliação desativa no Condotify os itens atuais ausentes no snapshot. Nada é excluído definitivamente."
+                            : "No modo individual, a reconciliação afeta apenas vínculos dos equipamentos selecionados e preserva todo o restante."
+                        : "A mesclagem cria ou atualiza os itens do snapshot e preserva as demais configurações atuais.")
+                </MudAlert>
+            </section>
+
+            <div class="restore-preview-action safe-preview-action">
+                <div>
+                    <MudIcon Icon="@Icons.Material.Outlined.Policy" />
+                    <span><b>Simulação obrigatória</b><small>Calcula impacto, conflitos e divergências antes de liberar a restauração.</small></span>
+                </div>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.FactCheck" Disabled="@(!CanPreview)" OnClick="PreviewAsync">
+                    @(_preview is null ? "Simular restauração" : "Atualizar simulação")
+                </MudButton>
+            </div>
+        }
 
         @if (_busy)
         {
-            <div class="loading-state compact"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+            <div class="restore-scanning-state">
+                <div class="restore-radar"><span></span><MudIcon Icon="@Icons.Material.Outlined.Radar" /></div>
+                <strong>Comparando o snapshot com o ambiente atual</strong>
+                <small>Consultando Condotify, vínculos e inventários dos equipamentos selecionados...</small>
+            </div>
         }
         else if (!string.IsNullOrWhiteSpace(_error))
         {
@@ -46,55 +134,102 @@
         }
         else if (_preview is not null)
         {
-            <div class="restore-impact-strip">
-                <div><strong>@_preview.CreateCount</strong><span>criações</span></div>
-                <div><strong>@_preview.UpdateCount</strong><span>atualizações</span></div>
-                <div class="@(_preview.DeactivateCount > 0 ? "warning" : null)"><strong>@_preview.DeactivateCount</strong><span>desativações</span></div>
-                <div class="@(_preview.ConflictCount > 0 ? "danger" : null)"><strong>@_preview.ConflictCount</strong><span>conflitos</span></div>
-            </div>
+            <section class="safe-restore-results">
+                <div class="safe-restore-section-head">
+                    <div><span class="section-number success">03</span><div><strong>Resultado da simulação</strong><small>Comparado em @_preview.ComparedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss").</small></div></div>
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Download" OnClick="DownloadReportAsync">Baixar relatório</MudButton>
+                </div>
 
-            <div class="restore-section-list">
-                @foreach (var impact in _preview.Sections)
+                <div class="restore-impact-strip safe-impact-strip">
+                    <div><span class="impact-icon create"><MudIcon Icon="@Icons.Material.Outlined.AddCircleOutline" /></span><strong>@_preview.CreateCount</strong><small>criações</small></div>
+                    <div><span class="impact-icon update"><MudIcon Icon="@Icons.Material.Outlined.Sync" /></span><strong>@_preview.UpdateCount</strong><small>atualizações</small></div>
+                    <div class="@(_preview.DeactivateCount > 0 ? "warning" : null)"><span class="impact-icon disable"><MudIcon Icon="@Icons.Material.Outlined.PowerSettingsNew" /></span><strong>@_preview.DeactivateCount</strong><small>desativações</small></div>
+                    <div class="@(_preview.ConflictCount > 0 ? "danger" : null)"><span class="impact-icon conflict"><MudIcon Icon="@Icons.Material.Outlined.GppBad" /></span><strong>@_preview.ConflictCount</strong><small>bloqueios</small></div>
+                    <div class="@(_preview.WarningCount > 0 ? "warning" : null)"><span class="impact-icon warning"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></span><strong>@_preview.WarningCount</strong><small>alertas</small></div>
+                </div>
+
+                <div class="restore-section-list safe-section-list">
+                    @foreach (var impact in _preview.Sections)
+                    {
+                        <div class="restore-section-row">
+                            <strong>@impact.Section</strong>
+                            <span><b>@impact.CreateCount</b> criar</span>
+                            <span><b>@impact.UpdateCount</b> atualizar</span>
+                            <span><b>@impact.DeactivateCount</b> desativar</span>
+                            <span class="@(impact.ConflictCount > 0 ? "danger" : null)"><b>@impact.ConflictCount</b> conflitos</span>
+                        </div>
+                    }
+                </div>
+
+                @if (_preview.EquipmentComparisons.Count > 0)
                 {
-                    <div class="restore-section-row">
-                        <strong>@impact.Section</strong>
-                        <span><b>@impact.CreateCount</b> criar</span>
-                        <span><b>@impact.UpdateCount</b> atualizar</span>
-                        <span><b>@impact.DeactivateCount</b> desativar</span>
-                        <span class="@(impact.ConflictCount > 0 ? "danger" : null)"><b>@impact.ConflictCount</b> conflitos</span>
+                    <div class="equipment-comparison-block">
+                        <div class="result-subhead"><div><MudIcon Icon="@Icons.Material.Outlined.CompareArrows" /><span><b>Condotify × equipamentos</b><small>Inventário real consultado durante a simulação</small></span></div></div>
+                        <div class="equipment-comparison-list">
+                            @foreach (var comparison in _preview.EquipmentComparisons)
+                            {
+                                <article class="equipment-comparison-card @ComparisonClass(comparison.Status)">
+                                    <span class="comparison-status-icon"><MudIcon Icon="@ComparisonIcon(comparison.Status)" /></span>
+                                    <div class="comparison-device"><b>@comparison.DeviceName</b><small>@(string.IsNullOrWhiteSpace(comparison.Model) ? "Equipamento de acesso" : comparison.Model)</small></div>
+                                    @if (comparison.Status == "Unavailable")
+                                    {
+                                        <div class="comparison-unavailable"><b>Não respondeu</b><small>@comparison.Message</small></div>
+                                    }
+                                    else
+                                    {
+                                        <div class="comparison-count"><b>@comparison.SyncedCount</b><small>iguais</small></div>
+                                        <div class="comparison-count warning"><b>@comparison.DivergentCount</b><small>diferentes</small></div>
+                                        <div class="comparison-count danger"><b>@comparison.MissingCount</b><small>ausentes</small></div>
+                                        <div class="comparison-count neutral"><b>@comparison.OrphanCount</b><small>órfãos</small></div>
+                                    }
+                                    <span class="comparison-pill">@ComparisonLabel(comparison.Status)</span>
+                                </article>
+                            }
+                        </div>
                     </div>
                 }
-            </div>
 
-            @if (_preview.Conflicts.Count > 0)
-            {
-                <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-4">
-                    <strong>A restauração está bloqueada.</strong>
-                    <ul class="restore-conflict-list">
-                        @foreach (var conflict in _preview.Conflicts) { <li>@conflict</li> }
-                    </ul>
-                </MudAlert>
-            }
-            else if (_previewSignature != CurrentSignature)
-            {
-                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4">As opções mudaram. Atualize a simulação antes de confirmar.</MudAlert>
-            }
-            else if (_preview.CanRestore)
-            {
-                <div class="restore-confirmation">
-                    <div>
-                        <strong>Confirmação operacional</strong>
-                        <span>Digite RESTAURAR para liberar a execução transacional.</span>
+                @if (_preview.ConflictReport.Count > 0)
+                {
+                    <div class="restore-report-block">
+                        <div class="result-subhead"><div><MudIcon Icon="@Icons.Material.Outlined.AssignmentLate" /><span><b>Relatório de conflitos</b><small>Problemas encontrados e ação recomendada</small></span></div></div>
+                        <div class="restore-report-list">
+                            @foreach (var conflict in _preview.ConflictReport)
+                            {
+                                <article class="restore-report-item @(conflict.Blocking ? "blocking" : "warning")">
+                                    <span><MudIcon Icon="@(conflict.Blocking ? Icons.Material.Outlined.Block : Icons.Material.Outlined.WarningAmber)" /></span>
+                                    <div><b>@conflict.Message</b><small>@conflict.Section@if (!string.IsNullOrWhiteSpace(conflict.EntityName)) { <text> · @conflict.EntityName</text> }</small></div>
+                                    <p>@conflict.SuggestedAction</p>
+                                    <em>@(conflict.Blocking ? "Bloqueia restauração" : "Requer atenção")</em>
+                                </article>
+                            }
+                        </div>
                     </div>
-                    <MudTextField T="string" @bind-Value="_options.Confirmation" Placeholder="RESTAURAR" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </div>
-            }
+                }
+
+                @if (_previewSignature != CurrentSignature)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">As opções mudaram. Atualize a simulação antes de confirmar.</MudAlert>
+                }
+                else if (!_preview.CanRestore)
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined"><strong>Restauração bloqueada.</strong> Resolva os conflitos críticos e simule novamente.</MudAlert>
+                }
+                else
+                {
+                    <div class="restore-confirmation safe-confirmation">
+                        <span class="confirmation-shield"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /></span>
+                        <div><strong>Simulação aprovada</strong><span>Digite RESTAURAR para executar a operação transacional em @TargetSelectionLabel.ToLowerInvariant().</span></div>
+                        <MudTextField T="string" @bind-Value="_options.Confirmation" Placeholder="RESTAURAR" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </div>
+                }
+            </section>
         }
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Text" Disabled="_busy" OnClick="Cancel">Cancelar</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Restore" Disabled="@(!CanExecute)" OnClick="RestoreAsync">
-            Restaurar versão
+            @(_busy ? "Restaurando..." : _massSelection ? "Restaurar em massa" : "Restaurar selecionados")
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -105,24 +240,80 @@
     [Parameter, EditorRequired] public ConfigurationBackupViewModel Backup { get; set; } = null!;
 
     private readonly ConfigurationRestoreOptionsViewModel _options = new();
+    private readonly List<ConfigurationBackupTargetViewModel> _targets = [];
     private ConfigurationRestorePreviewViewModel? _preview;
     private string? _previewSignature;
+    private bool _massSelection = true;
+    private bool _loadingTargets = true;
     private bool _busy;
     private string? _error;
+    private string? _targetError;
+
+    private bool HasScope => _options.IncludeDevices || _options.IncludeRoutes || _options.IncludeCredentials;
+    private bool HasTargets => _massSelection || _options.TargetDeviceIds.Count > 0;
+    private bool CanPreview => !_busy && !_loadingTargets && string.IsNullOrWhiteSpace(_targetError) && HasScope && HasTargets;
     private bool CanExecute => !_busy && _preview?.CanRestore == true &&
         _previewSignature == CurrentSignature &&
         string.Equals(_options.Confirmation.Trim(), "RESTAURAR", StringComparison.OrdinalIgnoreCase);
-    private string CurrentSignature => $"{_options.Mode}:{_options.IncludeDevices}:{_options.IncludeRoutes}:{_options.IncludeCredentials}";
+    private string CurrentSignature => $"{_options.Mode}:{_options.IncludeDevices}:{_options.IncludeRoutes}:{_options.IncludeCredentials}:{_options.CompareWithEquipment}:{string.Join(',', _options.TargetDeviceIds.Order())}";
+    private string TargetSelectionLabel => _massSelection
+        ? $"{_targets.Count} equipamento{(_targets.Count == 1 ? string.Empty : "s")}"
+        : $"{_options.TargetDeviceIds.Count} selecionado{(_options.TargetDeviceIds.Count == 1 ? string.Empty : "s")}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.GetConfigurationBackupTargetsAsync(LicenseId, Backup.Id);
+        _loadingTargets = false;
+        if (!result.Success)
+        {
+            _targetError = result.Error ?? "Não foi possível abrir o conteúdo seguro deste snapshot.";
+            return;
+        }
+        _targets.AddRange(result.Value ?? []);
+    }
 
     private void Cancel() => Dialog.Cancel();
 
+    private void SetMassSelection(bool mass)
+    {
+        _massSelection = mass;
+        _options.TargetDeviceIds.Clear();
+        if (!mass && _targets.Count == 1)
+            _options.TargetDeviceIds.Add(_targets[0].DeviceId);
+        InvalidatePreview();
+    }
+
+    private void ToggleTarget(Guid id)
+    {
+        if (_options.TargetDeviceIds.Contains(id)) _options.TargetDeviceIds.Remove(id);
+        else if (_options.TargetDeviceIds.Count < 50) _options.TargetDeviceIds.Add(id);
+        InvalidatePreview();
+    }
+
+    private void ToggleAllTargets()
+    {
+        var clearOnly = _options.TargetDeviceIds.Count == _targets.Count;
+        _options.TargetDeviceIds.Clear();
+        if (!clearOnly && _targets.Count <= 50)
+            _options.TargetDeviceIds.AddRange(_targets.Select(x => x.DeviceId));
+        InvalidatePreview();
+    }
+
+    private void InvalidatePreview()
+    {
+        _previewSignature = null;
+        _options.Confirmation = string.Empty;
+    }
+
     private async Task PreviewAsync()
     {
+        if (!CanPreview) return;
         _busy = true;
         _error = null;
         _preview = null;
         _previewSignature = null;
         _options.Confirmation = string.Empty;
+        if (_massSelection) _options.TargetDeviceIds.Clear();
         var result = await Api.PreviewConfigurationRestoreAsync(LicenseId, Backup.Id, _options);
         _busy = false;
         if (!result.Success)
@@ -151,4 +342,56 @@
         Snackbar.Add(result.Value?.Message ?? "Configuração restaurada.", Severity.Success);
         Dialog.Close(DialogResult.Ok(result.Value));
     }
+
+    private async Task DownloadReportAsync()
+    {
+        if (_preview is null) return;
+        var report = new
+        {
+            Product = "Condotify",
+            Report = "Simulação de restauração segura",
+            Backup = new { Backup.Id, Backup.Version, Backup.Name, Backup.CreatedAt },
+            Scope = new { _preview.IsMassRestore, _preview.SelectedDeviceCount },
+            _preview.ComparedAt,
+            Impact = new { _preview.CreateCount, _preview.UpdateCount, _preview.DeactivateCount, _preview.ConflictCount, _preview.WarningCount },
+            _preview.Sections,
+            _preview.EquipmentComparisons,
+            _preview.ConflictReport
+        };
+        var json = System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "portalInterop.downloadBase64",
+                $"condotify-restauracao-v{Backup.Version}-{DateTime.Now:yyyyMMdd-HHmm}.json",
+                Convert.ToBase64String(bytes),
+                "application/json");
+        }
+        finally
+        {
+            System.Security.Cryptography.CryptographicOperations.ZeroMemory(bytes);
+        }
+    }
+
+    private static string ComparisonClass(string status) => status switch
+    {
+        "Synced" => "synced",
+        "Divergent" => "divergent",
+        _ => "unavailable"
+    };
+
+    private static string ComparisonIcon(string status) => status switch
+    {
+        "Synced" => Icons.Material.Outlined.CheckCircle,
+        "Divergent" => Icons.Material.Outlined.SyncProblem,
+        _ => Icons.Material.Outlined.CloudOff
+    };
+
+    private static string ComparisonLabel(string status) => status switch
+    {
+        "Synced" => "Sincronizado",
+        "Divergent" => "Com diferenças",
+        _ => "Indisponível"
+    };
 }

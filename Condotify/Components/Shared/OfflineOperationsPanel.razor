@@ -1,0 +1,172 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<section class="offline-admin-shell">
+    <div class="admin-tab-head offline-admin-head">
+        <div>
+            <strong>Continuidade da portaria</strong>
+            <span>Aprove aparelhos confiáveis, limite a autonomia sem internet e acompanhe cada reconciliação.</span>
+        </div>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Refresh" Disabled="_loading" OnClick="LoadAsync">Atualizar</MudButton>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="notification-settings-loading"><MudProgressCircular Indeterminate Color="Color.Primary" /><span>Verificando aparelhos e operações...</span></div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+    }
+    else
+    {
+        <div class="offline-admin-summary">
+            <article class="ready"><span><MudIcon Icon="@Icons.Material.Outlined.OfflineBolt" /></span><div><strong>@_devices.Count(x => x.Status == OfflineDeviceStatus.Approved)</strong><small>Aparelhos aprovados</small></div></article>
+            <article class="pending"><span><MudIcon Icon="@Icons.Material.Outlined.Approval" /></span><div><strong>@_devices.Count(x => x.Status == OfflineDeviceStatus.Pending)</strong><small>Aguardando aprovação</small></div></article>
+            <article class="queue"><span><MudIcon Icon="@Icons.Material.Outlined.CloudSync" /></span><div><strong>@_devices.Sum(x => x.PendingOperations)</strong><small>Operações pendentes</small></div></article>
+            <article class="conflict"><span><MudIcon Icon="@Icons.Material.Outlined.Rule" /></span><div><strong>@(_operations?.Conflicts ?? 0)</strong><small>Conflitos para revisar</small></div></article>
+        </div>
+
+        <div class="offline-policy-note">
+            <MudIcon Icon="@Icons.Material.Outlined.GppGood" />
+            <div><strong>Uso único com proteção adicional</strong><span>Somente o validador principal aceita offline o último uso de um QR. A revogação passa a valer assim que o aparelho reconectar ou a base local vencer.</span></div>
+        </div>
+
+        <div class="offline-admin-section-head"><div><strong>Aparelhos confiáveis</strong><span>@_devices.Count registro(s) nesta licença</span></div></div>
+        @if (_devices.Count == 0)
+        {
+            <div class="offline-admin-empty"><MudIcon Icon="@Icons.Material.Outlined.PhoneAndroid" /><strong>Nenhum aparelho solicitou acesso offline</strong><span>Abra a Portaria no aplicativo com uma conta da equipe. A solicitação aparecerá aqui automaticamente.</span></div>
+        }
+        else
+        {
+            <div class="offline-device-list">
+                @foreach (var device in _devices)
+                {
+                    <article class="offline-device-card @StatusClass(device.Status)">
+                        <div class="offline-device-main">
+                            <span class="offline-device-icon"><MudIcon Icon="@PlatformIcon(device.Platform)" /></span>
+                            <div><strong>@device.DeviceName</strong><span>@device.UserName · @PlatformLabel(device.Platform) · versão @Value(device.AppVersion)</span></div>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@StatusColor(device.Status)">@StatusLabel(device.Status)</MudChip>
+                        </div>
+                        <div class="offline-device-metrics">
+                            <span><small>ÚLTIMA SINCRONIZAÇÃO</small><strong>@Date(device.LastSyncedAt)</strong></span>
+                            <span><small>BASE LOCAL</small><strong>@BundleStatus(device)</strong></span>
+                            <span><small>FILA / CONFLITOS</small><strong>@device.PendingOperations / @device.ConflictOperations</strong></span>
+                        </div>
+                        <div class="offline-device-policy">
+                            <MudSelect T="int" Value="device.OfflineWindowMinutes" ValueChanged="@(value => SaveAsync(device, device.Status, value, device.IsPrimaryValidator))" Label="Autonomia máxima" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(!CanManage || _savingId == device.Id)">
+                                <MudSelectItem Value="60">1 hora</MudSelectItem>
+                                <MudSelectItem Value="120">2 horas</MudSelectItem>
+                                <MudSelectItem Value="240">4 horas</MudSelectItem>
+                                <MudSelectItem Value="480">8 horas</MudSelectItem>
+                                <MudSelectItem Value="720">12 horas</MudSelectItem>
+                            </MudSelect>
+                            <MudSwitch T="bool" Value="device.IsPrimaryValidator" ValueChanged="@(value => SaveAsync(device, device.Status, device.OfflineWindowMinutes, value))" Label="Validador principal" Color="Color.Success" Disabled="@(!CanManage || device.Status != OfflineDeviceStatus.Approved || _savingId == device.Id)" />
+                            <div class="offline-device-actions">
+                                @if (CanManage && device.Status == OfflineDeviceStatus.Pending)
+                                {
+                                    <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Outlined.Check" Disabled="@(_savingId == device.Id)" OnClick="@(() => SaveAsync(device, OfflineDeviceStatus.Approved, device.OfflineWindowMinutes, device.IsPrimaryValidator))">Aprovar</MudButton>
+                                    <MudButton Variant="Variant.Text" Color="Color.Error" Disabled="@(_savingId == device.Id)" OnClick="@(() => SaveAsync(device, OfflineDeviceStatus.Revoked, device.OfflineWindowMinutes, false))">Recusar</MudButton>
+                                }
+                                else if (CanManage && device.Status == OfflineDeviceStatus.Approved)
+                                {
+                                    <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Block" Disabled="@(_savingId == device.Id)" OnClick="@(() => SaveAsync(device, OfflineDeviceStatus.Revoked, device.OfflineWindowMinutes, false))">Revogar aparelho</MudButton>
+                                }
+                                else if (CanManage)
+                                {
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.RestartAlt" Disabled="@(_savingId == device.Id)" OnClick="@(() => SaveAsync(device, OfflineDeviceStatus.Approved, device.OfflineWindowMinutes, false))">Reativar e trocar chave</MudButton>
+                                }
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+
+        <div class="offline-admin-section-head operations"><div><strong>Reconciliação recente</strong><span>Auditoria operacional sem armazenar o conteúdo do QR Code</span></div><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@(_operations?.Total ?? 0) operação(ões)</MudChip></div>
+        @if (_operations?.Items.Count is not > 0)
+        {
+            <div class="offline-admin-empty compact"><MudIcon Icon="@Icons.Material.Outlined.CloudDone" /><strong>Nenhuma operação offline recebida</strong><span>As entradas registradas sem internet aparecerão aqui após a reconexão.</span></div>
+        }
+        else
+        {
+            <div class="offline-operation-list">
+                @foreach (var operation in _operations.Items)
+                {
+                    <article class="offline-operation-row @OperationClass(operation.Status)">
+                        <span class="offline-operation-icon"><MudIcon Icon="@OperationIcon(operation.Status)" /></span>
+                        <div><strong>@(string.IsNullOrWhiteSpace(operation.VisitorName) ? "Operação não vinculada" : operation.VisitorName)</strong><span>@OperationKindLabel(operation.Kind) · @DeviceName(operation.DeviceId) · @operation.OccurredAt.ToLocalTime().ToString("dd/MM HH:mm:ss")</span><small>@operation.Message</small></div>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@OperationColor(operation.Status)">@OperationLabel(operation.Status)</MudChip>
+                    </article>
+                }
+            </div>
+        }
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    private readonly List<OfflineDeviceViewModel> _devices = [];
+    private OfflineOperationPageViewModel? _operations;
+    private bool _loading = true;
+    private string _error = string.Empty;
+    private Guid? _savingId;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = string.Empty;
+        var devicesTask = Api.GetOfflineDevicesAsync(LicenseId);
+        var operationsTask = Api.GetOfflineOperationsAsync(LicenseId, 0, 50);
+        await Task.WhenAll(devicesTask, operationsTask);
+        var devices = await devicesTask;
+        var operations = await operationsTask;
+        _loading = false;
+        if (!devices.Success || !operations.Success)
+        {
+            _error = devices.Error ?? operations.Error ?? "Não foi possível carregar a operação offline.";
+            return;
+        }
+        _devices.Clear();
+        _devices.AddRange(devices.Value ?? []);
+        _operations = operations.Value;
+    }
+
+    private async Task SaveAsync(OfflineDeviceViewModel device, OfflineDeviceStatus status, int minutes, bool primary)
+    {
+        if (!CanManage || _savingId.HasValue) return;
+        _savingId = device.Id;
+        var result = await Api.UpdateOfflineDeviceAsync(LicenseId, device.Id, new OfflineDevicePolicyViewModel
+        {
+            Status = status,
+            OfflineWindowMinutes = minutes,
+            IsPrimaryValidator = primary
+        });
+        _savingId = null;
+        if (!result.Success || result.Value is null)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível atualizar o aparelho.", Severity.Error);
+            return;
+        }
+        Snackbar.Add(status switch { OfflineDeviceStatus.Approved => "Aparelho aprovado para operação offline.", OfflineDeviceStatus.Revoked => "Acesso offline revogado.", _ => "Política atualizada." }, Severity.Success);
+        await LoadAsync();
+    }
+
+    private string DeviceName(Guid id) => _devices.FirstOrDefault(x => x.Id == id)?.DeviceName ?? "Aparelho removido";
+    private static string Value(string value) => string.IsNullOrWhiteSpace(value) ? "não informada" : value;
+    private static string Date(DateTime? value) => value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "Nunca";
+    private static string BundleStatus(OfflineDeviceViewModel device) => !device.LastBundleExpiresAt.HasValue ? "Não emitida" : device.LastBundleExpiresAt > DateTime.UtcNow ? $"Até {device.LastBundleExpiresAt.Value.ToLocalTime():dd/MM HH:mm}" : "Vencida";
+    private static string StatusClass(OfflineDeviceStatus status) => status.ToString().ToLowerInvariant();
+    private static string StatusLabel(OfflineDeviceStatus status) => status switch { OfflineDeviceStatus.Approved => "Aprovado", OfflineDeviceStatus.Pending => "Pendente", OfflineDeviceStatus.Revoked => "Revogado", _ => status.ToString() };
+    private static Color StatusColor(OfflineDeviceStatus status) => status switch { OfflineDeviceStatus.Approved => Color.Success, OfflineDeviceStatus.Pending => Color.Warning, _ => Color.Error };
+    private static string PlatformLabel(string value) => value.Equals("Android", StringComparison.OrdinalIgnoreCase) ? "Android" : value.Equals("iOS", StringComparison.OrdinalIgnoreCase) ? "iPhone/iPad" : value.Equals("WinUI", StringComparison.OrdinalIgnoreCase) ? "Windows" : Value(value);
+    private static string PlatformIcon(string value) => value.Equals("Android", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Android : value.Equals("iOS", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.PhoneIphone : Icons.Material.Outlined.Devices;
+    private static string OperationClass(OfflineOperationStatus status) => status.ToString().ToLowerInvariant();
+    private static string OperationLabel(OfflineOperationStatus status) => status switch { OfflineOperationStatus.Applied => "Aplicada", OfflineOperationStatus.Duplicate => "Já processada", OfflineOperationStatus.Conflict => "Conflito", OfflineOperationStatus.Rejected => "Rejeitada", _ => "Pendente" };
+    private static string OperationKindLabel(OfflineOperationKind kind) => kind == OfflineOperationKind.VisitCheckOut ? "Saída offline" : "Entrada offline";
+    private static Color OperationColor(OfflineOperationStatus status) => status switch { OfflineOperationStatus.Applied or OfflineOperationStatus.Duplicate => Color.Success, OfflineOperationStatus.Conflict => Color.Warning, OfflineOperationStatus.Rejected => Color.Error, _ => Color.Info };
+    private static string OperationIcon(OfflineOperationStatus status) => status switch { OfflineOperationStatus.Applied or OfflineOperationStatus.Duplicate => Icons.Material.Outlined.CheckCircle, OfflineOperationStatus.Conflict => Icons.Material.Outlined.Rule, OfflineOperationStatus.Rejected => Icons.Material.Outlined.Cancel, _ => Icons.Material.Outlined.Schedule };
+}

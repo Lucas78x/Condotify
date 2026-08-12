@@ -36,4 +36,8 @@
     <ProjectReference Include="..\CondotifyAPI.Infrastructure\CondotifyAPI.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="CondotifyAPI.Tests" />
+  </ItemGroup>
+
 </Project>

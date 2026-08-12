@@ -1,5 +1,8 @@
 using CondotifyAPI.Data.Equipments;
 using CondotifyAPI.Services.CFTV;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
@@ -27,7 +30,10 @@ public sealed class MediaAuthController : ControllerBase
     [HttpPost]
     public IActionResult Authorize([FromBody] MediaAuthIn input)
     {
-        // Somente leitura e permitida por token. Publicacao e API nunca.
+        if (IsAuthorizedInternalPublisher(input))
+            return Ok();
+
+        // Para clientes externos, somente leitura e permitida por token.
         if (!string.Equals(input.Action, "read", StringComparison.OrdinalIgnoreCase))
             return Unauthorized();
 
@@ -50,5 +56,23 @@ public sealed class MediaAuthController : ControllerBase
             grant.LicenseId, grant.DeviceId, grant.Channel, grant.UserId, input.Protocol, input.Ip);
 
         return Ok();
+    }
+
+    private static bool IsAuthorizedInternalPublisher(MediaAuthIn input)
+    {
+        if (!string.Equals(input.Action, "publish", StringComparison.OrdinalIgnoreCase) ||
+            !IPAddress.TryParse(input.Ip, out var address) ||
+            !IPAddress.IsLoopback(address))
+            return false;
+
+        var provided = QueryHelpers.ParseQuery(input.Query).TryGetValue("internal", out var values)
+            ? values.ToString()
+            : string.Empty;
+        var expected = Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_SECRET") ?? string.Empty;
+        if (provided.Length == 0 || expected.Length == 0) return false;
+
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(provided),
+            Encoding.UTF8.GetBytes(expected));
     }
 }

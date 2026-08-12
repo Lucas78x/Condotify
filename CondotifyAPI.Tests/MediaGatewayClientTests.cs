@@ -44,6 +44,30 @@ public class MediaGatewayClientTests
     }
 
     [Fact]
+    public async Task EnsurePathAsync_WhenAudioNormalizationIsEnabled_ConfiguresOnDemandFfmpegPublisher()
+    {
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var http = new HttpClient(handler) { BaseAddress = new Uri("http://mediamtx:9997") };
+        var client = new MediaGatewayClient(
+            http,
+            NullLogger<MediaGatewayClient>.Instance,
+            normalizeAudio: true,
+            internalSecret: "segredo interno");
+
+        var ok = await client.EnsurePathAsync(
+            "l1_d2_c1_m",
+            "rtsp://u:p@10.0.0.1:554/live",
+            CancellationToken.None);
+
+        Assert.True(ok);
+        Assert.Contains("\"source\":\"publisher\"", handler.Bodies[0]);
+        Assert.Contains("-c:v copy", handler.Bodies[0]);
+        Assert.Contains("-c:a libopus", handler.Bodies[0]);
+        Assert.Contains("runOnDemand", handler.Bodies[0]);
+        Assert.Contains("internal=segredo%20interno", handler.Bodies[0]);
+    }
+
+    [Fact]
     public async Task EnsurePathAsync_OnConflict_DeletesAndRetriesAdd_AndReturnsTrueWhenTheRetrySucceeds()
     {
         // O MediaMTX devolve 400 tanto quando o caminho ja existe quanto quando a

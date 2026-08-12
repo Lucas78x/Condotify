@@ -90,4 +90,19 @@ public sealed class StructureImportCsvParserTests
 
         Assert.Equal("O arquivo excede o limite de 2 MB.", Assert.Single(result.Errors));
     }
+
+    [Theory]
+    [InlineData("Senha")]
+    [InlineData("PIN")]
+    [InlineData("Template Facial")]
+    [InlineData("Impressão digital")]
+    public void Parse_ShouldRejectCredentialAndBiometricColumns(string restrictedHeader)
+    {
+        var csv = $"Bloco;Unidade;Nome;{restrictedHeader}\nA;101;Ana;segredo";
+
+        var result = _parser.Parse(csv);
+
+        Assert.Contains(result.Errors, error => error.Contains("dado restrito", StringComparison.Ordinal));
+        Assert.Empty(result.Rows);
+    }
 }

@@ -64,9 +64,10 @@ public sealed class CredentialManagementController : ControllerBase
 
         var resident = await _context.Residents
             .Include(x => x.Unit).ThenInclude(x => x.Block)
-            .Include(x => x.UnitLinks)
+            .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .Include(x => x.AccessCredentials).ThenInclude(x => x.Devices)
-            .FirstOrDefaultAsync(x => x.Id == residentId && x.Unit.Block.LicenseId == licenseId);
+            .ForLicense(licenseId)
+            .FirstOrDefaultAsync(x => x.Id == residentId);
         if (resident is null) return NotFound();
 
         var credential = resident.AccessCredentials.FirstOrDefault(x => x.CredentialType == AccessCredentialTypeEnum.Face);
@@ -255,7 +256,9 @@ public sealed class CredentialManagementController : ControllerBase
 
         var resident = await _context.Residents
             .Include(x => x.Unit).ThenInclude(x => x.Block)
-            .FirstOrDefaultAsync(x => x.Id == input.ResidentId && x.Unit.Block.LicenseId == licenseId);
+            .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
+            .ForLicense(licenseId)
+            .FirstOrDefaultAsync(x => x.Id == input.ResidentId);
         var deviceDto = await _context.Devices.FirstOrDefaultAsync(x => x.Id == input.DeviceId && x.LicenseId == licenseId);
         if (resident is null || deviceDto is null) return NotFound();
 
@@ -616,8 +619,9 @@ public sealed class CredentialManagementController : ControllerBase
     private IQueryable<ResidentAccessCredentialDTO> CredentialQuery(Guid licenseId) =>
         _context.ResidentAccessCredentials
             .Include(x => x.Resident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
+            .Include(x => x.Resident).ThenInclude(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .Include(x => x.Devices)
-            .Where(x => x.Resident.Unit.Block.LicenseId == licenseId);
+            .ForLicense(licenseId);
 
     private async Task<Dictionary<Guid, AccessControlDeviceDTO>> DeviceLookupAsync(Guid licenseId) =>
         await _context.Devices.AsNoTracking().Where(x => x.LicenseId == licenseId).ToDictionaryAsync(x => x.Id);

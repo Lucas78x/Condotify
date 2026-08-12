@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Linq.Expressions;
 using CondotifyAPI.Data.Login;
 using CondotifyAPI.Data.Amenities;
 using CondotifyAPI.Data.Operations;
@@ -9,6 +10,7 @@ using CondotifyAPI.Domain.DTO.Amenities;
 using CondotifyAPI.Domain.DTO.Invitation;
 using CondotifyAPI.Domain.DTO.Operations;
 using CondotifyAPI.Domain.DTO.Resident;
+using CondotifyAPI.Domain.DTO.Delivers;
 using CondotifyAPI.Domain.Enums.AccessControl;
 using CondotifyAPI.Domain.Enums.Amenities;
 using CondotifyAPI.Domain.Enums.Invitation;
@@ -17,6 +19,9 @@ using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Services.Amenities;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.Operations;
+using CondotifyAPI.Services.AccessControl;
+using CondotifyAPI.Services.Extensions;
+using CondotifyAPI.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -31,13 +36,55 @@ public sealed class ResidentProfileController : ControllerBase
     private readonly DatabaseContext _context;
     private readonly IResidentAuthorizationService _authorization;
     private readonly IDigitalPassIssuanceService _issuance;
+    private readonly IVisitFacialInviteService _facialInvites;
+    private readonly IPrivateMediaStore _media;
 
-    public ResidentProfileController(DatabaseContext context, IResidentAuthorizationService authorization, IDigitalPassIssuanceService issuance)
+    public ResidentProfileController(
+        DatabaseContext context,
+        IResidentAuthorizationService authorization,
+        IDigitalPassIssuanceService issuance,
+        IVisitFacialInviteService facialInvites,
+        IPrivateMediaStore media)
     {
         _context = context;
         _authorization = authorization;
         _issuance = issuance;
+        _facialInvites = facialInvites;
+        _media = media;
     }
+
+    [HttpGet("media/{mediaId:guid}")]
+    public async Task<IActionResult> Media(Guid mediaId, CancellationToken cancellationToken)
+    {
+        var grant = await _authorization.GetGrantAsync(User, cancellationToken);
+        if (grant is null) return Forbid();
+
+        var reference = PrivateMediaStore.Reference(grant.LicenseId, mediaId);
+        var isOwnPhoto = await _context.Residents.AsNoTracking()
+            .AnyAsync(OwnMediaFilter(grant, reference), cancellationToken);
+        var isHostedVisitPhoto = !isOwnPhoto && await _context.AccessVisits.AsNoTracking()
+            .AnyAsync(HostedVisitMediaFilter(grant, reference), cancellationToken);
+        var isOwnDeliveryMedia = !isOwnPhoto && !isHostedVisitPhoto && await _context.Deliveries.AsNoTracking()
+            .AnyAsync(DeliveryMediaFilter(grant, reference), cancellationToken);
+        if (!isOwnPhoto && !isHostedVisitPhoto && !isOwnDeliveryMedia) return NotFound();
+
+        var file = await _media.ReadAsync(grant.LicenseId, mediaId, cancellationToken);
+        return file is null ? NotFound() : File(file.Content, file.ContentType);
+    }
+
+    internal static Expression<Func<ResidentAccessDTO, bool>> OwnMediaFilter(ResidentAccessGrant grant, string reference) =>
+        resident => resident.Id == grant.ResidentId && resident.ImgUrl == reference;
+
+    internal static Expression<Func<AccessVisitDTO, bool>> HostedVisitMediaFilter(ResidentAccessGrant grant, string reference) =>
+        visit => visit.LicenseId == grant.LicenseId &&
+                 visit.HostResidentId == grant.ResidentId &&
+                 visit.PhotoUrl == reference;
+
+    internal static Expression<Func<DeliveryDTO, bool>> DeliveryMediaFilter(ResidentAccessGrant grant, string reference) =>
+        delivery => delivery.LicenseId == grant.LicenseId &&
+                    delivery.RecipientResidentId == grant.ResidentId &&
+                    delivery.UnitId.HasValue && grant.UnitIds.Contains(delivery.UnitId.Value) &&
+                    (delivery.PhotoUrl == reference || delivery.DeliveryProofUrl == reference);
 
     [HttpGet("me")]
     public async Task<IActionResult> Me(CancellationToken cancellationToken)
@@ -108,11 +155,48 @@ public sealed class ResidentProfileController : ControllerBase
             .Include(x => x.HostResident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .Include(x => x.GuestResident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .Include(x => x.Credential)
+            .Include(x => x.FacialInvite)
+            .Include(x => x.FacialInvite)
             .Where(x => x.LicenseId == grant.LicenseId && x.HostResidentId == grant.ResidentId)
             .OrderByDescending(x => x.ValidFrom)
             .Take(100)
             .ToListAsync(cancellationToken);
         return Ok(rows.Select(ToVisitOut));
+    }
+
+    [HttpGet("visits/options")]
+    public async Task<IActionResult> VisitOptions([FromQuery] Guid unitId, CancellationToken cancellationToken)
+    {
+        var grant = await _authorization.GetGrantAsync(User, cancellationToken);
+        if (grant is null) return Forbid();
+        if (!grant.UnitIds.Contains(unitId)) return NotFound();
+
+        var routes = await _context.AccessRoutes.AsNoTracking()
+            .Include(x => x.Devices).ThenInclude(x => x.Device)
+            .Where(x => x.LicenseId == grant.LicenseId && x.IsActive && x.AllowTemporary &&
+                        (x.Audience & AccessRouteAudienceEnum.Visitor) != 0)
+            .OrderBy(x => x.Name)
+            .ToListAsync(cancellationToken);
+        var output = routes.Select(route =>
+        {
+            var devices = route.Devices.Where(x => x.IsActive).Select(x => x.Device).DistinctBy(x => x.Id).ToList();
+            return new ResidentVisitRouteOut
+            {
+                Id = route.Id,
+                Name = route.Name,
+                DaysOfWeekMask = route.DaysOfWeekMask,
+                StartTime = route.StartTime,
+                EndTime = route.EndTime,
+                DeviceCount = devices.Count,
+                OnlineDeviceCount = devices.Count(x => x.IsActive),
+                SupportsFace = devices.Any(x => x.Type.SupportsFace())
+            };
+        }).ToList();
+        return Ok(new ResidentVisitOptionsOut
+        {
+            FacialInviteAvailable = output.Any(x => x.SupportsFace),
+            Routes = output
+        });
     }
 
     [HttpGet("visits/{visitId:guid}/pass")]
@@ -185,6 +269,10 @@ public sealed class ResidentProfileController : ControllerBase
             return BadRequest(new { Result = "InvalidWindow", Errors = "Informe uma janela futura de acesso com duracao maxima de 30 dias." });
         if (input.MaxUses is <= 0 or > 100)
             return BadRequest(new { Result = "InvalidMaxUses", Errors = "O limite de acessos deve estar entre 1 e 100." });
+        if (input.CredentialType is not (AccessCredentialTypeEnum.QrCode or AccessCredentialTypeEnum.Face))
+            return BadRequest(new { Result = "InvalidCredentialType", Errors = "Escolha QR Code ou convite facial." });
+        if (input.CredentialType == AccessCredentialTypeEnum.Face && !input.CreateFacialInvite)
+            return BadRequest(new { Result = "FacialInviteRequired", Errors = "O reconhecimento facial do visitante deve ser concluído pelo convite seguro." });
 
         var idempotencyKey = string.IsNullOrWhiteSpace(input.IdempotencyKey)
             ? Guid.NewGuid().ToString("N")
@@ -205,11 +293,19 @@ public sealed class ResidentProfileController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == input.UnitId && x.Block.LicenseId == grant.LicenseId, cancellationToken);
         if (host is null || unit is null) return NotFound();
 
-        var visitorRoutesExist = await _context.AccessRoutes.AsNoTracking().AnyAsync(x =>
-            x.LicenseId == grant.LicenseId && x.IsActive && x.AllowTemporary &&
-            (x.Audience & AccessRouteAudienceEnum.Visitor) != 0, cancellationToken);
-        if (!visitorRoutesExist)
+        var visitorRoutes = await _context.AccessRoutes
+            .Include(x => x.Devices).ThenInclude(x => x.Device)
+            .Where(x => x.LicenseId == grant.LicenseId && x.IsActive && x.AllowTemporary &&
+                        (x.Audience & AccessRouteAudienceEnum.Visitor) != 0)
+            .ToListAsync(cancellationToken);
+        if (visitorRoutes.Count == 0)
             return BadRequest(new { Result = "VisitorRouteMissing", Errors = "Nao existe uma rota temporaria ativa para visitantes." });
+        var selectedRouteIds = input.RouteIds.Count == 0 ? visitorRoutes.Select(x => x.Id).ToHashSet() : input.RouteIds.ToHashSet();
+        if (!selectedRouteIds.IsSubsetOf(visitorRoutes.Select(x => x.Id).ToHashSet()))
+            return BadRequest(new { Result = "InvalidRoutes", Errors = "Uma ou mais rotas selecionadas não estão disponíveis para visitantes." });
+        if (input.CredentialType == AccessCredentialTypeEnum.Face &&
+            !visitorRoutes.Where(x => selectedRouteIds.Contains(x.Id)).SelectMany(x => x.Devices).Any(x => x.IsActive && x.Device.Type.SupportsFace()))
+            return BadRequest(new { Result = "FacialRouteMissing", Errors = "Selecione ao menos uma rota com equipamento facial." });
 
         var document = Normalize(input.Document);
         var plate = Normalize(input.VehiclePlate);
@@ -245,9 +341,11 @@ public sealed class ResidentProfileController : ControllerBase
             Id = credentialId,
             ResidentId = guestId,
             Resident = guest,
-            CredentialType = AccessCredentialTypeEnum.QrCode,
-            Identifier = $"VIS-{Convert.ToHexString(RandomNumberGenerator.GetBytes(16))}",
-            IsActive = true,
+            CredentialType = input.CredentialType,
+            Identifier = input.CredentialType == AccessCredentialTypeEnum.Face
+                ? $"FACE-{guestId:N}"
+                : $"VIS-{Convert.ToHexString(RandomNumberGenerator.GetBytes(16))}",
+            IsActive = input.CredentialType != AccessCredentialTypeEnum.Face,
             IsTemporary = true,
             MaxUses = input.MaxUses,
             ValidFrom = validFrom,
@@ -269,7 +367,7 @@ public sealed class ResidentProfileController : ControllerBase
             Company = input.Company.Trim(),
             Purpose = input.Purpose.Trim(),
             VehiclePlate = plate,
-            Status = AccessVisitStatusEnum.Scheduled,
+            Status = input.CredentialType == AccessCredentialTypeEnum.Face ? AccessVisitStatusEnum.PendingEnrollment : AccessVisitStatusEnum.Scheduled,
             ValidFrom = validFrom,
             ValidTo = validTo,
             ExpectedCheckoutAt = validTo,
@@ -294,7 +392,15 @@ public sealed class ResidentProfileController : ControllerBase
             UpdatedAt = now
         });
         _context.AccessVisits.Add(visit);
-        _context.AccessBatchOperations.Add(new AccessBatchOperationDTO
+        foreach (var route in visitorRoutes)
+            _context.AccessRouteResidentOverrides.Add(new AccessRouteResidentOverrideDTO
+            {
+                Id = Guid.NewGuid(), AccessRouteId = route.Id, ResidentId = guestId,
+                Mode = selectedRouteIds.Contains(route.Id) ? AccessRouteOverrideModeEnum.Include : AccessRouteOverrideModeEnum.Exclude,
+                Reason = "Rotas definidas no convite temporário", CreatedAt = now, UpdatedAt = now
+            });
+        if (input.CredentialType == AccessCredentialTypeEnum.QrCode)
+            _context.AccessBatchOperations.Add(new AccessBatchOperationDTO
         {
             Id = Guid.NewGuid(),
             LicenseId = grant.LicenseId,
@@ -312,15 +418,54 @@ public sealed class ResidentProfileController : ControllerBase
             EntityType = "Visit",
             EntityId = visit.Id,
             Action = "ResidentVisitCreated",
-            Status = "Queued",
-            Summary = $"Visita de {visit.VisitorName} autorizada pelo morador {host.Name}.",
-            DetailsJson = JsonSerializer.Serialize(new { input.UnitId, visit.ValidFrom, visit.ValidTo, credential.MaxUses }),
+            Status = input.CredentialType == AccessCredentialTypeEnum.Face ? "PendingEnrollment" : "Queued",
+            Summary = input.CredentialType == AccessCredentialTypeEnum.Face
+                ? $"Convite facial temporário criado para {visit.VisitorName}."
+                : $"Visita de {visit.VisitorName} autorizada pelo morador {host.Name}.",
+            DetailsJson = JsonSerializer.Serialize(new { input.UnitId, visit.ValidFrom, visit.ValidTo, credential.MaxUses, input.CredentialType, RouteIds = selectedRouteIds }),
             UserName = $"resident:{grant.ResidentId:N}",
             CreatedAt = now
         });
 
         await _context.SaveChangesAsync(cancellationToken);
-        return Created(string.Empty, ToVisitOut(visit, host.Name, unit.Block.Name, unit.Number, credential));
+        string inviteUrl = string.Empty;
+        if (input.CredentialType == AccessCredentialTypeEnum.Face)
+        {
+            var issued = await _facialInvites.IssueAsync(grant.LicenseId, visit.Id, $"resident:{grant.ResidentId:N}", validTo, cancellationToken);
+            inviteUrl = issued.Url;
+        }
+        return Created(string.Empty, ToVisitOut(visit, host.Name, unit.Block.Name, unit.Number, credential, inviteUrl));
+    }
+
+    [HttpPost("visits/{visitId:guid}/facial-invite")]
+    public async Task<IActionResult> ReissueFacialInvite(Guid visitId, CancellationToken cancellationToken)
+    {
+        var grant = await _authorization.GetGrantAsync(User, cancellationToken);
+        if (grant is null) return Forbid();
+        var visit = await _context.AccessVisits
+            .Include(x => x.Credential)
+            .Include(x => x.FacialInvite)
+            .FirstOrDefaultAsync(x => x.Id == visitId && x.LicenseId == grant.LicenseId && x.HostResidentId == grant.ResidentId, cancellationToken);
+        if (visit is null) return NotFound();
+        if (visit.Credential.CredentialType != AccessCredentialTypeEnum.Face)
+            return Conflict(new { Errors = "Esta visita não utiliza convite facial." });
+        if (visit.FacialInvite?.Status == VisitFacialInviteStatusEnum.Completed)
+            return Conflict(new { Errors = "O visitante já concluiu o cadastro facial." });
+        if (visit.ValidTo <= DateTime.UtcNow)
+            return Conflict(new { Errors = "A autorização da visita já expirou." });
+
+        visit.Status = AccessVisitStatusEnum.PendingEnrollment;
+        visit.Credential.IsActive = false;
+        visit.UpdatedAt = DateTime.UtcNow;
+        var issued = await _facialInvites.IssueAsync(grant.LicenseId, visit.Id, $"resident:{grant.ResidentId:N}", visit.ValidTo, cancellationToken);
+        _context.AccessOperationAudits.Add(new AccessOperationAuditDTO
+        {
+            Id = Guid.NewGuid(), LicenseId = grant.LicenseId, EntityType = "Visit", EntityId = visit.Id,
+            Action = "FacialInviteReissued", Status = "PendingEnrollment", Summary = $"Novo link facial emitido para {visit.VisitorName}.",
+            DetailsJson = JsonSerializer.Serialize(new { visit.ValidTo }), UserName = $"resident:{grant.ResidentId:N}", CreatedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(new VisitFacialInviteIssuedOut { VisitId = visit.Id, Status = "Pending", InviteUrl = issued.Url, ExpiresAt = issued.ExpiresAt });
     }
 
     [HttpGet("bookings")]
@@ -633,7 +778,8 @@ public sealed class ResidentProfileController : ControllerBase
         string hostName,
         string blockName,
         string unitNumber,
-        ResidentAccessCredentialDTO credential) => new()
+        ResidentAccessCredentialDTO credential,
+        string facialInviteUrl = "") => new()
     {
         Id = visit.Id,
         LicenseId = visit.LicenseId,
@@ -664,7 +810,9 @@ public sealed class ResidentProfileController : ControllerBase
         ExpectedCheckoutAt = visit.ExpectedCheckoutAt,
         IsOverstayed = visit.Status == AccessVisitStatusEnum.CheckedIn && (visit.ExpectedCheckoutAt ?? visit.ValidTo) < DateTime.UtcNow,
         RecurrenceSequence = visit.RecurrenceSequence,
-        RecurrenceCount = visit.RecurrenceCount
+        RecurrenceCount = visit.RecurrenceCount,
+        FacialInviteStatus = visit.FacialInvite?.Status.ToString() ?? (visit.Status == AccessVisitStatusEnum.PendingEnrollment ? "Pending" : string.Empty),
+        FacialInviteUrl = facialInviteUrl
     };
 
     private static AmenityBookingOut ToBookingOut(AmenityBookingDTO booking) => new()

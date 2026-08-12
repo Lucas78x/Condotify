@@ -30,9 +30,10 @@ webrtcAddress: :8889
 rtmp: no
 srt: no
 
-# O RTSP fica ligado apenas como CLIENTE (para puxar das cameras).
-# O servidor RTSP de entrada nao e necessario.
-rtsp: no
+# RTSP permanece apenas na rede interna do container. Ele recebe a publicacao
+# normalizada pelo FFmpeg sob demanda e nunca e publicado no host.
+rtsp: yes
+rtspAddress: :8554
 
 # Autorizacao delegada a API do Condotify. Toda leitura dispara este callback.
 authMethod: http

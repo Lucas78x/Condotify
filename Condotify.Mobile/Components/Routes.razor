@@ -1,6 +1,7 @@
 @inject MobileSessionCoordinator Session
 @inject NavigationManager Navigation
 @inject MobileDeepLinkState DeepLinks
+@inject MobileAppState AppState
 @implements IDisposable
 
 <Router AppAssembly="@typeof(MauiProgram).Assembly" OnNavigateAsync="OnNavigateAsync">
@@ -28,15 +29,27 @@
             Navigation.NavigateTo("/login", replace: true);
         else if (Session.IsAuthenticated && loginRoute)
             Navigation.NavigateTo("/home", replace: true);
+        else if (Session.IsAuthenticated && !RouteAllowed(context.Path))
+            Navigation.NavigateTo("/home", replace: true);
 
         if (Session.IsAuthenticated && DeepLinks.Consume() is { } pending)
-            Navigation.NavigateTo(pending);
+            Navigation.NavigateTo(RouteAllowed(pending) ? pending : "/home");
     }
 
     private void NavigateDeepLink(string route)
     {
-        if (Session.IsAuthenticated) InvokeAsync(() => Navigation.NavigateTo(route));
+        if (!Session.IsAuthenticated) return;
+        DeepLinks.Consume();
+        if (RouteAllowed(route))
+            InvokeAsync(() => Navigation.NavigateTo(route));
     }
+
+    private bool RouteAllowed(string route) => MobileRouteAuthorization.IsAllowed(
+        Session.Current!.Principal,
+        route,
+        Session.Current.Principal == MobilePrincipalKind.Resident
+            ? AppState.ResidentEnabledModules
+            : AppState.SelectedLicense?.EnabledModules ?? (long)Condotify.Models.LicenseModuleEnum.All);
 
     public void Dispose() => DeepLinks.Received -= NavigateDeepLink;
 }

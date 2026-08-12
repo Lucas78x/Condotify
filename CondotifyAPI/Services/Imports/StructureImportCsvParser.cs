@@ -23,6 +23,13 @@ public sealed class StructureImportCsvParser
             ["tag"] = "tag", ["tagveicular"] = "tag", ["uhf"] = "tag"
         };
 
+    private static readonly HashSet<string> RestrictedHeaders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "senha", "password", "passwordhash", "hashdesenha", "pin", "codigoacesso", "accesscode",
+        "biometria", "biometric", "templatebiometrico", "biometrictemplate", "digital", "impressaodigital",
+        "fingerprint", "face", "facial", "templatefacial", "facetemplate", "fotofacial", "imagemfacial"
+    };
+
     public StructureImportParseResult Parse(string? content)
     {
         var result = new StructureImportParseResult();
@@ -118,6 +125,11 @@ public sealed class StructureImportCsvParser
         for (var index = 0; index < headers.Length; index++)
         {
             var normalized = NormalizeKey(headers[index]);
+            if (RestrictedHeaders.Contains(normalized))
+            {
+                errors.Add($"A coluna {headers[index]} contém dado restrito. Remova senhas, PINs e dados biométricos antes de enviar o arquivo.");
+                continue;
+            }
             if (!HeaderAliases.TryGetValue(normalized, out var canonical)) continue;
             if (!map.TryAdd(canonical, index))
                 errors.Add($"A coluna {headers[index]} aparece mais de uma vez.");

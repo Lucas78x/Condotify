@@ -378,3 +378,11 @@ FodyWeavers.xsd
 **/GoogleService-Info.plist
 *firebase*service-account*.json
 client_secret_*.json
+
+# Local Codex/Claude work products and generated presentation previews
+/.claude/
+/.codex-build/
+/.codex_build/
+/.codex_runtime/
+/.codex-presentation/
+*.pptx.inspect.ndjson

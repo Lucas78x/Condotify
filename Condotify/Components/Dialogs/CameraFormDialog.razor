@@ -4,24 +4,28 @@
     <DialogContent>
         <div class="dialog-description">
             <MudIcon Icon="@Icons.Material.Outlined.Videocam" />
-            <div><strong>Dados do dispositivo</strong><span>Configure a rede e a capacidade de canais.</span></div>
+            <div><strong>@(IsEditing ? "Editar câmera" : "Dados do dispositivo")</strong><span>Configure a rede e valide o vídeo RTSP antes de salvar.</span></div>
         </div>
         @if (!string.IsNullOrWhiteSpace(_error))
         {
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
         }
+        @if (!string.IsNullOrWhiteSpace(_testMessage))
+        {
+            <MudAlert Severity="@(_testSucceeded ? Severity.Success : Severity.Warning)" Variant="Variant.Outlined" Class="mb-4">@_testMessage</MudAlert>
+        }
         <EditForm Model="_form" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
             <div class="form-grid">
-                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome" Placeholder="Ex.: Câmera da entrada social" Required Variant="Variant.Outlined" For="@(() => _form.Name)" Class="full" />
+                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome" Placeholder="Ex.: Câmera da entrada social" Required RequiredError="Informe o nome da câmera ou gravador." Immediate Variant="Variant.Outlined" For="@(() => _form.Name)" Class="full" />
                 <MudSelect T="int" @bind-Value="_form.DeviceType" Label="Tipo" Variant="Variant.Outlined"><MudSelectItem Value="1">Câmera IP</MudSelectItem><MudSelectItem Value="2">DVR</MudSelectItem><MudSelectItem Value="3">NVR</MudSelectItem></MudSelect>
                 <MudSelect T="int" @bind-Value="_form.Mark" Label="Marca" Variant="Variant.Outlined"><MudSelectItem Value="11">Intelbras</MudSelectItem><MudSelectItem Value="8">Hikvision</MudSelectItem><MudSelectItem Value="4">Dahua</MudSelectItem><MudSelectItem Value="0">Outra</MudSelectItem></MudSelect>
-                <MudTextField T="string" @bind-Value="_form.IpAddress" Label="Endereço IP" Placeholder="192.168.0.20" Required Variant="Variant.Outlined" For="@(() => _form.IpAddress)" />
+                <MudTextField T="string" @bind-Value="_form.IpAddress" Label="Endereço IP" Placeholder="192.168.0.20" Required RequiredError="Informe o endereço IP do dispositivo." Immediate Variant="Variant.Outlined" For="@(() => _form.IpAddress)" />
                 <MudNumericField T="int" @bind-Value="_form.MaxChannels" Label="Quantidade de canais" Min="1" Max="128" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.HTTPPort" Label="Porta HTTP" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.RTSPPort" Label="Porta RTSP" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.UserName" Label="Usuário" Required Variant="Variant.Outlined" For="@(() => _form.UserName)" />
-                <MudTextField T="string" @bind-Value="_form.Password" Label="Senha" Required InputType="InputType.Password" Variant="Variant.Outlined" For="@(() => _form.Password)" />
+                <MudTextField T="string" @bind-Value="_form.UserName" Label="Usuário" Required RequiredError="Informe o usuário de acesso ao dispositivo." Immediate Variant="Variant.Outlined" For="@(() => _form.UserName)" />
+                <MudTextField T="string" @bind-Value="_form.Password" Label="@(IsEditing ? "Nova senha (opcional)" : "Senha")" Required="@(!IsEditing)" RequiredError="Informe a senha de acesso ao dispositivo." Immediate InputType="InputType.Password" Variant="Variant.Outlined" />
                 <div class="full">
                     <MudSwitch T="bool" @bind-Value="_form.ResidentVisible" Color="Color.Primary" Label="Disponibilizar no aplicativo dos moradores" />
                     <MudText Typo="Typo.caption" Color="Color.Secondary">Moradores poderão visualizar esta câmera sem receber IP ou credenciais do equipamento.</MudText>
@@ -29,7 +33,8 @@
             </div>
             <div class="form-actions dialog-form-actions">
                 <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" Disabled="_saving">@(_saving ? "Cadastrando..." : "Cadastrar dispositivo")</MudButton>
+                <MudButton ButtonType="ButtonType.Button" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.WifiTethering" Disabled="@(_saving || _testing)" OnClick="TestAsync">@(_testing ? "Testando..." : "Testar conexão")</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@(IsEditing ? Icons.Material.Outlined.Save : Icons.Material.Outlined.Add)" Disabled="@(_saving || _testing)">@(_saving ? "Salvando..." : IsEditing ? "Salvar alterações" : "Cadastrar dispositivo")</MudButton>
             </div>
         </EditForm>
     </DialogContent>
@@ -38,16 +43,69 @@
 @code {
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public CftvDeviceRowViewModel? Device { get; set; }
     private readonly CftvDeviceFormViewModel _form = new() { Mark = 11 };
     private bool _saving;
+    private bool _testing;
+    private bool _testSucceeded;
+    private bool _initialized;
     private string? _error;
+    private string? _testMessage;
+
+    private bool IsEditing => Device is not null;
+
+    protected override void OnParametersSet()
+    {
+        if (_initialized || Device is null) return;
+        _initialized = true;
+        _form.Name = Device.Name;
+        _form.IpAddress = Device.IpAddress;
+        _form.UserName = Device.UserName;
+        _form.HTTPPort = Device.HTTPPort;
+        _form.RTSPPort = Device.RTSPPort;
+        _form.IpType = Device.IpType;
+        _form.Proportion = Device.Proportion;
+        _form.Mark = Device.Mark;
+        _form.DeviceType = Device.DeviceTypeValue;
+        _form.MaxChannels = Math.Max(Device.MaxChannels, 1);
+        _form.ResidentVisible = Device.ResidentVisible;
+    }
 
     private void Cancel() => Dialog.Cancel();
 
+    private async Task TestAsync()
+    {
+        _testing = true;
+        _error = null;
+        _testMessage = null;
+        _testSucceeded = false;
+        var result = await Api.TestCameraAsync(LicenseId, _form, Device?.Id);
+        _testing = false;
+        if (!result.Success)
+        {
+            _testMessage = result.Error ?? "Não foi possível validar o vídeo RTSP.";
+            return;
+        }
+
+        _testSucceeded = true;
+        _testMessage = string.IsNullOrWhiteSpace(result.Value?.Message)
+            ? "Conexão RTSP confirmada. O vídeo está pronto para uso."
+            : result.Value.Message;
+    }
+
     private async Task SaveAsync()
     {
-        _saving = true; _error = null;
-        var result = await Api.CreateCameraAsync(LicenseId, _form);
+        if (!IsEditing)
+        {
+            await TestAsync();
+            if (!_testSucceeded) return;
+        }
+
+        _saving = true;
+        _error = null;
+        var result = IsEditing
+            ? await Api.UpdateCameraAsync(LicenseId, Device!.Id, _form)
+            : await Api.CreateCameraAsync(LicenseId, _form);
         _saving = false;
         if (!result.Success) { _error = result.Error; return; }
         Dialog.Close(DialogResult.Ok(true));

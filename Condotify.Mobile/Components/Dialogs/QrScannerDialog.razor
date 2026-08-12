@@ -1,5 +1,5 @@
 @implements IAsyncDisposable
-@inject CondotifyApiClient Api
+@inject MobileOfflineOperationsService OfflineOperations
 @inject IJSRuntime JS
 @inject MobileDeviceActions DeviceActions
 
@@ -51,6 +51,7 @@
     private bool _processing;
     private bool _error;
     private bool _disposed;
+    private readonly CancellationTokenSource _lifetimeCts = new();
     private string _message = string.Empty;
     private string _manualCode = string.Empty;
 
@@ -87,6 +88,7 @@
     [JSInvokable]
     public async Task OnCodeDetected(string code)
     {
+        if (_disposed) return;
         _manualCode = code;
         await InvokeAsync(StateHasChanged);
         await ValidateAsync(code);
@@ -96,30 +98,51 @@
 
     private async Task ValidateAsync(string code)
     {
-        if (_processing || string.IsNullOrWhiteSpace(code)) return;
+        if (_disposed || _processing || string.IsNullOrWhiteSpace(code)) return;
         _processing = true;
         _error = false;
         _message = "Validando autorização...";
         await InvokeAsync(StateHasChanged);
 
-        var result = await Api.ScanConciergeVisitAsync(LicenseId, code.Trim());
-        if (!result.Success || result.Value is null)
+        MobileQrScanOutcome result;
+        try
+        {
+            result = await OfflineOperations.ScanQrAsync(LicenseId, code.Trim(), _lifetimeCts.Token);
+        }
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            return;
+        }
+        if (_disposed) return;
+        if (!result.Success || result.Visit is null)
         {
             _processing = false;
             _error = true;
-            _message = result.Error ?? "O convite não pôde ser validado.";
+            _message = result.Message;
             await RestartScannerAsync();
             await InvokeAsync(StateHasChanged);
             return;
         }
 
+        _message = result.WasOffline
+            ? "Entrada autorizada offline. Registro protegido na fila de sincronização."
+            : "Entrada autorizada e confirmada pela central.";
+        _error = false;
+        await InvokeAsync(StateHasChanged);
         DeviceActions.Confirm();
         await StopScannerAsync();
-        Dialog.Close(DialogResult.Ok(result.Value));
+        if (result.WasOffline)
+        {
+            try { await Task.Delay(650, _lifetimeCts.Token); }
+            catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested) { return; }
+        }
+        if (_disposed) return;
+        Dialog.Close(DialogResult.Ok(result.Visit));
     }
 
     private async Task RestartScannerAsync()
     {
+        if (_disposed) return;
         try
         {
             _reference ??= DotNetObjectReference.Create(this);
@@ -143,7 +166,9 @@
     {
         if (_disposed) return;
         _disposed = true;
+        _lifetimeCts.Cancel();
         await StopScannerAsync();
         _reference?.Dispose();
+        _lifetimeCts.Dispose();
     }
 }

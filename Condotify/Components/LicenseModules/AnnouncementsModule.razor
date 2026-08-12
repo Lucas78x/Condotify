@@ -10,18 +10,46 @@
 }
 else
 {
+    <div class="module-page-heading">
+        <div class="module-page-heading-copy">
+            <span class="module-heading-icon violet"><MudIcon Icon="@Icons.Material.Outlined.Campaign" /></span>
+            <div>
+                <MudText Typo="Typo.h5" HtmlTag="h2">Comunicados</MudText>
+                <MudText Typo="Typo.body2">Publique avisos claros para todos os moradores e mantenha a comunicação centralizada.</MudText>
+            </div>
+        </div>
+        <div class="module-page-heading-actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Campaign" OnClick="OpenCreateAsync" Disabled="!CanManage">Publicar comunicado</MudButton>
+        </div>
+    </div>
+
     <section class="content-panel">
         <div class="panel-heading">
-            <div><MudText Typo="Typo.h5">Comunicados</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Visíveis a todos os moradores desta licença</MudText></div>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Campaign" OnClick="OpenCreateAsync" Disabled="!CanManage">Publicar comunicado</MudButton>
+            <div><MudText Typo="Typo.h6">Mural do condomínio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">@(_announcements.Count == 0 ? "Pronto para a primeira publicação" : $"{_announcements.Count} comunicado(s) publicado(s)")</MudText></div>
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@(_announcements.Any(x => x.IsUrgent) ? Color.Warning : Color.Default)">@(_announcements.Count(x => x.IsUrgent)) urgente(s)</MudChip>
         </div>
 
         @if (_announcements.Count == 0)
         {
-            <div class="empty-state compact-empty">
-                <MudIcon Icon="@Icons.Material.Outlined.Campaign" Size="Size.Large" Color="Color.Primary" />
-                <MudText Typo="Typo.subtitle1">Nenhum comunicado publicado</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary">Avisos publicados aqui ficam visíveis a todos os moradores no app.</MudText>
+            <div class="announcement-empty-state">
+                <div class="announcement-preview" aria-hidden="true">
+                    <span class="announcement-preview-brand"><MudIcon Icon="@Icons.Material.Outlined.Campaign" /></span>
+                    <div><small>CONDOTIFY</small><strong>Novo comunicado</strong><em>O aviso chega organizado no aplicativo.</em></div>
+                    <i></i>
+                </div>
+                <div class="announcement-empty-copy">
+                    <MudText Typo="Typo.overline">COMUNICAÇÃO DIRETA</MudText>
+                    <MudText Typo="Typo.h5">Seu mural está pronto</MudText>
+                    <MudText Typo="Typo.body2">Crie avisos gerais ou marque mensagens urgentes. Os moradores recebem tudo em um único lugar, sem depender de grupos paralelos.</MudText>
+                    <div class="announcement-benefits">
+                        <span><MudIcon Icon="@Icons.Material.Outlined.CheckCircle" /> Publicação imediata</span>
+                        <span><MudIcon Icon="@Icons.Material.Outlined.PriorityHigh" /> Destaque para urgências</span>
+                    </div>
+                    @if (CanManage)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateAsync">Criar primeiro comunicado</MudButton>
+                    }
+                </div>
             </div>
         }
         else

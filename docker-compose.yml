@@ -37,6 +37,7 @@ services:
       JWTCondotify_Audience: Condotify
       CONDOTIFY_API_KEY: ${CONDOTIFY_API_KEY:?Defina CONDOTIFY_API_KEY no arquivo .env}
       CONDOTIFY_EQUIPMENT_SECRET: ${EQUIPMENT_SECRET:?Defina EQUIPMENT_SECRET no arquivo .env}
+      CONDOTIFY_TIME_ZONE: ${CONDOTIFY_TIME_ZONE:-America/Sao_Paulo}
       CONDOTIFY_MEDIA_SECRET: ${MEDIA_SECRET:?Defina MEDIA_SECRET no arquivo .env; ele protege as imagens privadas e agora tambem o acesso ao video ao vivo de todas as cameras}
       CONDOTIFY_PRIVATE_MEDIA_PATH: /app/data/private-media
       CONDOTIFY_BACKUP_EXPORT_SECRET: ${BACKUP_EXPORT_SECRET:?Defina BACKUP_EXPORT_SECRET no arquivo .env}
@@ -49,6 +50,7 @@ services:
       CONDOTIFY_SMTP_FROM_NAME: ${CONDOTIFY_SMTP_FROM_NAME:-Condotify}
       CONDOTIFY_SMTP_ENABLE_SSL: ${CONDOTIFY_SMTP_ENABLE_SSL:-true}
       CONDOTIFY_MEDIA_GATEWAY_URL: http://mediamtx:9997
+      CONDOTIFY_MEDIA_TRANSCODE_AUDIO: "true"
       # Endereco publico pelo qual o aplicativo alcanca o gateway de video. Em
       # producao, aponte para o host/proxy que expoe as portas 8888 (HLS) e
       # 8889 (WebRTC) -- um unico proxy pode fazer frente as duas.
@@ -70,7 +72,7 @@ services:
       - condotify-lpr
 
   mediamtx:
-    image: bluenviron/mediamtx:1.9.3
+    image: bluenviron/mediamtx:1.9.3-ffmpeg
     container_name: condotify-mediamtx
     restart: unless-stopped
     environment:

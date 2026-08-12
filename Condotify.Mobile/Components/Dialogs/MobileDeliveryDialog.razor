@@ -43,7 +43,11 @@
     }
     private async Task SaveAsync()
     {
-        if (_recipient is null) { _error = "Selecione o morador e a unidade de destino."; return; }
+        if (_recipient is null || _recipient.Id == Guid.Empty || _recipient.UnitId == Guid.Empty)
+        {
+            _error = "Selecione o morador e uma unidade válida de destino.";
+            return;
+        }
         _form.RecipientResidentId = _recipient.Id; _form.UnitId = _recipient.UnitId;
         if (string.IsNullOrWhiteSpace(_form.Name)) _form.Name = _recipient.Name;
         if (string.IsNullOrWhiteSpace(_form.ReceivedBy)) _form.ReceivedBy = "Portaria";

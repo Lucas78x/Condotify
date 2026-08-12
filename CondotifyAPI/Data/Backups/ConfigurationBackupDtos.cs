@@ -29,6 +29,8 @@ public class PreviewConfigurationRestoreIn
     public bool IncludeDevices { get; set; } = true;
     public bool IncludeRoutes { get; set; } = true;
     public bool IncludeCredentials { get; set; } = true;
+    public bool CompareWithEquipment { get; set; } = true;
+    public List<Guid> TargetDeviceIds { get; set; } = [];
 }
 
 public sealed class ExecuteConfigurationRestoreIn : PreviewConfigurationRestoreIn
@@ -46,8 +48,52 @@ public sealed class ConfigurationRestorePreviewOut
     public int UpdateCount { get; set; }
     public int DeactivateCount { get; set; }
     public int ConflictCount { get; set; }
+    public int WarningCount { get; set; }
+    public int SelectedDeviceCount { get; set; }
+    public bool IsMassRestore { get; set; }
+    public DateTime ComparedAt { get; set; }
     public List<ConfigurationRestoreSectionOut> Sections { get; set; } = [];
     public List<string> Conflicts { get; set; } = [];
+    public List<ConfigurationRestoreConflictOut> ConflictReport { get; set; } = [];
+    public List<ConfigurationEquipmentComparisonOut> EquipmentComparisons { get; set; } = [];
+}
+
+public sealed class ConfigurationBackupTargetOut
+{
+    public Guid DeviceId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Model { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public int CredentialCount { get; set; }
+    public int RouteCount { get; set; }
+}
+
+public sealed class ConfigurationRestoreConflictOut
+{
+    public string Code { get; set; } = string.Empty;
+    public string Severity { get; set; } = string.Empty;
+    public string Section { get; set; } = string.Empty;
+    public Guid? EntityId { get; set; }
+    public string EntityName { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string SuggestedAction { get; set; } = string.Empty;
+    public bool Blocking { get; set; }
+}
+
+public sealed class ConfigurationEquipmentComparisonOut
+{
+    public Guid DeviceId { get; set; }
+    public string DeviceName { get; set; } = string.Empty;
+    public string Model { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public int ExpectedCount { get; set; }
+    public int RemoteCount { get; set; }
+    public int SyncedCount { get; set; }
+    public int DivergentCount { get; set; }
+    public int MissingCount { get; set; }
+    public int OrphanCount { get; set; }
 }
 
 public sealed class ConfigurationRestoreSectionOut
@@ -68,6 +114,8 @@ public sealed class ConfigurationRestoreExecutionOut
     public int UpdatedCount { get; set; }
     public int DeactivatedCount { get; set; }
     public int CredentialsQueued { get; set; }
+    public int TargetDeviceCount { get; set; }
+    public bool IsMassRestore { get; set; }
     public Guid? ReconciliationBatchId { get; set; }
     public DateTime RestoredAt { get; set; }
     public string Message { get; set; } = string.Empty;

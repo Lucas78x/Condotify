@@ -9,6 +9,7 @@ using System.Security.Claims;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using CondotifyAPI.ViewModels;
 
 [ApiController]
 [Route("api/access/licenses")]
@@ -39,7 +40,9 @@ public class LicenseAccessController : ControllerBase
 
             var licenses = await _sender.Send(query);
             var allowed = await _authorization.GetAccessibleLicenseIdsAsync(User);
-            return Ok(licenses.Where(x => allowed.Contains(x.Id)).ToList()); 
+            var visible = licenses.Where(x => allowed.Contains(x.Id)).ToList();
+            await EnrichLicenseListAsync(visible);
+            return Ok(visible);
         }
         catch (FluentValidation.ValidationException ex)
         {
@@ -61,7 +64,9 @@ public class LicenseAccessController : ControllerBase
 
             var licenses = await _sender.Send(query);
             var allowed = await _authorization.GetAccessibleLicenseIdsAsync(User);
-            return Ok(licenses.Where(x => allowed.Contains(x.Id)).ToList());
+            var visible = licenses.Where(x => allowed.Contains(x.Id)).ToList();
+            await EnrichLicenseListAsync(visible);
+            return Ok(visible);
         }
         catch (FluentValidation.ValidationException ex)
         {
@@ -87,6 +92,8 @@ public class LicenseAccessController : ControllerBase
             if (license == null)
                 return NotFound();
 
+            await EnrichLicenseSummaryAsync(license, id);
+
             return Ok(license);
         }
         catch (FluentValidation.ValidationException ex)
@@ -97,6 +104,65 @@ public class LicenseAccessController : ControllerBase
         {
             throw;
         }
+    }
+
+    private async Task EnrichLicenseListAsync(List<LicenseSummaryDto> licenses)
+    {
+        if (licenses.Count == 0) return;
+
+        var ids = licenses.Select(x => x.Id).ToArray();
+        var residentCounts = await _context.Blocks
+            .AsNoTracking()
+            .Where(block => ids.Contains(block.LicenseId))
+            .Select(block => new
+            {
+                block.LicenseId,
+                ResidentIds = block.Units
+                    .SelectMany(unit => unit.Residents)
+                    .Select(resident => resident.Id)
+            })
+            .ToListAsync();
+
+        var byLicense = residentCounts
+            .GroupBy(x => x.LicenseId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.SelectMany(x => x.ResidentIds).Distinct().Count());
+
+        foreach (var license in licenses)
+            license.Moradores = byLicense.GetValueOrDefault(license.Id);
+    }
+
+    private async Task EnrichLicenseSummaryAsync(LicenseSummaryViewModel license, Guid licenseId)
+    {
+        var blocks = await _context.Blocks
+            .AsNoTracking()
+            .Where(block => block.LicenseId == licenseId)
+            .OrderBy(block => block.Name)
+            .Select(block => new BlockSummaryViewModel
+            {
+                Id = block.Id,
+                Name = block.Name,
+                TotalUnits = block.Units.Count,
+                TotalResidents = block.Units
+                    .SelectMany(unit => unit.Residents)
+                    .Select(resident => resident.Id)
+                    .Distinct()
+                    .Count()
+            })
+            .ToListAsync();
+
+        license.Blocks = blocks;
+        license.TotalBlocks = blocks.Count;
+        license.TotalUnits = blocks.Sum(x => x.TotalUnits);
+        license.TotalResidents = await _context.Blocks
+            .AsNoTracking()
+            .Where(block => block.LicenseId == licenseId)
+            .SelectMany(block => block.Units)
+            .SelectMany(unit => unit.Residents)
+            .Select(resident => resident.Id)
+            .Distinct()
+            .CountAsync();
     }
 
     [HttpPost("by-enterprise")]

@@ -312,6 +312,24 @@ public sealed class ConfigurationBackupsController(
         }
     }
 
+    [HttpGet("{backupId:guid}/targets")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageBackups)]
+    public async Task<IActionResult> Targets(Guid licenseId, Guid backupId)
+    {
+        try
+        {
+            var targets = await backupService.GetTargetsAsync(
+                licenseId,
+                backupId,
+                HttpContext.RequestAborted);
+            return targets is null ? NotFound() : Ok(targets);
+        }
+        catch (ConfigurationRestoreException exception)
+        {
+            return Conflict(new { Result = exception.Code, Errors = exception.Message });
+        }
+    }
+
     [HttpPost("{backupId:guid}/restore")]
     [RequireLicensePermission(LicensePermissionEnum.ManageBackups)]
     public async Task<IActionResult> Restore(

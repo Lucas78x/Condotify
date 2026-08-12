@@ -1,0 +1,94 @@
+<MudDialog>
+    <DialogContent>
+        <div class="financial-dialog-intro">
+            <span><MudIcon Icon="@Icons.Material.Outlined.AccountBalanceWallet" /></span>
+            <div><strong>@(Existing is null ? "Registre uma cobrança informativa" : "Atualize os dados gerenciais")</strong><p>Nenhum valor será movimentado pelo Condotify.</p></div>
+        </div>
+
+        @if (Existing is null)
+        {
+            <div class="financial-unit-picker">
+                <div class="financial-dialog-label"><strong>Unidades</strong><button type="button" @onclick="ToggleAll">@(_create.UnitIds.Count == Units.Count ? "Limpar" : "Selecionar todas")</button></div>
+                <div class="financial-unit-options">
+                    @foreach (var unit in Units)
+                    {
+                        <MudCheckBox T="bool" Value="@_create.UnitIds.Contains(unit.Id)" ValueChanged="@(value => ToggleUnit(unit.Id, value))" Label="@unit.Label" Color="Color.Primary" />
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="financial-form-grid">
+            <MudTextField T="string" @bind-Value="Competence" Label="Competência" Placeholder="AAAA-MM" Variant="Variant.Outlined" Required />
+            <MudDatePicker @bind-Date="_dueDate" Label="Vencimento" Variant="Variant.Outlined" Required />
+            <MudTextField T="string" @bind-Value="Reference" Label="Referência" Placeholder="Ex.: Condomínio agosto/2026" Variant="Variant.Outlined" Required Class="span-2" />
+            <MudTextField T="string" @bind-Value="Description" Label="Descrição" Variant="Variant.Outlined" Required Class="span-2" />
+            <MudNumericField T="decimal" @bind-Value="BaseAmount" Label="Valor base" Variant="Variant.Outlined" Format="N2" Min="0.01m" />
+            <MudNumericField T="decimal" @bind-Value="FineAmount" Label="Multa informativa" Variant="Variant.Outlined" Format="N2" Min="0m" />
+            <MudNumericField T="decimal" @bind-Value="InterestAmount" Label="Juros informativos" Variant="Variant.Outlined" Format="N2" Min="0m" />
+            <MudNumericField T="decimal" @bind-Value="DiscountAmount" Label="Desconto" Variant="Variant.Outlined" Format="N2" Min="0m" />
+            <MudTextField T="string" @bind-Value="Notes" Label="Observações internas" Lines="3" Variant="Variant.Outlined" Class="span-2" />
+        </div>
+
+        <div class="financial-total-preview"><span>Total gerencial</span><strong>@Total.ToString("C2", Culture)</strong></div>
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Dense>@_error</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">@(Existing is null ? "Registrar cobrança" : "Salvar alterações")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public List<FinancialUnitOptionViewModel> Units { get; set; } = [];
+    [Parameter] public FinancialChargeViewModel? Existing { get; set; }
+    private readonly CreateFinancialChargesViewModel _create = new();
+    private readonly UpdateFinancialChargeViewModel _edit = new();
+    private DateTime? _dueDate = DateTime.Today.AddDays(10);
+    private string _error = string.Empty;
+    private static readonly System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+
+    private string Competence { get => Existing is null ? _create.Competence : _edit.Competence; set { if (Existing is null) _create.Competence = value; else _edit.Competence = value; } }
+    private string Reference { get => Existing is null ? _create.Reference : _edit.Reference; set { if (Existing is null) _create.Reference = value; else _edit.Reference = value; } }
+    private string Description { get => Existing is null ? _create.Description : _edit.Description; set { if (Existing is null) _create.Description = value; else _edit.Description = value; } }
+    private decimal BaseAmount { get => Existing is null ? _create.BaseAmount : _edit.BaseAmount; set { if (Existing is null) _create.BaseAmount = value; else _edit.BaseAmount = value; } }
+    private decimal FineAmount { get => Existing is null ? _create.FineAmount : _edit.FineAmount; set { if (Existing is null) _create.FineAmount = value; else _edit.FineAmount = value; } }
+    private decimal InterestAmount { get => Existing is null ? _create.InterestAmount : _edit.InterestAmount; set { if (Existing is null) _create.InterestAmount = value; else _edit.InterestAmount = value; } }
+    private decimal DiscountAmount { get => Existing is null ? _create.DiscountAmount : _edit.DiscountAmount; set { if (Existing is null) _create.DiscountAmount = value; else _edit.DiscountAmount = value; } }
+    private string Notes { get => Existing is null ? _create.Notes : _edit.Notes; set { if (Existing is null) _create.Notes = value; else _edit.Notes = value; } }
+    private decimal Total => FinancialChargeCalculator.Total(BaseAmount, FineAmount, InterestAmount, DiscountAmount);
+
+    protected override void OnInitialized()
+    {
+        if (Existing is null) _create.Competence = DateTime.Today.ToString("yyyy-MM");
+        else
+        {
+            _dueDate = Existing.DueDate;
+            _edit.Competence = Existing.Competence; _edit.Reference = Existing.Reference; _edit.Description = Existing.Description;
+            _edit.DueDate = Existing.DueDate; _edit.BaseAmount = Existing.BaseAmount; _edit.FineAmount = Existing.FineAmount;
+            _edit.InterestAmount = Existing.InterestAmount; _edit.DiscountAmount = Existing.DiscountAmount; _edit.Notes = Existing.Notes;
+        }
+    }
+
+    private void ToggleUnit(Guid id, bool selected) { if (selected && !_create.UnitIds.Contains(id)) _create.UnitIds.Add(id); else if (!selected) _create.UnitIds.Remove(id); }
+    private void ToggleAll() { if (_create.UnitIds.Count == Units.Count) _create.UnitIds.Clear(); else _create.UnitIds = Units.Select(x => x.Id).ToList(); }
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit()
+    {
+        _error = string.Empty;
+        if (Existing is null && _create.UnitIds.Count == 0) { _error = "Selecione ao menos uma unidade."; return; }
+        if (!System.Text.RegularExpressions.Regex.IsMatch(Competence ?? string.Empty, @"^\d{4}-(0[1-9]|1[0-2])$")) { _error = "Informe a competência no formato AAAA-MM."; return; }
+        if (string.IsNullOrWhiteSpace(Reference) || string.IsNullOrWhiteSpace(Description) || !_dueDate.HasValue || BaseAmount <= 0 || Total <= 0) { _error = "Preencha referência, descrição, vencimento e valores válidos."; return; }
+        if (Existing is null)
+        {
+            _create.DueDate = _dueDate.Value; MudDialog.Close(DialogResult.Ok(_create)); return;
+        }
+        MudDialog.Close(DialogResult.Ok(new UpdateFinancialChargeViewModel
+        {
+            Competence = Competence ?? string.Empty, Reference = Reference ?? string.Empty, Description = Description ?? string.Empty, DueDate = _dueDate.Value,
+            BaseAmount = BaseAmount, FineAmount = FineAmount, InterestAmount = InterestAmount,
+            DiscountAmount = DiscountAmount, Notes = Notes ?? string.Empty
+        }));
+    }
+}

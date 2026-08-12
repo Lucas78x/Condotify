@@ -4,12 +4,21 @@
 
 <MudDialog Class="entity-dialog entity-dialog-wide structure-import-dialog">
     <DialogContent>
-        <div class="dialog-description">
-            <MudIcon Icon="@Icons.Material.Outlined.UploadFile" />
+        <section class="migration-hero">
+            <span class="migration-hero-icon"><MudIcon Icon="@Icons.Material.Outlined.MoveDown" /></span>
             <div>
-                <strong>Importar estrutura e pessoas</strong>
-                <span>Valide todos os registros antes de criar agrupamentos, unidades, pessoas, veículos e TAGs.</span>
+                <small>CENTRO DE MIGRAÇÃO ASSISTIDA</small>
+                <strong>Traga os cadastros sem depender do fornecedor anterior</strong>
+                <p>Use uma exportação ou planilha entregue pelo condomínio. O Condotify valida tudo antes de criar qualquer registro.</p>
             </div>
+            <span class="migration-boundary-chip"><MudIcon Icon="@Icons.Material.Outlined.GppGood" /> Limite seguro</span>
+        </section>
+
+        <div class="migration-flow" aria-label="Etapas da migração">
+            <span class="active"><b>1</b><small>Autorizar</small></span><i></i>
+            <span class="@(_content.Length > 0 ? "active" : null)"><b>2</b><small>Carregar</small></span><i></i>
+            <span class="@(_preview is not null ? "active" : null)"><b>3</b><small>Validar</small></span><i></i>
+            <span class="@(_preview?.CanExecute == true ? "active" : null)"><b>4</b><small>Confirmar</small></span>
         </div>
 
         @if (!string.IsNullOrWhiteSpace(_error))
@@ -17,20 +26,57 @@
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
         }
 
-        <section class="import-source">
+        <section class="migration-policy-card">
+            <div class="migration-section-heading">
+                <span><MudIcon Icon="@Icons.Material.Outlined.AssignmentInd" /></span>
+                <div><strong>Origem e autorização</strong><small>Registre as instruções fornecidas pelo controlador responsável por esta operação.</small></div>
+            </div>
+            <div class="migration-context-grid">
+                <MudSelect T="string" @bind-Value="_migration.SourceSystem" Label="Sistema ou formato de origem" Variant="Variant.Outlined" Required>
+                    <MudSelectItem Value="@("Situator")">Situator</MudSelectItem>
+                    <MudSelectItem Value="@("Condfy")">Condfy</MudSelectItem>
+                    <MudSelectItem Value="@("HikCentral")">HikCentral</MudSelectItem>
+                    <MudSelectItem Value="@("iVMS4200")">iVMS-4200</MudSelectItem>
+                    <MudSelectItem Value="@("InControl")">InControl</MudSelectItem>
+                    <MudSelectItem Value="@("CondoMOB")">CondoMOB</MudSelectItem>
+                    <MudSelectItem Value="@("Other")">Outro sistema ou planilha</MudSelectItem>
+                </MudSelect>
+                <MudSelect T="string" @bind-Value="_migration.ProcessingBasis" Label="Base definida pelo condomínio" Variant="Variant.Outlined" Required>
+                    <MudSelectItem Value="@("Contract")">Execução de contrato ou implantação</MudSelectItem>
+                    <MudSelectItem Value="@("LegalObligation")">Obrigação legal ou regulatória</MudSelectItem>
+                    <MudSelectItem Value="@("LegitimateInterest")">Legítimo interesse documentado</MudSelectItem>
+                    <MudSelectItem Value="@("RegularExercise")">Exercício regular de direitos</MudSelectItem>
+                    <MudSelectItem Value="@("Consent")">Consentimento documentado</MudSelectItem>
+                </MudSelect>
+                <MudTextField @bind-Value="_migration.AuthorizedBy" Label="Responsável que autorizou" Placeholder="Ex.: síndico ou administrador" Variant="Variant.Outlined" MaxLength="150" Required />
+                <MudTextField @bind-Value="_migration.AuthorizationReference" Label="Referência da autorização" Placeholder="Ex.: ata, contrato ou chamado" Variant="Variant.Outlined" MaxLength="180" Required />
+            </div>
+            <div class="migration-confirmations">
+                <label><MudCheckBox T="bool" @bind-Value="_migration.ControllerAuthorizationConfirmed" Color="Color.Primary" /><span><strong>Origem autorizada</strong><small>O controlador declarou estar autorizado a fornecer e migrar estes dados.</small></span></label>
+                <label><MudCheckBox T="bool" @bind-Value="_migration.PurposeLimitationConfirmed" Color="Color.Primary" /><span><strong>Finalidade limitada</strong><small>Os dados serão usados somente na implantação e continuidade da operação.</small></span></label>
+                <label><MudCheckBox T="bool" @bind-Value="_migration.NoRestrictedDataConfirmed" Color="Color.Primary" /><span><strong>Sem segredos ou biometria</strong><small>O arquivo não contém senhas, PINs, digitais ou templates/fotos faciais.</small></span></label>
+            </div>
+        </section>
+
+        <section class="migration-safety-strip">
+            <div><MudIcon Icon="@Icons.Material.Outlined.VisibilityOff" /><span><strong>O que o Condotify não faz</strong><small>Não quebra banco, não contorna login, não acessa servidor concorrente e não importa biometria neste fluxo.</small></span></div>
+            <div><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /><span><strong>Rastreabilidade</strong><small>Origem, autorização e hash do arquivo ficam na auditoria; o conteúdo bruto não é armazenado.</small></span></div>
+        </section>
+
+        <section class="import-source @(!MigrationContextComplete ? "locked" : null)">
             <div class="import-source-copy">
                 <MudIcon Icon="@Icons.Material.Outlined.TableView" />
                 <div>
                     <strong>@(string.IsNullOrWhiteSpace(_fileName) ? "Selecione um arquivo CSV" : _fileName)</strong>
-                    <span>Limite de 2 MB e 1.000 registros. Separadores `;` e `,` são aceitos.</span>
+                    <span>@(MigrationContextComplete ? "Limite de 2 MB e 1.000 registros. Separadores ; e , são aceitos." : "Preencha e confirme a autorização antes de selecionar o arquivo.")</span>
                 </div>
             </div>
             <div class="import-source-actions">
                 <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Download" OnClick="DownloadTemplateAsync">Baixar modelo</MudButton>
-                <label class="file-button @(_loading ? "disabled" : null)">
+                <label class="file-button @(_loading || !MigrationContextComplete ? "disabled" : null)">
                     <MudIcon Icon="@Icons.Material.Outlined.UploadFile" />
                     <span>@(_preview is null ? "Selecionar CSV" : "Trocar arquivo")</span>
-                    <InputFile OnChange="ReadFileAsync" accept=".csv,text/csv,text/plain" disabled="@_loading" />
+                    <InputFile OnChange="ReadFileAsync" accept=".csv,.txt,text/csv,text/plain" disabled="@(_loading || !MigrationContextComplete)" />
                 </label>
             </div>
         </section>
@@ -44,6 +90,10 @@
         }
         else if (_preview is not null)
         {
+            <div class="migration-receipt">
+                <span><MudIcon Icon="@Icons.Material.Outlined.Verified" /></span>
+                <div><strong>Prévia registrada</strong><small>Protocolo @_preview.PreviewId.ToString("N")[..12] · SHA-256 @_preview.FileSha256[..12]… · O arquivo ainda não foi importado.</small></div>
+            </div>
             <div class="import-summary-grid">
                 <div><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span><span><strong>@_preview.NewBlocks</strong><small>Agrupamentos novos</small></span></div>
                 <div><span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><span><strong>@_preview.NewUnits</strong><small>Unidades novas</small></span></div>
@@ -65,7 +115,7 @@
                         <span>@_preview.ValidRows válidos de @_preview.TotalRows registros</span>
                     </div>
                     <MudChip T="string" Color="@(_preview.CanExecute ? Color.Success : Color.Error)" Variant="Variant.Outlined" Icon="@(_preview.CanExecute ? Icons.Material.Outlined.CheckCircle : Icons.Material.Outlined.ErrorOutline)">
-                        @(_preview.CanExecute ? "Pronto para importar" : $"{_preview.InvalidRows} com erro")
+                        @(_preview.CanExecute ? "Pronto para migrar" : $"{_preview.InvalidRows} com erro")
                     </MudChip>
                 </div>
 
@@ -95,7 +145,7 @@
                             }
                         </MudTd>
                     </RowTemplate>
-                    <PagerContent><MudTablePager PageSizeOptions="@(new[] { 10, 25, 50 })" /></PagerContent>
+                    <PagerContent><MudTablePager PageSizeOptions="@(new[] { 10, 25, 50 })" RowsPerPageString="Itens por página" InfoFormat="{first_item}-{last_item} de {all_items}" AllItemsText="Todos" /></PagerContent>
                 </MudTable>
             }
         }
@@ -103,7 +153,7 @@
     <DialogActions>
         <MudButton Variant="Variant.Text" Disabled="_executing" OnClick="Cancel">Cancelar</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PlaylistAddCheck" Disabled="@(_preview?.CanExecute != true || _executing)" OnClick="ExecuteAsync">
-            @(_executing ? "Importando..." : "Confirmar importação")
+            @(_executing ? "Migrando..." : "Confirmar migração")
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -117,9 +167,19 @@
     private string _content = string.Empty;
     private string _idempotencyKey = Guid.NewGuid().ToString("N");
     private StructureImportPreviewViewModel? _preview;
+    private readonly AssistedMigrationContextViewModel _migration = new();
     private bool _loading;
     private bool _executing;
     private string? _error;
+
+    private bool MigrationContextComplete =>
+        !string.IsNullOrWhiteSpace(_migration.SourceSystem) &&
+        !string.IsNullOrWhiteSpace(_migration.ProcessingBasis) &&
+        (_migration.AuthorizedBy?.Trim().Length ?? 0) >= 3 &&
+        (_migration.AuthorizationReference?.Trim().Length ?? 0) >= 3 &&
+        _migration.ControllerAuthorizationConfirmed &&
+        _migration.PurposeLimitationConfirmed &&
+        _migration.NoRestrictedDataConfirmed;
 
     private void Cancel() => Dialog.Cancel();
 
@@ -142,7 +202,7 @@
             using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
             _content = await reader.ReadToEndAsync();
             _idempotencyKey = Guid.NewGuid().ToString("N");
-            var result = await Api.PreviewStructureImportAsync(LicenseId, _fileName, _content, _idempotencyKey);
+            var result = await Api.PreviewStructureImportAsync(LicenseId, _fileName, _content, _idempotencyKey, _migration);
             if (!result.Success || result.Value is null)
             {
                 _error = result.Error ?? "Não foi possível validar o arquivo.";
@@ -167,7 +227,9 @@
         _error = null;
         try
         {
-            var result = await Api.ExecuteStructureImportAsync(LicenseId, _fileName, _content, _idempotencyKey);
+            var result = await Api.ExecuteStructureImportAsync(
+                LicenseId, _fileName, _content, _idempotencyKey,
+                _preview.PreviewId, _preview.FileSha256, _migration);
             if (!result.Success || result.Value is null)
             {
                 _error = result.Error ?? "Não foi possível concluir a importação.";

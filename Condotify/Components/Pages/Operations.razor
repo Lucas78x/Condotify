@@ -1,6 +1,8 @@
 @page "/operacoes"
 @attribute [Authorize]
+@implements IAsyncDisposable
 @inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
 @using System.Globalization
 
 <PageTitle>Operações | Condotify</PageTitle>
@@ -43,18 +45,30 @@ else
                     <span><i class="denied"></i>Negados</span>
                 </div>
             </div>
-            <div class="access-trend-chart" role="img" aria-label="Gráfico de acessos dos últimos 14 dias">
-                @foreach (var point in _dashboard.AccessTrend)
-                {
-                    <div class="trend-column">
-                        <div class="trend-bars">
-                            <span class="authorized" style="@BarHeight(point.Authorized)" title="@($"{point.Authorized} autorizado(s)")"></span>
-                            <span class="denied" style="@BarHeight(point.Denied)" title="@($"{point.Denied} negado(s)")"></span>
+            @if (HasAccessTrend)
+            {
+                <div class="access-trend-chart" role="img" aria-label="Gráfico de acessos dos últimos 14 dias">
+                    @foreach (var point in _dashboard.AccessTrend)
+                    {
+                        <div class="trend-column">
+                            <div class="trend-bars">
+                                <span class="authorized" style="@BarHeight(point.Authorized)" title="@($"{point.Authorized} autorizado(s)")"></span>
+                                <span class="denied" style="@BarHeight(point.Denied)" title="@($"{point.Denied} negado(s)")"></span>
+                            </div>
+                            <small>@point.Date.ToString("dd/MM")</small>
                         </div>
-                        <small>@point.Date.ToString("dd/MM")</small>
-                    </div>
-                }
-            </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="trend-empty-state">
+                    <span><MudIcon Icon="@Icons.Material.Outlined.Insights" /></span>
+                    <strong>O gráfico começa com o primeiro acesso</strong>
+                    <small>Autorizações e recusas aparecerão aqui automaticamente durante os próximos 14 dias.</small>
+                    <div class="trend-empty-baseline"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                </div>
+            }
         </MudPaper>
 
         <MudPaper Class="content-panel operations-health-panel" Elevation="0">
@@ -76,6 +90,126 @@ else
             </div>
         </MudPaper>
     </div>
+
+    <MudPaper Class="content-panel operations-jobs-panel" Elevation="0">
+        <div class="operations-jobs-toolbar">
+            <div class="operations-jobs-heading">
+                <span class="overview-icon violet"><MudIcon Icon="@Icons.Material.Outlined.AccountTree" /></span>
+                <span>
+                    <MudText Typo="Typo.h5" Class="panel-title">Fila de operações</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Acompanhe cada sincronização até o equipamento e intervenha somente quando necessário.</MudText>
+                </span>
+            </div>
+            <div class="operations-live-state"><i></i><span>Atualização automática</span></div>
+            <div class="operations-job-filters" role="group" aria-label="Filtrar processamentos">
+                @JobFilterButton("all", "Todas", _jobs.Count)
+                @JobFilterButton("active", "Em andamento", ActiveJobCount)
+                @JobFilterButton("attention", "Atenção", AttentionJobCount)
+                @JobFilterButton("completed", "Finalizadas", FinishedJobCount)
+            </div>
+            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" Disabled="_jobsBusy" OnClick="RefreshJobsAsync" aria-label="Atualizar fila" />
+        </div>
+
+        @if (_jobsBusy && _jobs.Count == 0)
+        {
+            <div class="operations-jobs-skeleton"><MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="118px" /><MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="118px" /></div>
+        }
+        else if (!string.IsNullOrWhiteSpace(_jobsError) && _jobs.Count == 0)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="ma-4">@_jobsError</MudAlert>
+        }
+        else if (!FilteredJobs.Any())
+        {
+            <div class="operations-empty compact operations-jobs-empty">
+                <span class="operations-empty-orbit"><MudIcon Icon="@Icons.Material.Outlined.AutoAwesome" /></span>
+                <strong>@(_jobFilter == "all" ? "Nenhuma operação solicitada" : "Nenhuma operação neste filtro")</strong>
+                <span>As próximas sincronizações aparecerão aqui com o progresso em tempo real.</span>
+            </div>
+        }
+        else
+        {
+            <div class="operations-job-list">
+                @foreach (var job in FilteredJobs)
+                {
+                    <article class="operations-job-card @JobTone(job.Status)">
+                        <header>
+                            <span class="operations-job-icon"><MudIcon Icon="@JobIcon(job.Status)" /></span>
+                            <div class="operations-job-title">
+                                <span><strong>@OperationLabel(job.Operation)</strong><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@JobColor(job.Status)">@JobStatusLabel(job.Status)</MudChip></span>
+                                <a href="@($"/licencas/{job.LicenseId}")">@(string.IsNullOrWhiteSpace(job.LicenseName) ? "Condomínio" : job.LicenseName)</a>
+                                <small>Solicitado por @(string.IsNullOrWhiteSpace(job.RequestedBy) ? "Sistema" : job.RequestedBy) · @RelativeTime(job.CreatedAt)</small>
+                            </div>
+                            <div class="operations-job-actions">
+                                @if (CanCancelJob(job.Status))
+                                {
+                                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Close" Disabled="@IsJobBusy(job)" OnClick="@(() => CancelJobAsync(job))">Cancelar</MudButton>
+                                }
+                                else if (CanRetryJob(job.Status))
+                                {
+                                    <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Replay" Disabled="@IsJobBusy(job)" OnClick="@(() => RetryJobAsync(job))">Reprocessar</MudButton>
+                                }
+                            </div>
+                        </header>
+                        <div class="operations-job-progress">
+                            <div><span>Progresso</span><strong>@JobProgress(job).ToString("N0")%</strong></div>
+                            <MudProgressLinear Value="@JobProgress(job)" Color="@JobColor(job.Status)" Rounded="true" />
+                        </div>
+                        <div class="operations-job-metrics">
+                            <span><strong>@job.SuccessfulItems</strong><small>concluídos</small></span>
+                            <span><strong>@PendingItemCount(job)</strong><small>pendentes</small></span>
+                            <span class="@(job.FailedItems > 0 ? "has-error" : null)"><strong>@job.FailedItems</strong><small>com atenção</small></span>
+                            <span><strong>@job.AttemptCount/@job.MaxAttempts</strong><small>tentativas</small></span>
+                            <span><strong>@DeviceCount(job)</strong><small>equipamentos</small></span>
+                        </div>
+                        @if (job.NextAttemptAt.HasValue && CanCancelJob(job.Status))
+                        {
+                            <div class="operations-next-attempt"><MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" />Nova tentativa prevista para @job.NextAttemptAt.Value.ToLocalTime().ToString("dd/MM 'às' HH:mm")</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(job.Error))
+                        {
+                            <div class="operations-job-error"><MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small" />@job.Error</div>
+                        }
+                        @if (job.Items.Count > 0)
+                        {
+                            <details class="operations-job-details">
+                                <summary><span>Ver progresso por equipamento</span><MudIcon Icon="@Icons.Material.Outlined.ExpandMore" Size="Size.Small" /></summary>
+                                <div class="operations-device-list">
+                                    @foreach (var deviceGroup in JobDevices(job))
+                                    {
+                                        <section class="operations-device-group">
+                                            <div class="operations-device-heading">
+                                                <span class="operations-device-icon"><MudIcon Icon="@Icons.Material.Outlined.Sensors" Size="Size.Small" /></span>
+                                                <span><strong>@deviceGroup.Key.Name</strong><small>@deviceGroup.Count() credencial(is)</small></span>
+                                                <div><MudProgressLinear Value="@DeviceProgress(deviceGroup)" Color="@DeviceColor(deviceGroup)" Rounded="true" /><small>@DeviceProgress(deviceGroup).ToString("N0")%</small></div>
+                                            </div>
+                                            @foreach (var item in deviceGroup.OrderByDescending(x => ItemPriority(x.Status)).ThenBy(x => x.CredentialName))
+                                            {
+                                                <div class="operations-device-item">
+                                                    <span class="operations-item-state @JobTone(item.Status)"><MudIcon Icon="@ItemIcon(item.Status)" Size="Size.Small" /></span>
+                                                    <span><strong>@(string.IsNullOrWhiteSpace(item.CredentialName) ? "Credencial" : item.CredentialName)</strong><small>@ItemFeedback(item)</small></span>
+                                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@ItemColor(item.Status)">@ItemStatusLabel(item.Status)</MudChip>
+                                                    <span class="operations-item-actions">
+                                                        @if (CanCancelItem(item.Status))
+                                                        {
+                                                            <MudTooltip Text="Cancelar próximas tentativas"><MudIconButton Icon="@Icons.Material.Outlined.Close" Size="Size.Small" Color="Color.Error" Disabled="@IsJobBusy(job)" OnClick="@(() => CancelItemAsync(job, item))" /></MudTooltip>
+                                                        }
+                                                        @if (CanRetryItem(item.Status))
+                                                        {
+                                                            <MudTooltip Text="Reprocessar este item"><MudIconButton Icon="@Icons.Material.Outlined.Replay" Size="Size.Small" Color="Color.Primary" Disabled="@IsJobBusy(job)" OnClick="@(() => RetryItemAsync(job, item))" /></MudTooltip>
+                                                        }
+                                                    </span>
+                                                </div>
+                                            }
+                                        </section>
+                                    }
+                                </div>
+                            </details>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    </MudPaper>
 
     <div class="operations-grid operations-lower-grid">
         <MudPaper Class="content-panel" Elevation="0">
@@ -128,15 +262,36 @@ else
 @code {
     private bool _loading = true;
     private string? _error;
+    private string? _jobsError;
     private OperationalDashboardViewModel? _dashboard;
     private OperationalAlertSummaryViewModel? _alertSummary;
+    private List<AccessBatchOperationViewModel> _jobs = [];
+    private readonly CancellationTokenSource _refreshCancellation = new();
+    private string _jobFilter = "all";
+    private bool _jobsBusy;
+    private Guid? _busyJobId;
     private int AttentionCount => _alertSummary?.Active ?? 0;
+    private int ActiveJobCount => _jobs.Count(x => x.Status is "Queued" or "Running");
+    private int AttentionJobCount => _jobs.Count(x => x.Status is "CompletedWithErrors" or "Failed" or "DeadLetter");
+    private int FinishedJobCount => _jobs.Count(x => x.Status is "Completed" or "Canceled");
+    private IEnumerable<AccessBatchOperationViewModel> FilteredJobs => _jobFilter switch
+    {
+        "active" => _jobs.Where(x => x.Status is "Queued" or "Running"),
+        "attention" => _jobs.Where(x => x.Status is "CompletedWithErrors" or "Failed" or "DeadLetter"),
+        "completed" => _jobs.Where(x => x.Status is "Completed" or "Canceled"),
+        _ => _jobs
+    };
     private string AccessRateHint => _dashboard?.AccessEventCount > 0
         ? $"{_dashboard.AuthorizationRate:N1}% autorizados"
         : "Sem eventos no período";
     private int TrendMaximum => Math.Max(1, _dashboard?.AccessTrend.Max(x => Math.Max(x.Authorized, x.Denied)) ?? 1);
+    private bool HasAccessTrend => _dashboard?.AccessTrend.Any(x => x.Authorized > 0 || x.Denied > 0) == true;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _ = AutoRefreshAsync(_refreshCancellation.Token);
+    }
 
     private async Task LoadAsync()
     {
@@ -144,9 +299,11 @@ else
         _error = null;
         var dashboardTask = Api.GetOperationalDashboardAsync();
         var alertsTask = Api.GetOperationalAlertSummaryAsync();
-        await Task.WhenAll(dashboardTask, alertsTask);
+        var jobsTask = Api.GetOperationalAccessJobsAsync(take: 50);
+        await Task.WhenAll(dashboardTask, alertsTask, jobsTask);
         var result = await dashboardTask;
         var alerts = await alertsTask;
+        var jobs = await jobsTask;
         _loading = false;
         if (result.Success)
             _dashboard = result.Value;
@@ -154,6 +311,132 @@ else
             _error = result.Error;
         if (alerts.Success)
             _alertSummary = alerts.Value;
+        if (jobs.Success)
+            _jobs = jobs.Value ?? [];
+        else
+            _jobsError = jobs.Error;
+    }
+
+    private async Task RefreshJobsAsync()
+    {
+        if (_jobsBusy) return;
+        _jobsBusy = true;
+        _jobsError = null;
+        try
+        {
+            var result = await Api.GetOperationalAccessJobsAsync(take: 50);
+            if (result.Success)
+                _jobs = result.Value ?? [];
+            else
+                _jobsError = result.Error;
+        }
+        finally
+        {
+            _jobsBusy = false;
+        }
+    }
+
+    private async Task AutoRefreshAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (!_loading && !_jobsBusy)
+                    {
+                        await RefreshJobsAsync();
+                        StateHasChanged();
+                    }
+                });
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task CancelJobAsync(AccessBatchOperationViewModel job)
+    {
+        _busyJobId = job.Id;
+        var result = await Api.CancelReconciliationBatchAsync(job.LicenseId, job.Id);
+        _busyJobId = null;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível cancelar o processamento.", Severity.Error); return; }
+        Snackbar.Add("Processamento cancelado.", Severity.Info);
+        await RefreshJobsAsync();
+    }
+
+    private async Task RetryJobAsync(AccessBatchOperationViewModel job)
+    {
+        _busyJobId = job.Id;
+        var result = await Api.RetryReconciliationBatchAsync(job.LicenseId, job.Id);
+        _busyJobId = null;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível reprocessar as pendências.", Severity.Error); return; }
+        Snackbar.Add("Pendências reenviadas para processamento.", Severity.Success);
+        await RefreshJobsAsync();
+    }
+
+    private async Task CancelItemAsync(AccessBatchOperationViewModel job, AccessOperationItemViewModel item)
+    {
+        _busyJobId = job.Id;
+        var result = await Api.CancelReconciliationItemAsync(job.LicenseId, job.Id, item.Id);
+        _busyJobId = null;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível cancelar o item.", Severity.Error); return; }
+        Snackbar.Add("Item removido das próximas tentativas.", Severity.Info);
+        await RefreshJobsAsync();
+    }
+
+    private async Task RetryItemAsync(AccessBatchOperationViewModel job, AccessOperationItemViewModel item)
+    {
+        _busyJobId = job.Id;
+        var result = await Api.RetryReconciliationItemAsync(job.LicenseId, job.Id, item.Id);
+        _busyJobId = null;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível reprocessar o item.", Severity.Error); return; }
+        Snackbar.Add("Item reenviado para processamento.", Severity.Success);
+        await RefreshJobsAsync();
+    }
+
+    private void SetJobFilter(string filter) => _jobFilter = filter;
+    private bool IsJobBusy(AccessBatchOperationViewModel job) => _busyJobId == job.Id;
+    private static bool CanCancelJob(string status) => status is "Queued" or "Running";
+    private static bool CanRetryJob(string status) => status is "CompletedWithErrors" or "Failed" or "DeadLetter";
+    private static bool CanCancelItem(string status) => status is "Queued" or "WaitingDevice" or "Failed";
+    private static bool CanRetryItem(string status) => status is "WaitingDevice" or "Failed" or "DeadLetter";
+    private static int PendingItemCount(AccessBatchOperationViewModel job) => job.Items.Count(x => x.Status is "Queued" or "Running" or "WaitingDevice" or "Failed");
+    private static int DeviceCount(AccessBatchOperationViewModel job) => job.Items.Select(x => x.DeviceId).Distinct().Count();
+    private static double JobProgress(AccessBatchOperationViewModel job) => job.TotalItems <= 0 ? 0 : Math.Clamp(job.ProcessedItems * 100d / job.TotalItems, 0, 100);
+    private static IEnumerable<IGrouping<(Guid? Id, string Name), AccessOperationItemViewModel>> JobDevices(AccessBatchOperationViewModel job) => job.Items
+        .GroupBy(x => (Id: x.DeviceId, Name: string.IsNullOrWhiteSpace(x.DeviceName) ? "Equipamento não identificado" : x.DeviceName))
+        .OrderBy(x => x.Key.Name);
+    private static double DeviceProgress(IEnumerable<AccessOperationItemViewModel> items)
+    {
+        var list = items as ICollection<AccessOperationItemViewModel> ?? items.ToList();
+        return list.Count == 0 ? 0 : list.Count(x => x.Status is "Completed" or "Canceled" or "DeadLetter") * 100d / list.Count;
+    }
+    private static Color DeviceColor(IEnumerable<AccessOperationItemViewModel> items) => items.Any(x => x.Status is "Failed" or "DeadLetter") ? Color.Error : items.Any(x => x.Status == "WaitingDevice") ? Color.Warning : Color.Success;
+    private static int ItemPriority(string status) => status switch { "DeadLetter" => 5, "Failed" => 4, "WaitingDevice" => 3, "Running" => 2, "Queued" => 1, _ => 0 };
+    private static string JobTone(string status) => status switch { "Completed" => "success", "CompletedWithErrors" or "WaitingDevice" => "warning", "Failed" or "DeadLetter" => "error", "Running" => "running", "Canceled" => "neutral", _ => "queued" };
+    private static string JobIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.CheckCircle, "CompletedWithErrors" => Icons.Material.Outlined.WarningAmber, "Failed" or "DeadLetter" => Icons.Material.Outlined.ReportProblem, "Running" => Icons.Material.Outlined.Sync, "Canceled" => Icons.Material.Outlined.Cancel, _ => Icons.Material.Outlined.Schedule };
+    private static string ItemIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.CheckCircle, "Running" => Icons.Material.Outlined.Sync, "WaitingDevice" => Icons.Material.Outlined.CloudOff, "Failed" or "DeadLetter" => Icons.Material.Outlined.Error, "Canceled" => Icons.Material.Outlined.Cancel, _ => Icons.Material.Outlined.Schedule };
+    private static Color JobColor(string status) => status switch { "Completed" => Color.Success, "CompletedWithErrors" => Color.Warning, "Failed" or "DeadLetter" => Color.Error, "Running" => Color.Info, _ => Color.Default };
+    private static Color ItemColor(string status) => status switch { "Completed" => Color.Success, "Running" => Color.Info, "WaitingDevice" => Color.Warning, "Failed" or "DeadLetter" => Color.Error, _ => Color.Default };
+    private static string JobStatusLabel(string status) => status switch { "Completed" => "Concluída", "CompletedWithErrors" => "Concluída com pendências", "Failed" => "Falhou", "DeadLetter" => "Requer intervenção", "Running" => "Executando", "Canceled" => "Cancelada", _ => "Na fila" };
+    private static string ItemStatusLabel(string status) => status switch { "Completed" => "Concluído", "Running" => "Executando", "WaitingDevice" => "Aguardando terminal", "Failed" => "Falhou", "DeadLetter" => "Intervenção", "Canceled" => "Cancelado", _ => "Na fila" };
+    private static string OperationLabel(string operation) => operation switch { "Reconcile" => "Reconciliação de credenciais", "Restore" => "Restauração de credenciais", "Provision" => "Envio de credenciais", _ => "Operação de acesso" };
+    private static string ItemFeedback(AccessOperationItemViewModel item) => !string.IsNullOrWhiteSpace(item.Error) ? item.Error : item.NextAttemptAt.HasValue ? $"Nova tentativa {item.NextAttemptAt.Value.ToLocalTime():dd/MM HH:mm}" : $"{item.AttemptCount} tentativa(s)";
+
+    private RenderFragment JobFilterButton(string filter, string label, int count) => @<button type="button" class="@(_jobFilter == filter ? "active" : null)" @onclick="@(() => SetJobFilter(filter))"><span>@label</span><strong>@count</strong></button>;
+
+    public ValueTask DisposeAsync()
+    {
+        _refreshCancellation.Cancel();
+        _refreshCancellation.Dispose();
+        return ValueTask.CompletedTask;
     }
 
     private string BarHeight(int value) => $"height: {Math.Max(value > 0 ? 4 : 0, value * 100d / TrendMaximum):0.#}%";
@@ -161,6 +444,7 @@ else
     private static string AlertIcon(string type) => type switch
     {
         "DeviceOffline" => Icons.Material.Outlined.PortableWifiOff,
+        "CredentialRemovalOffline" => Icons.Material.Outlined.PersonOff,
         "BatchFailure" => Icons.Material.Outlined.SyncProblem,
         "CredentialExpired" => Icons.Material.Outlined.Badge,
         "BookingApproval" => Icons.Material.Outlined.EventAvailable,
@@ -193,6 +477,7 @@ else
         "Inspect" => "Verificação do equipamento",
         "RouteSimulation" => "Simulação de rotas",
         "Retry" => "Reprocessamento",
+        "Canceled" => "Cancelado",
         "Restore" or "Restored" => "Restaurado",
         "RouteOverride" => "Exceção de rota",
         "Trashed" => "Movido para a lixeira",

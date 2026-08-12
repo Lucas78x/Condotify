@@ -100,6 +100,41 @@ public sealed class MobileSessionCoordinatorTests
     }
 
     [Fact]
+    public async Task LoginUnified_DoesNotProbeResidentWhenStaffServiceFails()
+    {
+        var handler = new RecordingHandler(_ => Json(
+            new { result = "Failure" },
+            HttpStatusCode.InternalServerError));
+        var service = Create(handler, new MemoryVault());
+
+        var result = await service.LoginUnifiedAsync("usuario@example.com", "secret", "Android");
+
+        Assert.False(result.Success);
+        Assert.False(result.CredentialsRejected);
+        Assert.Equal(["/api/auth/login"], handler.Paths);
+    }
+
+    [Fact]
+    public async Task Login_RejectsSuccessfulResponseWithoutUserIdentity()
+    {
+        var vault = new MemoryVault();
+        var handler = new RecordingHandler(_ => Json(new
+        {
+            result = "Success",
+            accessToken = JwtWithoutSubject(DateTimeOffset.UtcNow.AddHours(1)),
+            refreshToken = "refresh",
+            expiresIn = 3600
+        }));
+        var service = Create(handler, vault);
+
+        var result = await service.LoginStaffAsync("staff@example.com", "secret", "Android");
+
+        Assert.False(result.Success);
+        Assert.False(service.IsAuthenticated);
+        Assert.Null(vault.Value);
+    }
+
+    [Fact]
     public async Task ForgotPassword_PostsToResidentForgotEndpoint()
     {
         var handler = new RecordingHandler(_ => Json(new { result = "Accepted" }, HttpStatusCode.Accepted));
@@ -207,6 +242,62 @@ public sealed class MobileSessionCoordinatorTests
     }
 
     [Fact]
+    public async Task Refresh_ClearsSessionWhenApiReturnsMalformedPayload()
+    {
+        var loginCompleted = false;
+        var vault = new MemoryVault();
+        var handler = new RecordingHandler(_ =>
+        {
+            if (loginCompleted)
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{not-json", Encoding.UTF8, "application/json")
+                };
+
+            loginCompleted = true;
+            return Json(new
+            {
+                result = "Success",
+                accessToken = Jwt(DateTimeOffset.UtcNow.AddSeconds(5)),
+                refreshToken = "refresh",
+                expiresIn = 5
+            });
+        });
+        var service = Create(handler, vault);
+        Assert.True((await service.LoginStaffAsync("a@b.com", "secret", "test")).Success);
+
+        var token = await service.GetAccessTokenAsync();
+
+        Assert.Null(token);
+        Assert.False(service.IsAuthenticated);
+        Assert.True(vault.Cleared);
+    }
+
+    [Fact]
+    public async Task Restore_ClearsSessionWithEmptySubject()
+    {
+        var vault = new MemoryVault();
+        vault.Seed(new MobileSession(
+            MobilePrincipalKind.Staff,
+            "token",
+            "refresh",
+            DateTimeOffset.UtcNow.AddHours(1),
+            Guid.Empty,
+            "Usuário",
+            "user@example.com",
+            null,
+            null,
+            string.Empty));
+        var service = Create(new RecordingHandler(_ => throw new InvalidOperationException()), vault);
+
+        await service.RestoreAsync();
+
+        Assert.False(service.IsAuthenticated);
+        Assert.Null(vault.Value);
+        Assert.True(vault.Cleared);
+    }
+
+    [Fact]
     public async Task Logout_ClearsLocalVaultWhenNetworkFails()
     {
         var vault = new MemoryVault();
@@ -273,6 +364,13 @@ public sealed class MobileSessionCoordinatorTests
         return $"{Part(new { alg = "none" })}.{Part(new { sub = (subjectId ?? Guid.NewGuid()).ToString(), name, license_id = licenseId, exp = expires.ToUnixTimeSeconds() })}.signature";
     }
 
+    private static string JwtWithoutSubject(DateTimeOffset expires)
+    {
+        static string Part(object value) => Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(value))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        return $"{Part(new { alg = "none" })}.{Part(new { name = "Usuário", exp = expires.ToUnixTimeSeconds() })}.signature";
+    }
+
     private sealed class SingleClientFactory(HttpClient client) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => client;
@@ -293,6 +391,7 @@ public sealed class MobileSessionCoordinatorTests
     {
         public MobileSession? Value { get; private set; }
         public bool Cleared { get; private set; }
+        public void Seed(MobileSession session) => Value = session;
         public Task<MobileSession?> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Value);
         public Task SaveAsync(MobileSession session, CancellationToken cancellationToken = default)
         {

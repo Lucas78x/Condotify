@@ -1,4 +1,6 @@
 using CondotifyAPI.Data.Operations;
+using CondotifyAPI.Data.AccessControl;
+using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.Enums.Resident;
 using CondotifyAPI.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
@@ -176,6 +178,51 @@ public sealed class OperationsController(
         return Ok(output);
     }
 
+    [HttpGet("access-jobs")]
+    public async Task<IActionResult> GetAccessJobs(
+        [FromQuery] Guid? licenseId,
+        [FromQuery] string? status,
+        [FromQuery] int take = 50)
+    {
+        var enterpriseClaim = User.FindFirstValue("enterprise_id");
+        if (!Guid.TryParse(enterpriseClaim, out var enterpriseId))
+            return Unauthorized();
+
+        var permissionMap = await authorization.GetLicensePermissionsAsync(User, HttpContext.RequestAborted);
+        var accessibleLicenseIds = PermissionScope(permissionMap, LicensePermissionEnum.ViewDashboard | LicensePermissionEnum.ViewCredentials);
+        if (licenseId.HasValue && !accessibleLicenseIds.Contains(licenseId.Value))
+            return NotFound();
+
+        var query = context.AccessBatchOperations.AsNoTracking()
+            .Include(x => x.License)
+            .Include(x => x.Items).ThenInclude(x => x.Device)
+            .Include(x => x.Items).ThenInclude(x => x.Credential).ThenInclude(x => x!.Resident)
+            .Where(x => x.License.EnterpriseId == enterpriseId && accessibleLicenseIds.Contains(x.LicenseId));
+
+        if (licenseId.HasValue)
+            query = query.Where(x => x.LicenseId == licenseId.Value);
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (status.Equals("active", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(x => x.Status == AccessBatchStatusEnum.Queued || x.Status == AccessBatchStatusEnum.Running);
+            else if (status.Equals("attention", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(x => x.Status == AccessBatchStatusEnum.Failed ||
+                                         x.Status == AccessBatchStatusEnum.DeadLetter ||
+                                         x.Status == AccessBatchStatusEnum.CompletedWithErrors);
+            else if (Enum.TryParse<AccessBatchStatusEnum>(status, true, out var parsedStatus))
+                query = query.Where(x => x.Status == parsedStatus);
+        }
+
+        var batches = await query
+            .OrderByDescending(x => x.Status == AccessBatchStatusEnum.Running)
+            .ThenByDescending(x => x.Status == AccessBatchStatusEnum.Queued)
+            .ThenByDescending(x => x.CreatedAt)
+            .Take(Math.Clamp(take, 1, 100))
+            .ToListAsync(HttpContext.RequestAborted);
+
+        return Ok(batches.Select(ToAccessBatchOut));
+    }
+
     [HttpGet("residents/search")]
     public async Task<IActionResult> SearchResidents(
         [FromQuery] string? query,
@@ -263,6 +310,42 @@ public sealed class OperationsController(
     }
 
     private static string Pattern(string value) => $"%{value.Trim()}%";
+
+    private static AccessBatchOperationOut ToAccessBatchOut(AccessBatchOperationDTO batch) => new()
+    {
+        Id = batch.Id,
+        LicenseId = batch.LicenseId,
+        LicenseName = batch.License.Name,
+        Operation = batch.Operation,
+        Status = batch.Status.ToString(),
+        TotalItems = batch.TotalItems,
+        ProcessedItems = batch.ProcessedItems,
+        SuccessfulItems = batch.SuccessfulItems,
+        FailedItems = batch.FailedItems,
+        Priority = batch.Priority,
+        AttemptCount = batch.AttemptCount,
+        MaxAttempts = batch.MaxAttempts,
+        RequestedBy = batch.RequestedBy,
+        Error = batch.Error,
+        CreatedAt = batch.CreatedAt,
+        StartedAt = batch.StartedAt,
+        FinishedAt = batch.FinishedAt,
+        NextAttemptAt = batch.NextAttemptAt,
+        Items = batch.Items.OrderBy(x => x.Device?.Name).Select(item => new AccessOperationItemOut
+        {
+            Id = item.Id,
+            CredentialId = item.CredentialId,
+            DeviceId = item.DeviceId,
+            CredentialName = item.Credential?.Resident?.Name ?? string.Empty,
+            DeviceName = item.Device?.Name ?? "Sem rota",
+            Action = item.Action,
+            Status = item.Status.ToString(),
+            AttemptCount = item.AttemptCount,
+            Error = item.Error,
+            NextAttemptAt = item.NextAttemptAt,
+            FinishedAt = item.FinishedAt
+        }).ToList()
+    };
 
     private static HashSet<Guid> PermissionScope(
         IReadOnlyDictionary<Guid, LicensePermissionEnum> permissions,

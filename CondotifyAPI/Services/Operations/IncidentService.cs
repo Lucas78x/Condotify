@@ -19,20 +19,23 @@ public sealed record IncidentCreationRequest(
     Guid? RelatedResourceId = null,
     DateTime? DueAt = null,
     IncidentTimelineTypeEnum TimelineType = IncidentTimelineTypeEnum.Created,
-    string MetadataJson = "{}");
+    string MetadataJson = "{}",
+    Guid? ActorResidentId = null,
+    string LocationLabel = "");
 
 public interface IIncidentService
 {
     Task<IncidentDTO> CreateAsync(IncidentCreationRequest request, CancellationToken cancellationToken = default);
 }
 
-public sealed class IncidentService(DatabaseContext context) : IIncidentService
+public sealed class IncidentService(DatabaseContext context, IMaintenanceService maintenance) : IIncidentService
 {
     public async Task<IncidentDTO> CreateAsync(
         IncidentCreationRequest request,
         CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
+        var sla = await maintenance.CalculateSlaAsync(request.LicenseId, request.Severity, now, cancellationToken);
         var codeSuffix = Guid.NewGuid().ToString("N")[..12];
         var incident = new IncidentDTO
         {
@@ -48,8 +51,12 @@ public sealed class IncidentService(DatabaseContext context) : IIncidentService
             RelatedResourceType = Short(request.RelatedResourceType.Trim(), 80),
             RelatedResourceId = request.RelatedResourceId,
             ReportedByUserId = request.ActorUserId,
+            ReportedByResidentId = request.ActorResidentId,
             ReportedByName = Short(request.ActorName.Trim(), 150),
+            LocationLabel = Short(request.LocationLabel.Trim(), 240),
             DueAt = request.DueAt?.ToUniversalTime(),
+            SlaResponseDueAt = sla.ResponseDueAt,
+            SlaResolutionDueAt = sla.ResolutionDueAt,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -64,6 +71,7 @@ public sealed class IncidentService(DatabaseContext context) : IIncidentService
             MetadataJson = ValidJson(request.MetadataJson),
             ActorUserId = request.ActorUserId,
             ActorName = incident.ReportedByName,
+            VisibleToResident = request.ActorResidentId.HasValue,
             CreatedAt = now
         });
         context.Incidents.Add(incident);

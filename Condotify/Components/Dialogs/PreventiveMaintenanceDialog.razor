@@ -1,0 +1,33 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog">
+    <TitleContent><div class="dialog-title-block"><MudIcon Icon="@Icons.Material.Outlined.EventRepeat" /><div><MudText Typo="Typo.h6">@(_plan is null ? "Novo plano preventivo" : "Editar plano preventivo")</MudText><MudText Typo="Typo.caption">A plataforma criará a OS automaticamente antes do vencimento.</MudText></div></div></TitleContent>
+    <DialogContent><MudStack Spacing="2">
+        <MudTextField @bind-Value="_form.Name" Label="Manutenção" Variant="Variant.Outlined" Immediate Required />
+        <MudTextField @bind-Value="_form.Description" Label="Descrição" Variant="Variant.Outlined" Immediate Lines="3" />
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_form.LocationLabel" Label="Equipamento ou local" Variant="Variant.Outlined" Immediate /></MudItem>
+            <MudItem xs="12" sm="6"><MudDatePicker Date="_form.NextDueAt" DateChanged="@(value => _form.NextDueAt = value ?? _form.NextDueAt)" Label="Próxima execução" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="4"><MudNumericField T="int" @bind-Value="_form.IntervalDays" Label="Repetir a cada (dias)" Variant="Variant.Outlined" Min="1" /></MudItem>
+            <MudItem xs="12" sm="4"><MudNumericField T="int" @bind-Value="_form.LeadDays" Label="Criar com antecedência" Variant="Variant.Outlined" Min="0" /></MudItem>
+            <MudItem xs="12" sm="4"><MudNumericField T="decimal" @bind-Value="_form.EstimatedCost" Label="Custo estimado" Variant="Variant.Outlined" Min="0" Adornment="Adornment.Start" AdornmentText="R$" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_form.DefaultAssignedToName" Label="Responsável padrão" Variant="Variant.Outlined" Immediate /></MudItem>
+            <MudItem xs="12" sm="6"><MudSelect T="Guid?" @bind-Value="_form.DefaultProviderId" Label="Prestador padrão" Variant="Variant.Outlined" Clearable><MudSelectItem T="Guid?" Value="null">Sem prestador</MudSelectItem>@foreach (var item in _providers.Where(x => x.IsActive)) { <MudSelectItem T="Guid?" Value="@((Guid?)item.Id)">@item.Name</MudSelectItem> }</MudSelect></MudItem>
+        </MudGrid>
+        <MudTextField @bind-Value="_checklist" Label="Checklist modelo" HelperText="Um item por linha; use * para obrigatório." Variant="Variant.Outlined" Immediate Lines="4" />
+        <MudSwitch T="bool" @bind-Value="_form.IsActive" Color="Color.Success">Geração automática ativa</MudSwitch>
+    </MudStack></DialogContent>
+    <DialogActions><MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SaveAsync">Salvar plano</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public PreventiveMaintenancePlanViewModel? Value { get; set; }
+    private PreventiveMaintenancePlanViewModel? _plan; private readonly PreventiveMaintenancePlanFormViewModel _form = new();
+    private List<MaintenanceProviderViewModel> _providers = []; private string _checklist = "* Inspeção visual\n* Teste de funcionamento\nRegistrar observações"; private bool _saving;
+    protected override async Task OnInitializedAsync() { _plan = Value; var providers = await Api.GetMaintenanceProvidersAsync(LicenseId); if (providers.Success) _providers = providers.Value ?? []; if (Value is not null) { _form.Name = Value.Name; _form.Description = Value.Description; _form.LocationLabel = Value.LocationLabel; _form.IntervalDays = Value.IntervalDays; _form.LeadDays = Value.LeadDays; _form.NextDueAt = Value.NextDueAt; _form.DefaultProviderId = Value.DefaultProviderId; _form.DefaultAssignedToName = Value.DefaultAssignedToName; _form.EstimatedCost = Value.EstimatedCost; _form.IsActive = Value.IsActive; _checklist = string.Join('\n', Value.Checklist.Select(x => $"{(x.IsRequired ? "* " : "")}{x.Title}")); } }
+    private async Task SaveAsync() { if (string.IsNullOrWhiteSpace(_form.Name)) { Snackbar.Add("Informe o nome do plano.", Severity.Warning); return; } _form.Checklist = _checklist.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => new WorkOrderChecklistInputViewModel { IsRequired = x.StartsWith('*'), Title = x.TrimStart('*', ' ') }).ToList(); _saving = true; var result = await Api.SavePreventiveMaintenancePlanAsync(LicenseId, _plan?.Id, _form); _saving = false; if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao salvar plano.", Severity.Error); return; } Snackbar.Add("Plano preventivo salvo.", Severity.Success); Dialog.Close(DialogResult.Ok(result.Value)); }
+    private void Cancel() => Dialog.Cancel();
+}

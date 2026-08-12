@@ -88,6 +88,8 @@
 
     private string Validate()
     {
+        if (LicenseId == Guid.Empty || ResidentId == Guid.Empty || _model.UnitId == Guid.Empty)
+            return "Não foi possível identificar o morador e sua unidade. Atualize a página e tente novamente.";
         if (string.IsNullOrWhiteSpace(_model.Plate)) return "Informe a placa do veículo.";
         if (_model.Plate.Length is < 7 or > 8) return "Confira a placa informada.";
         return MobileAccessPresentation.ValidateTagHex(_model.TagIdentifier);

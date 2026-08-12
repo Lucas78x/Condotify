@@ -17,38 +17,79 @@ else if (_license is null)
 }
 else
 {
-    <PageHeader Title="@_license.Name" Subtitle="@($"{_license.Code} | {_license.City} | Válida até {_license.ExpireDate:dd/MM/yyyy}")" Eyebrow="AMBIENTE DO CONDOMÍNIO">
-        <Actions>
-            <MudChip T="string" Color="@(_license.IsExpired ? Color.Error : Color.Success)" Variant="Variant.Outlined" Icon="@(_license.IsExpired ? Icons.Material.Outlined.EventBusy : Icons.Material.Outlined.Verified)">@_license.Status</MudChip>
-            <MudButton Href="/licencas" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.ArrowBack">Condomínios</MudButton>
-        </Actions>
-    </PageHeader>
+    <nav class="workspace-breadcrumbs" aria-label="Navegação estrutural">
+        <a href="/licencas">Condomínios</a>
+        <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Size="Size.Small" />
+        <span>@_license.Name</span>
+    </nav>
 
-    <div class="workspace-nav-shell">
-        <nav class="workspace-nav" aria-label="Módulos do condomínio">
-            @if (Has(LicensePermission.ViewDashboard))
-            {
-                <div class="workspace-nav-pinned">@NavButton(PinnedTab.Section, PinnedTab.Label, PinnedTab.Icon)</div>
-                <span class="workspace-nav-sep"></span>
-            }
-            @foreach (var (groupLabel, tabs) in TabGroups)
-            {
-                var visible = tabs.Where(t => (t.Section == "administracao" ? AdministracaoVisible : Has(t.Permission)) && IsModuleEnabled(t.Module)).ToList();
-                if (visible.Count > 0)
-                {
-                    <div class="workspace-nav-group">
-                        <span class="workspace-nav-group-label">@groupLabel</span>
-                        @foreach (var tab in visible)
-                        {
-                            @NavButton(tab.Section, tab.Label, tab.Icon)
-                        }
+    <section class="@WorkspaceHeroCss">
+        <div class="workspace-hero-top">
+            <div class="workspace-hero-copy">
+                <span class="workspace-property-mark" aria-hidden="true">
+                    <MudIcon Icon="@Icons.Material.Outlined.Apartment" />
+                </span>
+                <div class="workspace-hero-copy-text">
+                    <MudText Typo="Typo.overline" Class="workspace-eyebrow">AMBIENTE DO CONDOMÍNIO</MudText>
+                    <MudText Typo="Typo.h1" HtmlTag="h1" Class="workspace-title">@_license.Name</MudText>
+                    <div class="workspace-metadata">
+                        <span>@_license.Code</span>
+                        <span aria-hidden="true">•</span>
+                        <span>@LocationLabel</span>
+                        <span aria-hidden="true">•</span>
+                        <span>Válido até @_license.ExpireDate.ToString("dd/MM/yyyy")</span>
                     </div>
-                }
+                </div>
+            </div>
+            <div class="workspace-hero-controls">
+                <div class="workspace-hero-status">
+                    <MudChip T="string" Color="@(_license.IsExpired ? Color.Error : Color.Success)" Variant="Variant.Outlined" Icon="@(_license.IsExpired ? Icons.Material.Outlined.EventBusy : Icons.Material.Outlined.Verified)">@_license.Status</MudChip>
+                    <MudButton Href="/licencas" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.ArrowBack">Condomínios</MudButton>
+                </div>
+                <div class="workspace-hero-actions">
+                    @if (Has(LicensePermission.ViewStructure))
+                    {
+                        <MudButton Href="@($"/licencas/{LicenseId}/estrutura")" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AutoAwesome">@(_license.TotalBlocks == 0 ? "Configurar condomínio" : "Abrir estrutura")</MudButton>
+                    }
+                    @if (AdministracaoVisible)
+                    {
+                        <MudButton Href="@($"/licencas/{LicenseId}/administracao")" Variant="Variant.Outlined" Color="@(CurrentSection == "administracao" ? Color.Primary : Color.Default)" StartIcon="@Icons.Material.Outlined.Tune">Administrar</MudButton>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <nav class="workspace-area-nav" aria-label="Áreas do condomínio">
+            @foreach (var area in VisibleAreas)
+            {
+                <button type="button" class="@AreaCss(area)" aria-current="@(IsAreaActive(area) ? "page" : null)" @onclick="@(() => NavigateToArea(area))">
+                    <span class="workspace-area-icon" aria-hidden="true">
+                        <MudIcon Icon="@area.Icon" Size="Size.Small" />
+                    </span>
+                    <span class="workspace-area-label">@area.Label</span>
+                </button>
             }
         </nav>
-    </div>
 
-    @if (!SectionAllowed(CurrentSection))
+        @if (CurrentAreaTabs.Count > 1)
+        {
+            <nav class="workspace-subnav" aria-label="Módulos de @CurrentArea?.Label">
+                @foreach (var tab in CurrentAreaTabs)
+                {
+                    <button type="button" class="@(CurrentSection == tab.Section ? "workspace-subnav-item is-active" : "workspace-subnav-item")" aria-current="@(CurrentSection == tab.Section ? "page" : null)" @onclick="@(() => NavigateTo(tab.Section))">
+                        <MudIcon Icon="@tab.Icon" Size="Size.Small" />
+                        <span>@tab.Label</span>
+                    </button>
+                }
+            </nav>
+        }
+    </section>
+
+    @if (!IsModuleEnabled(ModuleFor(CurrentSection)))
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.ToggleOff">Este módulo está desativado neste condomínio. Os dados permanecem preservados e voltarão a aparecer quando ele for reativado.</MudAlert>
+    }
+    else if (!SectionAllowed(CurrentSection))
     {
         <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.Lock">Seu perfil não possui permissão para acessar este módulo.</MudAlert>
     }
@@ -56,11 +97,14 @@ else
     {
         @switch (CurrentSection)
         {
+            case "relatorios":
+                <ReportsModule LicenseId="LicenseId" />
+                break;
             case "equipamentos":
                 <DevicesModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDevices)" CanOperate="@Has(LicensePermission.OperateDevices)" />
                 break;
             case "cameras":
-                <CamerasModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDevices)" />
+                <CamerasModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDevices)" CanOperate="@Has(LicensePermission.OperateDevices)" />
                 break;
             case "rotas":
                 <AccessRoutesModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDevices)" />
@@ -76,6 +120,9 @@ else
                 break;
             case "boletos":
                 <BoletosModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageFinance)" />
+                break;
+            case "financeiro":
+                <FinancialManagementModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageFinance)" />
                 break;
             case "documentos":
                 <DocumentsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDocuments)" />
@@ -107,32 +154,36 @@ else
     [Parameter] public string? Section { get; set; }
 
     private sealed record WorkspaceTab(string Section, string Label, string Icon, LicensePermission Permission, Condotify.Models.LicenseModuleEnum? Module = null);
+    private sealed record WorkspaceArea(string Label, string Icon, WorkspaceTab[] Tabs);
 
-    private static readonly WorkspaceTab PinnedTab =
-        new("visao-geral", "Visão geral", Icons.Material.Outlined.Dashboard, LicensePermission.ViewDashboard);
-
-    private static readonly (string GroupLabel, WorkspaceTab[] Tabs)[] TabGroups =
+    private static readonly WorkspaceArea[] WorkspaceAreas =
     [
-        ("Monitoramento", [
-            new("cameras", "Câmeras", Icons.Material.Outlined.Videocam, LicensePermission.ViewDevices, Condotify.Models.LicenseModuleEnum.Cameras),
+        new("Visão geral", Icons.Material.Outlined.Dashboard, [
+            new("visao-geral", "Visão geral", Icons.Material.Outlined.Dashboard, LicensePermission.ViewDashboard),
+            new("relatorios", "Relatórios", Icons.Material.Outlined.Insights, LicensePermission.ViewDashboard),
+        ]),
+        new("Estrutura", Icons.Material.Outlined.AccountTree, [
+            new("estrutura", "Estrutura", Icons.Material.Outlined.AccountTree, LicensePermission.ViewStructure),
+        ]),
+        new("Acessos", Icons.Material.Outlined.Fingerprint, [
+            new("credenciais", "Credenciais", Icons.Material.Outlined.Badge, LicensePermission.ViewCredentials),
             new("equipamentos", "Equipamentos", Icons.Material.Outlined.Sensors, LicensePermission.ViewDevices, Condotify.Models.LicenseModuleEnum.Devices),
             new("rotas", "Rotas", Icons.Material.Outlined.AltRoute, LicensePermission.ViewDevices, Condotify.Models.LicenseModuleEnum.Routes),
         ]),
-        ("Operação", [
-            new("ocorrencias", "Ocorrências", Icons.Material.Outlined.AssignmentLate, LicensePermission.ViewIncidents, Condotify.Models.LicenseModuleEnum.Incidents),
+        new("Segurança", Icons.Material.Outlined.Shield, [
+            new("cameras", "Câmeras", Icons.Material.Outlined.Videocam, LicensePermission.ViewDevices, Condotify.Models.LicenseModuleEnum.Cameras),
+            new("ocorrencias", "Manutenção", Icons.Material.Outlined.HomeRepairService, LicensePermission.ViewIncidents, Condotify.Models.LicenseModuleEnum.Incidents),
             new("automacoes", "Automações", Icons.Material.Outlined.AutoAwesome, LicensePermission.ViewAutomations, Condotify.Models.LicenseModuleEnum.Automations),
             new("emergencia", "Emergência", Icons.Material.Outlined.HealthAndSafety, LicensePermission.ViewEmergency, Condotify.Models.LicenseModuleEnum.Emergency),
+        ]),
+        new("Comunidade", Icons.Material.Outlined.Forum, [
             new("agendamento", "Agendamento", Icons.Material.Outlined.Deck, LicensePermission.ViewBookings, Condotify.Models.LicenseModuleEnum.Bookings),
             new("comunicados", "Comunicados", Icons.Material.Outlined.Campaign, LicensePermission.ManageAnnouncements, Condotify.Models.LicenseModuleEnum.Announcements),
         ]),
-        ("Financeiro & Documentos", [
-            new("boletos", "Boletos", Icons.Material.Outlined.ReceiptLong, LicensePermission.ManageFinance, Condotify.Models.LicenseModuleEnum.Finance),
+        new("Financeiro", Icons.Material.Outlined.AccountBalanceWallet, [
+            new("financeiro", "Gestão", Icons.Material.Outlined.AccountBalanceWallet, LicensePermission.ViewFinance, Condotify.Models.LicenseModuleEnum.Finance),
+            new("boletos", "Boletos", Icons.Material.Outlined.ReceiptLong, LicensePermission.ViewFinance, Condotify.Models.LicenseModuleEnum.Finance),
             new("documentos", "Documentos", Icons.Material.Outlined.Description, LicensePermission.ManageDocuments, Condotify.Models.LicenseModuleEnum.Documents),
-        ]),
-        ("Configuração", [
-            new("estrutura", "Estrutura", Icons.Material.Outlined.AccountTree, LicensePermission.ViewStructure),
-            new("credenciais", "Credenciais", Icons.Material.Outlined.Badge, LicensePermission.ViewCredentials),
-            new("administracao", "Administração", Icons.Material.Outlined.AdminPanelSettings, LicensePermission.ViewUsers),
         ]),
     ];
 
@@ -153,7 +204,7 @@ else
         : Has(LicensePermission.ViewAutomations) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Automations) ? "automacoes"
         : Has(LicensePermission.ViewEmergency) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Emergency) ? "emergencia"
         : Has(LicensePermission.ViewBookings) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Bookings) ? "agendamento"
-        : Has(LicensePermission.ManageFinance) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Finance) ? "boletos"
+        : Has(LicensePermission.ViewFinance) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Finance) ? "financeiro"
         : Has(LicensePermission.ManageDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents) ? "documentos"
         : Has(LicensePermission.ManageAnnouncements) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Announcements) ? "comunicados"
         : Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts) ? "administracao"
@@ -174,17 +225,6 @@ else
         if (administration.Success) _administration = administration.Value;
     }
 
-    private RenderFragment NavButton(string section, string text, string icon) => builder =>
-    {
-        builder.OpenComponent<MudButton>(0);
-        builder.AddAttribute(1, nameof(MudButton.Variant), CurrentSection == section ? Variant.Filled : Variant.Text);
-        builder.AddAttribute(2, nameof(MudButton.Color), CurrentSection == section ? Color.Primary : Color.Default);
-        builder.AddAttribute(3, nameof(MudButton.StartIcon), icon);
-        builder.AddAttribute(4, nameof(MudButton.OnClick), EventCallback.Factory.Create<MouseEventArgs>(this, () => Navigation.NavigateTo($"/licencas/{LicenseId}/{section}")));
-        builder.AddAttribute(5, nameof(MudButton.ChildContent), (RenderFragment)(content => content.AddContent(0, text)));
-        builder.CloseComponent();
-    };
-
     private bool Has(LicensePermission permission) => _administration?.CurrentAccess.Has(permission) == true;
 
     private bool IsModuleEnabled(Condotify.Models.LicenseModuleEnum? module) =>
@@ -194,9 +234,41 @@ else
         Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) ||
         Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts);
 
+    private string LocationLabel => string.IsNullOrWhiteSpace(_license?.City)
+        ? "Localização não informada"
+        : string.IsNullOrWhiteSpace(_license.State) ? _license.City : $"{_license.City}, {_license.State}";
+
+    private IEnumerable<WorkspaceArea> VisibleAreas => WorkspaceAreas.Where(area => VisibleTabs(area).Count > 0);
+
+    private WorkspaceArea? CurrentArea => WorkspaceAreas.FirstOrDefault(IsAreaActive);
+
+    private string WorkspaceHeroCss => CurrentSection == "visao-geral"
+        ? "workspace-hero"
+        : "workspace-hero workspace-hero-compact";
+
+    private IReadOnlyList<WorkspaceTab> CurrentAreaTabs => CurrentArea is null ? [] : VisibleTabs(CurrentArea);
+
+    private IReadOnlyList<WorkspaceTab> VisibleTabs(WorkspaceArea area) => area.Tabs
+        .Where(tab => Has(tab.Permission) && IsModuleEnabled(tab.Module))
+        .ToList();
+
+    private bool IsAreaActive(WorkspaceArea area) => area.Tabs.Any(tab => tab.Section == CurrentSection);
+
+    private string AreaCss(WorkspaceArea area) => IsAreaActive(area)
+        ? "workspace-area-item is-active"
+        : "workspace-area-item";
+
+    private void NavigateToArea(WorkspaceArea area)
+    {
+        var target = VisibleTabs(area).FirstOrDefault()?.Section;
+        if (!string.IsNullOrWhiteSpace(target)) NavigateTo(target);
+    }
+
+    private void NavigateTo(string section) => Navigation.NavigateTo($"/licencas/{LicenseId}/{section}");
+
     private bool SectionAllowed(string section) => IsModuleEnabled(ModuleFor(section)) && section switch
     {
-        "visao-geral" => Has(LicensePermission.ViewDashboard),
+        "visao-geral" or "relatorios" => Has(LicensePermission.ViewDashboard),
         "equipamentos" or "rotas" or "cameras" => Has(LicensePermission.ViewDevices),
         "estrutura" => Has(LicensePermission.ViewStructure),
         "credenciais" => Has(LicensePermission.ViewCredentials),
@@ -204,7 +276,7 @@ else
         "automacoes" => Has(LicensePermission.ViewAutomations),
         "emergencia" => Has(LicensePermission.ViewEmergency),
         "agendamento" => Has(LicensePermission.ViewBookings),
-        "boletos" => Has(LicensePermission.ManageFinance),
+        "financeiro" or "boletos" => Has(LicensePermission.ViewFinance),
         "documentos" => Has(LicensePermission.ManageDocuments),
         "comunicados" => Has(LicensePermission.ManageAnnouncements),
         "administracao" => Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts),
@@ -220,7 +292,7 @@ else
         "automacoes" => Condotify.Models.LicenseModuleEnum.Automations,
         "emergencia" => Condotify.Models.LicenseModuleEnum.Emergency,
         "agendamento" => Condotify.Models.LicenseModuleEnum.Bookings,
-        "boletos" => Condotify.Models.LicenseModuleEnum.Finance,
+        "financeiro" or "boletos" => Condotify.Models.LicenseModuleEnum.Finance,
         "documentos" => Condotify.Models.LicenseModuleEnum.Documents,
         "comunicados" => Condotify.Models.LicenseModuleEnum.Announcements,
         _ => null

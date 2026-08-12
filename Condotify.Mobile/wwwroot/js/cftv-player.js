@@ -44,10 +44,14 @@ window.condotifyCftv = (() => {
 
         const peer = new RTCPeerConnection();
         const controller = new AbortController();
+        const remoteStream = new MediaStream();
         sessions.set(elementId, { peer, video, controller });
         peer.addTransceiver("video", { direction: "recvonly" });
+        peer.addTransceiver("audio", { direction: "recvonly" });
         peer.ontrack = event => {
-            video.srcObject = event.streams[0] ?? new MediaStream([event.track]);
+            if (!remoteStream.getTracks().some(track => track.id === event.track.id))
+                remoteStream.addTrack(event.track);
+            video.srcObject = remoteStream;
         };
 
         try {
@@ -74,8 +78,17 @@ window.condotifyCftv = (() => {
 
             await peer.setRemoteDescription({ type: "answer", sdp: answer });
             await waitForConnection(peer);
-            video.muted = true;
-            await video.play();
+            video.muted = false;
+            video.volume = 1;
+            try {
+                await video.play();
+                return true;
+            } catch (error) {
+                if (error?.name !== "NotAllowedError") throw error;
+                video.muted = true;
+                await video.play();
+                return false;
+            }
         } catch (error) {
             const current = sessions.get(elementId);
             if (current?.peer === peer) sessions.delete(elementId);

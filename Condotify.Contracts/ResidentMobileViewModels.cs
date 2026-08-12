@@ -79,5 +79,26 @@ public sealed class ResidentVisitFormViewModel
     public DateTime ValidFrom { get; set; } = DateTime.Now;
     public DateTime ValidTo { get; set; } = DateTime.Now.AddHours(4);
     public int? MaxUses { get; set; } = 1;
+    public int CredentialType { get; set; } = 2;
+    public bool CreateFacialInvite { get; set; }
+    public List<Guid> RouteIds { get; set; } = [];
     public string IdempotencyKey { get; set; } = Guid.NewGuid().ToString("N");
+}
+
+public sealed class ResidentVisitOptionsViewModel
+{
+    public bool FacialInviteAvailable { get; set; }
+    public List<ResidentVisitRouteViewModel> Routes { get; set; } = [];
+}
+
+public sealed class ResidentVisitRouteViewModel
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int DaysOfWeekMask { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public int DeviceCount { get; set; }
+    public int OnlineDeviceCount { get; set; }
+    public bool SupportsFace { get; set; }
 }

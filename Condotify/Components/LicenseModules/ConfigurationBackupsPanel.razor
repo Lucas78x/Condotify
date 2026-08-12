@@ -91,7 +91,7 @@
                 @foreach (var item in _items)
                 {
                     <article class="backup-version-row">
-                        <span class="backup-version-badge">v@item.Version</span>
+                        <span class="backup-version-badge">v@(item.Version)</span>
                         <div class="backup-version-main">
                             <div><strong>@item.Name</strong>@if (item.Version == _items.Max(x => x.Version)) { <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">Atual</MudChip> }</div>
                             <span>@(string.IsNullOrWhiteSpace(item.Description) ? "Sem observação" : item.Description)</span>

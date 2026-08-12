@@ -1,0 +1,106 @@
+<MudDialog Class="entity-dialog entity-dialog-wide financial-recurring-dialog">
+    <DialogContent>
+        <div class="financial-dialog-intro recurring">
+            <span><MudIcon Icon="@Icons.Material.Outlined.EventRepeat" /></span>
+            <div><strong>Cobrança mensal automática</strong><p>Uma única regra gera lançamentos idempotentes por competência e unidade.</p></div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+
+        <div class="financial-form-grid">
+            <MudTextField T="string" @bind-Value="_model.Name" Label="Nome da regra*" Variant="Variant.Outlined" Class="span-2" />
+            <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success" Label="Regra ativa" />
+            <MudSwitch T="bool" @bind-Value="_model.AllUnits" Color="Color.Primary" Label="Todas as unidades" />
+        </div>
+
+        @if (!_model.AllUnits)
+        {
+            <section class="financial-dialog-units recurring-units">
+                <div class="financial-dialog-label"><strong>Unidades incluídas</strong><button type="button" @onclick="ToggleAll">@(_model.UnitIds.Count == Units.Count ? "Limpar" : "Selecionar todas")</button></div>
+                <div class="financial-unit-options">
+                    @foreach (var unit in Units)
+                    {
+                        <MudCheckBox T="bool" Value="@_model.UnitIds.Contains(unit.Id)" ValueChanged="@(selected => ToggleUnit(unit.Id, selected))" Label="@unit.Label" Color="Color.Primary" />
+                    }
+                </div>
+            </section>
+        }
+
+        <div class="financial-form-grid schedule-grid">
+            <MudNumericField T="int" @bind-Value="_model.GenerationDay" Label="Gerar no dia*" Variant="Variant.Outlined" Min="1" Max="28" />
+            <MudNumericField T="int" @bind-Value="_model.DueDay" Label="Vencer no dia*" Variant="Variant.Outlined" Min="1" Max="28" />
+            <MudTextField T="string" @bind-Value="_model.StartMonth" Label="Iniciar em*" Placeholder="AAAA-MM" Variant="Variant.Outlined" />
+            <MudTextField T="string" @bind-Value="_model.EndMonth" Label="Encerrar em" Placeholder="Opcional · AAAA-MM" Variant="Variant.Outlined" />
+        </div>
+
+        <section class="recurring-template-panel">
+            <div><strong>Texto do lançamento</strong><span>Use os campos dinâmicos para manter cada competência identificada.</span></div>
+            <div class="recurring-token-row"><span>{competencia}</span><span>{mes}</span><span>{ano}</span><span>{unidade}</span></div>
+            <MudTextField T="string" @bind-Value="_model.ReferenceTemplate" Label="Referência*" Variant="Variant.Outlined" />
+            <MudTextField T="string" @bind-Value="_model.Description" Label="Descrição*" Variant="Variant.Outlined" />
+        </section>
+
+        <div class="financial-form-grid financial-money-grid">
+            <MudNumericField T="decimal" @bind-Value="_model.BaseAmount" Label="Valor base*" Variant="Variant.Outlined" Min="0" Format="N2" />
+            <MudNumericField T="decimal" @bind-Value="_model.FineAmount" Label="Multa informativa" Variant="Variant.Outlined" Min="0" Format="N2" />
+            <MudNumericField T="decimal" @bind-Value="_model.InterestAmount" Label="Juros informativos" Variant="Variant.Outlined" Min="0" Format="N2" />
+            <MudNumericField T="decimal" @bind-Value="_model.DiscountAmount" Label="Desconto" Variant="Variant.Outlined" Min="0" Format="N2" />
+        </div>
+        <MudTextField T="string" @bind-Value="_model.Notes" Label="Observações internas" Variant="Variant.Outlined" Lines="2" />
+        <div class="financial-total-preview"><span>Total gerencial por unidade</span><strong>@Money(Total)</strong></div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" OnClick="Save">Salvar regra</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter] public FinancialRecurringRuleViewModel? Existing { get; set; }
+    [Parameter] public List<FinancialUnitOptionViewModel> Units { get; set; } = [];
+    private UpsertFinancialRecurringRuleViewModel _model = new();
+    private string _error = string.Empty;
+    private decimal Total => FinancialChargeCalculator.Total(_model.BaseAmount, _model.FineAmount, _model.InterestAmount, _model.DiscountAmount);
+
+    protected override void OnInitialized()
+    {
+        if (Existing is null)
+        {
+            _model.StartMonth = DateTime.Today.ToString("yyyy-MM");
+            return;
+        }
+        _model = new UpsertFinancialRecurringRuleViewModel
+        {
+            Name = Existing.Name, AllUnits = Existing.AllUnits, UnitIds = Existing.UnitIds.ToList(),
+            GenerationDay = Existing.GenerationDay, DueDay = Existing.DueDay, StartMonth = Existing.StartMonth,
+            EndMonth = Existing.EndMonth, ReferenceTemplate = Existing.ReferenceTemplate, Description = Existing.Description,
+            BaseAmount = Existing.BaseAmount, FineAmount = Existing.FineAmount, InterestAmount = Existing.InterestAmount,
+            DiscountAmount = Existing.DiscountAmount, Notes = Existing.Notes, IsActive = Existing.IsActive
+        };
+    }
+
+    private void ToggleUnit(Guid id, bool selected)
+    {
+        if (selected && !_model.UnitIds.Contains(id)) _model.UnitIds.Add(id);
+        else if (!selected) _model.UnitIds.Remove(id);
+    }
+    private void ToggleAll() => _model.UnitIds = _model.UnitIds.Count == Units.Count ? [] : Units.Select(x => x.Id).ToList();
+    private void Cancel() => Dialog.Cancel();
+    private void Save()
+    {
+        _error = string.Empty;
+        if (string.IsNullOrWhiteSpace(_model.Name) || string.IsNullOrWhiteSpace(_model.StartMonth) ||
+            string.IsNullOrWhiteSpace(_model.ReferenceTemplate) || string.IsNullOrWhiteSpace(_model.Description))
+            _error = "Preencha os campos obrigatórios.";
+        else if (!_model.AllUnits && _model.UnitIds.Count == 0) _error = "Selecione ao menos uma unidade.";
+        else if (_model.GenerationDay is < 1 or > 28 || _model.DueDay is < 1 or > 28) _error = "Use dias entre 1 e 28.";
+        else if (Total <= 0) _error = "O total por unidade deve ser maior que zero.";
+        if (!string.IsNullOrWhiteSpace(_error)) return;
+        Dialog.Close(DialogResult.Ok(_model));
+    }
+    private static string Money(decimal value) => value.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+}

@@ -553,11 +553,40 @@ public class LicenseStructureController : ControllerBase
                 IpAddress = x.IpAddress,
                 HTTPPort = x.HTTPPort,
                 RTSPPort = x.RTSPPort,
+                UserName = x.Username,
+                IpType = (int)x.IpType,
+                Proportion = (int)x.Proportion,
+                Mark = (int)x.Mark,
+                DeviceTypeValue = (int)x.DeviceType,
                 DeviceType = x.DeviceType.ToString(),
                 MaxChannels = x.MaxChannels,
                 ResidentVisible = x.ResidentVisible
             })
             .ToListAsync();
+
+        var accessActions = await _context.Devices
+            .AsNoTracking()
+            .Where(x => x.LicenseId == licenseId && x.LprCameraId.HasValue && x.LprDoorChannel.HasValue)
+            .Select(x => new
+            {
+                CameraId = x.LprCameraId!.Value,
+                Action = new CftvAccessActionOut
+                {
+                    DeviceId = x.Id,
+                    DeviceName = x.Name,
+                    Channel = x.LprDoorChannel!.Value,
+                    IsOnline = x.IsActive
+                }
+            })
+            .ToListAsync();
+
+        foreach (var device in devices)
+            device.AccessActions = accessActions
+                .Where(x => x.CameraId == device.Id)
+                .Select(x => x.Action)
+                .OrderBy(x => x.DeviceName)
+                .ThenBy(x => x.Channel)
+                .ToList();
 
         return Ok(devices);
     }

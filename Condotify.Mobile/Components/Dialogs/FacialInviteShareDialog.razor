@@ -1,0 +1,52 @@
+@inject MobileDeviceActions DeviceActions
+
+<MudDialog Class="mobile-dialog facial-share-dialog">
+    <TitleContent>
+        <div class="mobile-dialog-title">
+            <MudIcon Icon="@Icons.Material.Outlined.FaceRetouchingNatural" Color="Color.Primary" />
+            <div><MudText Typo="Typo.h6">Convite facial pronto</MudText><MudText Typo="Typo.caption">Compartilhe o link com o visitante.</MudText></div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <div class="facial-share-hero">
+            <span class="facial-share-brand"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /> Condotify</span>
+            <div class="facial-share-person"><small>CONVITE PARA</small><strong>@Visit.VisitorName</strong><span>@Visit.BlockName @(!string.IsNullOrWhiteSpace(Visit.UnitNumber) ? $"· Unidade {Visit.UnitNumber}" : string.Empty)</span></div>
+            <div class="facial-share-animation" role="img" aria-label="Animação explicando o cadastro facial pelo celular">
+                <div class="facial-share-phone">
+                    <span class="facial-share-camera"></span>
+                    <div class="facial-share-face"><MudIcon Icon="@Icons.Material.Outlined.Face" /><i></i></div>
+                    <div class="facial-share-progress"><b></b></div>
+                    <small>Foto protegida</small>
+                </div>
+                <span class="facial-share-flight"><MudIcon Icon="@Icons.Material.Outlined.Send" /></span>
+                <span class="facial-share-success"><MudIcon Icon="@Icons.Material.Outlined.Check" /></span>
+            </div>
+            <div class="facial-share-steps">
+                <span><b>1</b><small>Abre o link</small></span>
+                <span><b>2</b><small>Enquadra o rosto</small></span>
+                <span><b>3</b><small>Ativa o acesso</small></span>
+            </div>
+            <div class="visitor-pass-validity">
+                <span><small>ENTRADA A PARTIR DE</small><strong>@Visit.ValidFrom.ToLocalTime().ToString("dd/MM · HH:mm")</strong></span>
+                <span><small>VÁLIDO ATÉ</small><strong>@Visit.ValidTo.ToLocalTime().ToString("dd/MM · HH:mm")</strong></span>
+            </div>
+        </div>
+        <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true">O link é pessoal e só pode concluir este convite. A foto fica protegida e o acesso expira automaticamente.</MudAlert>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Share" Disabled="@string.IsNullOrWhiteSpace(InviteUrl)" OnClick="ShareAsync">Compartilhar link</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public ConciergeVisitViewModel Visit { get; set; } = null!;
+    [Parameter, EditorRequired] public string InviteUrl { get; set; } = string.Empty;
+
+    private Task ShareAsync() => DeviceActions.ShareTextAsync(
+        $"Cadastro facial para {Visit.VisitorName}",
+        $"Olá, {Visit.VisitorName}!\n\nVocê recebeu um convite facial do Condotify para {Visit.BlockName} / {Visit.UnitNumber}.\nAbra o link, siga as orientações e envie sua foto antes da visita.\n\nVálido de {Visit.ValidFrom.ToLocalTime():dd/MM HH:mm} até {Visit.ValidTo.ToLocalTime():dd/MM HH:mm}\n\n{InviteUrl}");
+
+    private void Close() => Dialog.Close();
+}

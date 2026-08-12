@@ -28,6 +28,7 @@ public sealed class CreateConciergeVisitIn
     public string VehiclePlate { get; set; } = string.Empty;
     public string ImageBase64 { get; set; } = string.Empty;
     public AccessCredentialTypeEnum CredentialType { get; set; } = AccessCredentialTypeEnum.QrCode;
+    public bool CreateFacialInvite { get; set; }
     public DateTime ValidFrom { get; set; }
     public DateTime ValidTo { get; set; }
     public int? MaxUses { get; set; } = 1;
@@ -81,6 +82,44 @@ public sealed class ConciergeVisitOut
     public bool IsOverstayed { get; set; }
     public int RecurrenceSequence { get; set; }
     public int RecurrenceCount { get; set; }
+    public string FacialInviteStatus { get; set; } = string.Empty;
+    public string FacialInviteUrl { get; set; } = string.Empty;
+}
+
+public sealed class PublicVisitFacialInviteOut
+{
+    public string VisitorName { get; set; } = string.Empty;
+    public string LicenseName { get; set; } = string.Empty;
+    public string BlockName { get; set; } = string.Empty;
+    public string UnitNumber { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime ValidFrom { get; set; }
+    public DateTime ValidTo { get; set; }
+    public DateTime ExpiresAt { get; set; }
+    public int? MaxUses { get; set; }
+    public List<PublicVisitRouteOut> Routes { get; set; } = [];
+}
+
+public sealed class PublicVisitRouteOut
+{
+    public string Name { get; set; } = string.Empty;
+    public int DaysOfWeekMask { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+}
+
+public sealed class CompleteVisitFacialInviteIn
+{
+    public string ImageBase64 { get; set; } = string.Empty;
+    public bool Consent { get; set; }
+}
+
+public sealed class VisitFacialInviteIssuedOut
+{
+    public Guid VisitId { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string InviteUrl { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
 }
 
 public sealed class DecideVisitApprovalIn { public bool Approved { get; set; } public string Notes { get; set; } = string.Empty; }

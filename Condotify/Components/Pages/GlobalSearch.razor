@@ -60,7 +60,7 @@
                 <MudTd DataLabel="Credenciais"><div class="credential-bindings">@foreach (var credential in context.Credentials) { <span class="sync-state @(credential.IsActive ? "ok" : "pending")">@CredentialLabel(credential.Type) @credential.Identifier</span> }</div></MudTd>
                 <MudTd><MudTooltip Text="Abrir cadastro no condomínio"><MudIconButton Href="@($"/licencas/{context.LicenseId}/moradores")" Icon="@Icons.Material.Outlined.ArrowForward" Color="Color.Primary" /></MudTooltip></MudTd>
             </RowTemplate>
-            <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 20, 50, 100 })" /></PagerContent>
+            <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 20, 50, 100 })" RowsPerPageString="Itens por página" InfoFormat="{first_item}-{last_item} de {all_items}" AllItemsText="Todos" /></PagerContent>
         </MudTable></div>
     }
 </MudPaper>

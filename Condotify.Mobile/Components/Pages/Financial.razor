@@ -1,0 +1,119 @@
+@page "/financeiro"
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Financeiro | Condotify</PageTitle>
+<PageHeader Eyebrow="FINANCEIRO" Title="Minha situação" Subtitle="Acompanhe os registros financeiros das suas unidades.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_data is not null && _data.Charges.Count == 0)" EmptyTitle="Nenhuma cobrança registrada" EmptyText="Quando a administração registrar uma cobrança para sua unidade, ela aparecerá aqui." Retry="LoadAsync">
+    @if (_data is not null)
+    {
+        <section class="mobile-financial-hero">
+            <div class="mobile-financial-hero-top">
+                <span><MudIcon Icon="@Icons.Material.Outlined.AccountBalanceWallet" /></span>
+                <div><small>Total gerencial em aberto</small><strong>@Money(_data.OpenAmount)</strong></div>
+            </div>
+            <div class="mobile-financial-metrics">
+                <div><small>Vencido</small><strong>@Money(_data.OverdueAmount)</strong><span>@_data.OverdueCharges cobrança(s)</span></div>
+                <div><small>Em análise</small><strong>@_data.PendingAnalysis</strong><span>manifestação(ões)</span></div>
+            </div>
+        </section>
+
+        <div class="mobile-financial-notice"><MudIcon Icon="@Icons.Material.Outlined.Info" /><span><strong>Controle informativo</strong>O Condotify não recebe pagamentos. As baixas são conferidas pela administração.</span></div>
+
+        <section class="mobile-financial-reminder-guide">
+            <header><span><MudIcon Icon="@Icons.Material.Outlined.NotificationsActive" /></span><div><strong>Lembretes no momento certo</strong><small>A administração pode manter você informado sem expor valores nas notificações.</small></div></header>
+            <div class="mobile-reminder-flow"><span><i>1</i><strong>Antes</strong><small>aviso preventivo</small></span><b></b><span><i>2</i><strong>No dia</strong><small>lembrete do prazo</small></span><b></b><span><i>3</i><strong>Depois</strong><small>acompanhamento</small></span></div>
+            <footer><MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" /> Valores e detalhes aparecem somente nesta área autenticada.</footer>
+        </section>
+
+        @if (_data.RecentReminders.Count > 0)
+        {
+            <details class="mobile-financial-communications">
+                <summary><span><MudIcon Icon="@Icons.Material.Outlined.MarkEmailRead" /><strong>Comunicações recentes</strong></span><small>@_data.RecentReminders.Count</small></summary>
+                <div>
+                    @foreach (var reminder in _data.RecentReminders.Take(6))
+                    {
+                        <article><span><MudIcon Icon="@(reminder.Channel == FinancialReminderChannel.Push ? Icons.Material.Outlined.PhoneAndroid : Icons.Material.Outlined.AlternateEmail)" /></span><div><strong>@reminder.StageLabel</strong><small>@reminder.Reference · @reminder.SentAt.ToLocalTime().ToString("dd/MM HH:mm")</small></div></article>
+                    }
+                </div>
+            </details>
+        }
+
+        <div class="mobile-financial-actions">
+            <button type="button" class="@ActiveFilterCss" @onclick="@(() => SetFilter("active"))"><MudIcon Icon="@Icons.Material.Outlined.PendingActions" />Pendentes</button>
+            <button type="button" class="@AllFilterCss" @onclick="@(() => SetFilter("all"))"><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" />Todas</button>
+            <a href="/boletos"><MudIcon Icon="@Icons.Material.Outlined.Description" />Documentos</a>
+        </div>
+
+        <section class="mobile-financial-list">
+            @if (!VisibleCharges.Any())
+            {
+                <div class="mobile-financial-filter-empty"><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" /><strong>Nenhuma pendência</strong><span>Use “Todas” para consultar cobranças já encerradas.</span></div>
+            }
+            @foreach (var charge in VisibleCharges)
+            {
+                <article class="@ChargeCss(charge)">
+                    <header>
+                        <div><span class="mobile-financial-unit">@UnitInitial(charge.UnitLabel)</span><span><small>@charge.UnitLabel · @charge.Competence</small><strong>@charge.Reference</strong></span></div>
+                        <span class="mobile-financial-status">@charge.DisplayStatus</span>
+                    </header>
+                    <p>@charge.Description</p>
+                    <div class="mobile-financial-charge-meta">
+                        <span><small>Vencimento</small><strong>@charge.DueDate.ToString("dd/MM/yyyy")</strong></span>
+                        <span><small>Total</small><strong>@Money(charge.TotalAmount)</strong></span>
+                    </div>
+                    @if (charge.IsOverdue) { <div class="mobile-financial-overdue"><MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" />@charge.DaysOverdue dia(s) após o vencimento</div> }
+                    @if (charge.FineAmount > 0 || charge.InterestAmount > 0 || charge.DiscountAmount > 0)
+                    {
+                        <details class="mobile-financial-breakdown"><summary>Ver composição do valor</summary><div><span>Base <strong>@Money(charge.BaseAmount)</strong></span><span>Multa <strong>@Money(charge.FineAmount)</strong></span><span>Juros <strong>@Money(charge.InterestAmount)</strong></span><span>Desconto <strong>- @Money(charge.DiscountAmount)</strong></span></div></details>
+                    }
+                    @if (charge.Status == FinancialChargeStatus.PaymentReported)
+                    {
+                        <div class="mobile-financial-analysis"><MudIcon Icon="@Icons.Material.Outlined.HourglassTop" /><span><strong>Conferência solicitada</strong>A administração analisará a informação enviada.</span></div>
+                    }
+                    else if (charge.Status == FinancialChargeStatus.Disputed)
+                    {
+                        <div class="mobile-financial-analysis disputed"><MudIcon Icon="@Icons.Material.Outlined.ContactSupport" /><span><strong>Contestação registrada</strong>A cobrança está aguardando retorno da administração.</span></div>
+                    }
+                    else if (charge.Status is not FinancialChargeStatus.Paid and not FinancialChargeStatus.Cancelled)
+                    {
+                        <footer><MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.TaskAlt" OnClick="@(() => OpenActionAsync(charge, true))">Informar pagamento</MudButton><MudButton Variant="Variant.Text" Color="Color.Default" StartIcon="@Icons.Material.Outlined.HelpOutline" OnClick="@(() => OpenActionAsync(charge, false))">Contestar</MudButton></footer>
+                    }
+                </article>
+            }
+        </section>
+    }
+</PageState>
+
+@code {
+    private ResidentFinancialOverviewViewModel? _data;
+    private bool _loading = true;
+    private string _error = string.Empty;
+    private string _filter = "active";
+    private IEnumerable<FinancialChargeViewModel> VisibleCharges => (_data?.Charges ?? []).Where(x => _filter == "all" || x.Status is not FinancialChargeStatus.Paid and not FinancialChargeStatus.Cancelled);
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync() { _loading = true; _error = string.Empty; var result = await Api.GetResidentFinancialOverviewAsync(); _loading = false; if (result.Success) _data = result.Value; else _error = result.Error ?? "Não foi possível carregar sua situação financeira."; }
+    private void SetFilter(string value) => _filter = value;
+    private string ActiveFilterCss => _filter == "active" ? "is-active" : string.Empty;
+    private string AllFilterCss => _filter == "all" ? "is-active" : string.Empty;
+
+    private async Task OpenActionAsync(FinancialChargeViewModel charge, bool payment)
+    {
+        var parameters = new DialogParameters { [nameof(FinancialResidentActionDialog.Charge)] = charge, [nameof(FinancialResidentActionDialog.IsPaymentReport)] = payment };
+        var dialog = await DialogService.ShowAsync<FinancialResidentActionDialog>(payment ? "Informar pagamento" : "Contestar cobrança", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Small });
+        var result = await dialog.Result;
+        if (result?.Canceled != false || result.Data is not ResidentFinancialActionViewModel input) return;
+        var response = payment ? await Api.ReportResidentPaymentAsync(charge.Id, input) : await Api.DisputeResidentChargeAsync(charge.Id, input);
+        if (!response.Success) { Snackbar.Add(response.Error ?? "Não foi possível registrar sua manifestação.", Severity.Error); return; }
+        Snackbar.Add(payment ? "Informação enviada para conferência." : "Contestação enviada à administração.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private static string Money(decimal value) => value.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+    private static string UnitInitial(string value) => value.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.FirstOrDefault().ToString().ToUpperInvariant() ?? "U";
+    private static string ChargeCss(FinancialChargeViewModel charge) => $"mobile-financial-charge {(charge.IsOverdue ? "is-overdue" : string.Empty)} status-{charge.Status.ToString().ToLowerInvariant()}";
+}

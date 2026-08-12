@@ -1,6 +1,7 @@
 @inject MobileDeviceActions DeviceActions
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
+@inject IJSRuntime Js
 
 <MudDialog Class="mobile-dialog visitor-pass-dialog">
     <TitleContent>
@@ -11,20 +12,24 @@
     </TitleContent>
     <DialogContent>
         <div class="visitor-pass-hero">
-            <span class="visitor-pass-brand"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /> Condotify</span>
+            <div class="visitor-pass-head">
+                <span class="visitor-pass-brand"><span class="visitor-pass-logo">C</span> Condotify</span>
+                <span class="visitor-pass-status"><i></i> Acesso temporário</span>
+            </div>
             <div class="visitor-pass-person"><small>VISITANTE</small><strong>@Visit.VisitorName</strong><span>@Visit.BlockName @(!string.IsNullOrWhiteSpace(Visit.UnitNumber) ? $"· Unidade {Visit.UnitNumber}" : string.Empty)</span></div>
             @if (!string.IsNullOrWhiteSpace(QrDataUri))
             {
-                <div class="visitor-pass-qr"><img src="@QrDataUri" alt="QR Code do convite de @Visit.VisitorName" /></div>
+                <div class="visitor-pass-qr"><span class="visitor-pass-qr-corner top-left"></span><span class="visitor-pass-qr-corner top-right"></span><img src="@QrDataUri" alt="QR Code do convite de @Visit.VisitorName" /><span class="visitor-pass-qr-corner bottom-left"></span><span class="visitor-pass-qr-corner bottom-right"></span></div>
+                <div class="visitor-pass-scan-hint"><MudIcon Icon="@Icons.Material.Outlined.CenterFocusStrong" /> Aponte a câmera para o QR Code</div>
             }
             else
             {
                 <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">O QR Code ainda não foi disponibilizado.</MudAlert>
             }
             <div class="visitor-pass-validity"><span><small>ENTRADA A PARTIR DE</small><strong>@Visit.ValidFrom.ToLocalTime().ToString("dd/MM · HH:mm")</strong></span><span><small>VÁLIDO ATÉ</small><strong>@Visit.ValidTo.ToLocalTime().ToString("dd/MM · HH:mm")</strong></span></div>
-            <code>@Visit.CredentialCode</code>
+            <div class="visitor-pass-code"><small>CÓDIGO MANUAL</small><code>@Visit.CredentialCode</code></div>
         </div>
-        <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true">O convite é pessoal. A portaria valida horário, situação e limite de utilizações.</MudAlert>
+        <div class="visitor-pass-security"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /><span><strong>Convite pessoal e protegido</strong><small>A portaria valida horário, situação e limite de utilizações.</small></span></div>
 
         @if (AllowDigitalPass)
         {
@@ -54,8 +59,13 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Share" Disabled="@string.IsNullOrWhiteSpace(Visit.CredentialCode)" OnClick="ShareAsync">Compartilhar convite</MudButton>
+        <div class="visitor-pass-actions">
+            <MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton>
+            <div>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ContentCopy" Disabled="@string.IsNullOrWhiteSpace(Visit.CredentialCode)" OnClick="CopyCodeAsync">Copiar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Share" Disabled="@(_sharing || string.IsNullOrWhiteSpace(Visit.CredentialCode))" OnClick="ShareAsync">@(_sharing ? "Preparando..." : "Enviar QR Code")</MudButton>
+            </div>
+        </div>
     </DialogActions>
 </MudDialog>
 
@@ -74,6 +84,7 @@
     private bool _hasActivePass;
     private bool _issuing;
     private bool _revoking;
+    private bool _sharing;
 
     /// <summary>
     /// The raw pass token is never persisted (only its hash), so a reopened
@@ -88,8 +99,47 @@
         if (status.Success && status.Value is not null) _hasActivePass = status.Value.HasActivePass;
     }
 
-    private Task ShareAsync() => DeviceActions.ShareTextAsync($"Convite para {Visit.VisitorName}",
-        $"Convite Condotify\nVisitante: {Visit.VisitorName}\nLocal: {Visit.BlockName} / {Visit.UnitNumber}\nVálido de {Visit.ValidFrom.ToLocalTime():dd/MM HH:mm} até {Visit.ValidTo.ToLocalTime():dd/MM HH:mm}\nCódigo: {Visit.CredentialCode}");
+    private async Task ShareAsync()
+    {
+        _sharing = true;
+        try
+        {
+            var image = await Js.InvokeAsync<string>("condotifyVisitorPass.render", new
+            {
+                qrDataUri = QrDataUri,
+                visitorName = Visit.VisitorName,
+                location = FormatLocation(),
+                validFrom = Visit.ValidFrom.ToLocalTime().ToString("dd/MM · HH:mm"),
+                validTo = Visit.ValidTo.ToLocalTime().ToString("dd/MM · HH:mm")
+            });
+            await DeviceActions.SharePngDataUriAsync(
+                $"Convite para {Visit.VisitorName}", image, $"convite-condotify-{Visit.Id:N}.png");
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("Não foi possível preparar a imagem do convite. Tente novamente.", Severity.Error);
+        }
+        finally
+        {
+            _sharing = false;
+        }
+    }
+
+    private async Task CopyCodeAsync()
+    {
+        await DeviceActions.CopyTextAsync(Visit.CredentialCode);
+        DeviceActions.Tap();
+        Snackbar.Add("Código copiado.", Severity.Success);
+    }
+
+    private string FormatLocation()
+    {
+        var block = Visit.BlockName?.Trim();
+        var unit = Visit.UnitNumber?.Trim();
+        if (string.IsNullOrWhiteSpace(block)) return string.IsNullOrWhiteSpace(unit) ? "Acesso autorizado" : $"Unidade {unit}";
+        return string.IsNullOrWhiteSpace(unit) ? block : $"{block} · Unidade {unit}";
+    }
+
     private void Close() => Dialog.Close();
 
     private async Task IssuePassAsync()

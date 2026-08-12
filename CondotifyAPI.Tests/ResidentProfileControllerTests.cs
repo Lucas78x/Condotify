@@ -2,6 +2,11 @@ using CondotifyAPI.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
+using CondotifyAPI.Domain.DTO.Delivers;
+using CondotifyAPI.Domain.DTO.Invitation;
+using CondotifyAPI.Domain.DTO.Resident;
+using CondotifyAPI.Domain.Enums.Resident;
+using CondotifyAPI.Services.Authorization;
 
 namespace CondotifyAPI.Tests;
 
@@ -64,6 +69,45 @@ public sealed class ResidentProfileControllerTests
         Assert.NotNull(action);
         Assert.Equal("deliveries", Assert.Single(action!.GetCustomAttributes(typeof(HttpGetAttribute), false).Cast<HttpGetAttribute>()).Template);
         Assert.Empty(action.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+    }
+
+    [Fact]
+    public void ResidentMediaRoute_UsesResidentPolicyAndExpectedTemplate()
+    {
+        var action = typeof(ResidentProfileController).GetMethod(nameof(ResidentProfileController.Media));
+
+        Assert.NotNull(action);
+        Assert.Equal("media/{mediaId:guid}", Assert.Single(action!.GetCustomAttributes(typeof(HttpGetAttribute), false).Cast<HttpGetAttribute>()).Template);
+        Assert.Empty(action.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+    }
+
+    [Fact]
+    public void ResidentMediaFilters_RejectOtherResidentsLicensesAndUnits()
+    {
+        var residentId = Guid.NewGuid();
+        var licenseId = Guid.NewGuid();
+        var unitId = Guid.NewGuid();
+        const string reference = "/private-media/license/media";
+        var grant = new ResidentAccessGrant(
+            residentId,
+            licenseId,
+            [unitId],
+            ResidentAccessTypeEnum.Default,
+            false);
+
+        var ownPhoto = ResidentProfileController.OwnMediaFilter(grant, reference).Compile();
+        Assert.True(ownPhoto(new ResidentAccessDTO { Id = residentId, ImgUrl = reference }));
+        Assert.False(ownPhoto(new ResidentAccessDTO { Id = Guid.NewGuid(), ImgUrl = reference }));
+
+        var hostedVisit = ResidentProfileController.HostedVisitMediaFilter(grant, reference).Compile();
+        Assert.True(hostedVisit(new AccessVisitDTO { LicenseId = licenseId, HostResidentId = residentId, PhotoUrl = reference }));
+        Assert.False(hostedVisit(new AccessVisitDTO { LicenseId = Guid.NewGuid(), HostResidentId = residentId, PhotoUrl = reference }));
+        Assert.False(hostedVisit(new AccessVisitDTO { LicenseId = licenseId, HostResidentId = Guid.NewGuid(), PhotoUrl = reference }));
+
+        var delivery = ResidentProfileController.DeliveryMediaFilter(grant, reference).Compile();
+        Assert.True(delivery(new DeliveryDTO { LicenseId = licenseId, RecipientResidentId = residentId, UnitId = unitId, PhotoUrl = reference }));
+        Assert.False(delivery(new DeliveryDTO { LicenseId = licenseId, RecipientResidentId = residentId, UnitId = Guid.NewGuid(), PhotoUrl = reference }));
+        Assert.False(delivery(new DeliveryDTO { LicenseId = licenseId, RecipientResidentId = Guid.NewGuid(), UnitId = unitId, PhotoUrl = reference }));
     }
 
     [Theory]

@@ -21,6 +21,7 @@ public sealed record MobileSession(
 {
     public bool IsAuthenticated =>
         Principal != MobilePrincipalKind.None &&
+        SubjectId != Guid.Empty &&
         !string.IsNullOrWhiteSpace(AccessToken) &&
         !string.IsNullOrWhiteSpace(RefreshToken);
 }
@@ -29,7 +30,8 @@ public sealed record MobileLoginResult(
     bool Success,
     bool MfaRequired,
     string Error,
-    string ChallengeToken = "");
+    string ChallengeToken = "",
+    bool CredentialsRejected = false);
 
 public sealed record MobilePasswordResetResult(bool Success, string Error);
 

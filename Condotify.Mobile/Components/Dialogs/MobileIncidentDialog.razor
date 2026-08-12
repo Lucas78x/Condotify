@@ -1,0 +1,60 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog Class="mobile-sheet-dialog mobile-incident-dialog">
+    <TitleContent><div class="mobile-dialog-title"><span><MudIcon Icon="@Icons.Material.Outlined.Campaign" /></span><div><MudText Typo="Typo.h6">Abrir ocorrência</MudText><MudText Typo="Typo.caption">Conte o que aconteceu para direcionarmos o atendimento.</MudText></div></div></TitleContent>
+    <DialogContent>
+        <div class="incident-form-guide"><span class="active"><i>1</i>Tipo</span><b></b><span class="active"><i>2</i>Detalhes</span><b></b><span class="active"><i>3</i>Fotos</span></div>
+        <label class="mobile-field-label">O que precisa de atenção?</label>
+        <div class="incident-category-grid">
+            @foreach (var item in Categories)
+            {
+                <button type="button" class="@(_category == item.Value ? "selected" : "")" @onclick="@(() => _category = item.Value)"><span><MudIcon Icon="@item.Icon" /></span><strong>@item.Label</strong></button>
+            }
+        </div>
+        <MudTextField @bind-Value="_title" Label="Resumo" Placeholder="Ex.: Vazamento próximo ao elevador" Variant="Variant.Outlined" Immediate MaxLength="180" Class="mt-4" />
+        <MudTextField @bind-Value="_location" Label="Onde aconteceu?" Placeholder="Bloco, andar, área ou ponto de referência" Variant="Variant.Outlined" Immediate MaxLength="240" Class="mt-3" />
+        <MudTextField @bind-Value="_description" Label="Descreva o problema" Placeholder="Inclua detalhes que ajudem a equipe a entender e agir." Variant="Variant.Outlined" Immediate Lines="4" MaxLength="4000" Class="mt-3" />
+        <div class="incident-photo-field">
+            <div><strong>Fotos do local</strong><small>Opcional · até 4 imagens</small></div>
+            <label class="incident-photo-picker"><InputFile OnChange="ReadPhotosAsync" accept="image/jpeg,image/png,image/webp" capture="environment" multiple disabled="@_saving" /><MudIcon Icon="@Icons.Material.Outlined.AddAPhoto" /><span>Tirar ou escolher foto</span></label>
+            @if (_photos.Count > 0) { <div class="incident-photo-preview">@foreach (var photo in _photos) { <figure><img src="@photo.DataUri" alt="Prévia da ocorrência" /><button type="button" @onclick="@(() => RemovePhoto(photo))"><MudIcon Icon="@Icons.Material.Outlined.Close" /></button></figure> }</div> }
+        </div>
+        <div class="incident-submit-note"><MudIcon Icon="@Icons.Material.Outlined.NotificationsActive" /><span><strong>Acompanhamento automático</strong>Você será avisado quando a equipe assumir ou concluir o chamado.</span></div>
+    </DialogContent>
+    <DialogActions><MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SubmitAsync" StartIcon="@Icons.Material.Outlined.Send">@(_saving ? "Enviando..." : "Enviar ocorrência")</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter] public bool Resident { get; set; }
+    [Parameter] public Guid LicenseId { get; set; }
+    private sealed record CategoryOption(int Value, string Label, string Icon);
+    private sealed record PhotoInput(string FileName, string DataUri);
+    private static readonly CategoryOption[] Categories = [new(7,"Hidráulica",Icons.Material.Outlined.WaterDrop),new(8,"Elétrica",Icons.Material.Outlined.Bolt),new(9,"Elevador",Icons.Material.Outlined.Elevator),new(10,"Limpeza",Icons.Material.Outlined.CleaningServices),new(11,"Estrutural",Icons.Material.Outlined.Foundation),new(6,"Outro",Icons.Material.Outlined.MoreHoriz)];
+    private readonly List<PhotoInput> _photos = []; private int _category = 6; private string _title = string.Empty; private string _location = string.Empty; private string _description = string.Empty; private bool _saving;
+    private async Task ReadPhotosAsync(InputFileChangeEventArgs args)
+    {
+        foreach (var file in args.GetMultipleFiles(4).Take(4 - _photos.Count))
+        {
+            try { await using var stream = file.OpenReadStream(5_000_000); using var memory = new MemoryStream(); await stream.CopyToAsync(memory); _photos.Add(new PhotoInput(file.Name, $"data:{file.ContentType};base64,{Convert.ToBase64String(memory.ToArray())}")); }
+            catch { Snackbar.Add("Uma das imagens não pôde ser lida. Use JPG, PNG ou WebP com até 5 MB.", Severity.Warning); }
+        }
+    }
+    private void RemovePhoto(PhotoInput value) => _photos.Remove(value);
+    private async Task SubmitAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_title) || string.IsNullOrWhiteSpace(_location) || string.IsNullOrWhiteSpace(_description)) { Snackbar.Add("Preencha resumo, local e descrição.", Severity.Warning); return; }
+        _saving = true;
+        ApiResult<IncidentViewModel> result;
+        if (Resident) result = await Api.CreateResidentIncidentAsync(new ResidentIncidentCreateViewModel { Title = _title, LocationLabel = _location, Description = _description, Category = _category, Severity = 1, Photos = _photos.Select(x => new IncidentAttachmentUploadViewModel { FileName = x.FileName, DataUri = x.DataUri, VisibleToResident = true }).ToList() });
+        else
+        {
+            result = await Api.CreateIncidentAsync(LicenseId, new IncidentCreateViewModel { Title = _title, LocationLabel = _location, Description = _description, Category = _category, Severity = 1 });
+            if (result.Success && result.Value is not null) foreach (var photo in _photos) await Api.UploadIncidentAttachmentAsync(LicenseId, result.Value.Id, new IncidentAttachmentUploadViewModel { FileName = photo.FileName, DataUri = photo.DataUri, VisibleToResident = true });
+        }
+        _saving = false; if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível enviar a ocorrência.", Severity.Error); return; }
+        Snackbar.Add("Ocorrência enviada. A equipe já pode acompanhar.", Severity.Success); Dialog.Close(DialogResult.Ok(result.Value));
+    }
+    private void Cancel() => Dialog.Cancel();
+}

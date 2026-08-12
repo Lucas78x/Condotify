@@ -39,4 +39,23 @@ public class AccessVisitDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public VisitFacialInviteDTO? FacialInvite { get; set; }
+}
+
+public class VisitFacialInviteDTO : CondotifyAPI.Domain.Interfaces.ILicenseScoped
+{
+    public Guid Id { get; set; }
+    public Guid LicenseId { get; set; }
+    public LicenseDTO License { get; set; } = null!;
+    public Guid VisitId { get; set; }
+    public AccessVisitDTO Visit { get; set; } = null!;
+    public string TokenHash { get; set; } = string.Empty;
+    public VisitFacialInviteStatusEnum Status { get; set; }
+    public int UploadAttempts { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? OpenedAt { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 }

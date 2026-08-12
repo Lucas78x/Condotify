@@ -24,8 +24,11 @@ public sealed class AccessRouteResolver : IAccessRouteResolver
         ResidentAccessDTO resident,
         AccessCredentialTypeEnum credentialType)
     {
-        var audience = ResolveAudience(resident);
-        var routes = await _context.AccessRoutes.AsNoTracking()
+        var audience = ResolveAudience(resident, licenseId);
+        // The resolver is also used by anonymous, token-scoped invitation endpoints.
+        // The license id is always explicit, so bypassing the ambient user tenant filter
+        // here is safe and avoids returning an empty route set before authentication.
+        var routes = await _context.AccessRoutes.IgnoreQueryFilters().AsNoTracking()
             .Include(x => x.Devices).ThenInclude(x => x.Device)
             .Include(x => x.ResidentOverrides)
             .Where(x => x.LicenseId == licenseId && x.IsActive)
@@ -42,7 +45,7 @@ public sealed class AccessRouteResolver : IAccessRouteResolver
 
         var targets = routes
             .SelectMany(route => route.Devices
-                .Where(link => link.IsActive && link.Device.IsActive && Supports(link.Device, credentialType))
+                .Where(link => link.IsActive && Supports(link.Device, credentialType))
                 .Select(link => new { Route = route, Link = link }))
             .GroupBy(x => x.Link.DeviceId)
             .Select(group => new ResolvedAccessRouteTarget(
@@ -63,11 +66,18 @@ public sealed class AccessRouteResolver : IAccessRouteResolver
     }
 
     public static AccessRouteAudienceEnum ResolveAudience(ResidentAccessDTO resident)
+        => ResolveAudience(resident, null);
+
+    public static AccessRouteAudienceEnum ResolveAudience(ResidentAccessDTO resident, Guid? licenseId)
     {
         if (resident.AccessType == ResidentAccessTypeEnum.Guest) return AccessRouteAudienceEnum.Visitor;
         if (resident.AccessType == ResidentAccessTypeEnum.ServiceProvider) return AccessRouteAudienceEnum.ServiceProvider;
 
-        var link = resident.UnitLinks.FirstOrDefault(x => x.IsPrimary) ?? resident.UnitLinks.FirstOrDefault();
+        var link = resident.UnitLinks
+            .Where(x => x.IsActive && (!licenseId.HasValue || x.Unit?.Block?.LicenseId == licenseId.Value))
+            .OrderByDescending(x => x.IsPrimary)
+            .ThenBy(x => x.CreatedAt)
+            .FirstOrDefault();
         return link?.Relationship switch
         {
             ResidentUnitRelationshipEnum.OwnerResponsible => AccessRouteAudienceEnum.OwnerResponsible,

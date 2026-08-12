@@ -28,7 +28,7 @@ public sealed class MobileAppState(CondotifyApiClient api)
 
         Licenses = result.Value ?? [];
         var saved = Preferences.Default.Get(LicenseKey, string.Empty);
-        var selected = Guid.TryParse(saved, out var savedId) && Licenses.Any(x => x.Id == saved)
+        var selected = Guid.TryParse(saved, out var savedId) && Licenses.Any(x => Guid.TryParse(x.Id, out var id) && id == savedId)
             ? savedId
             : Licenses.Select(x => Guid.TryParse(x.Id, out var id) ? id : Guid.Empty).FirstOrDefault(x => x != Guid.Empty);
         SelectLicense(selected == Guid.Empty ? null : selected);
@@ -37,6 +37,8 @@ public sealed class MobileAppState(CondotifyApiClient api)
 
     public void SelectLicense(Guid? licenseId)
     {
+        if (licenseId.HasValue && !Licenses.Any(x => Guid.TryParse(x.Id, out var id) && id == licenseId.Value))
+            licenseId = null;
         SelectedLicenseId = licenseId;
         if (licenseId.HasValue) Preferences.Default.Set(LicenseKey, licenseId.Value.ToString("D"));
         else Preferences.Default.Remove(LicenseKey);

@@ -1,0 +1,32 @@
+<MudDialog>
+    <DialogContent>
+        <div class="resident-financial-dialog-hero">
+            <span><MudIcon Icon="@(IsPaymentReport ? Icons.Material.Outlined.TaskAlt : Icons.Material.Outlined.ContactSupport)" /></span>
+            <div><small>@Charge.UnitLabel</small><strong>@Charge.Reference</strong><p>@Charge.TotalAmount.ToString("C2", Culture)</p></div>
+        </div>
+        @if (IsPaymentReport)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense Class="mb-4">Use esta opção somente depois de pagar por um canal externo. O envio não realiza nem garante a baixa.</MudAlert>
+            <MudDatePicker @bind-Date="_paidAt" Label="Data em que você pagou" Variant="Variant.Outlined" Class="mb-3" />
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense Class="mb-4">A contestação será analisada pela administração e não cancela automaticamente a cobrança.</MudAlert>
+        }
+        <MudTextField T="string" @bind-Value="_note" Label="@(IsPaymentReport ? "Como o pagamento foi realizado?" : "Explique o motivo da contestação")" Placeholder="Informe detalhes que ajudem na conferência" Lines="4" Variant="Variant.Outlined" Counter="500" MaxLength="500" />
+        @if (!string.IsNullOrWhiteSpace(_error)) { <MudText Color="Color.Error" Typo="Typo.caption">@_error</MudText> }
+    </DialogContent>
+    <DialogActions><MudButton OnClick="Cancel">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">Enviar para análise</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter, EditorRequired] public FinancialChargeViewModel Charge { get; set; } = new();
+    [Parameter] public bool IsPaymentReport { get; set; }
+    private string _note = string.Empty;
+    private DateTime? _paidAt = DateTime.Today;
+    private string _error = string.Empty;
+    private static readonly System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() { if (string.IsNullOrWhiteSpace(_note) || _note.Trim().Length < 3) { _error = "Escreva ao menos 3 caracteres para ajudar na análise."; return; } MudDialog.Close(DialogResult.Ok(new ResidentFinancialActionViewModel { Note = _note.Trim(), PaidAt = IsPaymentReport ? _paidAt : null })); }
+}

@@ -31,7 +31,36 @@ public sealed class StructureImportsController(
     public async Task<IActionResult> Preview(Guid licenseId, [FromBody] StructureImportIn input)
     {
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var policyErrors = AssistedMigrationPolicy.Validate(input);
+        if (policyErrors.Count > 0)
+            return BadRequest(new { Result = "MigrationPolicyRejected", Errors = policyErrors });
         var prepared = await PrepareAsync(licenseId, input.Content);
+        prepared.Preview.PreviewId = Guid.NewGuid();
+        prepared.Preview.FileSha256 = AssistedMigrationPolicy.FileSha256(input.Content);
+        var actor = User.FindFirstValue("name") ?? User.Identity?.Name ?? "Migração";
+        context.AccessOperationAudits.Add(new AccessOperationAuditDTO
+        {
+            Id = Guid.NewGuid(),
+            LicenseId = licenseId,
+            EntityType = "AssistedMigration",
+            EntityId = prepared.Preview.PreviewId,
+            Action = "Previewed",
+            Status = prepared.Preview.CanExecute ? "Success" : "Pending",
+            Summary = $"Prévia de migração analisada: {prepared.Preview.ValidRows} registro(s) válido(s) e {prepared.Preview.InvalidRows} pendência(s).",
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                FileName = SafeFileName(input.FileName),
+                prepared.Preview.FileSha256,
+                SourceSystem = AssistedMigrationPolicy.SourceLabel(input.SourceSystem),
+                ProcessingBasis = AssistedMigrationPolicy.BasisLabel(input.ProcessingBasis),
+                AuthorizedBy = input.AuthorizedBy.Trim(),
+                AuthorizationReference = input.AuthorizationReference.Trim(),
+                ContentPersisted = false
+            }),
+            UserName = actor,
+            CreatedAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync(HttpContext.RequestAborted);
         return Ok(prepared.Preview);
     }
 
@@ -41,6 +70,31 @@ public sealed class StructureImportsController(
     public async Task<IActionResult> Execute(Guid licenseId, [FromBody] StructureImportIn input)
     {
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var policyErrors = AssistedMigrationPolicy.Validate(input);
+        if (policyErrors.Count > 0)
+            return BadRequest(new { Result = "MigrationPolicyRejected", Errors = policyErrors });
+        var fileSha256 = AssistedMigrationPolicy.FileSha256(input.Content);
+        if (!input.PreviewId.HasValue ||
+            !string.Equals(input.PreviewFileSha256, fileSha256, StringComparison.OrdinalIgnoreCase))
+            return Conflict(new
+            {
+                Result = "MigrationPreviewExpired",
+                Errors = "O arquivo não corresponde à prévia aprovada. Gere uma nova prévia antes de executar a migração."
+            });
+        var previewCutoff = DateTime.UtcNow.AddMinutes(-30);
+        var previewAudit = await context.AccessOperationAudits.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.LicenseId == licenseId &&
+            x.EntityType == "AssistedMigration" &&
+            x.EntityId == input.PreviewId &&
+            x.Action == "Previewed" &&
+            x.Status == "Success" &&
+            x.CreatedAt >= previewCutoff);
+        if (previewAudit is null || !AuditMatchesPreview(previewAudit.DetailsJson, fileSha256, input))
+            return Conflict(new
+            {
+                Result = "MigrationPreviewExpired",
+                Errors = "A prévia não foi encontrada, possui pendências ou expirou. Gere uma nova análise antes de executar."
+            });
         var key = input.IdempotencyKey?.Trim();
         if (string.IsNullOrWhiteSpace(key) || key.Length > 180)
             return BadRequest(new { Result = "InvalidIdempotencyKey", Errors = "A chave de confirmacao da importacao e invalida." });
@@ -210,6 +264,15 @@ public sealed class StructureImportsController(
                 FilterJson = JsonSerializer.Serialize(new
                 {
                     FileName = SafeFileName(input.FileName),
+                    FileSha256 = fileSha256,
+                    input.PreviewId,
+                    SourceSystem = AssistedMigrationPolicy.SourceLabel(input.SourceSystem),
+                    ProcessingBasis = AssistedMigrationPolicy.BasisLabel(input.ProcessingBasis),
+                    AuthorizedBy = input.AuthorizedBy.Trim(),
+                    AuthorizationReference = input.AuthorizationReference.Trim(),
+                    ControllerAuthorizationConfirmed = input.ControllerAuthorizationConfirmed,
+                    PurposeLimitationConfirmed = input.PurposeLimitationConfirmed,
+                    NoRestrictedDataConfirmed = input.NoRestrictedDataConfirmed,
                     createdBlocks,
                     createdUnits,
                     createdPeople,
@@ -225,11 +288,11 @@ public sealed class StructureImportsController(
             {
                 Id = Guid.NewGuid(),
                 LicenseId = licenseId,
-                EntityType = "StructureImport",
+                EntityType = "AssistedMigration",
                 EntityId = import.Id,
                 Action = "Completed",
                 Status = "Success",
-                Summary = $"Importacao concluida: {createdBlocks} agrupamento(s), {createdUnits} unidade(s), {createdPeople} pessoa(s) e {createdVehicles} veiculo(s).",
+                Summary = $"Migração assistida concluída: {createdBlocks} agrupamento(s), {createdUnits} unidade(s), {createdPeople} pessoa(s) e {createdVehicles} veículo(s).",
                 DetailsJson = import.FilterJson,
                 UserName = actor,
                 CreatedAt = now
@@ -281,7 +344,7 @@ public sealed class StructureImportsController(
         var existingUnits = blocks.SelectMany(block => block.Units.Select(unit => UnitKey(block.Name, unit.Number)))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var existingPeople = blocks.SelectMany(block => block.Units.SelectMany(unit =>
-                unit.Residents.Where(x => !string.IsNullOrWhiteSpace(x.CPF)).Select(x => PersonKey(block.Name, unit.Number, x.CPF))))
+                unit.Residents.Select(x => PersonKey(block.Name, unit.Number, PersonIdentity(x.Name, x.CPF)))))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var existingVehicles = blocks.SelectMany(block => block.Units.SelectMany(unit =>
                 unit.Vehicles.Select(x => VehicleKey(block.Name, unit.Number, x.Plate))))
@@ -310,10 +373,14 @@ public sealed class StructureImportsController(
             var blockKey = StructureImportCsvParser.NormalizeKey(row.Block);
             var unitKey = UnitKey(row.Block, row.Unit);
 
-            if (!string.IsNullOrWhiteSpace(row.CPF) && !string.IsNullOrWhiteSpace(row.Unit))
+            if (!string.IsNullOrWhiteSpace(row.Name) && !string.IsNullOrWhiteSpace(row.Unit))
             {
-                var personKey = PersonKey(row.Block, row.Unit, row.CPF);
-                if (!simulatedPeople.Add(personKey)) messages.Add("Ja existe uma pessoa com este CPF na unidade.");
+                var identity = PersonIdentity(row.Name, row.CPF);
+                var personKey = PersonKey(row.Block, row.Unit, identity);
+                if (!simulatedPeople.Add(personKey))
+                    messages.Add(string.IsNullOrWhiteSpace(row.CPF)
+                        ? "Já existe uma pessoa com este nome na unidade. Revise para evitar duplicidade."
+                        : "Já existe uma pessoa com este CPF na unidade.");
             }
             if (!string.IsNullOrWhiteSpace(row.Plate) && !string.IsNullOrWhiteSpace(row.Unit))
             {
@@ -435,6 +502,31 @@ public sealed class StructureImportsController(
 
     private static string PersonKey(string block, string unit, string cpf) =>
         $"{UnitKey(block, unit)}|{cpf}";
+
+    private static string PersonIdentity(string name, string cpf) =>
+        string.IsNullOrWhiteSpace(cpf) ? $"nome:{StructureImportCsvParser.NormalizeKey(name)}" : $"cpf:{cpf}";
+
+    private static bool AuditMatchesPreview(string detailsJson, string expectedSha256, StructureImportIn input)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(detailsJson);
+            var root = document.RootElement;
+            return JsonEquals(root, "FileSha256", expectedSha256) &&
+                   JsonEquals(root, "SourceSystem", AssistedMigrationPolicy.SourceLabel(input.SourceSystem)) &&
+                   JsonEquals(root, "ProcessingBasis", AssistedMigrationPolicy.BasisLabel(input.ProcessingBasis)) &&
+                   JsonEquals(root, "AuthorizedBy", input.AuthorizedBy.Trim()) &&
+                   JsonEquals(root, "AuthorizationReference", input.AuthorizationReference.Trim());
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool JsonEquals(JsonElement root, string property, string expected) =>
+        root.TryGetProperty(property, out var value) &&
+        string.Equals(value.GetString(), expected, StringComparison.OrdinalIgnoreCase);
 
     private static string VehicleKey(string block, string unit, string plate) =>
         $"{UnitKey(block, unit)}|{StructureImportCsvParser.NormalizeKey(plate)}";

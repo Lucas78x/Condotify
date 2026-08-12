@@ -47,5 +47,26 @@ public sealed class CreateResidentVisitIn
     public DateTime ValidFrom { get; set; }
     public DateTime ValidTo { get; set; }
     public int? MaxUses { get; set; } = 1;
+    public AccessCredentialTypeEnum CredentialType { get; set; } = AccessCredentialTypeEnum.QrCode;
+    public bool CreateFacialInvite { get; set; }
+    public List<Guid> RouteIds { get; set; } = [];
     public string IdempotencyKey { get; set; } = string.Empty;
+}
+
+public sealed class ResidentVisitOptionsOut
+{
+    public bool FacialInviteAvailable { get; set; }
+    public List<ResidentVisitRouteOut> Routes { get; set; } = [];
+}
+
+public sealed class ResidentVisitRouteOut
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int DaysOfWeekMask { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public int DeviceCount { get; set; }
+    public int OnlineDeviceCount { get; set; }
+    public bool SupportsFace { get; set; }
 }

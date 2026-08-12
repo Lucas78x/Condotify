@@ -1,4 +1,5 @@
 using CondotifyAPI.Controllers;
+using CondotifyAPI.Data.Equipments;
 using CondotifyAPI.Services.CFTV;
 using Xunit;
 
@@ -75,5 +76,47 @@ public class CftvStreamingControllerTests
 
         Assert.Equal(expected, paths[0]);
         Assert.Contains("/snapshot.jpg", paths);
+    }
+
+    [Fact]
+    public void CameraUpdateValidator_AcceptsCustomRtspPortAndOptionalPassword()
+    {
+        var input = new UpdateCftvDeviceIn
+        {
+            Name = "Câmera da entrada",
+            IpAddress = "192.168.9.28",
+            UserName = "admin",
+            Password = null,
+            HTTPPort = "80",
+            RTSPPort = "39992",
+            Mark = MarkEnum.Intelbras,
+            DeviceType = CFTVDeviceTypeEnum.Camera,
+            MaxChannels = 1
+        };
+
+        var result = new UpdateCftvDeviceInValidator().Validate(input);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("65536")]
+    [InlineData("rtsp")]
+    public void CameraUpdateValidator_RejectsInvalidRtspPort(string port)
+    {
+        var input = new UpdateCftvDeviceIn
+        {
+            Name = "Câmera",
+            IpAddress = "192.168.0.20",
+            UserName = "admin",
+            HTTPPort = "80",
+            RTSPPort = port,
+            Mark = MarkEnum.Intelbras,
+            DeviceType = CFTVDeviceTypeEnum.Camera,
+            MaxChannels = 1
+        };
+
+        Assert.False(new UpdateCftvDeviceInValidator().Validate(input).IsValid);
     }
 }

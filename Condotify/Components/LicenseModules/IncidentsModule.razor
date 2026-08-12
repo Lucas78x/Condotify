@@ -2,82 +2,153 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-<section class="module-intro">
-    <div><MudText Typo="Typo.h5">Central de ocorrências</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Passagem de turno, evidências e tratativas em uma única linha do tempo.</MudText></div>
-    @if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddAlert" OnClick="OpenCreateAsync">Nova ocorrência</MudButton> }
+<section class="maintenance-hero">
+    <div class="maintenance-hero-copy">
+        <span class="maintenance-hero-icon"><MudIcon Icon="@Icons.Material.Outlined.HomeRepairService" /></span>
+        <div><span class="page-eyebrow">CENTRAL DE ATENDIMENTO</span><MudText Typo="Typo.h4">Ocorrências e manutenção</MudText><MudText Typo="Typo.body2">Do chamado à conclusão, com SLA, responsáveis e histórico em uma só operação.</MudText></div>
+    </div>
+    @if (CanManage)
+    {
+        <div class="maintenance-hero-actions"><MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.AddAlert" OnClick="OpenIncidentAsync">Nova ocorrência</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Engineering" OnClick="@(() => OpenWorkOrderAsync(null))">Nova ordem de serviço</MudButton></div>
+    }
 </section>
 
-<div class="module-kpis">
-    <div class="mini-kpi"><span class="mini-kpi-icon blue"><MudIcon Icon="@Icons.Material.Outlined.AssignmentLate" /></span><div><strong>@(_page?.Open ?? 0)</strong><span>Em tratamento</span></div></div>
-    <div class="mini-kpi"><span class="mini-kpi-icon red"><MudIcon Icon="@Icons.Material.Outlined.CrisisAlert" /></span><div><strong>@(_page?.Critical ?? 0)</strong><span>Críticas</span></div></div>
-    <div class="mini-kpi"><span class="mini-kpi-icon green"><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" /></span><div><strong>@ResolvedCount</strong><span>Concluídas no filtro</span></div></div>
-</div>
-
-<MudPaper Class="content-panel incidents-panel" Elevation="0">
-    <div class="panel-toolbar incidents-toolbar">
-        <div><MudText Typo="Typo.h6" Class="panel-title">Fila operacional</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Prioridade, responsável e histórico de cada registro</MudText></div>
-        <div class="incident-filters"><MudTextField T="string" Value="_search" ValueChanged="SearchChangedAsync" Immediate DebounceInterval="350" Placeholder="Buscar código ou título" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" /><MudSelect T="string" Value="_status" ValueChanged="ChangeStatusFilterAsync" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem Value="@("active")">Ativas</MudSelectItem><MudSelectItem Value="@("open")">Abertas</MudSelectItem><MudSelectItem Value="@("inprogress")">Em andamento</MudSelectItem><MudSelectItem Value="@("resolved")">Resolvidas</MudSelectItem><MudSelectItem Value="@("all")">Todas</MudSelectItem></MudSelect><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Color="Color.Primary" OnClick="LoadAsync" /></div>
+@if (_loading)
+{
+    <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /><MudText Typo="Typo.body2">Organizando a operação...</MudText></div>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+}
+else
+{
+    <div class="maintenance-kpis">
+        <article><span class="maintenance-kpi-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Inbox" /></span><div><small>Chamados abertos</small><strong>@(_dashboard?.OpenIncidents ?? 0)</strong><em>@(_dashboard?.CriticalIncidents ?? 0) crítico(s)</em></div></article>
+        <article><span class="maintenance-kpi-icon orange"><MudIcon Icon="@Icons.Material.Outlined.Timer" /></span><div><small>SLA em atenção</small><strong>@((_dashboard?.SlaAtRisk ?? 0) + (_dashboard?.SlaOverdue ?? 0))</strong><em>@(_dashboard?.SlaOverdue ?? 0) atrasado(s)</em></div></article>
+        <article><span class="maintenance-kpi-icon violet"><MudIcon Icon="@Icons.Material.Outlined.Engineering" /></span><div><small>Ordens em curso</small><strong>@(_dashboard?.OpenWorkOrders ?? 0)</strong><em>execução e terceiros</em></div></article>
+        <article><span class="maintenance-kpi-icon green"><MudIcon Icon="@Icons.Material.Outlined.Verified" /></span><div><small>Dentro do SLA</small><strong>@((_dashboard?.SlaCompliancePercent ?? 100).ToString("0.#"))%</strong><em>chamados concluídos</em></div></article>
+        <article><span class="maintenance-kpi-icon teal"><MudIcon Icon="@Icons.Material.Outlined.EventRepeat" /></span><div><small>Preventivas próximas</small><strong>@(_dashboard?.PreventiveDueSoon ?? 0)</strong><em>próximos 15 dias</em></div></article>
     </div>
-    @if (_loading) { <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div> }
-    else if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert> }
-    else if (_page?.Items.Count == 0) { <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Size="Size.Large" Color="Color.Success" /><MudText Typo="Typo.subtitle1">Nenhuma ocorrência neste filtro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A operação está sem pendências correspondentes.</MudText></div> }
-    else
+
+    <nav class="maintenance-tabs" aria-label="Áreas da manutenção">
+        <button class="@(_tab == "board" ? "active" : "")" @onclick="@(() => SelectTab("board"))"><MudIcon Icon="@Icons.Material.Outlined.ViewKanban" />Painel operacional</button>
+        <button class="@(_tab == "preventive" ? "active" : "")" @onclick="@(() => SelectTab("preventive"))"><MudIcon Icon="@Icons.Material.Outlined.EventRepeat" />Preventivas <span>@_plans.Count</span></button>
+        <button class="@(_tab == "providers" ? "active" : "")" @onclick="@(() => SelectTab("providers"))"><MudIcon Icon="@Icons.Material.Outlined.Handyman" />Prestadores <span>@_providers.Count(x => x.IsActive)</span></button>
+    </nav>
+
+    @if (_tab == "board")
     {
-        <div class="incident-workspace">
-            <div class="incident-list">
-                @foreach (var item in _page?.Items ?? [])
+        <section class="maintenance-board-shell">
+            <header class="maintenance-toolbar"><div><MudText Typo="Typo.h6">Fluxo de atendimento</MudText><MudText Typo="Typo.caption">Priorize o que vence primeiro e acompanhe cada execução.</MudText></div><div><MudTextField T="string" @bind-Value="_search" Immediate Placeholder="Buscar chamado ou OS" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" /><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" /></div></header>
+            <div class="maintenance-workspace">
+                <div class="maintenance-kanban">
+                    @foreach (var column in Columns)
+                    {
+                        <section class="maintenance-column @column.ClassName">
+                            <header><span></span><strong>@column.Label</strong><em>@ColumnCount(column.Key)</em></header>
+                            <div class="maintenance-column-list">
+                                @if (column.Key == "triage")
+                                {
+                                    @foreach (var incident in TriageIncidents)
+                                    {
+                                        <button class="maintenance-card @(_selectedIncident?.Id == incident.Id ? "selected" : "")" @onclick="@(() => SelectIncident(incident))">
+                                            <div class="maintenance-card-top"><span class="priority-dot @incident.Severity.ToLowerInvariant()"></span><small>@incident.Code</small><em>@SlaLabel(incident)</em></div>
+                                            <strong>@incident.Title</strong><p>@(string.IsNullOrWhiteSpace(incident.LocationLabel) ? "Local não informado" : incident.LocationLabel)</p>
+                                            <footer><span><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" />@(string.IsNullOrWhiteSpace(incident.ReportedByName) ? "Equipe" : incident.ReportedByName)</span><span>@incident.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</span></footer>
+                                        </button>
+                                    }
+                                }
+                                @foreach (var order in OrdersFor(column.Key))
+                                {
+                                    <button class="maintenance-card @(_selectedOrder?.Id == order.Id ? "selected" : "")" @onclick="@(() => SelectOrder(order))">
+                                        <div class="maintenance-card-top"><span class="priority-dot @order.Priority.ToLowerInvariant()"></span><small>@order.Code</small><em class="order-chip">@StatusLabel(order.Status)</em></div>
+                                        <strong>@order.Title</strong><p>@(string.IsNullOrWhiteSpace(order.LocationLabel) ? "Local não informado" : order.LocationLabel)</p>
+                                        <footer><span><MudIcon Icon="@Icons.Material.Outlined.Engineering" />@(string.IsNullOrWhiteSpace(order.AssignedToName) ? order.ProviderName.Length == 0 ? "Não atribuída" : order.ProviderName : order.AssignedToName)</span><span>@DueLabel(order.DueAt)</span></footer>
+                                    </button>
+                                }
+                                @if (ColumnCount(column.Key) == 0) { <div class="maintenance-column-empty"><MudIcon Icon="@Icons.Material.Outlined.CheckCircleOutline" /><span>Nada nesta etapa</span></div> }
+                            </div>
+                        </section>
+                    }
+                </div>
+
+                @if (_selectedIncident is not null)
                 {
-                    <button type="button" class="incident-row @(_selected?.Id == item.Id ? "selected" : "")" @onclick="@(() => Select(item))">
-                        <span class="incident-severity @item.Severity.ToLowerInvariant()"></span>
-                        <span class="incident-row-main"><span><strong>@item.Title</strong><em class="status-chip @item.Status.ToLowerInvariant()">@StatusLabel(item.Status)</em></span><small>@item.Code · @CategoryLabel(item.Category) · @item.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</small></span>
-                        <span class="incident-owner">@(string.IsNullOrWhiteSpace(item.AssignedToName) ? "Sem responsável" : item.AssignedToName)</span>
-                    </button>
+                    <aside class="maintenance-detail">
+                        <header><div><small>CHAMADO @_selectedIncident.Code</small><h3>@_selectedIncident.Title</h3></div><MudIconButton Icon="@Icons.Material.Outlined.Close" OnClick="ClearSelection" /></header>
+                        <div class="maintenance-detail-status"><span class="priority-dot @_selectedIncident.Severity.ToLowerInvariant()"></span><strong>@SeverityLabel(_selectedIncident.Severity)</strong><em>@StatusLabel(_selectedIncident.Status)</em></div>
+                        <p class="maintenance-detail-description">@_selectedIncident.Description</p>
+                        <div class="maintenance-detail-grid"><div><small>Local</small><strong>@ValueOr(_selectedIncident.LocationLabel)</strong></div><div><small>Responsável</small><strong>@ValueOr(_selectedIncident.AssignedToName)</strong></div><div><small>Primeira resposta</small><strong>@DeadlineLabel(_selectedIncident.SlaResponseDueAt)</strong></div><div><small>Solução</small><strong>@DeadlineLabel(_selectedIncident.SlaResolutionDueAt)</strong></div></div>
+                        @if (CanManage) { <div class="maintenance-detail-actions"><MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Engineering" OnClick="@(() => OpenWorkOrderAsync(_selectedIncident))">Gerar OS</MudButton><MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.PlayArrow" Disabled="@(_selectedIncident.Status == "InProgress")" OnClick="@(() => UpdateIncidentStatusAsync(1))">Assumir</MudButton><MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Outlined.TaskAlt" Disabled="@(_selectedIncident.Status is "Resolved" or "Closed")" OnClick="@(() => UpdateIncidentStatusAsync(2))">Resolver</MudButton></div> }
+                        <div class="maintenance-timeline"><h4>Linha do tempo</h4>@foreach (var item in _selectedIncident.Timeline.Take(8)) { <article><span><MudIcon Icon="@TimelineIcon(item.Type)" /></span><div><strong>@TimelineLabel(item.Type)</strong><p>@item.Message</p><small>@item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small></div></article> }</div>
+                    </aside>
+                }
+                else if (_selectedOrder is not null)
+                {
+                    <aside class="maintenance-detail">
+                        <header><div><small>ORDEM @_selectedOrder.Code</small><h3>@_selectedOrder.Title</h3></div><MudIconButton Icon="@Icons.Material.Outlined.Close" OnClick="ClearSelection" /></header>
+                        <div class="maintenance-detail-status"><span class="priority-dot @_selectedOrder.Priority.ToLowerInvariant()"></span><strong>@SeverityLabel(_selectedOrder.Priority)</strong><em>@StatusLabel(_selectedOrder.Status)</em></div>
+                        <p class="maintenance-detail-description">@_selectedOrder.Description</p>
+                        <div class="maintenance-detail-grid"><div><small>Local</small><strong>@ValueOr(_selectedOrder.LocationLabel)</strong></div><div><small>Responsável</small><strong>@ValueOr(_selectedOrder.AssignedToName)</strong></div><div><small>Prestador</small><strong>@ValueOr(_selectedOrder.ProviderName)</strong></div><div><small>Prazo</small><strong>@DeadlineLabel(_selectedOrder.DueAt)</strong></div><div><small>Estimado</small><strong>@Money(_selectedOrder.EstimatedCost)</strong></div><div><small>Realizado</small><strong>@Money(_selectedOrder.ActualCost)</strong></div></div>
+                        @if (CanManage) { <div class="maintenance-status-actions"><MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => UpdateOrderStatusAsync(2, "Atendimento iniciado."))">Iniciar</MudButton><MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => UpdateOrderStatusAsync(3, "Aguardando atendimento do prestador."))">Aguardar terceiro</MudButton><MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => UpdateOrderStatusAsync(5, "Serviço concluído e funcionamento conferido."))">Concluir</MudButton></div> }
+                        <div class="maintenance-checklist"><h4>Checklist <span>@_selectedOrder.Checklist.Count(x => x.IsCompleted)/@_selectedOrder.Checklist.Count</span></h4>@foreach (var item in _selectedOrder.Checklist) { <label class="@(item.IsCompleted ? "done" : "")"><MudCheckBox T="bool" Value="item.IsCompleted" ValueChanged="@(value => ToggleChecklistAsync(item, value))" Disabled="@(!CanManage)" Color="Color.Success" /><span>@item.Title@if (item.IsRequired) { <em>obrigatório</em> }</span></label> }</div>
+                        <div class="maintenance-timeline"><h4>Histórico da OS</h4>@foreach (var item in _selectedOrder.Activities.Take(8)) { <article><span><MudIcon Icon="@Icons.Material.Outlined.History" /></span><div><strong>@ActivityLabel(item.Type)</strong><p>@item.Message</p><small>@item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small></div></article> }</div>
+                    </aside>
                 }
             </div>
-            @if (_selected is not null)
-            {
-                <aside class="incident-detail">
-                    <div class="incident-detail-head"><div><span class="incident-code">@_selected.Code</span><MudText Typo="Typo.h6">@_selected.Title</MudText></div><MudChip T="string" Size="Size.Small" Color="@SeverityColor(_selected.Severity)" Variant="Variant.Outlined">@SeverityLabel(_selected.Severity)</MudChip></div>
-                    <MudText Typo="Typo.body2" Class="incident-description">@(_selected.Description.Length == 0 ? "Sem descrição adicional." : _selected.Description)</MudText>
-                    <div class="incident-meta"><div><small>Status</small><strong>@StatusLabel(_selected.Status)</strong></div><div><small>Origem</small><strong>@SourceLabel(_selected.Source)</strong></div><div><small>Responsável</small><strong>@(string.IsNullOrWhiteSpace(_selected.AssignedToName) ? "Não atribuído" : _selected.AssignedToName)</strong></div><div><small>Atualizada</small><strong>@_selected.UpdatedAt.ToLocalTime().ToString("dd/MM HH:mm")</strong></div></div>
-                    @if (CanManage)
-                    {
-                        <div class="incident-actions"><MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Outlined.PlayArrow" Disabled="@(_selected.Status == "InProgress")" OnClick="@(() => ChangeIncidentStatusAsync(1))">Assumir</MudButton><MudButton Variant="Variant.Outlined" Color="Color.Success" Size="Size.Small" StartIcon="@Icons.Material.Outlined.TaskAlt" Disabled="@(_selected.Status is "Resolved" or "Closed")" OnClick="@(() => ChangeIncidentStatusAsync(2))">Resolver</MudButton></div>
-                        <div class="incident-assignment"><MudTextField T="string" @bind-Value="_assignment" Label="Responsável" Variant="Variant.Outlined" Margin="Margin.Dense" /><MudIconButton Icon="@Icons.Material.Outlined.PersonAdd" Color="Color.Primary" OnClick="AssignAsync" /></div>
-                        <MudTextField T="string" @bind-Value="_comment" Label="Adicionar comentário ou evidência" Variant="Variant.Outlined" Lines="2" Margin="Margin.Dense" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Outlined.Send" OnAdornmentClick="AddCommentAsync" />
-                    }
-                    <div class="incident-timeline"><h4>Linha do tempo</h4>@foreach (var entry in _selected.Timeline) { <div class="timeline-entry"><span><MudIcon Icon="@TimelineIcon(entry.Type)" Size="Size.Small" /></span><div><strong>@TimelineLabel(entry.Type)</strong><p>@entry.Message</p><small>@(string.IsNullOrWhiteSpace(entry.ActorName) ? "Sistema" : entry.ActorName) · @entry.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</small>@if (!string.IsNullOrWhiteSpace(entry.ReferenceUrl)) { <MudLink Href="@entry.ReferenceUrl" Target="_blank">Abrir evidência</MudLink> }</div></div> }</div>
-                </aside>
-            }
-        </div>
+        </section>
     }
-</MudPaper>
+    else if (_tab == "preventive")
+    {
+        <section class="maintenance-catalog"><header><div><MudText Typo="Typo.h5">Manutenção preventiva</MudText><MudText Typo="Typo.body2">Antecipe falhas e gere ordens automaticamente na data certa.</MudText></div>@if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenPlanAsync(null))">Novo plano</MudButton> }</header>
+            @if (_plans.Count == 0) { <div class="maintenance-empty"><span><MudIcon Icon="@Icons.Material.Outlined.EventRepeat" /></span><h3>Comece pelo equipamento mais crítico</h3><p>Cadastre a periodicidade, o checklist e o prestador. A OS será criada automaticamente.</p>@if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => OpenPlanAsync(null))">Criar primeiro plano</MudButton> }</div> }
+            else { <div class="preventive-grid">@foreach (var plan in _plans) { <article><header><span class="@(plan.IsActive ? "active" : "paused")"><MudIcon Icon="@(plan.IsActive ? Icons.Material.Outlined.Autorenew : Icons.Material.Outlined.Pause)" /></span><em>@(plan.IsActive ? "Ativo" : "Pausado")</em></header><small>PRÓXIMA EXECUÇÃO</small><strong>@plan.NextDueAt.ToLocalTime().ToString("dd MMM yyyy")</strong><h3>@plan.Name</h3><p>@ValueOr(plan.LocationLabel)</p><footer><span>A cada @plan.IntervalDays dias</span><span>@plan.Checklist.Count itens</span>@if (CanManage) { <MudIconButton Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenPlanAsync(plan))" /> }</footer></article> }</div> }
+        </section>
+    }
+    else
+    {
+        <section class="maintenance-catalog"><header><div><MudText Typo="Typo.h5">Rede de prestadores</MudText><MudText Typo="Typo.body2">Contatos prontos para atribuição nas ordens de serviço.</MudText></div>@if (CanManage) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" OnClick="@(() => OpenProviderAsync(null))">Novo prestador</MudButton> }</header>
+            @if (_providers.Count == 0) { <div class="maintenance-empty"><span><MudIcon Icon="@Icons.Material.Outlined.Handyman" /></span><h3>Nenhum prestador cadastrado</h3><p>Centralize os contatos e atribua chamados com muito menos digitação.</p></div> }
+            else { <div class="provider-grid">@foreach (var provider in _providers) { <article class="@(!provider.IsActive ? "inactive" : "")"><span class="provider-avatar">@Initials(provider.Name)</span><div><h3>@provider.Name</h3><p>@ValueOr(provider.Specialty)</p><small>@ValueOr(provider.ContactName) · @ValueOr(provider.Phone)</small><em>@provider.OpenWorkOrders OS em aberto</em></div>@if (CanManage) { <MudIconButton Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenProviderAsync(provider))" /> }</article> }</div> }
+        </section>
+    }
+}
 
 @code {
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
     [Parameter] public bool CanManage { get; set; }
-    private IncidentPageViewModel? _page; private IncidentViewModel? _selected; private bool _loading = true;
-    private string? _error; private string _status = "active"; private string _search = string.Empty; private string _comment = string.Empty; private string _assignment = string.Empty;
-    private Guid _loadedLicenseId;
-    private int ResolvedCount => _page?.Items.Count(x => x.Status is "Resolved" or "Closed") ?? 0;
-    protected override Task OnParametersSetAsync() { if (_loadedLicenseId == LicenseId) return Task.CompletedTask; _loadedLicenseId = LicenseId; _selected = null; return LoadAsync(); }
-    private async Task LoadAsync() { _loading = true; var result = await Api.GetIncidentsAsync(LicenseId, _status, search: _search); _loading = false; if (!result.Success) { _error = result.Error; return; } _page = result.Value; _error = null; if (_selected is not null) _selected = _page?.Items.FirstOrDefault(x => x.Id == _selected.Id); _selected ??= _page?.Items.FirstOrDefault(); _assignment = _selected?.AssignedToName ?? string.Empty; }
-    private void Select(IncidentViewModel value) { _selected = value; _assignment = value.AssignedToName; _comment = string.Empty; }
-    private async Task ChangeStatusFilterAsync(string value) { _status = value; await LoadAsync(); }
-    private async Task SearchChangedAsync(string value) { _search = value; await LoadAsync(); }
-    private async Task OpenCreateAsync() { var dialog = await DialogService.ShowAsync<IncidentFormDialog>("", new DialogParameters<IncidentFormDialog> { { x => x.LicenseId, LicenseId } }, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true }); var result = await dialog.Result; if (result is { Canceled: false }) await LoadAsync(); }
-    private async Task AddCommentAsync() { if (_selected is null || string.IsNullOrWhiteSpace(_comment)) return; var result = await Api.AddIncidentCommentAsync(_selected.Id, new IncidentCommentViewModel { Message = _comment }); if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao comentar.", Severity.Error); return; } _selected = result.Value; _comment = string.Empty; Snackbar.Add("Atualização adicionada à linha do tempo.", Severity.Success); await LoadAsync(); }
-    private async Task AssignAsync() { if (_selected is null) return; var result = await Api.AssignIncidentAsync(_selected.Id, null, _assignment); if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao atribuir.", Severity.Error); return; } _selected = result.Value; Snackbar.Add("Responsável atualizado.", Severity.Success); await LoadAsync(); }
-    // Assumir e Resolver sao as duas transicoes de status desta lista: nenhuma
-    // apaga dado, ambas ficam registradas na linha do tempo e o filtro
-    // "Todas"/"Resolvidas" continua mostrando o caso depois. Nao ha ação mais
-    // destrutiva aqui que justifique confirmar uma e não a outra.
-    private async Task ChangeIncidentStatusAsync(int status) { if (_selected is null) return; var result = await Api.UpdateIncidentStatusAsync(_selected.Id, status, status == 2 ? "Ocorrência tratada e concluída pela equipe operacional." : "Atendimento iniciado pela equipe operacional."); if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao atualizar.", Severity.Error); return; } _selected = result.Value; Snackbar.Add(status == 2 ? "Ocorrência resolvida." : "Atendimento iniciado.", Severity.Success); await LoadAsync(); }
-    private static string StatusLabel(string value) => value switch { "Open" => "Aberta", "InProgress" => "Em andamento", "Resolved" => "Resolvida", "Closed" => "Encerrada", _ => value };
-    private static string SeverityLabel(string value) => value switch { "Low" => "Baixa", "Medium" => "Média", "High" => "Alta", "Critical" => "Crítica", _ => value };
-    private static Color SeverityColor(string value) => value switch { "Critical" => Color.Error, "High" => Color.Warning, "Medium" => Color.Info, _ => Color.Success };
-    private static string CategoryLabel(string value) => value switch { "Access" => "Acesso", "Visitor" => "Visitante", "Vehicle" => "Veículo", "Device" => "Equipamento", "Delivery" => "Encomenda", "Safety" => "Segurança", _ => "Outro" };
-    private static string SourceLabel(string value) => value switch { "Manual" => "Equipe", "Automation" => "Automação", "Emergency" => "Emergência", _ => "Sistema" };
-    private static string TimelineIcon(string value) => value switch { "Comment" => Icons.Material.Outlined.ChatBubbleOutline, "Evidence" => Icons.Material.Outlined.PhotoCamera, "StatusChanged" => Icons.Material.Outlined.SyncAlt, "Assignment" => Icons.Material.Outlined.Person, "Automation" => Icons.Material.Outlined.AutoAwesome, "Emergency" => Icons.Material.Outlined.CrisisAlert, _ => Icons.Material.Outlined.Flag };
-    private static string TimelineLabel(string value) => value switch { "Comment" => "Comentário", "Evidence" => "Evidência", "StatusChanged" => "Mudança de status", "Assignment" => "Responsável", "Automation" => "Automação", "Emergency" => "Emergência", _ => "Ocorrência criada" };
+    private MaintenanceDashboardViewModel? _dashboard; private List<MaintenanceProviderViewModel> _providers = []; private List<PreventiveMaintenancePlanViewModel> _plans = [];
+    private IncidentViewModel? _selectedIncident; private WorkOrderViewModel? _selectedOrder; private bool _loading = true; private string? _error; private string _tab = "board"; private string _search = string.Empty; private Guid _loaded;
+    private sealed record BoardColumn(string Key, string Label, string ClassName);
+    private static readonly BoardColumn[] Columns = [new("triage", "Triagem", "new"), new("doing", "Em atendimento", "doing"), new("waiting", "Aguardando", "waiting"), new("done", "Concluídas", "done")];
+    private IEnumerable<IncidentViewModel> TriageIncidents => (_dashboard?.Incidents ?? []).Where(x => x.Status == "Open" && x.WorkOrders.Count == 0 && Match(x.Code, x.Title, x.LocationLabel));
+    private IEnumerable<WorkOrderViewModel> OrdersFor(string key) => (_dashboard?.WorkOrders ?? []).Where(x => key switch { "doing" => x.Status is "Planned" or "Assigned" or "InProgress", "waiting" => x.Status is "WaitingProvider" or "WaitingMaterial", "done" => x.Status is "Completed" or "Cancelled", _ => false }).Where(x => Match(x.Code, x.Title, x.LocationLabel)).Take(key == "done" ? 20 : 100);
+    private int ColumnCount(string key) => key == "triage" ? TriageIncidents.Count() : OrdersFor(key).Count();
+    protected override Task OnParametersSetAsync() { if (_loaded == LicenseId) return Task.CompletedTask; _loaded = LicenseId; return LoadAsync(); }
+    private async Task LoadAsync() { _loading = true; var dashboardTask = Api.GetMaintenanceDashboardAsync(LicenseId); var providerTask = Api.GetMaintenanceProvidersAsync(LicenseId); var planTask = Api.GetPreventiveMaintenancePlansAsync(LicenseId); await Task.WhenAll(dashboardTask, providerTask, planTask); var dashboard = await dashboardTask; var providers = await providerTask; var plans = await planTask; _loading = false; if (!dashboard.Success) { _error = dashboard.Error; return; } _dashboard = dashboard.Value; _providers = providers.Success ? providers.Value ?? [] : []; _plans = plans.Success ? plans.Value ?? [] : []; _error = null; RestoreSelection(); }
+    private void RestoreSelection() { if (_selectedIncident is not null) _selectedIncident = _dashboard?.Incidents.FirstOrDefault(x => x.Id == _selectedIncident.Id); if (_selectedOrder is not null) _selectedOrder = _dashboard?.WorkOrders.FirstOrDefault(x => x.Id == _selectedOrder.Id); }
+    private void SelectTab(string value) { _tab = value; ClearSelection(); }
+    private void SelectIncident(IncidentViewModel item) { _selectedIncident = item; _selectedOrder = null; }
+    private void SelectOrder(WorkOrderViewModel item) { _selectedOrder = item; _selectedIncident = null; }
+    private void ClearSelection() { _selectedIncident = null; _selectedOrder = null; }
+    private async Task OpenIncidentAsync() { var dialog = await DialogService.ShowAsync<IncidentFormDialog>("", new DialogParameters<IncidentFormDialog> { { x => x.LicenseId, LicenseId } }, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }); var result = await dialog.Result; if (result is { Canceled: false }) await LoadAsync(); }
+    private async Task OpenWorkOrderAsync(IncidentViewModel? incident) { var dialog = await DialogService.ShowAsync<WorkOrderDialog>("", new DialogParameters<WorkOrderDialog> { { x => x.LicenseId, LicenseId }, { x => x.Incident, incident } }, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }); var result = await dialog.Result; if (result is { Canceled: false }) await LoadAsync(); }
+    private async Task OpenProviderAsync(MaintenanceProviderViewModel? item) { var dialog = await DialogService.ShowAsync<MaintenanceProviderDialog>("", new DialogParameters<MaintenanceProviderDialog> { { x => x.LicenseId, LicenseId }, { x => x.Value, item } }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }); var result = await dialog.Result; if (result is { Canceled: false }) await LoadAsync(); }
+    private async Task OpenPlanAsync(PreventiveMaintenancePlanViewModel? item) { var dialog = await DialogService.ShowAsync<PreventiveMaintenanceDialog>("", new DialogParameters<PreventiveMaintenanceDialog> { { x => x.LicenseId, LicenseId }, { x => x.Value, item } }, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }); var result = await dialog.Result; if (result is { Canceled: false }) await LoadAsync(); }
+    private async Task UpdateIncidentStatusAsync(int status) { if (_selectedIncident is null) return; var result = await Api.UpdateIncidentStatusAsync(_selectedIncident.Id, status, status == 2 ? "Ocorrência concluída pela equipe." : "Atendimento iniciado pela equipe."); if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao atualizar.", Severity.Error); return; } Snackbar.Add(status == 2 ? "Ocorrência resolvida." : "Atendimento iniciado.", Severity.Success); await LoadAsync(); }
+    private async Task UpdateOrderStatusAsync(int status, string note) { if (_selectedOrder is null) return; var result = await Api.UpdateWorkOrderStatusAsync(LicenseId, _selectedOrder.Id, new WorkOrderStatusUpdateViewModel { Status = status, Note = note, VisibleToResident = true }); if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível atualizar a OS.", Severity.Error); return; } Snackbar.Add("Ordem atualizada.", Severity.Success); await LoadAsync(); }
+    private async Task ToggleChecklistAsync(WorkOrderChecklistItemViewModel item, bool value) { if (_selectedOrder is null) return; var result = await Api.UpdateWorkOrderChecklistAsync(LicenseId, _selectedOrder.Id, item.Id, value); if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao atualizar o checklist.", Severity.Error); return; } await LoadAsync(); }
+    private bool Match(params string[] values) => string.IsNullOrWhiteSpace(_search) || values.Any(x => x.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+    private static string StatusLabel(string value) => value switch { "Open" => "Aberta", "InProgress" => "Em andamento", "Resolved" => "Resolvida", "Closed" => "Encerrada", "Planned" => "Planejada", "Assigned" => "Atribuída", "WaitingProvider" => "Aguardando terceiro", "WaitingMaterial" => "Aguardando material", "Completed" => "Concluída", "Cancelled" => "Cancelada", _ => value };
+    private static string SeverityLabel(string value) => value switch { "Low" => "Prioridade baixa", "Medium" => "Prioridade média", "High" => "Prioridade alta", "Critical" => "Prioridade crítica", _ => value };
+    private static string SlaLabel(IncidentViewModel x) => !x.SlaResolutionDueAt.HasValue ? "Sem SLA" : x.SlaResolutionDueAt < DateTime.UtcNow ? "SLA atrasado" : $"vence {x.SlaResolutionDueAt.Value.ToLocalTime():dd/MM HH:mm}";
+    private static string DueLabel(DateTime? value) => value.HasValue ? value.Value < DateTime.UtcNow ? "atrasada" : value.Value.ToLocalTime().ToString("dd/MM") : "sem prazo";
+    private static string DeadlineLabel(DateTime? value) => value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM HH:mm") : "Não definido";
+    private static string ValueOr(string value) => string.IsNullOrWhiteSpace(value) ? "Não informado" : value;
+    private static string Money(decimal value) => value <= 0 ? "Não informado" : value.ToString("C2", new System.Globalization.CultureInfo("pt-BR"));
+    private static string Initials(string value) => string.Concat(value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => x[0])).ToUpperInvariant();
+    private static string TimelineIcon(string type) => type switch { "Comment" => Icons.Material.Outlined.ChatBubbleOutline, "Evidence" => Icons.Material.Outlined.PhotoCamera, "StatusChanged" => Icons.Material.Outlined.SyncAlt, "Assignment" => Icons.Material.Outlined.Person, _ => Icons.Material.Outlined.Flag };
+    private static string TimelineLabel(string type) => type switch { "Comment" => "Comentário", "Evidence" => "Evidência", "StatusChanged" => "Situação atualizada", "Assignment" => "Responsável atualizado", _ => "Ocorrência criada" };
+    private static string ActivityLabel(string type) => type switch { "StatusChanged" => "Situação atualizada", "Assignment" => "Responsável atualizado", "Checklist" => "Checklist", "Cost" => "Custos informativos", "Completed" => "Serviço concluído", _ => "Ordem criada" };
 }

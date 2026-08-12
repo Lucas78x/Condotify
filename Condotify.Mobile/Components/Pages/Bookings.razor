@@ -87,6 +87,7 @@
     private ResidentProfileViewModel? _profile;
     private bool _loading;
     private Guid? _cancelling;
+    private Guid? _deciding;
     private string _error = string.Empty;
     private static readonly System.Globalization.CultureInfo PtBr = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
     private static readonly string[] WeekdayLabels = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"];
@@ -134,11 +135,18 @@
     }
     private async Task DecideAsync(AmenityBookingViewModel row, bool approved)
     {
+        var licenseId = AppState.SelectedLicenseId;
+        if (!licenseId.HasValue || _deciding.HasValue) return;
+        _deciding = row.Id;
+        try
+        {
         var result = approved
-            ? await Api.ApproveAmenityBookingAsync(AppState.SelectedLicenseId!.Value, row.AmenityId, row.Id)
-            : await Api.RejectAmenityBookingAsync(AppState.SelectedLicenseId!.Value, row.AmenityId, row.Id, "Recusada pelo aplicativo");
+            ? await Api.ApproveAmenityBookingAsync(licenseId.Value, row.AmenityId, row.Id)
+            : await Api.RejectAmenityBookingAsync(licenseId.Value, row.AmenityId, row.Id, "Recusada pelo aplicativo");
         Snackbar.Add(result.Success ? (approved ? "Reserva aprovada." : "Reserva recusada.") : result.Error ?? "Falha na operação.", result.Success ? Severity.Success : Severity.Error);
         if (result.Success) await LoadAsync();
+        }
+        finally { _deciding = null; }
     }
     private async Task OpenCreateAsync()
     {

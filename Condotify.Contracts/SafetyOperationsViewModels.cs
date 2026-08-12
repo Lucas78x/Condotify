@@ -26,13 +26,19 @@ public sealed class IncidentViewModel
     public Guid? RelatedResourceId { get; set; }
     public string AssignedToName { get; set; } = string.Empty;
     public string ReportedByName { get; set; } = string.Empty;
+    public string LocationLabel { get; set; } = string.Empty;
     public DateTime? DueAt { get; set; }
+    public DateTime? SlaResponseDueAt { get; set; }
+    public DateTime? SlaResolutionDueAt { get; set; }
+    public DateTime? AcknowledgedAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
     public string Resolution { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool CanManage { get; set; }
     public List<IncidentTimelineEntryViewModel> Timeline { get; set; } = [];
+    public List<IncidentAttachmentViewModel> Attachments { get; set; } = [];
+    public List<WorkOrderViewModel> WorkOrders { get; set; } = [];
 }
 
 public sealed class IncidentTimelineEntryViewModel
@@ -44,6 +50,7 @@ public sealed class IncidentTimelineEntryViewModel
     public Guid? ReferenceId { get; set; }
     public string ReferenceUrl { get; set; } = string.Empty;
     public string ActorName { get; set; } = string.Empty;
+    public bool VisibleToResident { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
@@ -56,6 +63,7 @@ public sealed class IncidentCreateViewModel
     public DateTime? DueAt { get; set; }
     public string RelatedResourceType { get; set; } = string.Empty;
     public Guid? RelatedResourceId { get; set; }
+    [MaxLength(240)] public string LocationLabel { get; set; } = string.Empty;
 }
 
 public sealed class IncidentCommentViewModel
@@ -64,6 +72,7 @@ public sealed class IncidentCommentViewModel
     public string ReferenceType { get; set; } = string.Empty;
     public Guid? ReferenceId { get; set; }
     public string ReferenceUrl { get; set; } = string.Empty;
+    public bool VisibleToResident { get; set; }
 }
 
 public sealed class IncidentStatusUpdateViewModel

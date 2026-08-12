@@ -186,8 +186,8 @@
         _loading = false;
     }
 
-    private string ResidentCacheKey => $"home.resident.{Session.Current?.SubjectId:N}";
-    private string StaffCacheKey => $"home.staff.{AppState.SelectedLicenseId:N}";
+    private string ResidentCacheKey => MobileOfflineCache.ResidentHomeKey(Session.Current?.SubjectId ?? Guid.Empty, Session.Current?.LicenseId);
+    private string StaffCacheKey => MobileOfflineCache.StaffHomeKey(Session.Current?.SubjectId ?? Guid.Empty, AppState.SelectedLicenseId);
     private sealed record ResidentHomeCache(ResidentProfileViewModel Profile, MobileNotificationPageViewModel? Notifications);
 
     public void Dispose()

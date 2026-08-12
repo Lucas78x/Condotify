@@ -20,6 +20,9 @@ public sealed class ManagementCrudEndpointTests
         { typeof(LicenseStructureController), nameof(LicenseStructureController.UpdateAccessDevice), typeof(HttpPatchAttribute), "devices/{deviceId:guid}", LicensePermissionEnum.ManageDevices },
         { typeof(LicenseStructureController), nameof(LicenseStructureController.DeleteAccessDevice), typeof(HttpDeleteAttribute), "devices/{deviceId:guid}", LicensePermissionEnum.ManageDevices },
         { typeof(LicenseStructureController), nameof(LicenseStructureController.UpdateCftvResidentVisibility), typeof(HttpPatchAttribute), "cftv/{deviceId:guid}/resident-visibility", LicensePermissionEnum.ManageDevices },
+        { typeof(CftvStreamingController), nameof(CftvStreamingController.DeleteDevice), typeof(HttpDeleteAttribute), "{deviceId:guid}", LicensePermissionEnum.ManageDevices },
+        { typeof(CftvStreamingController), nameof(CftvStreamingController.UpdateDevice), typeof(HttpPutAttribute), "{deviceId:guid}", LicensePermissionEnum.ManageDevices },
+        { typeof(CftvStreamingController), nameof(CftvStreamingController.TestDeviceConfiguration), typeof(HttpPostAttribute), "{deviceId:guid}/test", LicensePermissionEnum.ManageDevices },
         { typeof(PeopleManagementController), nameof(PeopleManagementController.UpdateVehicle), typeof(HttpPatchAttribute), "residents/{residentId:guid}/vehicles/{vehicleId:guid}", LicensePermissionEnum.ManagePeople },
         { typeof(PeopleManagementController), nameof(PeopleManagementController.DeleteVehicle), typeof(HttpDeleteAttribute), "residents/{residentId:guid}/vehicles/{vehicleId:guid}", LicensePermissionEnum.ManagePeople },
         { typeof(PeopleManagementController), nameof(PeopleManagementController.DeleteResident), typeof(HttpDeleteAttribute), "residents/{residentId:guid}", LicensePermissionEnum.ManagePeople }
@@ -132,6 +135,7 @@ public sealed class ManagementCrudEndpointTests
 
     [Theory]
     [InlineData(nameof(ConfigurationBackupsController.Create), typeof(HttpPostAttribute), null)]
+    [InlineData(nameof(ConfigurationBackupsController.Targets), typeof(HttpGetAttribute), "{backupId:guid}/targets")]
     [InlineData(nameof(ConfigurationBackupsController.Preview), typeof(HttpPostAttribute), "{backupId:guid}/preview")]
     [InlineData(nameof(ConfigurationBackupsController.Restore), typeof(HttpPostAttribute), "{backupId:guid}/restore")]
     [InlineData(nameof(ConfigurationBackupsController.Delete), typeof(HttpDeleteAttribute), "{backupId:guid}")]

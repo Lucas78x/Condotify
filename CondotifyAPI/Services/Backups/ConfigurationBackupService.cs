@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AutoMapper;
 using CondotifyAPI.Data.Backups;
 using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.DTO.Backup;
@@ -13,7 +14,10 @@ using CondotifyAPI.Domain.DTO.Observability;
 using CondotifyAPI.Domain.DTO.Resident;
 using CondotifyAPI.Domain.Enums.AccessControl;
 using CondotifyAPI.Domain.Enums.Resident;
+using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Infrastructure;
+using CondotifyAPI.Services.AccessControl;
+using CondotifyAPI.Services.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 namespace CondotifyAPI.Services.Backups;
@@ -39,6 +43,11 @@ public interface IConfigurationBackupService
         PreviewConfigurationRestoreIn input,
         CancellationToken cancellationToken);
 
+    Task<List<ConfigurationBackupTargetOut>?> GetTargetsAsync(
+        Guid licenseId,
+        Guid backupId,
+        CancellationToken cancellationToken);
+
     Task<ConfigurationRestoreExecutionOut?> RestoreAsync(
         Guid licenseId,
         Guid backupId,
@@ -47,7 +56,10 @@ public interface IConfigurationBackupService
         CancellationToken cancellationToken);
 }
 
-public sealed class ConfigurationBackupService(DatabaseContext context) : IConfigurationBackupService
+public sealed class ConfigurationBackupService(
+    DatabaseContext context,
+    IAccessControlService accessControl,
+    IMapper mapper) : IConfigurationBackupService
 {
     public const int FormatVersion = 1;
     public const int MaxVersionsPerLicense = 50;
@@ -206,6 +218,37 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
             : await BuildPreviewAsync(loaded.Value.Backup, loaded.Value.Payload, input, cancellationToken);
     }
 
+    public async Task<List<ConfigurationBackupTargetOut>?> GetTargetsAsync(
+        Guid licenseId,
+        Guid backupId,
+        CancellationToken cancellationToken)
+    {
+        var loaded = await LoadPayloadAsync(licenseId, backupId, cancellationToken);
+        if (loaded is null) return null;
+        var payload = loaded.Value.Payload;
+        return payload.Devices
+            .OrderBy(x => x.Name)
+            .Select(device => new ConfigurationBackupTargetOut
+            {
+                DeviceId = device.Id,
+                Name = device.Name,
+                Model = device.Model,
+                Type = device.Type.ToString(),
+                IsActive = device.IsActive,
+                CredentialCount = payload.Bindings
+                    .Where(x => x.DeviceId == device.Id)
+                    .Select(x => x.ResidentAccessCredentialId)
+                    .Distinct()
+                    .Count(),
+                RouteCount = payload.RouteDevices
+                    .Where(x => x.DeviceId == device.Id)
+                    .Select(x => x.AccessRouteId)
+                    .Distinct()
+                    .Count()
+            })
+            .ToList();
+    }
+
     public async Task<ConfigurationRestoreExecutionOut?> RestoreAsync(
         Guid licenseId,
         Guid backupId,
@@ -223,7 +266,19 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
 
         var backup = loaded.Value.Backup;
         var payload = loaded.Value.Payload;
-        var preview = await BuildPreviewAsync(backup, payload, input, cancellationToken);
+        // Revalida o estado central dentro da transação, sem manter a transação
+        // aberta durante chamadas de rede aos equipamentos. A comparação ao vivo
+        // pertence à etapa de simulação e a reconciliação posterior trata deriva.
+        var executionValidation = new PreviewConfigurationRestoreIn
+        {
+            Mode = input.Mode,
+            IncludeDevices = input.IncludeDevices,
+            IncludeRoutes = input.IncludeRoutes,
+            IncludeCredentials = input.IncludeCredentials,
+            CompareWithEquipment = false,
+            TargetDeviceIds = input.TargetDeviceIds.ToList()
+        };
+        var preview = await BuildPreviewAsync(backup, payload, executionValidation, cancellationToken);
         if (!preview.CanRestore)
             throw new ConfigurationRestoreException(
                 "RestoreConflict",
@@ -233,24 +288,35 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
 
         var mode = NormalizeMode(input.Mode);
         var now = DateTime.UtcNow;
+        var snapshotDeviceIds = payload.Devices.Select(x => x.Id).ToHashSet();
+        var targetDeviceIds = input.TargetDeviceIds.Count == 0
+            ? snapshotDeviceIds
+            : input.TargetDeviceIds.Where(snapshotDeviceIds.Contains).ToHashSet();
+        var isMassRestore = targetDeviceIds.SetEquals(snapshotDeviceIds);
 
         if (input.IncludeDevices)
-            await RestoreDevicesAsync(licenseId, payload, mode, now, cancellationToken);
+            await RestoreDevicesAsync(licenseId, payload, targetDeviceIds, isMassRestore, mode, now, cancellationToken);
         if (input.IncludeRoutes)
-            await RestoreRoutesAsync(licenseId, payload, mode, now, cancellationToken);
+            await RestoreRoutesAsync(licenseId, payload, targetDeviceIds, isMassRestore, mode, now, cancellationToken);
         if (input.IncludeCredentials)
-            await RestoreCredentialsAsync(licenseId, payload, mode, now, cancellationToken);
+            await RestoreCredentialsAsync(licenseId, payload, targetDeviceIds, isMassRestore, mode, now, cancellationToken);
 
         Guid? batchId = null;
         var credentialsQueued = 0;
         if (input.IncludeDevices || input.IncludeRoutes || input.IncludeCredentials)
         {
-            var credentialIds = input.IncludeDevices || input.IncludeRoutes
-                ? await context.ResidentAccessCredentials
-                    .Where(x => x.Resident.Unit.Block.LicenseId == licenseId)
-                    .Select(x => x.Id)
-                    .ToListAsync(cancellationToken)
-                : payload.Credentials.Select(x => x.Id).Distinct().ToList();
+            var credentialIds = isMassRestore
+                ? input.IncludeDevices || input.IncludeRoutes
+                    ? await context.ResidentAccessCredentials
+                        .ForLicense(licenseId)
+                        .Select(x => x.Id)
+                        .ToListAsync(cancellationToken)
+                    : payload.Credentials.Select(x => x.Id).Distinct().ToList()
+                : payload.Bindings
+                    .Where(x => targetDeviceIds.Contains(x.DeviceId))
+                    .Select(x => x.ResidentAccessCredentialId)
+                    .Distinct()
+                    .ToList();
             credentialsQueued = credentialIds.Count;
             if (credentialIds.Count > 0)
             {
@@ -288,6 +354,8 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
                 input.IncludeDevices,
                 input.IncludeRoutes,
                 input.IncludeCredentials,
+                TargetDeviceIds = targetDeviceIds,
+                IsMassRestore = isMassRestore,
                 preview.CreateCount,
                 preview.UpdateCount,
                 preview.DeactivateCount,
@@ -309,6 +377,8 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
             UpdatedCount = preview.UpdateCount,
             DeactivatedCount = preview.DeactivateCount,
             CredentialsQueued = credentialsQueued,
+            TargetDeviceCount = targetDeviceIds.Count,
+            IsMassRestore = isMassRestore,
             ReconciliationBatchId = batchId,
             RestoredAt = now,
             Message = credentialsQueued > 0
@@ -332,7 +402,7 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
             .Where(x => routeIds.Contains(x.AccessRouteId))
             .ToListAsync(cancellationToken);
         var credentials = await context.ResidentAccessCredentials.AsNoTracking()
-            .Where(x => x.Resident.Unit.Block.LicenseId == licenseId)
+            .ForLicense(licenseId)
             .OrderBy(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
         var credentialIds = credentials.Select(x => x.Id).ToList();
@@ -369,22 +439,72 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
     {
         var mode = NormalizeMode(input.Mode);
         var sections = new List<ConfigurationRestoreSectionOut>();
-        var conflicts = new List<string>();
+        var report = new List<ConfigurationRestoreConflictOut>();
+        var requestedDeviceIds = input.TargetDeviceIds.Distinct().ToHashSet();
+        var snapshotDeviceIds = payload.Devices.Select(x => x.Id).ToHashSet();
+        var targetDeviceIds = requestedDeviceIds.Count == 0
+            ? snapshotDeviceIds
+            : requestedDeviceIds.Where(snapshotDeviceIds.Contains).ToHashSet();
+        var isMassRestore = targetDeviceIds.SetEquals(snapshotDeviceIds);
+
+        void AddConflict(
+            string code,
+            string section,
+            string message,
+            string suggestedAction,
+            Guid? entityId = null,
+            string entityName = "",
+            bool blocking = true)
+        {
+            report.Add(new ConfigurationRestoreConflictOut
+            {
+                Code = code,
+                Severity = blocking ? "Critical" : "Warning",
+                Section = section,
+                EntityId = entityId,
+                EntityName = entityName,
+                Message = message,
+                SuggestedAction = suggestedAction,
+                Blocking = blocking
+            });
+        }
+
+        foreach (var unknownId in requestedDeviceIds.Where(x => !snapshotDeviceIds.Contains(x)))
+            AddConflict(
+                "TargetNotInSnapshot",
+                "Escopo",
+                $"O equipamento selecionado {unknownId} não pertence a este snapshot.",
+                "Atualize a lista de equipamentos e execute uma nova simulação.",
+                unknownId);
+        if (requestedDeviceIds.Count > 50)
+            AddConflict(
+                "TargetLimitExceeded",
+                "Escopo",
+                "A restauração em massa está limitada a 50 equipamentos por execução.",
+                "Divida a operação em lotes menores.");
 
         if (input.IncludeDevices)
         {
             var current = await context.Devices.AsNoTracking()
                 .Where(x => x.LicenseId == backup.LicenseId)
-                .Select(x => new { x.Id, x.IsActive, x.SerialNumber, x.MACAddress })
+                .Select(x => new { x.Id, x.Name, x.IsActive, x.SerialNumber, x.MACAddress })
                 .ToListAsync(cancellationToken);
-            var snapshotIds = payload.Devices.Select(x => x.Id).ToHashSet();
+            var snapshots = payload.Devices.Where(x => targetDeviceIds.Contains(x.Id)).ToList();
+            var snapshotIds = snapshots.Select(x => x.Id).ToHashSet();
             var currentIds = current.Select(x => x.Id).ToHashSet();
+            var conflictStart = report.Count(x => x.Blocking);
             var foreignIds = await context.Devices.AsNoTracking()
                 .Where(x => snapshotIds.Contains(x.Id) && x.LicenseId != backup.LicenseId)
                 .Select(x => x.Id)
                 .ToListAsync(cancellationToken);
-            conflicts.AddRange(foreignIds.Select(x => $"O equipamento {x} pertence a outra licenca."));
-            var naturalConflicts = payload.Devices.Where(snapshot =>
+            foreach (var id in foreignIds)
+                AddConflict(
+                    "DeviceBelongsToAnotherLicense",
+                    "Equipamentos",
+                    $"O equipamento {id} pertence a outra licença.",
+                    "Remova o equipamento do escopo ou corrija o vínculo de licença.",
+                    id);
+            var naturalConflicts = snapshots.Where(snapshot =>
                     current.Any(existing =>
                         existing.Id != snapshot.Id &&
                         (!string.IsNullOrWhiteSpace(snapshot.SerialNumber) && existing.SerialNumber == snapshot.SerialNumber) ||
@@ -393,139 +513,401 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
                 .Select(x => x.Name)
                 .Distinct()
                 .ToList();
-            conflicts.AddRange(naturalConflicts.Select(x => $"Ja existe outro equipamento com o serial ou MAC de {x}."));
+            foreach (var name in naturalConflicts)
+                AddConflict(
+                    "DuplicateDeviceIdentity",
+                    "Equipamentos",
+                    $"Já existe outro equipamento com o serial ou MAC de {name}.",
+                    "Revise serial e MAC antes de restaurar.",
+                    entityName: name);
             sections.Add(new ConfigurationRestoreSectionOut
             {
                 Section = "Equipamentos",
                 CreateCount = snapshotIds.Count(x => !currentIds.Contains(x)),
                 UpdateCount = snapshotIds.Count(x => currentIds.Contains(x)),
-                DeactivateCount = mode == "Reconcile" ? current.Count(x => x.IsActive && !snapshotIds.Contains(x.Id)) : 0,
-                ConflictCount = foreignIds.Count + naturalConflicts.Count
+                DeactivateCount = mode == "Reconcile" && isMassRestore
+                    ? current.Count(x => x.IsActive && !snapshotIds.Contains(x.Id))
+                    : 0,
+                ConflictCount = report.Count(x => x.Blocking) - conflictStart
             });
         }
 
         if (input.IncludeRoutes)
         {
+            var routeDeviceSnapshots = isMassRestore
+                ? payload.RouteDevices
+                : payload.RouteDevices.Where(x => targetDeviceIds.Contains(x.DeviceId)).ToList();
+            var selectedRouteIds = isMassRestore
+                ? payload.Routes.Select(x => x.Id).ToHashSet()
+                : routeDeviceSnapshots.Select(x => x.AccessRouteId).ToHashSet();
+            var routeSnapshots = payload.Routes.Where(x => selectedRouteIds.Contains(x.Id)).ToList();
             var current = await context.AccessRoutes.AsNoTracking()
-                .Where(x => x.LicenseId == backup.LicenseId)
+                .Where(x => x.LicenseId == backup.LicenseId && (isMassRestore || selectedRouteIds.Contains(x.Id)))
                 .Select(x => new { x.Id, x.IsActive, x.Name })
                 .ToListAsync(cancellationToken);
-            var snapshotIds = payload.Routes.Select(x => x.Id).ToHashSet();
+            var snapshotIds = routeSnapshots.Select(x => x.Id).ToHashSet();
             var currentIds = current.Select(x => x.Id).ToHashSet();
+            var conflictStart = report.Count(x => x.Blocking);
             var foreignIds = await context.AccessRoutes.AsNoTracking()
                 .Where(x => snapshotIds.Contains(x.Id) && x.LicenseId != backup.LicenseId)
                 .Select(x => x.Id)
                 .ToListAsync(cancellationToken);
-            conflicts.AddRange(foreignIds.Select(x => $"A rota {x} pertence a outra licenca."));
-            var duplicateNames = payload.Routes.Where(snapshot =>
+            foreach (var id in foreignIds)
+                AddConflict(
+                    "RouteBelongsToAnotherLicense",
+                    "Rotas e portais",
+                    $"A rota {id} pertence a outra licença.",
+                    "Corrija o vínculo da rota antes de restaurar.",
+                    id);
+            var duplicateNames = routeSnapshots.Where(snapshot =>
                     current.Any(existing => existing.Name == snapshot.Name && existing.Id != snapshot.Id))
                 .Select(x => x.Name)
                 .Distinct()
                 .ToList();
-            conflicts.AddRange(duplicateNames.Select(x => $"Ja existe outra rota com o nome {x}."));
+            foreach (var name in duplicateNames)
+                AddConflict(
+                    "DuplicateRouteName",
+                    "Rotas e portais",
+                    $"Já existe outra rota com o nome {name}.",
+                    "Renomeie a rota atual ou retire-a do escopo.",
+                    entityName: name);
             var availableDevices = input.IncludeDevices
-                ? payload.Devices.Select(x => x.Id).ToHashSet()
+                ? targetDeviceIds
                 : await context.Devices.AsNoTracking()
                     .Where(x => x.LicenseId == backup.LicenseId)
                     .Select(x => x.Id)
                     .ToHashSetAsync(cancellationToken);
-            var missingDevices = payload.RouteDevices
+            var missingDevices = routeDeviceSnapshots
                 .Where(x => !availableDevices.Contains(x.DeviceId))
                 .Select(x => x.DeviceId)
                 .Distinct()
                 .ToList();
-            conflicts.AddRange(missingDevices.Select(x => $"A rota depende do equipamento ausente {x}."));
-            var overrideResidentIds = payload.RouteOverrides.Select(x => x.ResidentId).Distinct().ToHashSet();
+            foreach (var id in missingDevices)
+                AddConflict(
+                    "MissingRouteDevice",
+                    "Rotas e portais",
+                    $"A rota depende do equipamento ausente {id}.",
+                    "Inclua o equipamento na restauração ou restaure apenas a configuração disponível.",
+                    id);
+            var selectedOverrides = isMassRestore
+                ? payload.RouteOverrides
+                : [];
+            var overrideResidentIds = selectedOverrides.Select(x => x.ResidentId).Distinct().ToHashSet();
             var existingOverrideResidentIds = await context.Residents.AsNoTracking()
-                .Where(x => overrideResidentIds.Contains(x.Id) && x.Unit.Block.LicenseId == backup.LicenseId)
+                .ForLicense(backup.LicenseId)
+                .Where(x => overrideResidentIds.Contains(x.Id))
                 .Select(x => x.Id)
                 .ToHashSetAsync(cancellationToken);
             var missingOverrideResidents = overrideResidentIds
                 .Where(x => !existingOverrideResidentIds.Contains(x))
                 .ToList();
-            conflicts.AddRange(missingOverrideResidents.Select(x => $"A excecao de rota depende da pessoa ausente {x}."));
+            foreach (var id in missingOverrideResidents)
+                AddConflict(
+                    "MissingRouteResident",
+                    "Rotas e portais",
+                    $"A exceção de rota depende da pessoa ausente {id}.",
+                    "Cadastre novamente a pessoa ou remova a exceção do snapshot.",
+                    id);
             sections.Add(new ConfigurationRestoreSectionOut
             {
                 Section = "Rotas e portais",
-                CreateCount = snapshotIds.Count(x => !currentIds.Contains(x)) + payload.RouteDevices.Count + payload.RouteOverrides.Count,
+                CreateCount = snapshotIds.Count(x => !currentIds.Contains(x)) + routeDeviceSnapshots.Count + selectedOverrides.Count,
                 UpdateCount = snapshotIds.Count(x => currentIds.Contains(x)),
-                DeactivateCount = mode == "Reconcile" ? current.Count(x => x.IsActive && !snapshotIds.Contains(x.Id)) : 0,
-                ConflictCount = foreignIds.Count + duplicateNames.Count + missingDevices.Count + missingOverrideResidents.Count
+                DeactivateCount = mode == "Reconcile" && isMassRestore
+                    ? current.Count(x => x.IsActive && !snapshotIds.Contains(x.Id))
+                    : 0,
+                ConflictCount = report.Count(x => x.Blocking) - conflictStart
             });
         }
 
         if (input.IncludeCredentials)
         {
+            var bindingSnapshots = isMassRestore
+                ? payload.Bindings
+                : payload.Bindings.Where(x => targetDeviceIds.Contains(x.DeviceId)).ToList();
+            var selectedCredentialIds = isMassRestore
+                ? payload.Credentials.Select(x => x.Id).ToHashSet()
+                : bindingSnapshots.Select(x => x.ResidentAccessCredentialId).ToHashSet();
+            var credentialSnapshots = payload.Credentials
+                .Where(x => selectedCredentialIds.Contains(x.Id))
+                .ToList();
             var current = await context.ResidentAccessCredentials.AsNoTracking()
-                .Where(x => x.Resident.Unit.Block.LicenseId == backup.LicenseId)
+                .ForLicense(backup.LicenseId)
+                .Where(x => isMassRestore || selectedCredentialIds.Contains(x.Id))
                 .Select(x => new { x.Id, x.IsActive })
                 .ToListAsync(cancellationToken);
-            var snapshotIds = payload.Credentials.Select(x => x.Id).ToHashSet();
+            var snapshotIds = credentialSnapshots.Select(x => x.Id).ToHashSet();
             var currentIds = current.Select(x => x.Id).ToHashSet();
+            var conflictStart = report.Count(x => x.Blocking);
             var foreignIds = await context.ResidentAccessCredentials.AsNoTracking()
-                .Where(x => snapshotIds.Contains(x.Id) && x.Resident.Unit.Block.LicenseId != backup.LicenseId)
+                .Where(x => snapshotIds.Contains(x.Id))
+                .Where(x => !x.Resident.UnitLinks.Any(link => link.Unit.Block.LicenseId == backup.LicenseId) &&
+                            (x.Resident.UnitLinks.Any() || x.Resident.Unit.Block.LicenseId != backup.LicenseId))
                 .Select(x => x.Id)
                 .ToListAsync(cancellationToken);
-            conflicts.AddRange(foreignIds.Select(x => $"A credencial {x} pertence a outra licenca."));
-            var residentIds = payload.Credentials.Select(x => x.ResidentId).Distinct().ToHashSet();
+            foreach (var id in foreignIds)
+                AddConflict(
+                    "CredentialBelongsToAnotherLicense",
+                    "Credenciais e vínculos",
+                    $"A credencial {id} pertence a outra licença.",
+                    "Retire a credencial do escopo e revise o vínculo da pessoa.",
+                    id);
+            var residentIds = credentialSnapshots.Select(x => x.ResidentId).Distinct().ToHashSet();
             var existingResidentIds = await context.Residents.AsNoTracking()
-                .Where(x => residentIds.Contains(x.Id) && x.Unit.Block.LicenseId == backup.LicenseId)
+                .ForLicense(backup.LicenseId)
+                .Where(x => residentIds.Contains(x.Id))
                 .Select(x => x.Id)
                 .ToHashSetAsync(cancellationToken);
             var missingResidents = residentIds.Where(x => !existingResidentIds.Contains(x)).ToList();
-            conflicts.AddRange(missingResidents.Select(x => $"A pessoa vinculada {x} nao existe mais nesta licenca."));
+            foreach (var id in missingResidents)
+                AddConflict(
+                    "MissingCredentialResident",
+                    "Credenciais e vínculos",
+                    $"A pessoa vinculada {id} não existe mais nesta licença.",
+                    "Restaure ou recadastre a pessoa antes de continuar.",
+                    id);
 
             var availableDevices = input.IncludeDevices
-                ? payload.Devices.Select(x => x.Id).ToHashSet()
+                ? targetDeviceIds
                 : await context.Devices.AsNoTracking()
                     .Where(x => x.LicenseId == backup.LicenseId)
                     .Select(x => x.Id)
                     .ToHashSetAsync(cancellationToken);
-            var missingBindingDevices = payload.Bindings
+            var missingBindingDevices = bindingSnapshots
                 .Where(x => !availableDevices.Contains(x.DeviceId))
                 .Select(x => x.DeviceId)
                 .Distinct()
                 .ToList();
-            conflicts.AddRange(missingBindingDevices.Select(x => $"Uma credencial depende do equipamento ausente {x}."));
+            foreach (var id in missingBindingDevices)
+                AddConflict(
+                    "MissingCredentialDevice",
+                    "Credenciais e vínculos",
+                    $"Uma credencial depende do equipamento ausente {id}.",
+                    "Inclua o equipamento no escopo ou remova o vínculo inconsistente.",
+                    id);
             sections.Add(new ConfigurationRestoreSectionOut
             {
                 Section = "Credenciais e vinculos",
-                CreateCount = snapshotIds.Count(x => !currentIds.Contains(x)) + payload.Bindings.Count,
+                CreateCount = snapshotIds.Count(x => !currentIds.Contains(x)) + bindingSnapshots.Count,
                 UpdateCount = snapshotIds.Count(x => currentIds.Contains(x)) +
-                    (payload.Policy is null ? 0 : 1) +
-                    (payload.AlertNotifications is null ? 0 : 1),
-                DeactivateCount = mode == "Reconcile" ? current.Count(x => x.IsActive && !snapshotIds.Contains(x.Id)) : 0,
-                ConflictCount = foreignIds.Count + missingResidents.Count + missingBindingDevices.Count
+                    (!isMassRestore || payload.Policy is null ? 0 : 1) +
+                    (!isMassRestore || payload.AlertNotifications is null ? 0 : 1),
+                DeactivateCount = mode == "Reconcile" && isMassRestore
+                    ? current.Count(x => x.IsActive && !snapshotIds.Contains(x.Id))
+                    : 0,
+                ConflictCount = report.Count(x => x.Blocking) - conflictStart
             });
         }
+
+        var equipmentComparisons = input.CompareWithEquipment && targetDeviceIds.Count > 0
+            ? await CompareWithEquipmentAsync(backup.LicenseId, payload, targetDeviceIds, report, cancellationToken)
+            : [];
+        var blockingConflicts = report.Where(x => x.Blocking).ToList();
+        var hasSelectedScope = requestedDeviceIds.Count == 0 || targetDeviceIds.Count > 0;
 
         return new ConfigurationRestorePreviewOut
         {
             BackupId = backup.Id,
             Version = backup.Version,
             Mode = mode,
-            CanRestore = conflicts.Count == 0 && (input.IncludeDevices || input.IncludeRoutes || input.IncludeCredentials),
+            CanRestore = blockingConflicts.Count == 0 && hasSelectedScope &&
+                (input.IncludeDevices || input.IncludeRoutes || input.IncludeCredentials),
             CreateCount = sections.Sum(x => x.CreateCount),
             UpdateCount = sections.Sum(x => x.UpdateCount),
             DeactivateCount = sections.Sum(x => x.DeactivateCount),
-            ConflictCount = conflicts.Count,
+            ConflictCount = blockingConflicts.Count,
+            WarningCount = report.Count(x => !x.Blocking),
+            SelectedDeviceCount = targetDeviceIds.Count,
+            IsMassRestore = isMassRestore,
+            ComparedAt = DateTime.UtcNow,
             Sections = sections,
-            Conflicts = conflicts.Take(50).ToList()
+            Conflicts = blockingConflicts.Select(x => x.Message).Take(50).ToList(),
+            ConflictReport = report.Take(200).ToList(),
+            EquipmentComparisons = equipmentComparisons
         };
     }
+
+    private async Task<List<ConfigurationEquipmentComparisonOut>> CompareWithEquipmentAsync(
+        Guid licenseId,
+        BackupPayload payload,
+        HashSet<Guid> targetDeviceIds,
+        List<ConfigurationRestoreConflictOut> report,
+        CancellationToken cancellationToken)
+    {
+        var currentDevices = await context.Devices.AsNoTracking()
+            .Where(x => x.LicenseId == licenseId && targetDeviceIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+        var credentials = payload.Credentials.ToDictionary(x => x.Id);
+        var comparisons = new List<ConfigurationEquipmentComparisonOut>();
+
+        foreach (var snapshot in payload.Devices.Where(x => targetDeviceIds.Contains(x.Id)).OrderBy(x => x.Name))
+        {
+            if (!currentDevices.TryGetValue(snapshot.Id, out var device))
+            {
+                comparisons.Add(UnavailableComparison(snapshot, "O equipamento ainda não existe no Condotify atual."));
+                AddEquipmentWarning(
+                    report,
+                    "EquipmentUnavailable",
+                    snapshot,
+                    "Não foi possível comparar porque o equipamento ainda não existe no Condotify.",
+                    "Restaure o cadastro do equipamento e execute uma nova comparação.");
+                continue;
+            }
+
+            DeviceCredentialInventoryResult remote;
+            try
+            {
+                remote = await accessControl
+                    .ReadCredentialInventoryAsync(mapper.Map<AccessControlDevice>(device))
+                    .WaitAsync(cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                remote = DeviceCredentialInventoryResult.Unavailable(exception.Message);
+            }
+
+            if (!remote.Success)
+            {
+                comparisons.Add(UnavailableComparison(snapshot, Short(remote.Message, 300)));
+                AddEquipmentWarning(
+                    report,
+                    "EquipmentUnavailable",
+                    snapshot,
+                    $"O equipamento não respondeu à comparação: {Short(remote.Message, 180)}",
+                    "Verifique rede, energia e credenciais do terminal; depois repita a simulação.");
+                continue;
+            }
+
+            var bindings = payload.Bindings.Where(x => x.DeviceId == snapshot.Id).ToList();
+            var matched = new HashSet<Guid>();
+            var synced = 0;
+            var divergent = 0;
+            var orphan = 0;
+            foreach (var remoteItem in remote.Items)
+            {
+                var binding = MatchSnapshotBinding(bindings, credentials, remoteItem, matched);
+                if (binding is null)
+                {
+                    orphan++;
+                    continue;
+                }
+                matched.Add(binding.Id);
+                var expectedActive = credentials.TryGetValue(binding.ResidentAccessCredentialId, out var credential) && credential.IsActive;
+                if (expectedActive && remoteItem.Active) synced++;
+                else divergent++;
+            }
+            var expectedActiveCount = bindings.Count(x =>
+                credentials.TryGetValue(x.ResidentAccessCredentialId, out var credential) && credential.IsActive);
+            var missing = bindings.Count(x =>
+                credentials.TryGetValue(x.ResidentAccessCredentialId, out var credential) &&
+                credential.IsActive &&
+                !matched.Contains(x.Id));
+            var status = divergent + missing + orphan == 0 ? "Synced" : "Divergent";
+            comparisons.Add(new ConfigurationEquipmentComparisonOut
+            {
+                DeviceId = snapshot.Id,
+                DeviceName = snapshot.Name,
+                Model = snapshot.Model,
+                Status = status,
+                Message = Short(remote.Message, 300),
+                ExpectedCount = expectedActiveCount,
+                RemoteCount = remote.Items.Count,
+                SyncedCount = synced,
+                DivergentCount = divergent,
+                MissingCount = missing,
+                OrphanCount = orphan
+            });
+            if (status == "Divergent")
+            {
+                AddEquipmentWarning(
+                    report,
+                    "EquipmentDrift",
+                    snapshot,
+                    $"Condotify e equipamento divergem: {divergent} diferente(s), {missing} ausente(s) e {orphan} órfão(s).",
+                    "Revise o relatório e restaure para enfileirar a reconciliação deste terminal.");
+            }
+        }
+        return comparisons;
+    }
+
+    private static CredentialBindingSnapshot? MatchSnapshotBinding(
+        IEnumerable<CredentialBindingSnapshot> bindings,
+        IReadOnlyDictionary<Guid, CredentialSnapshot> credentials,
+        DeviceCredentialInventoryItem remote,
+        HashSet<Guid> matched)
+    {
+        var available = bindings.Where(x => !matched.Contains(x.Id));
+        if (!string.IsNullOrWhiteSpace(remote.ExternalCredentialId))
+        {
+            var match = available.FirstOrDefault(x => string.Equals(
+                x.ExternalCredentialId,
+                remote.ExternalCredentialId,
+                StringComparison.OrdinalIgnoreCase));
+            if (match is not null) return match;
+        }
+        if (!string.IsNullOrWhiteSpace(remote.ExternalUserId))
+        {
+            var candidates = available.Where(x => string.Equals(
+                x.ExternalUserId,
+                remote.ExternalUserId,
+                StringComparison.OrdinalIgnoreCase));
+            var match = remote.Type.HasValue
+                ? candidates.FirstOrDefault(x =>
+                    credentials.TryGetValue(x.ResidentAccessCredentialId, out var credential) &&
+                    credential.CredentialType == remote.Type)
+                : candidates.FirstOrDefault();
+            if (match is not null) return match;
+        }
+        return string.IsNullOrWhiteSpace(remote.Identifier)
+            ? null
+            : available.FirstOrDefault(x =>
+                credentials.TryGetValue(x.ResidentAccessCredentialId, out var credential) &&
+                string.Equals(credential.Identifier, remote.Identifier, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static ConfigurationEquipmentComparisonOut UnavailableComparison(
+        DeviceSnapshot snapshot,
+        string message) => new()
+    {
+        DeviceId = snapshot.Id,
+        DeviceName = snapshot.Name,
+        Model = snapshot.Model,
+        Status = "Unavailable",
+        Message = message
+    };
+
+    private static void AddEquipmentWarning(
+        ICollection<ConfigurationRestoreConflictOut> report,
+        string code,
+        DeviceSnapshot snapshot,
+        string message,
+        string action) => report.Add(new ConfigurationRestoreConflictOut
+    {
+        Code = code,
+        Severity = "Warning",
+        Section = "Comparação com equipamento",
+        EntityId = snapshot.Id,
+        EntityName = snapshot.Name,
+        Message = message,
+        SuggestedAction = action,
+        Blocking = false
+    });
 
     private async Task RestoreDevicesAsync(
         Guid licenseId,
         BackupPayload payload,
+        HashSet<Guid> targetDeviceIds,
+        bool isMassRestore,
         string mode,
         DateTime now,
         CancellationToken cancellationToken)
     {
-        var snapshotIds = payload.Devices.Select(x => x.Id).ToHashSet();
+        var snapshots = payload.Devices.Where(x => targetDeviceIds.Contains(x.Id)).ToList();
+        var snapshotIds = snapshots.Select(x => x.Id).ToHashSet();
         var current = await context.Devices
-            .Where(x => x.LicenseId == licenseId)
+            .Where(x => x.LicenseId == licenseId && (isMassRestore || snapshotIds.Contains(x.Id)))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
-        foreach (var snapshot in payload.Devices)
+        foreach (var snapshot in snapshots)
         {
             if (!current.TryGetValue(snapshot.Id, out var device))
             {
@@ -540,7 +922,7 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
             }
             snapshot.Apply(device, now);
         }
-        if (mode == "Reconcile")
+        if (mode == "Reconcile" && isMassRestore)
         {
             foreach (var device in current.Values.Where(x => !snapshotIds.Contains(x.Id)))
             {
@@ -554,15 +936,23 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
     private async Task RestoreRoutesAsync(
         Guid licenseId,
         BackupPayload payload,
+        HashSet<Guid> targetDeviceIds,
+        bool isMassRestore,
         string mode,
         DateTime now,
         CancellationToken cancellationToken)
     {
-        var snapshotIds = payload.Routes.Select(x => x.Id).ToHashSet();
+        var routeDevices = isMassRestore
+            ? payload.RouteDevices
+            : payload.RouteDevices.Where(x => targetDeviceIds.Contains(x.DeviceId)).ToList();
+        var snapshotIds = isMassRestore
+            ? payload.Routes.Select(x => x.Id).ToHashSet()
+            : routeDevices.Select(x => x.AccessRouteId).ToHashSet();
+        var snapshots = payload.Routes.Where(x => snapshotIds.Contains(x.Id)).ToList();
         var current = await context.AccessRoutes
-            .Where(x => x.LicenseId == licenseId)
+            .Where(x => x.LicenseId == licenseId && (isMassRestore || snapshotIds.Contains(x.Id)))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
-        foreach (var snapshot in payload.Routes)
+        foreach (var snapshot in snapshots)
         {
             if (!current.TryGetValue(snapshot.Id, out var route))
             {
@@ -576,7 +966,7 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
             }
             snapshot.Apply(route, now);
         }
-        if (mode == "Reconcile")
+        if (mode == "Reconcile" && isMassRestore)
         {
             foreach (var route in current.Values.Where(x => !snapshotIds.Contains(x.Id)))
             {
@@ -585,30 +975,51 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
             }
         }
 
-        await context.AccessRouteDevices
-            .Where(x => snapshotIds.Contains(x.AccessRouteId))
-            .ExecuteDeleteAsync(cancellationToken);
-        await context.AccessRouteResidentOverrides
-            .Where(x => snapshotIds.Contains(x.AccessRouteId))
-            .ExecuteDeleteAsync(cancellationToken);
-        foreach (var item in payload.RouteDevices)
+        if (isMassRestore)
+        {
+            await context.AccessRouteDevices
+                .Where(x => snapshotIds.Contains(x.AccessRouteId))
+                .ExecuteDeleteAsync(cancellationToken);
+            await context.AccessRouteResidentOverrides
+                .Where(x => snapshotIds.Contains(x.AccessRouteId))
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+        else
+        {
+            await context.AccessRouteDevices
+                .Where(x => snapshotIds.Contains(x.AccessRouteId) && targetDeviceIds.Contains(x.DeviceId))
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+        foreach (var item in routeDevices)
             context.AccessRouteDevices.Add(item.ToDto());
-        foreach (var item in payload.RouteOverrides)
-            context.AccessRouteResidentOverrides.Add(item.ToDto());
+        if (isMassRestore)
+        {
+            foreach (var item in payload.RouteOverrides)
+                context.AccessRouteResidentOverrides.Add(item.ToDto());
+        }
     }
 
     private async Task RestoreCredentialsAsync(
         Guid licenseId,
         BackupPayload payload,
+        HashSet<Guid> targetDeviceIds,
+        bool isMassRestore,
         string mode,
         DateTime now,
         CancellationToken cancellationToken)
     {
-        var snapshotIds = payload.Credentials.Select(x => x.Id).ToHashSet();
+        var bindings = isMassRestore
+            ? payload.Bindings
+            : payload.Bindings.Where(x => targetDeviceIds.Contains(x.DeviceId)).ToList();
+        var snapshotIds = isMassRestore
+            ? payload.Credentials.Select(x => x.Id).ToHashSet()
+            : bindings.Select(x => x.ResidentAccessCredentialId).ToHashSet();
+        var snapshots = payload.Credentials.Where(x => snapshotIds.Contains(x.Id)).ToList();
         var current = await context.ResidentAccessCredentials
-            .Where(x => x.Resident.Unit.Block.LicenseId == licenseId)
+            .ForLicense(licenseId)
+            .Where(x => isMassRestore || snapshotIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
-        foreach (var snapshot in payload.Credentials)
+        foreach (var snapshot in snapshots)
         {
             if (!current.TryGetValue(snapshot.Id, out var credential))
             {
@@ -622,7 +1033,7 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
             }
             snapshot.Apply(credential, now);
         }
-        if (mode == "Reconcile")
+        if (mode == "Reconcile" && isMassRestore)
         {
             foreach (var credential in current.Values.Where(x => !snapshotIds.Contains(x.Id)))
             {
@@ -631,13 +1042,22 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
             }
         }
 
-        await context.ResidentAccessDevices
-            .Where(x => snapshotIds.Contains(x.ResidentAccessCredentialId))
-            .ExecuteDeleteAsync(cancellationToken);
-        foreach (var item in payload.Bindings)
+        if (isMassRestore)
+        {
+            await context.ResidentAccessDevices
+                .Where(x => snapshotIds.Contains(x.ResidentAccessCredentialId))
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+        else
+        {
+            await context.ResidentAccessDevices
+                .Where(x => snapshotIds.Contains(x.ResidentAccessCredentialId) && targetDeviceIds.Contains(x.DeviceId))
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+        foreach (var item in bindings)
             context.ResidentAccessDevices.Add(item.ToPendingDto(now));
 
-        if (payload.Policy is not null)
+        if (isMassRestore && payload.Policy is not null)
         {
             var policy = await context.LicenseCredentialPolicies
                 .FirstOrDefaultAsync(x => x.LicenseId == licenseId, cancellationToken);
@@ -649,7 +1069,7 @@ public sealed class ConfigurationBackupService(DatabaseContext context) : IConfi
             payload.Policy.Apply(policy, now);
         }
 
-        if (payload.AlertNotifications is not null)
+        if (isMassRestore && payload.AlertNotifications is not null)
         {
             var notificationPolicy = await context.AlertNotificationPolicies
                 .FirstOrDefaultAsync(x => x.LicenseId == licenseId, cancellationToken);

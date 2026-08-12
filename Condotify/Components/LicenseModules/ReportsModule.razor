@@ -1,0 +1,402 @@
+@using System.Globalization
+@using System.Text
+@inject CondotifyApiClient Api
+@inject IJSRuntime Js
+
+<section class="reports-module">
+    <header class="reports-intro">
+        <div class="reports-intro-copy">
+            <span class="reports-intro-icon"><MudIcon Icon="@Icons.Material.Outlined.Insights" /></span>
+            <div>
+                <span class="reports-eyebrow">INTELIGÊNCIA DO CONDOMÍNIO</span>
+                <MudText Typo="Typo.h4" HtmlTag="h2">Relatórios e indicadores</MudText>
+                <MudText Typo="Typo.body2">Adoção do aplicativo, qualidade cadastral e desempenho operacional em uma leitura clara.</MudText>
+            </div>
+        </div>
+        <div class="reports-toolbar">
+            <div class="reports-period" role="group" aria-label="Período do relatório">
+                @foreach (var option in PeriodOptions)
+                {
+                    <button type="button" class="@(_days == option.Days ? "is-active" : null)" aria-pressed="@(_days == option.Days)" @onclick="() => ChangePeriodAsync(option.Days)">@option.Label</button>
+                }
+            </div>
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Download" Disabled="@(_data is null || _loading)" OnClick="ExportCsvAsync">Exportar CSV</MudButton>
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Refresh" Disabled="@_loading" OnClick="LoadAsync">Atualizar</MudButton>
+        </div>
+    </header>
+
+    @if (_loading)
+    {
+        <div class="reports-loading">
+            <MudProgressCircular Indeterminate Color="Color.Primary" />
+            <div><strong>Consolidando indicadores</strong><span>Moradores, aplicativo, credenciais e operação.</span></div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="reports-error">
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync">Tentar novamente</MudButton>
+        </div>
+    }
+    else if (_data is not null)
+    {
+        <div class="reports-executive-grid">
+            <article class="reports-health-card">
+                <div class="reports-health-copy">
+                    <span class="reports-card-kicker">ÍNDICE DE QUALIDADE</span>
+                    <strong>@QualityLabel</strong>
+                    <p>@QualityMessage</p>
+                    <div class="reports-health-meta"><MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" /> Atualizado em @_data.GeneratedAt.ToLocalTime().ToString("dd/MM 'às' HH:mm")</div>
+                </div>
+                <div class="reports-score-ring" style="--report-score:@_data.QualityScore" role="img" aria-label="Índice de qualidade @_data.QualityScore de 100">
+                    <div><strong>@_data.QualityScore</strong><span>de 100</span></div>
+                </div>
+            </article>
+
+            <article class="reports-kpi-card primary">
+                <span class="reports-kpi-icon"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span>
+                <div class="reports-kpi-label"><span>Moradores ativos</span><em>@_data.Residents.Registered cadastrados</em></div>
+                <strong>@FormatNumber(_data.Residents.Active)</strong>
+                <small>@_data.Structure.OccupiedUnits de @_data.Structure.Units unidades ocupadas</small>
+            </article>
+            <article class="reports-kpi-card teal">
+                <span class="reports-kpi-icon"><MudIcon Icon="@Icons.Material.Outlined.PhoneAndroid" /></span>
+                <div class="reports-kpi-label"><span>Contas no aplicativo</span><em>@FormatPercent(_data.Residents.AccountActivationRate) da base ativa</em></div>
+                <strong>@FormatNumber(_data.Residents.AccountsCreated)</strong>
+                <small>@_data.Residents.AppLinked com dispositivo vinculado</small>
+            </article>
+            <article class="reports-kpi-card amber">
+                <span class="reports-kpi-icon"><MudIcon Icon="@Icons.Material.Outlined.Fingerprint" /></span>
+                <div class="reports-kpi-label"><span>Acessos no período</span><em>@FormatPercent(_data.Operation.AuthorizationRate) autorizados</em></div>
+                <strong>@FormatNumber(_data.Operation.AccessEvents)</strong>
+                <small>@_data.Operation.DeniedAccesses negado(s) para revisar</small>
+            </article>
+            <article class="reports-kpi-card violet">
+                <span class="reports-kpi-icon"><MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt" /></span>
+                <div class="reports-kpi-label"><span>Visitantes criados</span><em>Últimos @_data.PeriodDays dias</em></div>
+                <strong>@FormatNumber(_data.Operation.VisitorsCreated)</strong>
+                <small>@_data.Operation.VisitorsCheckedIn com entrada registrada</small>
+            </article>
+        </div>
+
+        <div class="reports-main-grid">
+            <article class="reports-panel reports-trend-panel">
+                <div class="reports-panel-heading">
+                    <div><span class="reports-card-kicker">MOVIMENTO</span><strong>Acessos e visitantes</strong><p>Evolução consolidada no período selecionado.</p></div>
+                    <div class="reports-legend"><span class="authorized">Autorizados</span><span class="denied">Negados</span><span class="visitors">Visitantes</span></div>
+                </div>
+                @if (_data.Trend.All(x => x.Authorized + x.Denied + x.Visitors == 0))
+                {
+                    <div class="reports-chart-empty"><MudIcon Icon="@Icons.Material.Outlined.QueryStats" /><strong>Ainda não há movimento neste período</strong><span>Os eventos aparecerão aqui conforme forem registrados.</span></div>
+                }
+                else
+                {
+                    <div class="reports-chart" aria-label="Gráfico de acessos e visitantes">
+                        <svg viewBox="0 0 760 250" preserveAspectRatio="none" role="img">
+                            <defs>
+                                <linearGradient id="report-access-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3156d3" stop-opacity=".24" /><stop offset="1" stop-color="#3156d3" stop-opacity=".02" /></linearGradient>
+                            </defs>
+                            @foreach (var y in new[] { 40, 90, 140, 190, 230 }) { <line x1="38" y1="@y" x2="742" y2="@y" class="reports-chart-gridline" /> }
+                            <polygon points="@AreaPoints(_data.Trend, x => x.Authorized)" class="reports-chart-area" />
+                            <polyline points="@LinePoints(_data.Trend, x => x.Authorized)" class="reports-chart-line authorized" />
+                            <polyline points="@LinePoints(_data.Trend, x => x.Denied)" class="reports-chart-line denied" />
+                            <polyline points="@LinePoints(_data.Trend, x => x.Visitors)" class="reports-chart-line visitors" />
+                        </svg>
+                        <div class="reports-chart-labels">
+                            @foreach (var point in ChartLabels)
+                            {
+                                <span>@TrendLabel(point)</span>
+                            }
+                        </div>
+                    </div>
+                }
+                <div class="reports-operation-strip">
+                    <div><span>Taxa de autorização</span><strong>@FormatPercent(_data.Operation.AuthorizationRate)</strong></div>
+                    <div><span>Horário de maior movimento</span><strong>@_data.Operation.PeakHour.ToString("00")h–@((_data.Operation.PeakHour + 1) % 24).ToString("00")h</strong></div>
+                    <div><span>Visitantes pendentes</span><strong>@_data.Operation.VisitorsPending</strong></div>
+                    <div><span>Visitantes expirados</span><strong>@_data.Operation.VisitorsExpired</strong></div>
+                </div>
+            </article>
+
+            <article class="reports-panel reports-adoption-panel">
+                <div class="reports-panel-heading">
+                    <div><span class="reports-card-kicker">ADOÇÃO DIGITAL</span><strong>Jornada no aplicativo</strong><p>Da base cadastrada ao uso recente.</p></div>
+                    <span class="reports-panel-badge">@FormatPercent(_data.Residents.AppAdoptionRate) vinculados</span>
+                </div>
+                <div class="reports-funnel">
+                    @foreach (var step in FunnelItems)
+                    {
+                        <div class="reports-funnel-step">
+                            <span class="reports-funnel-index">@step.Index</span>
+                            <span class="reports-funnel-copy"><strong>@step.Label</strong><small>@step.Hint</small></span>
+                            <span class="reports-funnel-bar"><i style="width:@PercentStyle(step.Percentage)"></i></span>
+                            <span class="reports-funnel-value"><strong>@step.Value</strong><small>@FormatPercent(step.Percentage)</small></span>
+                        </div>
+                    }
+                </div>
+                <div class="reports-adoption-insight">
+                    <span><MudIcon Icon="@Icons.Material.Outlined.Lightbulb" /></span>
+                    <div><strong>@AdoptionInsightTitle</strong><p>@AdoptionInsightMessage</p></div>
+                </div>
+            </article>
+        </div>
+
+        <div class="reports-secondary-grid">
+            <article class="reports-panel reports-quality-panel">
+                <div class="reports-panel-heading">
+                    <div><span class="reports-card-kicker">ANÁLISE QUALITATIVA</span><strong>Qualidade da base</strong><p>Cobertura e consistência dos cadastros ativos.</p></div>
+                    <span class="reports-panel-badge neutral">@_data.QualityIndicators.Count verificações</span>
+                </div>
+                <div class="reports-quality-list">
+                    @foreach (var indicator in _data.QualityIndicators)
+                    {
+                        <a class="reports-quality-row" href="@indicator.TargetUrl">
+                            <span class="reports-quality-status @indicator.Tone"><MudIcon Icon="@QualityIcon(indicator)" /></span>
+                            <span class="reports-quality-copy"><strong>@indicator.Label</strong><small>@indicator.Description</small></span>
+                            <span class="reports-quality-progress"><i><b class="@indicator.Tone" style="width:@indicator.Percentage.ToString("0.#", CultureInfo.InvariantCulture)%"></b></i><small>@indicator.Value de @indicator.Total</small></span>
+                            <strong>@FormatPercent(indicator.Percentage)</strong>
+                            <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+                        </a>
+                    }
+                </div>
+            </article>
+
+            <article class="reports-panel reports-attention-panel">
+                <div class="reports-panel-heading">
+                    <div><span class="reports-card-kicker">PRÓXIMAS AÇÕES</span><strong>Pontos de atenção</strong><p>Prioridades encontradas automaticamente.</p></div>
+                    <span class="reports-panel-badge @(_data.AttentionItems.Count == 0 ? "good" : "attention")">@(_data.AttentionItems.Count == 0 ? "Tudo em dia" : $"{_data.AttentionItems.Count} prioridades")</span>
+                </div>
+                @if (_data.AttentionItems.Count == 0)
+                {
+                    <div class="reports-attention-empty"><span><MudIcon Icon="@Icons.Material.Outlined.Verified" /></span><strong>Nenhuma pendência relevante</strong><p>Os principais indicadores estão em boa condição.</p></div>
+                }
+                else
+                {
+                    <div class="reports-attention-list">
+                        @foreach (var item in _data.AttentionItems.Take(5))
+                        {
+                            <a href="@item.TargetUrl" class="reports-attention-item @item.Severity">
+                                <span class="reports-attention-count">@item.Count</span>
+                                <span><strong>@item.Title</strong><small>@item.Description</small></span>
+                                <MudIcon Icon="@Icons.Material.Outlined.ArrowForward" />
+                            </a>
+                        }
+                    </div>
+                }
+            </article>
+        </div>
+
+        <div class="reports-tertiary-grid">
+            <article class="reports-panel reports-block-panel">
+                <div class="reports-panel-heading">
+                    <div><span class="reports-card-kicker">COMPARATIVO</span><strong>Adoção por bloco</strong><p>Contas criadas e aplicativo vinculado em cada área.</p></div>
+                </div>
+                @if (_data.AdoptionByBlock.Count == 0)
+                {
+                    <div class="reports-inline-empty">Cadastre blocos e moradores para habilitar este comparativo.</div>
+                }
+                else
+                {
+                    <div class="reports-block-table" role="table" aria-label="Adoção do aplicativo por bloco">
+                        <div class="reports-block-head" role="row"><span>Bloco</span><span>Unidades</span><span>Moradores</span><span>Conta criada</span><span>App vinculado</span><span>Adoção</span></div>
+                        @foreach (var block in _data.AdoptionByBlock)
+                        {
+                            <div class="reports-block-row" role="row">
+                                <span><i>@Initial(block.BlockName)</i><strong>@block.BlockName</strong></span>
+                                <span>@block.OccupiedUnits <small>de @block.Units</small></span>
+                                <span>@block.Residents</span>
+                                <span>@block.AccountsCreated</span>
+                                <span>@block.AppLinked</span>
+                                <span class="reports-block-rate"><i><b style="width:@block.AdoptionRate.ToString("0.#", CultureInfo.InvariantCulture)%"></b></i><strong>@FormatPercent(block.AdoptionRate)</strong></span>
+                            </div>
+                        }
+                    </div>
+                }
+            </article>
+
+            <article class="reports-panel reports-distribution-panel">
+                <div class="reports-panel-heading">
+                    <div><span class="reports-card-kicker">COBERTURA</span><strong>Credenciais ativas</strong><p>Distribuição por tecnologia de acesso.</p></div>
+                </div>
+                @if (_data.CredentialDistribution.Count == 0)
+                {
+                    <div class="reports-inline-empty">Nenhuma credencial ativa encontrada.</div>
+                }
+                else
+                {
+                    <div class="reports-donut-layout">
+                        <div class="reports-credential-ring" style="@CredentialRingStyle" role="img" aria-label="Distribuição das credenciais"><strong>@_data.CredentialDistribution.Sum(x => x.Count)</strong><span>credenciais</span></div>
+                        <div class="reports-distribution-list">
+                            @for (var index = 0; index < _data.CredentialDistribution.Count; index++)
+                            {
+                                var item = _data.CredentialDistribution[index];
+                                <div><span><i style="background:@DistributionColor(index)"></i>@item.Label</span><strong>@item.Count <small>@FormatPercent(item.Percentage)</small></strong></div>
+                            }
+                        </div>
+                    </div>
+                }
+            </article>
+        </div>
+
+        <footer class="reports-footer-note">
+            <MudIcon Icon="@Icons.Material.Outlined.PrivacyTip" />
+            <span><strong>Indicadores com privacidade.</strong> O relatório apresenta totais e taxas consolidados; senhas, documentos e dados pessoais não são expostos.</span>
+        </footer>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+
+    private LicenseReportsViewModel? _data;
+    private bool _loading = true;
+    private string _error = string.Empty;
+    private int _days = 30;
+    private static readonly (int Days, string Label)[] PeriodOptions = [(30, "30 dias"), (90, "90 dias"), (180, "6 meses"), (365, "1 ano")];
+    private static readonly string[] DistributionColors = ["#3156d3", "#0f927b", "#d58b10", "#7554c9", "#d94e63", "#4c7a9b"];
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = string.Empty;
+        var result = await Api.GetLicenseReportsAsync(LicenseId, _days);
+        _loading = false;
+        if (result.Success) _data = result.Value;
+        else _error = result.Error ?? "Não foi possível carregar os relatórios deste condomínio.";
+    }
+
+    private async Task ChangePeriodAsync(int days)
+    {
+        if (_days == days) return;
+        _days = days;
+        await LoadAsync();
+    }
+
+    private string QualityLabel => _data?.QualityScore switch
+    {
+        >= 85 => "Base muito bem preparada",
+        >= 70 => "Base em boa condição",
+        >= 50 => "Há pontos para evoluir",
+        _ => "A base precisa de atenção"
+    };
+
+    private string QualityMessage => _data?.QualityScore switch
+    {
+        >= 85 => "Cadastros, credenciais e adoção digital apresentam ótima cobertura.",
+        >= 70 => "A operação está consistente; algumas pendências ainda limitam a adoção.",
+        >= 50 => "Priorize contas do aplicativo, contatos e credenciais ainda incompletos.",
+        _ => "Comece pelos pontos de atenção para tornar a operação mais segura e mensurável."
+    };
+
+    private string AdoptionInsightTitle => _data is null ? string.Empty
+        : _data.Residents.Active == 0 ? "Aguardando moradores ativos"
+        : _data.Residents.AccountActivationRate >= 80 ? "Boa ativação das contas"
+        : $"{Math.Max(0, _data.Residents.Active - _data.Residents.AccountsCreated)} morador(es) ainda sem conta";
+
+    private string AdoptionInsightMessage => _data is null ? string.Empty
+        : _data.Residents.Active == 0 ? "Cadastre moradores para acompanhar a adoção do aplicativo."
+        : _data.Residents.AccountActivationRate >= 80
+            ? "Agora concentre os esforços em vincular dispositivos e incentivar o uso recorrente."
+            : "Reenvie os convites pendentes e confira e-mail e telefone antes do contato.";
+
+    private IReadOnlyList<FunnelItem> FunnelItems => _data is null ? [] :
+    [
+        new("01", "Moradores ativos", _data.Residents.Active, 100, "Base elegível"),
+        new("02", "Conta criada", _data.Residents.AccountsCreated, _data.Residents.AccountActivationRate, "Acesso preparado"),
+        new("03", "App vinculado", _data.Residents.AppLinked, _data.Residents.AppAdoptionRate, "Dispositivo identificado"),
+        new("04", "Uso recente", _data.Residents.RecentlyActive, _data.Residents.RecentUsageRate, "Sessão nos últimos 30 dias")
+    ];
+
+    private static string QualityIcon(ReportQualityIndicatorViewModel indicator) => indicator.Tone switch
+    {
+        "good" => Icons.Material.Outlined.Check,
+        "attention" => Icons.Material.Outlined.PriorityHigh,
+        _ => Icons.Material.Outlined.ErrorOutline
+    };
+
+    private IReadOnlyList<ReportTrendPointViewModel> ChartLabels
+    {
+        get
+        {
+            if (_data is null || _data.Trend.Count == 0) return [];
+            var indexes = new[] { 0, _data.Trend.Count / 4, _data.Trend.Count / 2, _data.Trend.Count * 3 / 4, _data.Trend.Count - 1 }.Distinct();
+            return indexes.Select(index => _data.Trend[index]).ToList();
+        }
+    }
+
+    private static string TrendLabel(ReportTrendPointViewModel point) => point.Date == point.EndDate
+        ? point.Date.ToString("dd/MM")
+        : $"{point.Date:dd/MM}–{point.EndDate:dd/MM}";
+
+    private static string LinePoints(IReadOnlyList<ReportTrendPointViewModel> points, Func<ReportTrendPointViewModel, int> selector)
+    {
+        if (points.Count == 0) return string.Empty;
+        var max = Math.Max(1, points.Max(x => Math.Max(x.Authorized, Math.Max(x.Denied, x.Visitors))));
+        return string.Join(" ", points.Select((point, index) =>
+        {
+            var x = points.Count == 1 ? 390d : 38d + index * 704d / (points.Count - 1);
+            var y = 230d - selector(point) * 190d / max;
+            return $"{x.ToString("0.#", CultureInfo.InvariantCulture)},{y.ToString("0.#", CultureInfo.InvariantCulture)}";
+        }));
+    }
+
+    private static string AreaPoints(IReadOnlyList<ReportTrendPointViewModel> points, Func<ReportTrendPointViewModel, int> selector)
+    {
+        if (points.Count == 0) return string.Empty;
+        return $"38,230 {LinePoints(points, selector)} 742,230";
+    }
+
+    private string CredentialRingStyle
+    {
+        get
+        {
+            if (_data is null || _data.CredentialDistribution.Count == 0) return string.Empty;
+            var segments = new List<string>();
+            decimal start = 0;
+            for (var index = 0; index < _data.CredentialDistribution.Count; index++)
+            {
+                var end = Math.Min(100, start + _data.CredentialDistribution[index].Percentage);
+                segments.Add($"{DistributionColor(index)} {start.ToString("0.#", CultureInfo.InvariantCulture)}% {end.ToString("0.#", CultureInfo.InvariantCulture)}%");
+                start = end;
+            }
+            if (start < 100) segments.Add($"#edf1f7 {start.ToString("0.#", CultureInfo.InvariantCulture)}% 100%");
+            return $"--credential-ring: conic-gradient({string.Join(",", segments)})";
+        }
+    }
+
+    private static string DistributionColor(int index) => DistributionColors[index % DistributionColors.Length];
+    private static string Initial(string value) => string.IsNullOrWhiteSpace(value) ? "B" : value.Trim()[0].ToString().ToUpperInvariant();
+    private static string FormatNumber(int value) => value.ToString("N0", CultureInfo.GetCultureInfo("pt-BR"));
+    private static string FormatPercent(decimal value) => $"{value.ToString("0.#", CultureInfo.GetCultureInfo("pt-BR"))}%";
+    private static string PercentStyle(decimal value) => $"{Math.Clamp(value, 0, 100).ToString("0.#", CultureInfo.InvariantCulture)}%";
+
+    private async Task ExportCsvAsync()
+    {
+        if (_data is null) return;
+        var csv = new StringBuilder("\uFEFF");
+        csv.AppendLine("Relatório;Indicador;Valor;Detalhe");
+        CsvRow(csv, "Resumo", "Período", _data.PeriodDays.ToString(), $"{_data.PeriodStart:dd/MM/yyyy} a {_data.PeriodEnd:dd/MM/yyyy}");
+        CsvRow(csv, "Resumo", "Índice de qualidade", _data.QualityScore.ToString(), "Escala de 0 a 100");
+        CsvRow(csv, "Moradores e app", "Moradores ativos", _data.Residents.Active.ToString(), $"{_data.Residents.Registered} cadastrados");
+        CsvRow(csv, "Moradores e app", "Contas criadas", _data.Residents.AccountsCreated.ToString(), FormatPercent(_data.Residents.AccountActivationRate));
+        CsvRow(csv, "Moradores e app", "Aplicativo vinculado", _data.Residents.AppLinked.ToString(), FormatPercent(_data.Residents.AppAdoptionRate));
+        CsvRow(csv, "Moradores e app", "Uso recente", _data.Residents.RecentlyActive.ToString(), FormatPercent(_data.Residents.RecentUsageRate));
+        CsvRow(csv, "Estrutura", "Unidades ocupadas", _data.Structure.OccupiedUnits.ToString(), $"{_data.Structure.Units} unidades cadastradas");
+        CsvRow(csv, "Operação", "Acessos", _data.Operation.AccessEvents.ToString(), $"{_data.Operation.AuthorizedAccesses} autorizados; {_data.Operation.DeniedAccesses} negados");
+        CsvRow(csv, "Operação", "Visitantes", _data.Operation.VisitorsCreated.ToString(), $"{_data.Operation.VisitorsCheckedIn} com entrada registrada");
+        foreach (var indicator in _data.QualityIndicators)
+            CsvRow(csv, "Qualidade cadastral", indicator.Label, indicator.Value.ToString(), $"{FormatPercent(indicator.Percentage)} de {indicator.Total}");
+        foreach (var block in _data.AdoptionByBlock)
+            CsvRow(csv, "Adoção por bloco", block.BlockName, block.AccountsCreated.ToString(), $"{block.Residents} moradores; {block.AppLinked} apps vinculados; {FormatPercent(block.AdoptionRate)}");
+        await Js.InvokeVoidAsync("portalInterop.downloadText", $"relatorio-condotify-{DateTime.Now:yyyyMMdd-HHmm}.csv", csv.ToString(), "text/csv;charset=utf-8");
+    }
+
+    private static void CsvRow(StringBuilder builder, params string[] fields) =>
+        builder.AppendLine(string.Join(";", fields.Select(CsvEscape)));
+
+    private static string CsvEscape(string value) => "\"" + (value ?? string.Empty).Replace("\"", "\"\"") + "\"";
+    private sealed record FunnelItem(string Index, string Label, int Value, decimal Percentage, string Hint);
+}

@@ -33,20 +33,34 @@ public sealed class MediaGatewayClient : IMediaGatewayClient
 {
     private readonly HttpClient _http;
     private readonly ILogger<MediaGatewayClient> _logger;
+    private readonly bool _normalizeAudio;
+    private readonly string _internalSecret;
 
     public MediaGatewayClient(HttpClient http, ILogger<MediaGatewayClient> logger)
+        : this(
+            http,
+            logger,
+            string.Equals(Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_TRANSCODE_AUDIO"), "true", StringComparison.OrdinalIgnoreCase),
+            Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_SECRET") ?? string.Empty)
+    {
+    }
+
+    internal MediaGatewayClient(HttpClient http, ILogger<MediaGatewayClient> logger, bool normalizeAudio, string internalSecret)
     {
         _http = http;
         _logger = logger;
+        _normalizeAudio = normalizeAudio;
+        _internalSecret = internalSecret;
     }
 
     public async Task<bool> EnsurePathAsync(string path, string rtspSource, CancellationToken cancellationToken = default)
     {
         try
         {
+            var configuration = PathConfiguration(path, rtspSource);
             using var response = await _http.PostAsJsonAsync(
                 $"/v3/config/paths/add/{path}",
-                new { source = rtspSource, sourceOnDemand = true },
+                configuration,
                 cancellationToken);
 
             if (response.IsSuccessStatusCode) return true;
@@ -63,7 +77,7 @@ public sealed class MediaGatewayClient : IMediaGatewayClient
 
                 using var retryResponse = await _http.PostAsJsonAsync(
                     $"/v3/config/paths/add/{path}",
-                    new { source = rtspSource, sourceOnDemand = true },
+                    configuration,
                     cancellationToken);
 
                 if (retryResponse.IsSuccessStatusCode) return true;
@@ -85,6 +99,35 @@ public sealed class MediaGatewayClient : IMediaGatewayClient
             _logger.LogError(exception, "Falha ao comunicar com o gateway de midia ao registrar {Path}.", path);
             return false;
         }
+    }
+
+    private object PathConfiguration(string path, string rtspSource)
+    {
+        if (!_normalizeAudio || string.IsNullOrWhiteSpace(_internalSecret))
+            return new { source = rtspSource, sourceOnDemand = true };
+
+        var publishToken = Uri.EscapeDataString(_internalSecret);
+        var command = string.Join(' ',
+            "ffmpeg -nostdin -hide_banner -loglevel warning",
+            "-fflags +genpts+discardcorrupt -use_wallclock_as_timestamps 1",
+            "-rtsp_transport tcp",
+            $"-i '{rtspSource}'",
+            "-map 0:v:0 -map 0:a:0?",
+            "-c:v copy",
+            "-af aresample=async=1000:first_pts=0,asetpts=N/SR/TB",
+            "-c:a libopus -ar 48000 -ac 1 -b:a 64k -application lowdelay",
+            "-avoid_negative_ts make_zero",
+            "-f rtsp -rtsp_transport tcp",
+            $"'rtsp://127.0.0.1:8554/{path}?internal={publishToken}'");
+
+        return new
+        {
+            source = "publisher",
+            runOnDemand = command,
+            runOnDemandRestart = true,
+            runOnDemandStartTimeout = "20s",
+            runOnDemandCloseAfter = "10s"
+        };
     }
 
     public async Task RemovePathAsync(string path, CancellationToken cancellationToken = default)

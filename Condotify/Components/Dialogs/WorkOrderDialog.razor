@@ -1,0 +1,48 @@
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog">
+    <TitleContent><div class="dialog-title-block"><MudIcon Icon="@Icons.Material.Outlined.Engineering" /><div><MudText Typo="Typo.h6">Nova ordem de serviço</MudText><MudText Typo="Typo.caption">Organize responsável, prazo, prestador e conferência do trabalho.</MudText></div></div></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_form.Title" Label="Serviço" Variant="Variant.Outlined" Immediate Required MaxLength="180" />
+            <MudTextField @bind-Value="_form.Description" Label="Descrição do atendimento" Variant="Variant.Outlined" Immediate Lines="3" MaxLength="4000" />
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6"><MudSelect T="int" @bind-Value="_form.Priority" Label="Prioridade" Variant="Variant.Outlined"><MudSelectItem Value="0">Baixa</MudSelectItem><MudSelectItem Value="1">Média</MudSelectItem><MudSelectItem Value="2">Alta</MudSelectItem><MudSelectItem Value="3">Crítica</MudSelectItem></MudSelect></MudItem>
+                <MudItem xs="12" sm="6"><MudDatePicker @bind-Date="_form.DueAt" Label="Prazo" Variant="Variant.Outlined" Clearable /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_form.LocationLabel" Label="Local" Variant="Variant.Outlined" Immediate MaxLength="240" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_form.AssignedToName" Label="Responsável interno" Variant="Variant.Outlined" Immediate MaxLength="150" /></MudItem>
+                <MudItem xs="12" sm="6"><MudSelect T="Guid?" @bind-Value="_form.ProviderId" Label="Prestador" Variant="Variant.Outlined" Clearable><MudSelectItem T="Guid?" Value="null">Sem prestador</MudSelectItem>@foreach (var item in _providers.Where(x => x.IsActive)) { <MudSelectItem T="Guid?" Value="@((Guid?)item.Id)">@item.Name</MudSelectItem> }</MudSelect></MudItem>
+                <MudItem xs="12" sm="6"><MudNumericField T="decimal" @bind-Value="_form.EstimatedCost" Label="Custo estimado (informativo)" Variant="Variant.Outlined" Min="0" Adornment="Adornment.Start" AdornmentText="R$" /></MudItem>
+            </MudGrid>
+            <MudTextField @bind-Value="_checklist" Label="Checklist" HelperText="Digite um item por linha. Use * no início para tornar obrigatório." Variant="Variant.Outlined" Immediate Lines="4" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions><MudButton Variant="Variant.Text" OnClick="Cancel">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SaveAsync" StartIcon="@Icons.Material.Outlined.AddTask">@(_saving ? "Criando..." : "Criar ordem")</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public IncidentViewModel? Incident { get; set; }
+    private readonly WorkOrderCreateViewModel _form = new();
+    private List<MaintenanceProviderViewModel> _providers = [];
+    private string _checklist = "* Confirmar o problema no local\nRegistrar evidência da execução\n* Validar o funcionamento após o serviço";
+    private bool _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Incident is not null) { _form.IncidentId = Incident.Id; _form.Title = Incident.Title; _form.Description = Incident.Description; _form.LocationLabel = Incident.LocationLabel; _form.Priority = Incident.Severity switch { "Critical" => 3, "High" => 2, "Low" => 0, _ => 1 }; _form.DueAt = Incident.SlaResolutionDueAt; }
+        var providers = await Api.GetMaintenanceProvidersAsync(LicenseId); if (providers.Success) _providers = providers.Value ?? [];
+    }
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_form.Title)) { Snackbar.Add("Informe o serviço.", Severity.Warning); return; }
+        _form.Checklist = _checklist.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => new WorkOrderChecklistInputViewModel { IsRequired = x.StartsWith('*'), Title = x.TrimStart('*', ' ') }).Where(x => x.Title.Length > 0).ToList();
+        _saving = true; var result = await Api.CreateWorkOrderAsync(LicenseId, _form); _saving = false;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível criar a ordem.", Severity.Error); return; }
+        Snackbar.Add("Ordem de serviço criada.", Severity.Success); Dialog.Close(DialogResult.Ok(result.Value));
+    }
+    private void Cancel() => Dialog.Cancel();
+}

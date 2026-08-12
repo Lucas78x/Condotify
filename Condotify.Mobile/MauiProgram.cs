@@ -72,6 +72,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<MobileAppLockService>();
         builder.Services.AddSingleton<MobileBiometricService>();
         builder.Services.AddSingleton<MobileOfflineCache>();
+        builder.Services.AddSingleton<MobileOfflineProtectedStore>();
+        builder.Services.AddSingleton<MobileOfflineOperationsService>();
         builder.Services.AddSingleton<MobileDeviceActions>();
         builder.Services.AddSingleton<MobilePullToRefreshState>();
 

@@ -1,21 +1,69 @@
-<div class="stats-grid">
-    <StatTile Label="Blocos" Value="@License.TotalBlocks.ToString()" Icon="@Icons.Material.Outlined.Apartment" Tone="blue" />
-    <StatTile Label="Unidades" Value="@License.TotalUnits.ToString()" Icon="@Icons.Material.Outlined.MeetingRoom" Tone="amber" />
-    <StatTile Label="Moradores" Value="@License.TotalResidents.ToString()" Icon="@Icons.Material.Outlined.Groups" Tone="green" />
-    <StatTile Label="Validade" Value="@License.ExpireDate.ToString("dd/MM/yyyy")" Icon="@Icons.Material.Outlined.EventAvailable" Tone="red" />
+<div class="stats-grid workspace-overview-stats">
+    <StatTile Label="Blocos" Value="@License.TotalBlocks.ToString()" Hint="@(License.TotalBlocks == 0 ? "Estrutura ainda não iniciada" : "Estrutura cadastrada")" Icon="@Icons.Material.Outlined.Apartment" Tone="blue" />
+    <StatTile Label="Unidades" Value="@License.TotalUnits.ToString()" Hint="@(License.TotalUnits == 0 ? "Aguardando cadastro" : "Unidades disponíveis")" Icon="@Icons.Material.Outlined.MeetingRoom" Tone="amber" />
+    <StatTile Label="Moradores" Value="@License.TotalResidents.ToString()" Hint="@(License.TotalResidents == 0 ? "Nenhum convite concluído" : "Pessoas vinculadas")" Icon="@Icons.Material.Outlined.Groups" Tone="green" />
+    <StatTile Label="Validade" Value="@License.ExpireDate.ToString("dd/MM/yyyy")" Hint="@(License.IsExpired ? "Licença expirada" : "Licença ativa")" Icon="@Icons.Material.Outlined.EventAvailable" Tone="red" />
 </div>
 
-<div class="overview-grid">
-    <MudPaper Class="content-panel" Elevation="0">
-        <div class="panel-toolbar">
-            <div><MudText Typo="Typo.h5" Class="panel-title">Estrutura do condomínio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Distribuição cadastrada por bloco</MudText></div>
+@if (License.Blocks.Count == 0)
+{
+    <div class="overview-grid overview-onboarding-grid">
+        <MudPaper Class="content-panel overview-onboarding-panel" Elevation="0">
+            <div class="panel-toolbar overview-onboarding-toolbar">
+                <div>
+                    <MudText Typo="Typo.h5" Class="panel-title">Prepare o condomínio para operar</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Uma configuração guiada, sem telas vazias</MudText>
+                </div>
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">1 de 4 etapas</MudChip>
+            </div>
+            <div class="panel-body overview-onboarding-body">
+                <div class="overview-onboarding-visual" aria-hidden="true">
+                    <span></span><span></span><span></span>
+                    <MudIcon Icon="@Icons.Material.Outlined.Apartment" />
+                </div>
+                <div class="overview-onboarding-copy">
+                    <MudText Typo="Typo.h5" HtmlTag="h2">Comece pela estrutura</MudText>
+                    <MudText Typo="Typo.body2">Cadastre o primeiro bloco e suas unidades. Depois, o Condotify libera convites, credenciais e automações de acesso.</MudText>
+                    <div class="setup-progress-label"><span>Configuração inicial</span><strong>25%</strong></div>
+                    <div class="setup-progress" role="progressbar" aria-label="Configuração inicial" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25"><span></span></div>
+                    <div class="overview-onboarding-actions">
+                        <MudButton Href="@($"/licencas/{LicenseId}/estrutura")" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add">Criar primeiro bloco</MudButton>
+                        <MudButton Href="@($"/licencas/{LicenseId}/estrutura")" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.UploadFile">Importar planilha</MudButton>
+                    </div>
+                </div>
+            </div>
+        </MudPaper>
+
+        <div class="overview-side overview-guidance-side">
+            <MudPaper Class="content-panel" Elevation="0">
+                <div class="panel-toolbar">
+                    <div>
+                        <MudText Typo="Typo.subtitle1" Class="panel-title">Próximas ações</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Siga a ordem recomendada</MudText>
+                    </div>
+                </div>
+                <div class="panel-body setup-actions">
+                    <a class="setup-action" href="/licencas/@LicenseId/estrutura"><span class="setup-action-index">01</span><span><strong>Criar estrutura</strong><small>Blocos, andares e unidades</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                    <a class="setup-action" href="/licencas/@LicenseId/estrutura"><span class="setup-action-index">02</span><span><strong>Convidar moradores</strong><small>Envio seguro por link</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                    <a class="setup-action" href="/licencas/@LicenseId/credenciais"><span class="setup-action-index">03</span><span><strong>Configurar acessos</strong><small>Credenciais e equipamentos</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                </div>
+            </MudPaper>
+
+            <div class="overview-activity-note">
+                <span class="overview-activity-dot"></span>
+                <span><strong>Licença criada e pronta para configuração</strong><small>@License.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy 'às' HH:mm")</small></span>
+            </div>
         </div>
-        @if (License.Blocks.Count == 0)
-        {
-            <div class="panel-body"><MudAlert Severity="Severity.Info" Variant="Variant.Outlined">A estrutura ainda não foi cadastrada. Comece criando o primeiro bloco.</MudAlert></div>
-        }
-        else
-        {
+    </div>
+}
+else
+{
+    <div class="overview-grid">
+        <MudPaper Class="content-panel" Elevation="0">
+            <div class="panel-toolbar">
+                <div><MudText Typo="Typo.h5" Class="panel-title">Estrutura do condomínio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Distribuição cadastrada por bloco</MudText></div>
+                <MudButton Href="@($"/licencas/{LicenseId}/estrutura")" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.AccountTree">Ver estrutura</MudButton>
+            </div>
             <div class="panel-body">
                 <div class="hierarchy-grid group-card-grid">
                     @foreach (var block in License.Blocks)
@@ -29,33 +77,33 @@
                     }
                 </div>
             </div>
-        }
-    </MudPaper>
-
-    <div class="overview-side">
-        <MudPaper Class="content-panel" Elevation="0">
-            <div class="panel-toolbar"><MudText Typo="Typo.subtitle1" Class="panel-title">Detalhes da licença</MudText></div>
-            <div class="panel-body">
-                <div class="info-row"><span>Tipo</span><strong>@License.Type</strong></div>
-                <div class="info-row"><span>Cidade / País</span><strong>@License.City / @License.State</strong></div>
-                <div class="info-row"><span>Criada em</span><strong>@License.CreatedAt.ToString("dd/MM/yyyy")</strong></div>
-            </div>
         </MudPaper>
 
-        <MudPaper Class="content-panel" Elevation="0">
-            <div class="panel-toolbar"><MudText Typo="Typo.subtitle1" Class="panel-title">Ações rápidas</MudText></div>
-            <div class="panel-body quick-actions">
-                <a class="qa-item" href="/licencas/@LicenseId/estrutura"><MudIcon Icon="@Icons.Material.Outlined.AddHomeWork" />Novo bloco<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
-                <a class="qa-item" href="/licencas/@LicenseId/estrutura"><MudIcon Icon="@Icons.Material.Outlined.Groups" />Ver moradores<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
-                <a class="qa-item" href="/licencas/@LicenseId/credenciais"><MudIcon Icon="@Icons.Material.Outlined.Badge" />Configurar acessos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
-                @if (CanViewDocuments)
-                {
-                    <a class="qa-item" href="/licencas/@LicenseId/documentos"><MudIcon Icon="@Icons.Material.Outlined.Description" />Ver documentos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
-                }
-            </div>
-        </MudPaper>
+        <div class="overview-side">
+            <MudPaper Class="content-panel" Elevation="0">
+                <div class="panel-toolbar"><MudText Typo="Typo.subtitle1" Class="panel-title">Detalhes da licença</MudText></div>
+                <div class="panel-body">
+                    <div class="info-row"><span>Tipo</span><strong>@License.Type</strong></div>
+                    <div class="info-row"><span>Cidade / Estado</span><strong>@License.City / @License.State</strong></div>
+                    <div class="info-row"><span>Criada em</span><strong>@License.CreatedAt.ToString("dd/MM/yyyy")</strong></div>
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="content-panel" Elevation="0">
+                <div class="panel-toolbar"><MudText Typo="Typo.subtitle1" Class="panel-title">Ações rápidas</MudText></div>
+                <div class="panel-body quick-actions">
+                    <a class="qa-item" href="/licencas/@LicenseId/estrutura"><MudIcon Icon="@Icons.Material.Outlined.AddHomeWork" />Novo bloco<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                    <a class="qa-item" href="/licencas/@LicenseId/estrutura"><MudIcon Icon="@Icons.Material.Outlined.Groups" />Ver moradores<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                    <a class="qa-item" href="/licencas/@LicenseId/credenciais"><MudIcon Icon="@Icons.Material.Outlined.Badge" />Configurar acessos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                    @if (CanViewDocuments)
+                    {
+                        <a class="qa-item" href="/licencas/@LicenseId/documentos"><MudIcon Icon="@Icons.Material.Outlined.Description" />Ver documentos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                    }
+                </div>
+            </MudPaper>
+        </div>
     </div>
-</div>
+}
 
 @code {
     [Parameter, EditorRequired] public LicenseFullViewModel License { get; set; } = new();

@@ -389,9 +389,5 @@ public sealed class ResidentAuthController : ControllerBase
     /// CreatedAt for a deterministic pick if more than one link is (incorrectly) flagged
     /// primary. Falls back to the resident's direct Unit when there are no links at all.</summary>
     internal static UnitDTO? ResolvePrimaryUnit(ResidentAccessDTO resident)
-    {
-        var ordered = resident.UnitLinks.OrderBy(x => x.CreatedAt).ToList();
-        var primaryLink = ordered.FirstOrDefault(x => x.IsPrimary) ?? ordered.FirstOrDefault();
-        return primaryLink?.Unit ?? resident.Unit;
-    }
+        => ResidentLicenseScope.ResolvePrimaryUnit(resident);
 }

@@ -97,7 +97,7 @@ public class PeopleManagementController : ControllerBase
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
         var resident = await ResidentQuery(licenseId).AsNoTracking().AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Id == residentId);
-        return resident == null ? NotFound() : Ok(ToProfile(resident));
+        return resident == null ? NotFound() : Ok(ToProfile(resident, licenseId));
     }
 
     [HttpPatch("residents/{residentId:guid}/profile")]
@@ -114,7 +114,7 @@ public class PeopleManagementController : ControllerBase
             resident.Name, resident.Email, resident.PhoneNumber, resident.CommercialPhone,
             resident.CPF, resident.RG, resident.BirthDate, resident.Description,
             resident.NotifyAccess, resident.IsActive, HasPhoto = !string.IsNullOrWhiteSpace(resident.ImgUrl),
-            Relationship = (resident.UnitLinks.FirstOrDefault(x => x.IsPrimary) ?? resident.UnitLinks.FirstOrDefault())?.Relationship
+            Relationship = ResidentLicenseScope.ResolveLinkForLicense(resident, licenseId)?.Relationship
         };
         resident.Name = input.Name.Trim();
         resident.Email = input.Email?.Trim() ?? string.Empty;
@@ -140,7 +140,7 @@ public class PeopleManagementController : ControllerBase
         }
         resident.NotifyAccess = input.NotifyAccess;
         resident.IsActive = input.IsActive;
-        var link = resident.UnitLinks.FirstOrDefault(x => x.IsPrimary) ?? resident.UnitLinks.FirstOrDefault();
+        var link = ResidentLicenseScope.ResolveLinkForLicense(resident, licenseId);
         if (link != null)
         {
             link.Relationship = input.Relationship;
@@ -178,7 +178,7 @@ public class PeopleManagementController : ControllerBase
         await _context.SaveChangesAsync();
         if (!string.Equals(previousPhoto, resident.ImgUrl, StringComparison.Ordinal))
             await _media.DeleteAsync(licenseId, previousPhoto, HttpContext.RequestAborted);
-        return Ok(ToProfile(resident));
+        return Ok(ToProfile(resident, licenseId));
     }
 
     [HttpPost("residents/{residentId:guid}/vehicles")]
@@ -186,12 +186,15 @@ public class PeopleManagementController : ControllerBase
     public async Task<IActionResult> CreateVehicle(Guid licenseId, Guid residentId, [FromBody] CreateVehicleIn input)
     {
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
-        var resident = await _context.Residents.Include(x => x.Unit).ThenInclude(x => x.Block)
-            .FirstOrDefaultAsync(x => x.Id == residentId && x.Unit.Block.LicenseId == licenseId);
+        var resident = await _context.Residents
+            .Include(x => x.Unit).ThenInclude(x => x.Block)
+            .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
+            .ForLicense(licenseId)
+            .FirstOrDefaultAsync(x => x.Id == residentId);
         if (resident == null) return NotFound();
-        var unitId = input.UnitId == Guid.Empty ? resident.UnitId : input.UnitId;
-        var unitExists = await _context.Units.AnyAsync(x => x.Id == unitId && x.Block.LicenseId == licenseId);
-        if (!unitExists) return NotFound();
+        var allowedUnitIds = ResidentLicenseScope.ResolveUnitsForLicense(resident, licenseId).Select(unit => unit.Id).ToHashSet();
+        var unitId = input.UnitId == Guid.Empty ? allowedUnitIds.FirstOrDefault() : input.UnitId;
+        if (unitId == Guid.Empty || !allowedUnitIds.Contains(unitId)) return NotFound();
         var plate = NormalizePlate(input.Plate);
         if (string.IsNullOrWhiteSpace(plate)) return BadRequest(new { Errors = "Placa do veiculo e obrigatoria." });
         if (await _context.Vehicles.AnyAsync(x => x.UnitId == unitId && x.Plate == plate))
@@ -235,8 +238,15 @@ public class PeopleManagementController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == vehicleId && x.ResidentId == residentId && x.Unit.Block.LicenseId == licenseId);
         if (vehicle == null) return NotFound();
 
+        var resident = await _context.Residents.AsNoTracking()
+            .Include(x => x.Unit).ThenInclude(x => x.Block)
+            .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
+            .ForLicense(licenseId)
+            .FirstOrDefaultAsync(x => x.Id == residentId);
+        if (resident is null) return NotFound();
+        var allowedUnitIds = ResidentLicenseScope.ResolveUnitsForLicense(resident, licenseId).Select(unit => unit.Id).ToHashSet();
         var unitId = input.UnitId == Guid.Empty ? vehicle.UnitId : input.UnitId;
-        if (!await _context.Units.AnyAsync(x => x.Id == unitId && x.Block.LicenseId == licenseId)) return NotFound();
+        if (unitId == Guid.Empty || !allowedUnitIds.Contains(unitId)) return NotFound();
         var plate = NormalizePlate(input.Plate);
         if (string.IsNullOrWhiteSpace(plate)) return BadRequest(new { Errors = "Placa do veiculo e obrigatoria." });
         if (await _context.Vehicles.AnyAsync(x => x.Id != vehicleId && x.UnitId == unitId && x.Plate == plate))
@@ -334,8 +344,11 @@ public class PeopleManagementController : ControllerBase
     public async Task<IActionResult> CreateInvite(Guid licenseId, Guid residentId, [FromBody] CreateRegistrationInviteIn input)
     {
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
-        var resident = await _context.Residents.Include(x => x.Unit).ThenInclude(x => x.Block)
-            .FirstOrDefaultAsync(x => x.Id == residentId && x.Unit.Block.LicenseId == licenseId);
+        var resident = await _context.Residents
+            .Include(x => x.Unit).ThenInclude(x => x.Block)
+            .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
+            .ForLicense(licenseId)
+            .FirstOrDefaultAsync(x => x.Id == residentId);
         if (resident == null) return NotFound();
         var contact = input.Contact?.Trim();
         if (string.IsNullOrWhiteSpace(contact)) contact = !string.IsNullOrWhiteSpace(resident.PhoneNumber) ? resident.PhoneNumber : resident.Email;
@@ -379,6 +392,12 @@ public class PeopleManagementController : ControllerBase
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
         var resident = await ResidentQuery(licenseId).FirstOrDefaultAsync(x => x.Id == residentId);
         if (resident == null) return NotFound();
+        if (resident.UnitLinks.Any(link => link.Unit.Block.LicenseId != licenseId))
+            return Conflict(new
+            {
+                Result = "ResidentLinkedToAnotherLicense",
+                Errors = "Esta pessoa tambem possui vinculo com outro condominio e nao pode ser excluida globalmente por esta tela."
+            });
         if (resident.AccessCredentials.Count > 0 || resident.Vehicles.Count > 0)
             return Conflict(new
             {
@@ -389,7 +408,7 @@ public class PeopleManagementController : ControllerBase
         var overrides = await _context.AccessRouteResidentOverrides
             .Where(x => x.ResidentId == resident.Id)
             .ToListAsync();
-        var link = resident.UnitLinks.FirstOrDefault(x => x.IsPrimary) ?? resident.UnitLinks.FirstOrDefault();
+        var link = ResidentLicenseScope.ResolveLinkForLicense(resident, licenseId);
         _recycleBin.CaptureResident(
             licenseId,
             resident,
@@ -405,11 +424,11 @@ public class PeopleManagementController : ControllerBase
 
     private IQueryable<ResidentAccessDTO> ResidentQuery(Guid licenseId) => _context.Residents
         .Include(x => x.Unit).ThenInclude(x => x.Block)
-        .Include(x => x.UnitLinks).ThenInclude(x => x.Unit)
+        .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
         .Include(x => x.AccessCredentials).ThenInclude(x => x.Devices).ThenInclude(x => x.Device)
         .Include(x => x.Vehicles)
         .Include(x => x.RegistrationInvites)
-        .Where(x => x.Unit.Block.LicenseId == licenseId);
+        .ForLicense(licenseId);
 
     private async Task<bool> HasLicenseAccessAsync(Guid licenseId) =>
         Guid.TryParse(User.FindFirstValue("enterprise_id"), out var enterpriseId) &&
@@ -455,9 +474,10 @@ public class PeopleManagementController : ControllerBase
             x.CredentialType == AccessCredentialTypeEnum.Face && x.IsActive && x.ValidTo > DateTime.UtcNow)
     };
 
-    private static PersonProfileOut ToProfile(ResidentAccessDTO resident)
+    private static PersonProfileOut ToProfile(ResidentAccessDTO resident, Guid licenseId)
     {
-        var link = resident.UnitLinks.FirstOrDefault(x => x.IsPrimary) ?? resident.UnitLinks.FirstOrDefault();
+        var link = ResidentLicenseScope.ResolveLinkForLicense(resident, licenseId);
+        var unit = ResidentLicenseScope.ResolveUnitForLicense(resident, licenseId);
         var summary = ToSummary(resident, link);
         return new PersonProfileOut
         {
@@ -465,8 +485,8 @@ public class PeopleManagementController : ControllerBase
             Email = summary.Email, ImageUrl = summary.ImageUrl, Relationship = summary.Relationship,
             Description = summary.Description, IsActive = summary.IsActive, CredentialCount = summary.CredentialCount,
             VehicleCount = summary.VehicleCount, HasFaceCredential = summary.HasFaceCredential,
-            HasActiveFaceCredential = summary.HasActiveFaceCredential, UnitId = resident.UnitId, UnitNumber = resident.Unit.Number,
-            BlockName = resident.Unit.Block.Name, CPF = resident.CPF, RG = resident.RG, BirthDate = resident.BirthDate,
+            HasActiveFaceCredential = summary.HasActiveFaceCredential, UnitId = unit?.Id ?? Guid.Empty, UnitNumber = unit?.Number ?? string.Empty,
+            BlockName = unit?.Block?.Name ?? string.Empty, CPF = resident.CPF, RG = resident.RG, BirthDate = resident.BirthDate,
             CommercialPhone = resident.CommercialPhone, NotifyAccess = resident.NotifyAccess,
             Credentials = resident.AccessCredentials.OrderBy(x => x.CredentialType).Select(x => new PersonCredentialOut
             {

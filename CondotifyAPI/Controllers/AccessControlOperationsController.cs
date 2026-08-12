@@ -106,7 +106,8 @@ public sealed class AccessControlOperationsController : ControllerBase
         if (inspection.Online && !wasOnline)
         {
             var credentialIds = await _context.ResidentAccessCredentials
-                .Where(x => x.Resident.Unit.Block.LicenseId == licenseId && x.IsActive)
+                .ForLicense(licenseId)
+                .Where(x => x.IsActive)
                 .Select(x => x.Id).ToListAsync();
             if (credentialIds.Count > 0)
                 QueueBatch(licenseId, credentialIds, $"Equipamento {device.Name} voltou a ficar online");
@@ -180,8 +181,9 @@ public sealed class AccessControlOperationsController : ControllerBase
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
         var resident = await _context.Residents.AsNoTracking()
             .Include(x => x.Unit).ThenInclude(x => x.Block)
-            .Include(x => x.UnitLinks)
-            .FirstOrDefaultAsync(x => x.Id == input.ResidentId && x.Unit.Block.LicenseId == licenseId);
+            .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
+            .ForLicense(licenseId)
+            .FirstOrDefaultAsync(x => x.Id == input.ResidentId);
         if (resident is null) return NotFound();
         var resolution = await _routeResolver.ResolveAsync(licenseId, resident, input.CredentialType);
         var output = new RouteSimulationOut
@@ -223,6 +225,7 @@ public sealed class AccessControlOperationsController : ControllerBase
     {
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
         var batches = await _context.AccessBatchOperations.AsNoTracking()
+            .Include(x => x.License)
             .Include(x => x.Items).ThenInclude(x => x.Device)
             .Include(x => x.Items).ThenInclude(x => x.Credential).ThenInclude(x => x!.Resident)
             .Where(x => x.LicenseId == licenseId)
@@ -237,12 +240,24 @@ public sealed class AccessControlOperationsController : ControllerBase
     public async Task<IActionResult> CancelBatch(Guid licenseId, Guid batchId)
     {
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
-        var batch = await _context.AccessBatchOperations.FirstOrDefaultAsync(x => x.Id == batchId && x.LicenseId == licenseId);
+        var batch = await _context.AccessBatchOperations.Include(x => x.Items)
+            .FirstOrDefaultAsync(x => x.Id == batchId && x.LicenseId == licenseId);
         if (batch is null) return NotFound();
-        if (batch.Status != AccessBatchStatusEnum.Queued)
-            return Conflict(new { Errors = "Somente operacoes que ainda estao na fila podem ser canceladas." });
+        if (!AccessOperationPolicy.CanCancelBatch(batch.Status))
+            return Conflict(new { Errors = "Somente operacoes na fila ou em processamento podem ser canceladas." });
+        var now = DateTime.UtcNow;
+        foreach (var item in batch.Items.Where(x => AccessOperationPolicy.CanCancelItem(x.Status)))
+        {
+            item.Status = AccessOperationItemStatusEnum.Canceled;
+            item.NextAttemptAt = null;
+            item.FinishedAt = now;
+            item.Error = string.Empty;
+        }
         batch.Status = AccessBatchStatusEnum.Canceled;
-        batch.FinishedAt = DateTime.UtcNow;
+        batch.NextAttemptAt = null;
+        batch.FinishedAt = batch.Items.Any(x => x.Status == AccessOperationItemStatusEnum.Running) ? null : now;
+        AccessOperationPolicy.RefreshCounts(batch);
+        AddAudit(licenseId, "AccessBatch", batch.Id, "Canceled", "Canceled", "Operacao cancelada; itens ainda nao executados foram interrompidos.", new { batch.Id, batch.ProcessedItems, batch.TotalItems });
         await _context.SaveChangesAsync();
         return NoContent();
     }
@@ -265,7 +280,10 @@ public sealed class AccessControlOperationsController : ControllerBase
         batch.LeaseOwner = string.Empty;
         batch.LeaseExpiresAt = null;
         batch.Error = string.Empty;
-        foreach (var item in batch.Items.Where(x => x.Status != AccessOperationItemStatusEnum.Completed))
+        var retryableItems = batch.Items.Where(x => AccessOperationPolicy.CanRetryItem(x.Status)).ToList();
+        if (retryableItems.Count == 0)
+            return Conflict(new { Errors = "Esta operacao nao possui itens que possam ser reprocessados." });
+        foreach (var item in retryableItems)
         {
             item.Status = AccessOperationItemStatusEnum.Queued;
             item.AttemptCount = 0;
@@ -273,7 +291,78 @@ public sealed class AccessControlOperationsController : ControllerBase
             item.FinishedAt = null;
             item.Error = string.Empty;
         }
+        AccessOperationPolicy.RefreshCounts(batch);
         AddAudit(licenseId, "AccessBatch", batch.Id, "Retry", "Queued", "Operacao reenviada para processamento.", new { batch.Id });
+        await _context.SaveChangesAsync();
+        return Accepted(ToBatchOut(batch));
+    }
+
+    [HttpDelete("reconciliation/batches/{batchId:guid}/items/{itemId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageCredentials)]
+    public async Task<IActionResult> CancelBatchItem(Guid licenseId, Guid batchId, Guid itemId)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var batch = await _context.AccessBatchOperations.Include(x => x.Items)
+            .FirstOrDefaultAsync(x => x.Id == batchId && x.LicenseId == licenseId);
+        if (batch is null) return NotFound();
+        var item = batch.Items.FirstOrDefault(x => x.Id == itemId);
+        if (item is null) return NotFound();
+        if (!AccessOperationPolicy.CanCancelItem(item.Status))
+            return Conflict(new { Errors = "Somente itens pendentes ou aguardando equipamento podem ser cancelados." });
+
+        var now = DateTime.UtcNow;
+        item.Status = AccessOperationItemStatusEnum.Canceled;
+        item.NextAttemptAt = null;
+        item.FinishedAt = now;
+        item.Error = string.Empty;
+        AccessOperationPolicy.RefreshCounts(batch);
+        if (!batch.Items.Any(x => AccessOperationPolicy.IsPending(x.Status)))
+        {
+            batch.Status = batch.FailedItems > 0
+                ? AccessBatchStatusEnum.CompletedWithErrors
+                : AccessBatchStatusEnum.Canceled;
+            batch.NextAttemptAt = null;
+            batch.FinishedAt = now;
+        }
+        AddAudit(licenseId, "AccessOperationItem", item.Id, "Canceled", "Canceled", "Item removido das proximas tentativas do processamento.", new { BatchId = batch.Id, ItemId = item.Id, item.CredentialId, item.DeviceId });
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("reconciliation/batches/{batchId:guid}/items/{itemId:guid}/retry")]
+    [RequireLicensePermission(LicensePermissionEnum.ManageCredentials)]
+    public async Task<IActionResult> RetryBatchItem(Guid licenseId, Guid batchId, Guid itemId)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var batch = await _context.AccessBatchOperations.Include(x => x.Items)
+            .Include(x => x.License)
+            .Include(x => x.Items).ThenInclude(x => x.Device)
+            .Include(x => x.Items).ThenInclude(x => x.Credential).ThenInclude(x => x!.Resident)
+            .FirstOrDefaultAsync(x => x.Id == batchId && x.LicenseId == licenseId);
+        if (batch is null) return NotFound();
+        var item = batch.Items.FirstOrDefault(x => x.Id == itemId);
+        if (item is null) return NotFound();
+        if (!AccessOperationPolicy.CanRetryItem(item.Status))
+            return Conflict(new { Errors = "Somente itens com falha ou aguardando equipamento podem ser reprocessados." });
+
+        var now = DateTime.UtcNow;
+        item.Status = AccessOperationItemStatusEnum.Queued;
+        item.AttemptCount = 0;
+        item.NextAttemptAt = now;
+        item.FinishedAt = null;
+        item.Error = string.Empty;
+        if (batch.Status != AccessBatchStatusEnum.Running)
+        {
+            batch.Status = AccessBatchStatusEnum.Queued;
+            batch.AttemptCount = 0;
+            batch.NextAttemptAt = now;
+            batch.FinishedAt = null;
+            batch.LeaseOwner = string.Empty;
+            batch.LeaseExpiresAt = null;
+            batch.Error = string.Empty;
+        }
+        AccessOperationPolicy.RefreshCounts(batch);
+        AddAudit(licenseId, "AccessOperationItem", item.Id, "Retry", "Queued", "Item reenviado para processamento.", new { BatchId = batch.Id, ItemId = item.Id, item.CredentialId, item.DeviceId });
         await _context.SaveChangesAsync();
         return Accepted(ToBatchOut(batch));
     }
@@ -301,7 +390,7 @@ public sealed class AccessControlOperationsController : ControllerBase
             return BadRequest(new { Errors = "Arquivo de backup vazio ou com versao incompativel." });
 
         var residentIds = input.Credentials.Select(x => x.ResidentId).Distinct().ToList();
-        var validResidents = await _context.Residents.Where(x => x.Unit.Block.LicenseId == licenseId && residentIds.Contains(x.Id))
+        var validResidents = await _context.Residents.ForLicense(licenseId).Where(x => residentIds.Contains(x.Id))
             .Select(x => x.Id).ToHashSetAsync();
         if (validResidents.Count != residentIds.Count)
             return BadRequest(new { Errors = "O backup possui pessoas que nao pertencem a esta licenca." });
@@ -389,9 +478,9 @@ public sealed class AccessControlOperationsController : ControllerBase
 
     private IQueryable<ResidentAccessCredentialDTO> CredentialQuery(Guid licenseId) => _context.ResidentAccessCredentials
         .Include(x => x.Resident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
-        .Include(x => x.Resident).ThenInclude(x => x.UnitLinks)
+        .Include(x => x.Resident).ThenInclude(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
         .Include(x => x.Devices)
-        .Where(x => x.Resident.Unit.Block.LicenseId == licenseId);
+        .ForLicense(licenseId);
 
     private AccessBatchOperationDTO QueueBatch(Guid licenseId, IReadOnlyCollection<Guid> credentialIds, string actor, string? idempotencyKey = null, int priority = 50)
     {
@@ -425,7 +514,7 @@ public sealed class AccessControlOperationsController : ControllerBase
     }
 
     private async Task<bool> ResidentBelongsAsync(Guid licenseId, Guid residentId) =>
-        await HasLicenseAccessAsync(licenseId) && await _context.Residents.AsNoTracking().AnyAsync(x => x.Id == residentId && x.Unit.Block.LicenseId == licenseId);
+        await HasLicenseAccessAsync(licenseId) && await _context.Residents.AsNoTracking().ForLicense(licenseId).AnyAsync(x => x.Id == residentId);
 
     private string CurrentUserName() => User.FindFirstValue("name") ?? User.Identity?.Name ?? "Usuario do portal";
     private static DateTime Utc(DateTime value) => value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
@@ -438,7 +527,8 @@ public sealed class AccessControlOperationsController : ControllerBase
     };
     private static AccessBatchOperationOut ToBatchOut(AccessBatchOperationDTO x) => new()
     {
-        Id = x.Id, Operation = x.Operation, Status = x.Status.ToString(), TotalItems = x.TotalItems,
+        Id = x.Id, LicenseId = x.LicenseId, LicenseName = x.License?.Name ?? string.Empty,
+        Operation = x.Operation, Status = x.Status.ToString(), TotalItems = x.TotalItems,
         ProcessedItems = x.ProcessedItems, SuccessfulItems = x.SuccessfulItems, FailedItems = x.FailedItems,
         Priority = x.Priority, AttemptCount = x.AttemptCount, MaxAttempts = x.MaxAttempts,
         RequestedBy = x.RequestedBy, Error = x.Error, CreatedAt = x.CreatedAt, StartedAt = x.StartedAt, FinishedAt = x.FinishedAt,
@@ -448,7 +538,7 @@ public sealed class AccessControlOperationsController : ControllerBase
             Id = item.Id, CredentialId = item.CredentialId, DeviceId = item.DeviceId,
             CredentialName = item.Credential?.Resident?.Name ?? string.Empty, DeviceName = item.Device?.Name ?? "Sem rota",
             Action = item.Action, Status = item.Status.ToString(), AttemptCount = item.AttemptCount,
-            Error = item.Error, NextAttemptAt = item.NextAttemptAt
+            Error = item.Error, NextAttemptAt = item.NextAttemptAt, FinishedAt = item.FinishedAt
         }).ToList()
     };
     private static DeviceInventoryItemOut ToInventoryOut(AccessInventoryItemDTO x) => new()

@@ -132,9 +132,23 @@ namespace CondotifyAPI.Data.Structure
         public string IpAddress { get; set; } = string.Empty;
         public string HTTPPort { get; set; } = string.Empty;
         public string RTSPPort { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public int IpType { get; set; }
+        public int Proportion { get; set; }
+        public int Mark { get; set; }
+        public int DeviceTypeValue { get; set; }
         public string DeviceType { get; set; } = string.Empty;
         public int MaxChannels { get; set; }
         public bool ResidentVisible { get; set; }
+        public List<CftvAccessActionOut> AccessActions { get; set; } = [];
+    }
+
+    public class CftvAccessActionOut
+    {
+        public Guid DeviceId { get; set; }
+        public string DeviceName { get; set; } = string.Empty;
+        public int Channel { get; set; }
+        public bool IsOnline { get; set; }
     }
 
     public class UpdateCftvResidentVisibilityIn

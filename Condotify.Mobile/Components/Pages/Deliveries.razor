@@ -56,6 +56,7 @@
     private List<DeliveryRowViewModel> _rows = [];
     private readonly Dictionary<Guid, string> _photos = [];
     private bool _loading;
+    private Guid? _delivering;
     private string _error = string.Empty;
     private string DeliveryOverviewTitle => _rows.Any(x => x.Status is "Pending" or "Received")
         ? $"{_rows.Count(x => x.Status is "Pending" or "Received")} encomenda(s) aguardando conclusão"
@@ -92,7 +93,9 @@
         foreach (var row in _rows.Take(30))
         {
             if (!CondotifyApiClient.TryParseMediaReference(row.PhotoUrl, out var licenseId, out var mediaId)) continue;
-            var result = await Api.GetPersonPhotoAsync(licenseId, mediaId);
+            var result = Session.Current?.Principal == MobilePrincipalKind.Resident
+                ? await Api.GetResidentMediaAsync(mediaId)
+                : await Api.GetPersonPhotoAsync(licenseId, mediaId);
             if (result.Success && !string.IsNullOrWhiteSpace(result.Value)) _photos[row.Id] = result.Value;
         }
     }
@@ -108,10 +111,16 @@
     }
     private async Task DeliverAsync(DeliveryRowViewModel row)
     {
-        if (Session.Current?.Principal != MobilePrincipalKind.Staff) return;
-        var result = await Api.UpdateDeliveryStatusAsync(AppState.SelectedLicenseId!.Value, row.Id, 3, "Entrega registrada pelo aplicativo");
-        Snackbar.Add(result.Success ? "Entrega registrada." : result.Error ?? "Falha ao atualizar.", result.Success ? Severity.Success : Severity.Error);
-        if (result.Success) await LoadAsync();
+        var licenseId = AppState.SelectedLicenseId;
+        if (Session.Current?.Principal != MobilePrincipalKind.Staff || !licenseId.HasValue || _delivering.HasValue) return;
+        _delivering = row.Id;
+        try
+        {
+            var result = await Api.UpdateDeliveryStatusAsync(licenseId.Value, row.Id, 3, "Entrega registrada pelo aplicativo");
+            Snackbar.Add(result.Success ? "Entrega registrada." : result.Error ?? "Falha ao atualizar.", result.Success ? Severity.Success : Severity.Error);
+            if (result.Success) await LoadAsync();
+        }
+        finally { _delivering = null; }
     }
     private static Color StatusColor(string status) => status switch { "Delivered" => Color.Success, "Canceled" => Color.Error, "Received" => Color.Info, _ => Color.Warning };
     private static string StatusClass(string status) => status switch { "Delivered" => "success", "Canceled" => "error", "Received" => "info", _ => "warning" };

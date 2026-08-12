@@ -32,7 +32,9 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
     public async Task RestoreAsync(CancellationToken cancellationToken = default)
     {
         _session = await _vault.LoadAsync(cancellationToken);
-        if (_session is not null && !await EnsureFreshAsync(cancellationToken))
+        if (_session is not null &&
+            (!_session.IsAuthenticated || !await EnsureFreshAsync(cancellationToken)) &&
+            _session is not null)
             await ClearAsync(cancellationToken);
         Changed?.Invoke();
     }
@@ -59,11 +61,13 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
     {
         var staff = await LoginStaffAsync(email, password, deviceLabel, cancellationToken);
         if (staff.Success || staff.MfaRequired) return staff;
+        if (!staff.CredentialsRejected) return staff;
 
         var resident = await LoginResidentAsync(email, password, deviceLabel, cancellationToken);
-        return resident.Success
-            ? resident
-            : new MobileLoginResult(false, false, "E-mail ou senha inválidos.");
+        if (resident.Success || resident.MfaRequired) return resident;
+        return resident.CredentialsRejected
+            ? new MobileLoginResult(false, false, "E-mail ou senha inválidos.", CredentialsRejected: true)
+            : resident;
     }
 
     public async Task<MobileLoginResult> VerifyStaffMfaAsync(
@@ -149,15 +153,25 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
     internal async Task<bool> EnsureFreshAsync(CancellationToken cancellationToken = default)
     {
         if (_session is null) return false;
+        if (!_session.IsAuthenticated)
+        {
+            await ClearAsync(CancellationToken.None);
+            return false;
+        }
         if (_session.AccessTokenExpiresAt > _time.GetUtcNow().AddMinutes(1)) return true;
 
         await _refreshGate.WaitAsync(cancellationToken);
         try
         {
             if (_session is null) return false;
+            if (!_session.IsAuthenticated)
+            {
+                await ClearAsync(CancellationToken.None);
+                return false;
+            }
             if (_session.AccessTokenExpiresAt > _time.GetUtcNow().AddMinutes(1)) return true;
 
-            var response = await SendAsync(
+            using var response = await SendAsync(
                 HttpMethod.Post,
                 "api/auth/refresh",
                 new { _session.RefreshToken },
@@ -168,7 +182,16 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
                 return false;
             }
 
-            var payload = await response.Content.ReadFromJsonAsync<AuthResponse>(JsonOptions, cancellationToken);
+            AuthResponse? payload;
+            try
+            {
+                payload = await response.Content.ReadFromJsonAsync<AuthResponse>(JsonOptions, cancellationToken);
+            }
+            catch (Exception exception) when (exception is JsonException or NotSupportedException)
+            {
+                await ClearAsync(CancellationToken.None);
+                return false;
+            }
             if (payload?.Result != "Success" ||
                 string.IsNullOrWhiteSpace(payload.AccessToken) ||
                 string.IsNullOrWhiteSpace(payload.RefreshToken))
@@ -177,7 +200,14 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
                 return false;
             }
 
-            _session = BuildSession(payload, _session.Principal, _session);
+            var refreshedSession = BuildSession(payload, _session.Principal, _session);
+            if (!refreshedSession.IsAuthenticated)
+            {
+                await ClearAsync(CancellationToken.None);
+                return false;
+            }
+
+            _session = refreshedSession;
             await _vault.SaveAsync(_session, cancellationToken);
             Changed?.Invoke();
             return true;
@@ -223,18 +253,25 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
         {
             AuthResponse? payload = null;
             try { payload = await response.Content.ReadFromJsonAsync<AuthResponse>(JsonOptions, cancellationToken); }
-            catch (JsonException) { }
+            catch (Exception exception) when (exception is JsonException or NotSupportedException) { }
 
             if (payload?.MfaRequired == true)
                 return new(false, true, string.Empty, payload.ChallengeToken ?? string.Empty);
             if (!response.IsSuccessStatusCode || payload?.Result != "Success" ||
                 string.IsNullOrWhiteSpace(payload.AccessToken) ||
                 string.IsNullOrWhiteSpace(payload.RefreshToken))
-                return new(false, false, response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+            {
+                var credentialsRejected = response.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+                return new(false, false, credentialsRejected
                     ? "Email ou senha invalidos."
-                    : "Não foi possível entrar agora.");
+                    : "Não foi possível entrar agora.", CredentialsRejected: credentialsRejected);
+            }
 
-            _session = BuildSession(payload, principal, null);
+            var session = BuildSession(payload, principal, null);
+            if (!session.IsAuthenticated)
+                return new(false, false, "A resposta de autenticação não identificou o usuário.");
+
+            _session = session;
             await _vault.SaveAsync(_session, cancellationToken);
             Changed?.Invoke();
             return new(true, false, string.Empty);

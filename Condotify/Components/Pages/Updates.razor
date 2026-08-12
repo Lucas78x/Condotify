@@ -1,0 +1,148 @@
+@page "/atualizacoes"
+@attribute [Authorize]
+
+<PageTitle>Atualizações | Condotify</PageTitle>
+
+<div class="updates-page">
+    <section class="updates-hero" aria-labelledby="updates-title">
+        <div class="updates-hero-copy">
+            <span class="updates-live-badge"><i aria-hidden="true"></i> Condotify em evolução</span>
+            <MudText Typo="Typo.h1" HtmlTag="h1" id="updates-title" Class="updates-title">
+                Novidades que deixam a rotina <span>mais simples.</span>
+            </MudText>
+            <MudText Typo="Typo.body1" Class="updates-subtitle">
+                Acompanhe as melhorias do portal e do aplicativo, entenda o que mudou e descubra novas formas de cuidar do condomínio.
+            </MudText>
+            <div class="updates-hero-actions">
+                <a class="updates-primary-action" href="#historico">
+                    <MudIcon Icon="@Icons.Material.Outlined.AutoAwesome" Size="Size.Small" />
+                    Explorar novidades
+                </a>
+                <span class="updates-release-meta"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Size="Size.Small" /> Atualizado em 10/08/2026</span>
+            </div>
+        </div>
+
+        <div class="updates-visual" aria-hidden="true">
+            <span class="updates-orbit updates-orbit-outer"></span>
+            <span class="updates-orbit updates-orbit-inner"></span>
+            <span class="updates-core"><MudIcon Icon="@Icons.Material.Outlined.AutoAwesome" /></span>
+            <span class="updates-float-card updates-float-card-a"><MudIcon Icon="@Icons.Material.Outlined.PhoneAndroid" /><small>Aplicativo</small></span>
+            <span class="updates-float-card updates-float-card-b"><MudIcon Icon="@Icons.Material.Outlined.Security" /><small>Segurança</small></span>
+            <span class="updates-float-card updates-float-card-c"><MudIcon Icon="@Icons.Material.Outlined.Speed" /><small>Agilidade</small></span>
+        </div>
+    </section>
+
+    <section class="updates-pillars" aria-label="Compromissos das atualizações">
+        <article>
+            <span class="updates-pillar-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Devices" /></span>
+            <div><strong>Web e mobile</strong><small>Uma experiência consistente em todos os dispositivos.</small></div>
+        </article>
+        <article>
+            <span class="updates-pillar-icon teal"><MudIcon Icon="@Icons.Material.Outlined.Sync" /></span>
+            <div><strong>Evolução contínua</strong><small>Melhorias entregues em ciclos curtos e seguros.</small></div>
+        </article>
+        <article>
+            <span class="updates-pillar-icon amber"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /></span>
+            <div><strong>Operação confiável</strong><small>Mais clareza, velocidade e proteção para a equipe.</small></div>
+        </article>
+    </section>
+
+    <section class="updates-feed" id="historico" aria-labelledby="updates-feed-title">
+        <header class="updates-feed-header">
+            <div>
+                <span class="updates-section-kicker">HISTÓRICO DE EVOLUÇÃO</span>
+                <MudText Typo="Typo.h4" HtmlTag="h2" id="updates-feed-title">O que há de novo</MudText>
+                <MudText Typo="Typo.body2">Mudanças importantes, explicadas de forma simples.</MudText>
+            </div>
+            <div class="updates-filters" role="group" aria-label="Filtrar atualizações">
+                @foreach (var filter in Filters)
+                {
+                    <button type="button" class="@FilterCss(filter)" aria-pressed="@(_activeFilter == filter)" @onclick="@(() => _activeFilter = filter)">@filter</button>
+                }
+            </div>
+        </header>
+
+        <div class="updates-timeline">
+            @foreach (var pair in FilteredUpdates.Select((update, index) => (update, index)))
+            {
+                var update = pair.update;
+                <article class="update-release-card @update.Tone" style="--update-index:@pair.index" @key="update">
+                    <div class="update-release-date">
+                        <strong>@update.DateLabel</strong>
+                        <span>@update.Year</span>
+                    </div>
+                    <span class="update-release-marker"><MudIcon Icon="@update.Icon" /></span>
+                    <div class="update-release-content">
+                        <div class="update-release-heading">
+                            <span class="update-category">@update.Category</span>
+                            @if (pair.index == 0 && _activeFilter == "Todas")
+                            {
+                                <span class="update-latest"><i></i> Mais recente</span>
+                            }
+                        </div>
+                        <MudText Typo="Typo.h5" HtmlTag="h3">@update.Title</MudText>
+                        <MudText Typo="Typo.body2" Class="update-release-description">@update.Description</MudText>
+                        <div class="update-highlights">
+                            @foreach (var highlight in update.Highlights)
+                            {
+                                <span><MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Size="Size.Small" /> @highlight</span>
+                            }
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    private sealed record ReleaseUpdate(
+        string DateLabel,
+        string Year,
+        string Category,
+        string Title,
+        string Description,
+        string Icon,
+        string Tone,
+        string[] Highlights);
+
+    private static readonly string[] Filters = ["Todas", "Novidade", "Melhoria", "Correção"];
+
+    private static readonly ReleaseUpdate[] Releases =
+    [
+        new("10 AGO", "2026", "Novidade", "Novo ambiente do condomínio",
+            "A navegação foi reorganizada para mostrar cada área com mais clareza e reduzir o tempo gasto procurando uma função.",
+            Icons.Material.Outlined.DashboardCustomize, "primary",
+            ["Menu compacto e responsivo", "Contexto visual em todas as páginas", "Acesso mais rápido aos módulos"]),
+        new("09 AGO", "2026", "Melhoria", "Portaria preparada para o ritmo real",
+            "A central da portaria ganhou uma leitura mais direta para receber visitantes, acompanhar movimentações e agir com segurança.",
+            Icons.Material.Outlined.AssistantDirection, "teal",
+            ["Atalhos operacionais mais claros", "Informações prioritárias em destaque", "Uso confortável em telas menores"]),
+        new("08 AGO", "2026", "Novidade", "Documentos e comunicados renovados",
+            "Arquivos e avisos agora têm identidade por categoria, estados vazios orientativos e ações de publicação mais simples.",
+            Icons.Material.Outlined.FolderCopy, "violet",
+            ["Categorias identificadas por cor", "Leitura em cards", "Publicação com menos etapas"]),
+        new("06 AGO", "2026", "Melhoria", "Convites e passe digital mais intuitivos",
+            "O fluxo recebido pelo morador ficou mais explicativo e conduz cada etapa com uma apresentação visual amigável.",
+            Icons.Material.Outlined.QrCode2, "amber",
+            ["Orientação animada", "Melhor experiência no celular", "Acesso rápido ao convite"]),
+        new("05 AGO", "2026", "Novidade", "Reconhecimento de placas integrado",
+            "Veículos podem ser organizados com mais contexto para agilizar a identificação e apoiar a rotina de acesso.",
+            Icons.Material.Outlined.DirectionsCar, "teal",
+            ["Cadastro de veículos", "Consulta rápida de placas", "Integração com credenciais"]),
+        new("04 AGO", "2026", "Correção", "Mais consistência em toda a plataforma",
+            "Textos, rolagens e pequenos comportamentos foram revisados para tornar a experiência mais previsível.",
+            Icons.Material.Outlined.BuildCircle, "neutral",
+            ["Textos padronizados em português", "Rolagem responsiva", "Ajustes de estabilidade visual"]),
+    ];
+
+    private string _activeFilter = "Todas";
+
+    private IEnumerable<ReleaseUpdate> FilteredUpdates => _activeFilter == "Todas"
+        ? Releases
+        : Releases.Where(update => update.Category == _activeFilter);
+
+    private string FilterCss(string filter) => _activeFilter == filter
+        ? "updates-filter is-active"
+        : "updates-filter";
+}

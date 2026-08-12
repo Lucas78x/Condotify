@@ -529,6 +529,183 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.ToTable("AccessRouteResidentOverrides", (string)null);
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.OfflineAccessDeviceDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AppVersion")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBy")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("DeviceName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("DeviceSecret")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("InstallationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsPrimaryValidator")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastBundleExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastBundleGeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("LastBundleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastSyncedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("OfflineWindowMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(480);
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RevokedBy")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("LicenseId", "InstallationId")
+                        .IsUnique();
+
+                    b.HasIndex("LicenseId", "Status", "LastSyncedAt");
+
+                    b.ToTable("OfflineAccessDevices", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.OfflineAccessOperationDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AfterStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("BeforeStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("BundleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<Guid?>("VisitId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VisitId");
+
+                    b.HasIndex("DeviceId", "ClientOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("LicenseId", "ReceivedAt");
+
+                    b.HasIndex("LicenseId", "Status", "ReceivedAt");
+
+                    b.ToTable("OfflineAccessOperations", (string)null);
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Amenities.AmenityBlackoutDTO", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1717,6 +1894,468 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.ToTable("BoletoDocuments", (string)null);
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialChargeDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("BaseAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid?>("BoletoDocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Competence")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("DueDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("FineAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("InterestAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PaymentReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("RequestKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BoletoDocumentId");
+
+                    b.HasIndex("UnitId");
+
+                    b.HasIndex("LicenseId", "RequestKey")
+                        .IsUnique();
+
+                    b.HasIndex("LicenseId", "Status", "DueDate");
+
+                    b.HasIndex("LicenseId", "UnitId", "DueDate");
+
+                    b.ToTable("FinancialCharges", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialChargeEventDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("ActorType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ChargeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("NewStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("PreviousStatus")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChargeId", "CreatedAt");
+
+                    b.HasIndex("LicenseId", "CreatedAt");
+
+                    b.ToTable("FinancialChargeEvents", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialImportBatchDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("ErrorSummary")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("ImportedRows")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("InvalidRows")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("TotalRows")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LicenseId", "CreatedAt");
+
+                    b.HasIndex("LicenseId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.ToTable("FinancialImportBatches", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialRecurringRuleDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AllUnits")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal>("BaseAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("DueDay")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("EndMonth")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("FineAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("GenerationDay")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("InterestAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LastGeneratedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("LastRunAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("NextRunAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ReferenceTemplate")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime>("StartMonth")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LicenseId", "Name");
+
+                    b.HasIndex("LicenseId", "IsActive", "NextRunAt");
+
+                    b.ToTable("FinancialRecurringRules", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialRecurringRuleUnitDTO", b =>
+                {
+                    b.Property<Guid>("RuleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("RuleId", "UnitId");
+
+                    b.HasIndex("UnitId");
+
+                    b.HasIndex("LicenseId", "UnitId");
+
+                    b.ToTable("FinancialRecurringRuleUnits", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialReminderDeliveryDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ChargeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("DeliveryKey")
+                        .IsRequired()
+                        .HasMaxLength(220)
+                        .HasColumnType("character varying(220)");
+
+                    b.Property<string>("DestinationLabel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastError")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("MaxAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ResidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("StageKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChargeId", "CreatedAt");
+
+                    b.HasIndex("LicenseId", "DeliveryKey")
+                        .IsUnique();
+
+                    b.HasIndex("ResidentId", "FinishedAt");
+
+                    b.HasIndex("Status", "NextAttemptAt", "CreatedAt");
+
+                    b.ToTable("FinancialReminderDeliveries", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialReminderPolicyDTO", b =>
+                {
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BeforeDueDays")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<bool>("EmailEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("FirstOverdueDay")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxOverdueDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("OnDueDate")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("PushEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("RepeatEveryDays")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.HasKey("LicenseId");
+
+                    b.ToTable("FinancialReminderPolicies", (string)null);
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Invitation.AccessVisitDTO", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1973,6 +2612,66 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.HasIndex("LicenseId", "Status", "SentAt");
 
                     b.ToTable("RegistrationInvites", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Invitation.VisitFacialInviteDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("OpenedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("UploadAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("VisitId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("VisitId")
+                        .IsUnique();
+
+                    b.HasIndex("LicenseId", "Status", "ExpiresAt");
+
+                    b.ToTable("VisitFacialInvites", (string)null);
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.License.LicenseCredentialPolicyDTO", b =>
@@ -3003,6 +3702,74 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.ToTable("EmergencySessions", (string)null);
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.IncidentAttachmentDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Caption")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<Guid?>("IncidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MediaReference")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("UploadedByName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("UploadedByResidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("UploadedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("VisibleToResident")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncidentId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("LicenseId", "CreatedAt");
+
+                    b.ToTable("IncidentAttachments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_IncidentAttachments_Target", "(\"IncidentId\" IS NOT NULL) OR (\"WorkOrderId\" IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.IncidentDTO", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3044,6 +3811,11 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Property<Guid>("LicenseId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("LocationLabel")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
                     b.Property<Guid?>("RelatedResourceId")
                         .HasColumnType("uuid");
 
@@ -3056,6 +3828,9 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("ReportedByResidentId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("ReportedByUserId")
                         .HasColumnType("uuid");
@@ -3070,6 +3845,12 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
                     b.Property<int>("Severity")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("SlaResolutionDueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("SlaResponseDueAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Source")
                         .HasColumnType("integer");
@@ -3146,11 +3927,396 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Property<int>("Type")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("VisibleToResident")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.HasKey("Id");
 
                     b.HasIndex("IncidentId", "CreatedAt");
 
                     b.ToTable("IncidentTimelineEntries", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.MaintenancePolicyDTO", b =>
+                {
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CriticalResolutionMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CriticalResponseMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("HighResolutionMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("HighResponseMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LowResolutionMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LowResponseMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MediumResolutionMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MediumResponseMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.HasKey("LicenseId");
+
+                    b.ToTable("MaintenancePolicies", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.MaintenanceProviderDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContactName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1200)
+                        .HasColumnType("character varying(1200)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Specialty")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LicenseId", "IsActive");
+
+                    b.HasIndex("LicenseId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("MaintenanceProviders", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.PreventiveMaintenancePlanDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChecklistTemplateJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("[]");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("DefaultAssignedToName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("DefaultProviderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<Guid?>("DeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("EstimatedCost")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<int>("IntervalDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastGeneratedFor")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LeadDays")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LocationLabel")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTime>("NextDueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DefaultProviderId");
+
+                    b.HasIndex("LicenseId", "Name")
+                        .IsUnique();
+
+                    b.HasIndex("LicenseId", "IsActive", "NextDueAt");
+
+                    b.ToTable("PreventiveMaintenancePlans", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.WorkOrderActivityDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("VisibleToResident")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkOrderId", "CreatedAt");
+
+                    b.ToTable("WorkOrderActivities", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.WorkOrderChecklistItemDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CompletedByName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("CompletedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkOrderId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("WorkOrderChecklistItems", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.WorkOrderDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ActualCost")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<string>("AssignedToName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CompletionNotes")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("CreatedByName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime?>("DueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("EstimatedCost")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<Guid?>("IncidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LocationLabel")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
+                    b.Property<Guid?>("PreventivePlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ProviderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ScheduledFor")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncidentId");
+
+                    b.HasIndex("ProviderId");
+
+                    b.HasIndex("LicenseId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("PreventivePlanId", "ScheduledFor")
+                        .IsUnique();
+
+                    b.HasIndex("LicenseId", "Status", "DueAt");
+
+                    b.ToTable("WorkOrders", (string)null);
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.RecycleBin.RecycleBinItemDTO", b =>
@@ -4051,6 +5217,51 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("Resident");
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.OfflineAccessDeviceDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Users.UserAccessDTO", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("License");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.OfflineAccessOperationDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.AccessControl.OfflineAccessDeviceDTO", "Device")
+                        .WithMany("Operations")
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Invitation.AccessVisitDTO", "Visit")
+                        .WithMany()
+                        .HasForeignKey("VisitId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Device");
+
+                    b.Navigation("License");
+
+                    b.Navigation("Visit");
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Amenities.AmenityBlackoutDTO", b =>
                 {
                     b.HasOne("CondotifyAPI.Domain.DTO.Amenities.AmenityDTO", "Amenity")
@@ -4352,6 +5563,138 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialChargeDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Finance.BoletoDocumentDTO", "BoletoDocument")
+                        .WithMany()
+                        .HasForeignKey("BoletoDocumentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Unit.UnitDTO", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BoletoDocument");
+
+                    b.Navigation("License");
+
+                    b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialChargeEventDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Finance.FinancialChargeDTO", "Charge")
+                        .WithMany("Events")
+                        .HasForeignKey("ChargeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Charge");
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialImportBatchDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialRecurringRuleDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialRecurringRuleUnitDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Finance.FinancialRecurringRuleDTO", "Rule")
+                        .WithMany("Units")
+                        .HasForeignKey("RuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Unit.UnitDTO", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("License");
+
+                    b.Navigation("Rule");
+
+                    b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialReminderDeliveryDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Finance.FinancialChargeDTO", "Charge")
+                        .WithMany()
+                        .HasForeignKey("ChargeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Resident.ResidentAccessDTO", "Resident")
+                        .WithMany()
+                        .HasForeignKey("ResidentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Charge");
+
+                    b.Navigation("License");
+
+                    b.Navigation("Resident");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialReminderPolicyDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Invitation.AccessVisitDTO", b =>
                 {
                     b.HasOne("CondotifyAPI.Domain.DTO.Resident.ResidentAccessCredentialDTO", "Credential")
@@ -4415,6 +5758,25 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("License");
 
                     b.Navigation("Resident");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Invitation.VisitFacialInviteDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Invitation.AccessVisitDTO", "Visit")
+                        .WithOne("FacialInvite")
+                        .HasForeignKey("CondotifyAPI.Domain.DTO.Invitation.VisitFacialInviteDTO", "VisitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+
+                    b.Navigation("Visit");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.License.LicenseCredentialPolicyDTO", b =>
@@ -4627,6 +5989,23 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("License");
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.IncidentAttachmentDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Operations.IncidentDTO", "Incident")
+                        .WithMany("Attachments")
+                        .HasForeignKey("IncidentId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Operations.WorkOrderDTO", "WorkOrder")
+                        .WithMany("Attachments")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Incident");
+
+                    b.Navigation("WorkOrder");
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.IncidentDTO", b =>
                 {
                     b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
@@ -4647,6 +6026,100 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Incident");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.MaintenancePolicyDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithOne()
+                        .HasForeignKey("CondotifyAPI.Domain.DTO.Operations.MaintenancePolicyDTO", "LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.MaintenanceProviderDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.PreventiveMaintenancePlanDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Operations.MaintenanceProviderDTO", "DefaultProvider")
+                        .WithMany()
+                        .HasForeignKey("DefaultProviderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DefaultProvider");
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.WorkOrderActivityDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Operations.WorkOrderDTO", "WorkOrder")
+                        .WithMany("Activities")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WorkOrder");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.WorkOrderChecklistItemDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Operations.WorkOrderDTO", "WorkOrder")
+                        .WithMany("Checklist")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WorkOrder");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.WorkOrderDTO", b =>
+                {
+                    b.HasOne("CondotifyAPI.Domain.DTO.Operations.IncidentDTO", "Incident")
+                        .WithMany("WorkOrders")
+                        .HasForeignKey("IncidentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.License.LicenseDTO", "License")
+                        .WithMany()
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Operations.PreventiveMaintenancePlanDTO", "PreventivePlan")
+                        .WithMany("WorkOrders")
+                        .HasForeignKey("PreventivePlanId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("CondotifyAPI.Domain.DTO.Operations.MaintenanceProviderDTO", "Provider")
+                        .WithMany("WorkOrders")
+                        .HasForeignKey("ProviderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Incident");
+
+                    b.Navigation("License");
+
+                    b.Navigation("PreventivePlan");
+
+                    b.Navigation("Provider");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.RecycleBin.RecycleBinItemDTO", b =>
@@ -4799,6 +6272,11 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.Navigation("ResidentOverrides");
                 });
 
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.AccessControl.OfflineAccessDeviceDTO", b =>
+                {
+                    b.Navigation("Operations");
+                });
+
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Amenities.AmenityDTO", b =>
                 {
                     b.Navigation("Blackouts");
@@ -4835,6 +6313,21 @@ namespace CondotifyAPI.Infrastructure.Migrations
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.BoletoBatchDTO", b =>
                 {
                     b.Navigation("Documents");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialChargeDTO", b =>
+                {
+                    b.Navigation("Events");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Finance.FinancialRecurringRuleDTO", b =>
+                {
+                    b.Navigation("Units");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Invitation.AccessVisitDTO", b =>
+                {
+                    b.Navigation("FacialInvite");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.License.LicenseDTO", b =>
@@ -4877,7 +6370,30 @@ namespace CondotifyAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.IncidentDTO", b =>
                 {
+                    b.Navigation("Attachments");
+
                     b.Navigation("Timeline");
+
+                    b.Navigation("WorkOrders");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.MaintenanceProviderDTO", b =>
+                {
+                    b.Navigation("WorkOrders");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.PreventiveMaintenancePlanDTO", b =>
+                {
+                    b.Navigation("WorkOrders");
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.WorkOrderDTO", b =>
+                {
+                    b.Navigation("Activities");
+
+                    b.Navigation("Attachments");
+
+                    b.Navigation("Checklist");
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Resident.ResidentAccessCredentialDTO", b =>

@@ -40,6 +40,7 @@ public partial class DatabaseContext : DbContext
         LicenseAdministrationEntityConfiguration(modelBuilder);
         DevicesEntityConfiguration(modelBuilder);
         AccessRoutesEntityConfiguration(modelBuilder);
+        OfflineOperationsEntityConfiguration(modelBuilder);
         AmenitiesEntityConfiguration(modelBuilder);
         DeliveriesEntityConfiguration(modelBuilder); 
         TicketsEntityConfiguration(modelBuilder);
@@ -54,6 +55,7 @@ public partial class DatabaseContext : DbContext
         MobileEntityConfiguration(modelBuilder);
         SafetyOperationsEntityConfiguration(modelBuilder);
         BoletoEntityConfiguration(modelBuilder);
+        FinancialEntityConfiguration(modelBuilder);
         ResourceDocumentEntityConfiguration(modelBuilder);
         AnnouncementEntityConfiguration(modelBuilder);
 

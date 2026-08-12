@@ -30,9 +30,9 @@
                     }
                 </MudSelect>
                 <MudSelect T="Guid" @bind-Value="_form.UnitId" Label="Unidade" Variant="Variant.Outlined" Required="true">
-                    @foreach (var unit in Profile.Units)
+                    @foreach (var unit in AvailableUnits)
                     {
-                        <MudSelectItem T="Guid" Value="unit.UnitId">@unit.BlockName / @unit.Number</MudSelectItem>
+                        <MudSelectItem T="Guid" Value="@unit.UnitId">@unit.BlockName / @unit.Number</MudSelectItem>
                     }
                 </MudSelect>
                 <MudDatePicker Date="_date" DateChanged="DateChangedAsync" Label="Data" Variant="Variant.Outlined" MinDate="DateTime.Today" />
@@ -95,13 +95,12 @@
     private bool _loadingSlots;
     private bool _saving;
     private string _error = string.Empty;
+    private List<ResidentUnitViewModel> AvailableUnits => Profile.Units.Where(unit => unit.UnitId != Guid.Empty).ToList();
     private AmenityViewModel? SelectedAmenity => _amenities.FirstOrDefault(x => x.Id == _amenityId);
 
     protected override async Task OnInitializedAsync()
     {
-        _form.UnitId = Profile.Units.FirstOrDefault(x => x.IsPrimary)?.UnitId
-            ?? Profile.Units.FirstOrDefault()?.UnitId
-            ?? Guid.Empty;
+        _form.UnitId = MobileVisitorSelection.ResolveUnit(Profile.Units);
         _loadingAmenities = true;
         var result = await Api.GetResidentAmenitiesAsync();
         _loadingAmenities = false;

@@ -1,0 +1,44 @@
+@inject CondotifyApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        @if (_loading) { <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div> }
+        else if (_detail is null) { <MudAlert Severity="Severity.Error">@_error</MudAlert> }
+        else
+        {
+            <div class="financial-detail-hero">
+                <div><small>@_detail.Charge.UnitLabel · @_detail.Charge.Competence</small><strong>@_detail.Charge.Description</strong><span>Vencimento @_detail.Charge.DueDate.ToString("dd/MM/yyyy")</span></div>
+                <div><span class="financial-status">@_detail.Charge.DisplayStatus</span><strong>@_detail.Charge.TotalAmount.ToString("C2", Culture)</strong></div>
+            </div>
+            <div class="financial-breakdown">
+                <span><small>Valor base</small><strong>@Money(_detail.Charge.BaseAmount)</strong></span>
+                <span><small>Multa</small><strong>@Money(_detail.Charge.FineAmount)</strong></span>
+                <span><small>Juros</small><strong>@Money(_detail.Charge.InterestAmount)</strong></span>
+                <span><small>Desconto</small><strong>- @Money(_detail.Charge.DiscountAmount)</strong></span>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_detail.Charge.Notes)) { <div class="financial-detail-note"><strong>Observação interna</strong><p>@_detail.Charge.Notes</p></div> }
+            <div class="financial-history-title"><strong>Histórico imutável</strong><span>@_detail.Events.Count evento(s)</span></div>
+            <div class="financial-timeline">
+                @foreach (var item in _detail.Events)
+                {
+                    <article><span><MudIcon Icon="@Icons.Material.Outlined.History" Size="Size.Small" /></span><div><strong>@EventLabel(item.EventType)</strong><small>@item.ActorName · @item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>@if (!string.IsNullOrWhiteSpace(item.Note)) { <p>@item.Note</p> }</div></article>
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions><MudButton OnClick="Close">Fechar</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Guid LicenseId { get; set; }
+    [Parameter] public Guid ChargeId { get; set; }
+    private FinancialChargeDetailViewModel? _detail;
+    private bool _loading = true;
+    private string _error = string.Empty;
+    private static readonly System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+    protected override async Task OnInitializedAsync() { var result = await Api.GetFinancialChargeAsync(LicenseId, ChargeId); _loading = false; if (result.Success) _detail = result.Value; else _error = result.Error ?? "Não foi possível carregar o histórico."; }
+    private void Close() => MudDialog.Close();
+    private static string Money(decimal value) => value.ToString("C2", Culture);
+    private static string EventLabel(string value) => value switch { "Created" => "Cobrança criada", "Updated" => "Dados atualizados", "PaymentReported" => "Pagamento informado pelo morador", "ConfirmPayment" => "Baixa administrativa registrada", "RejectPaymentReport" => "Informação de pagamento rejeitada", "MarkNegotiated" => "Negociação registrada", "Disputed" or "MarkDisputed" => "Cobrança contestada", "Cancel" => "Cobrança cancelada", "Reopen" => "Cobrança reaberta", _ => value };
+}

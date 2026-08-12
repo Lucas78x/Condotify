@@ -10,7 +10,7 @@ else
     <section class="administration-shell">
         <div class="module-intro"><div><MudText Typo="Typo.h6">Administração da licença</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Equipe, níveis de acesso e ciclo de vida das credenciais.</MudText></div><MudChip T="string" Variant="Variant.Outlined" Color="Color.Info" Icon="@Icons.Material.Outlined.Security">@RoleLabel(_data.CurrentAccess.Role)</MudChip></div>
         <MudPaper Class="content-panel administration-panel" Elevation="0">
-            <MudTabs Elevation="0" Class="administration-tabs">
+            <MudTabs Elevation="0" Class="administration-tabs" MinimumTabWidth="120px">
                 @if (CanViewUsers)
                 {
                     <MudTabPanel Text="Usuários e acesso" Icon="@Icons.Material.Outlined.ManageAccounts">
@@ -39,6 +39,12 @@ else
                 {
                     <MudTabPanel Text="Backups" Icon="@Icons.Material.Outlined.Backup">
                         <ConfigurationBackupsPanel LicenseId="LicenseId" CanManage="CanManageBackups" />
+                    </MudTabPanel>
+                }
+                @if (CanViewSettings)
+                {
+                    <MudTabPanel Text="Operação offline" Icon="@Icons.Material.Outlined.OfflineBolt">
+                        <OfflineOperationsPanel LicenseId="LicenseId" CanManage="CanManageSettings" />
                     </MudTabPanel>
                 }
                 @if (CanViewAlerts)
@@ -101,7 +107,7 @@ else
         (Condotify.Models.LicenseModuleEnum.Cameras, "Câmeras"),
         (Condotify.Models.LicenseModuleEnum.Devices, "Equipamentos"),
         (Condotify.Models.LicenseModuleEnum.Routes, "Rotas"),
-        (Condotify.Models.LicenseModuleEnum.Incidents, "Ocorrências"),
+        (Condotify.Models.LicenseModuleEnum.Incidents, "Ocorrências e manutenção"),
         (Condotify.Models.LicenseModuleEnum.Automations, "Automações"),
         (Condotify.Models.LicenseModuleEnum.Emergency, "Emergência"),
         (Condotify.Models.LicenseModuleEnum.Deliveries, "Encomendas"),

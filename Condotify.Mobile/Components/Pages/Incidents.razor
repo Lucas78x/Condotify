@@ -1,0 +1,76 @@
+@page "/ocorrencias"
+@page "/ocorrencias/{EntityId:guid}"
+@inject CondotifyApiClient Api
+@inject MobileSessionCoordinator Session
+@inject MobileAppState AppState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Ocorrências | Condotify</PageTitle>
+<PageHeader Eyebrow="ATENDIMENTO" Title="Ocorrências" Subtitle="Abra chamados e acompanhe cada etapa do atendimento.">
+    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
+</PageHeader>
+
+<PageState Loading="_loading" Error="@_error" Empty="@(_items.Count == 0)" EmptyTitle="Nenhuma ocorrência por aqui" EmptyText="Quando precisar da equipe, abra um chamado com local e detalhes do problema." Retry="LoadAsync">
+    <section class="mobile-incidents-hero">
+        <div><span><MudIcon Icon="@Icons.Material.Outlined.SupportAgent" /></span><div><small>@(IsResident ? "CANAL COM A ADMINISTRAÇÃO" : "FILA OPERACIONAL")</small><strong>@(IsResident ? "Ajuda sem perder o contexto" : "Atendimento organizado do início ao fim")</strong><p>@(IsResident ? "Envie fotos e acompanhe o andamento pelo aplicativo." : "Assuma chamados, respeite o SLA e registre a conclusão.")</p></div></div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateAsync">Abrir ocorrência</MudButton>
+    </section>
+
+    <div class="mobile-incident-metrics"><article><span class="blue"><MudIcon Icon="@Icons.Material.Outlined.Inbox" /></span><div><strong>@OpenCount</strong><small>Abertas</small></div></article><article><span class="orange"><MudIcon Icon="@Icons.Material.Outlined.Engineering" /></span><div><strong>@InProgressCount</strong><small>Em atendimento</small></div></article><article><span class="green"><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" /></span><div><strong>@ResolvedCount</strong><small>Concluídas</small></div></article></div>
+
+    <nav class="mobile-incident-filters"><button class="@(_filter == "active" ? "active" : "")" @onclick="@(() => _filter = "active")">Em andamento</button><button class="@(_filter == "history" ? "active" : "")" @onclick="@(() => _filter = "history")">Histórico</button><button class="@(_filter == "all" ? "active" : "")" @onclick="@(() => _filter = "all")">Todos</button></nav>
+
+    <section class="mobile-incident-list">
+        @foreach (var item in VisibleItems)
+        {
+            <button type="button" class="mobile-incident-card @(_selected?.Id == item.Id ? "selected" : "")" @onclick="@(() => Select(item))">
+                <header><span class="incident-severity-dot @item.Severity.ToLowerInvariant()"></span><small>@CategoryLabel(item.Category) · @item.Code</small><em class="status-@item.Status.ToLowerInvariant()">@StatusLabel(item.Status)</em></header>
+                <h3>@item.Title</h3><p>@item.Description</p>
+                <div><span><MudIcon Icon="@Icons.Material.Outlined.Place" />@(string.IsNullOrWhiteSpace(item.LocationLabel) ? "Local não informado" : item.LocationLabel)</span><span><MudIcon Icon="@Icons.Material.Outlined.Schedule" />@TimeLabel(item)</span></div>
+                <footer><span>@(item.WorkOrders.Count > 0 ? $"{item.WorkOrders.Count} ordem(ns) vinculada(s)" : "Aguardando ordem de serviço")</span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></footer>
+            </button>
+        }
+    </section>
+
+    @if (_selected is not null)
+    {
+        <section class="mobile-incident-detail">
+            <header><div><small>ACOMPANHAMENTO</small><h2>@_selected.Title</h2></div><MudIconButton Icon="@Icons.Material.Outlined.Close" OnClick="@(() => _selected = null)" /></header>
+            <div class="mobile-incident-progress"><span class="done"><i><MudIcon Icon="@Icons.Material.Outlined.Check" /></i><strong>Enviado</strong></span><b class="@(_selected.Status != "Open" ? "done" : "")"></b><span class="@(_selected.Status != "Open" ? "done" : "")"><i><MudIcon Icon="@Icons.Material.Outlined.Engineering" /></i><strong>Atendimento</strong></span><b class="@(_selected.Status is "Resolved" or "Closed" ? "done" : "")"></b><span class="@(_selected.Status is "Resolved" or "Closed" ? "done" : "")"><i><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" /></i><strong>Concluído</strong></span></div>
+            <div class="mobile-incident-detail-grid"><div><small>Local</small><strong>@ValueOr(_selected.LocationLabel)</strong></div><div><small>Prioridade</small><strong>@SeverityLabel(_selected.Severity)</strong></div><div><small>Responsável</small><strong>@ValueOr(_selected.AssignedToName)</strong></div><div><small>Atualização</small><strong>@_selected.UpdatedAt.ToLocalTime().ToString("dd/MM HH:mm")</strong></div></div>
+            @if (!IsResident && _selected.Status is not "Resolved" and not "Closed") { <div class="mobile-incident-staff-actions"><MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.PlayArrow" Disabled="@(_selected.Status == "InProgress")" OnClick="@(() => ChangeStatusAsync(1))">Assumir</MudButton><MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Outlined.TaskAlt" OnClick="@(() => ChangeStatusAsync(2))">Resolver</MudButton></div> }
+            @if (IsResident && _selected.Status is not "Closed") { <div class="mobile-incident-comment"><MudTextField @bind-Value="_comment" Label="Enviar uma atualização" Variant="Variant.Outlined" Lines="2" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Outlined.Send" OnAdornmentClick="CommentAsync" /></div> }
+            @if (_selected.WorkOrders.Count > 0) { <div class="mobile-work-order-card"><span><MudIcon Icon="@Icons.Material.Outlined.Engineering" /></span><div><small>ORDEM DE SERVIÇO</small><strong>@_selected.WorkOrders[0].Code · @StatusLabel(_selected.WorkOrders[0].Status)</strong><p>@(_selected.WorkOrders[0].Checklist.Count(x => x.IsCompleted)) de @_selected.WorkOrders[0].Checklist.Count itens conferidos</p></div></div> }
+            <div class="mobile-incident-timeline"><h3>Histórico</h3>@foreach (var entry in _selected.Timeline.Take(12)) { <article><span><MudIcon Icon="@TimelineIcon(entry.Type)" /></span><div><strong>@TimelineLabel(entry.Type)</strong><p>@entry.Message</p><small>@entry.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small></div></article> }</div>
+        </section>
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid? EntityId { get; set; }
+    private List<IncidentViewModel> _items = []; private IncidentViewModel? _selected; private bool _loading = true; private string _error = string.Empty; private string _filter = "active"; private string _comment = string.Empty;
+    private bool IsResident => Session.Current?.Principal == MobilePrincipalKind.Resident;
+    private int OpenCount => _items.Count(x => x.Status == "Open"); private int InProgressCount => _items.Count(x => x.Status == "InProgress"); private int ResolvedCount => _items.Count(x => x.Status is "Resolved" or "Closed");
+    private IEnumerable<IncidentViewModel> VisibleItems => _items.Where(x => _filter switch { "active" => x.Status is "Open" or "InProgress", "history" => x.Status is "Resolved" or "Closed", _ => true });
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = string.Empty;
+        if (IsResident) { var result = await Api.GetResidentIncidentsAsync(); if (result.Success) _items = result.Value?.Items ?? []; else _error = result.Error ?? "Não foi possível carregar suas ocorrências."; }
+        else if (AppState.SelectedLicenseId.HasValue) { var result = await Api.GetMaintenanceDashboardAsync(AppState.SelectedLicenseId.Value); if (result.Success) _items = result.Value?.Incidents ?? []; else _error = result.Error ?? "Não foi possível carregar a central."; }
+        else _error = "Selecione um condomínio antes de abrir a central.";
+        _loading = false; if (_selected is not null) _selected = _items.FirstOrDefault(x => x.Id == _selected.Id); if (EntityId.HasValue) _selected = _items.FirstOrDefault(x => x.Id == EntityId.Value);
+    }
+    private void Select(IncidentViewModel item) => _selected = item;
+    private async Task OpenCreateAsync() { var dialog = await DialogService.ShowAsync<MobileIncidentDialog>("", new DialogParameters<MobileIncidentDialog> { { x => x.Resident, IsResident }, { x => x.LicenseId, AppState.SelectedLicenseId ?? Guid.Empty } }, new DialogOptions { FullScreen = true, CloseOnEscapeKey = true }); var result = await dialog.Result; if (result is { Canceled: false }) await LoadAsync(); }
+    private async Task ChangeStatusAsync(int status) { if (_selected is null) return; var result = await Api.UpdateIncidentStatusAsync(_selected.Id, status, status == 2 ? "Ocorrência concluída e verificada pela equipe." : "Atendimento iniciado pela equipe."); if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao atualizar.", Severity.Error); return; } Snackbar.Add(status == 2 ? "Ocorrência concluída." : "Atendimento iniciado.", Severity.Success); await LoadAsync(); }
+    private async Task CommentAsync() { if (_selected is null || string.IsNullOrWhiteSpace(_comment)) return; var result = await Api.AddResidentIncidentCommentAsync(_selected.Id, _comment); if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível enviar.", Severity.Error); return; } _comment = string.Empty; Snackbar.Add("Atualização enviada.", Severity.Success); await LoadAsync(); }
+    private static string StatusLabel(string value) => value switch { "Open" => "Aberta", "InProgress" => "Em atendimento", "Resolved" => "Resolvida", "Closed" => "Encerrada", "Planned" => "Planejada", "Assigned" => "Atribuída", "WaitingProvider" => "Aguardando terceiro", "WaitingMaterial" => "Aguardando material", "Completed" => "Concluída", "Cancelled" => "Cancelada", _ => value };
+    private static string SeverityLabel(string value) => value switch { "Low" => "Baixa", "Medium" => "Média", "High" => "Alta", "Critical" => "Crítica", _ => value };
+    private static string CategoryLabel(string value) => value switch { "Hydraulic" => "Hidráulica", "Electrical" => "Elétrica", "Elevator" => "Elevador", "Cleaning" => "Limpeza", "Structural" => "Estrutural", "Landscaping" => "Jardinagem", "Device" => "Equipamento", "Safety" => "Segurança", _ => "Geral" };
+    private static string ValueOr(string value) => string.IsNullOrWhiteSpace(value) ? "Não informado" : value;
+    private static string TimeLabel(IncidentViewModel item) => item.Status is "Resolved" or "Closed" ? $"concluída {item.ResolvedAt?.ToLocalTime():dd/MM}" : item.SlaResolutionDueAt.HasValue ? item.SlaResolutionDueAt < DateTime.UtcNow ? "SLA atrasado" : $"até {item.SlaResolutionDueAt.Value.ToLocalTime():dd/MM HH:mm}" : item.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm");
+    private static string TimelineIcon(string type) => type switch { "Comment" => Icons.Material.Outlined.ChatBubbleOutline, "Evidence" => Icons.Material.Outlined.PhotoCamera, "StatusChanged" => Icons.Material.Outlined.SyncAlt, "Assignment" => Icons.Material.Outlined.Person, _ => Icons.Material.Outlined.Flag };
+    private static string TimelineLabel(string type) => type switch { "Comment" => "Atualização", "Evidence" => "Evidência", "StatusChanged" => "Situação atualizada", "Assignment" => "Responsável atualizado", _ => "Ocorrência enviada" };
+}

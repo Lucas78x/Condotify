@@ -27,11 +27,11 @@
     </div>
 
     <section class="screen-overview visitor-overview visitor-fast-entry">
-        <span class="screen-overview-icon info"><MudIcon Icon="@Icons.Material.Outlined.QrCodeScanner" /></span>
+        <span class="screen-overview-icon info visitor-entry-icon"><MudIcon Icon="@Icons.Material.Outlined.FaceRetouchingNatural" /></span>
         <div class="screen-overview-main">
             <span>Convite antecipado</span>
             <strong>Entrada mais rápida</strong>
-            <small>Gere o QR Code antes da chegada e reduza o tempo de atendimento na portaria.</small>
+            <small>Envie QR Code ou convite facial. O visitante prepara tudo antes da chegada.</small>
         </div>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" Disabled="@(!CanCreate)" OnClick="OpenCreateAsync">Criar convite</MudButton>
     </section>
@@ -84,9 +84,13 @@
                 else
                 {
                     <div class="row-actions visitor-pass-actions">
-                        @if (!string.IsNullOrWhiteSpace(visit.CredentialCode) && visit.Status is not "Denied" and not "Canceled")
+                        @if (visit.CredentialType.Equals("QrCode", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(visit.CredentialCode) && visit.Status is not "Denied" and not "Canceled")
                         {
                             <MudIconButton Icon="@Icons.Material.Outlined.QrCode2" Color="Color.Primary" OnClick="() => OpenPassAsync(visit)" aria-label="Ver e compartilhar QR Code" />
+                        }
+                        @if (IsFacialInviteShareable(visit))
+                        {
+                            <MudIconButton Icon="@Icons.Material.Outlined.Share" Color="Color.Primary" OnClick="() => ShareFacialInviteAsync(visit)" aria-label="Gerar e compartilhar novo link facial" />
                         }
                         @if (!IsStaff)
                         {
@@ -137,17 +141,18 @@
         var cancellationToken = _loadCts.Token;
         _loading = true;
         _error = string.Empty;
+        var licenseId = AppState.SelectedLicenseId;
 
         if (IsStaff)
         {
-            if (!AppState.SelectedLicenseId.HasValue)
+            if (!licenseId.HasValue)
             {
                 _error = "Selecione um condomínio.";
                 _loading = false;
                 return;
             }
             var result = await Api.GetConciergeVisitsAsync(
-                AppState.SelectedLicenseId.Value,
+                licenseId.Value,
                 DateTime.Today.AddDays(-90),
                 DateTime.Today.AddDays(91),
                 cancellationToken);
@@ -158,7 +163,7 @@
             }
             else
             {
-                var fallback = await Api.GetConciergeDashboardAsync(AppState.SelectedLicenseId.Value, cancellationToken);
+                var fallback = await Api.GetConciergeDashboardAsync(licenseId.Value, cancellationToken);
                 if (cancellationToken.IsCancellationRequested) return;
                 _rows = fallback.Value?.Visits ?? [];
                 if (!fallback.Success) _error = fallback.Error ?? result.Error ?? "Não foi possível carregar os visitantes.";
@@ -189,12 +194,15 @@
         using var concurrency = new SemaphoreSlim(3);
         var requests = _rows.Select(async visit =>
         {
-            if (!CondotifyApiClient.TryParseMediaReference(visit.PhotoUrl, out var licenseId, out var mediaId)) return;
+            if (!CondotifyApiClient.TryParseMediaReference(visit.PhotoUrl, out var licenseId, out var mediaId))
+                return (visit.Id, Photo: (string?)null);
             await concurrency.WaitAsync(cancellationToken);
             try
             {
-                var result = await Api.GetPersonPhotoAsync(licenseId, mediaId, cancellationToken);
-                if (result.Success && !string.IsNullOrWhiteSpace(result.Value)) _photos[visit.Id] = result.Value;
+                var result = IsStaff
+                    ? await Api.GetPersonPhotoAsync(licenseId, mediaId, cancellationToken)
+                    : await Api.GetResidentMediaAsync(mediaId, cancellationToken);
+                return (visit.Id, Photo: result.Success && !string.IsNullOrWhiteSpace(result.Value) ? result.Value : null);
             }
             finally
             {
@@ -203,7 +211,8 @@
         });
         try
         {
-            await Task.WhenAll(requests);
+            foreach (var item in await Task.WhenAll(requests))
+                if (!string.IsNullOrWhiteSpace(item.Photo)) _photos[item.Id] = item.Photo;
         }
         catch (OperationCanceledException)
         {
@@ -226,10 +235,17 @@
         }
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        Snackbar.Add("Visitante autorizado. O QR Code está pronto para compartilhar.", Severity.Success);
+        var created = result?.Data as ConciergeVisitViewModel;
+        Snackbar.Add(created?.CredentialType.Equals("Face", StringComparison.OrdinalIgnoreCase) == true
+            ? "Convite facial pronto para compartilhar."
+            : "Visitante autorizado. O QR Code está pronto para compartilhar.", Severity.Success);
         _view = MobileVisitorView.Today;
         await LoadAsync();
-        if (result?.Data is ConciergeVisitViewModel created && !string.IsNullOrWhiteSpace(created.CredentialCode)) await OpenPassAsync(created);
+        if (created is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(created.FacialInviteUrl)) await OpenFacialInviteAsync(created, created.FacialInviteUrl);
+            else if (created.CredentialType.Equals("QrCode", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(created.CredentialCode)) await OpenPassAsync(created);
+        }
     }
 
     private async Task OpenPassAsync(ConciergeVisitViewModel visit)
@@ -243,6 +259,41 @@
             [nameof(VisitorPassDialog.AllowDigitalPass)] = _profile?.AllowResidentDigitalPass == true
         };
         await Dialogs.ShowAsync<VisitorPassDialog>(string.Empty, parameters,
+            new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.ExtraSmall, CloseOnEscapeKey = true });
+    }
+
+    private async Task ShareFacialInviteAsync(ConciergeVisitViewModel visit)
+    {
+        ApiResult<VisitFacialInviteIssuedViewModel> result;
+        if (IsStaff)
+        {
+            if (!AppState.SelectedLicenseId.HasValue) return;
+            result = await Api.ReissueConciergeFacialInviteAsync(AppState.SelectedLicenseId.Value, visit.Id);
+        }
+        else
+        {
+            result = await Api.ReissueResidentFacialInviteAsync(visit.Id);
+        }
+
+        if (!result.Success || result.Value is null)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível gerar um novo link facial.", Severity.Error);
+            return;
+        }
+
+        visit.FacialInviteStatus = result.Value.Status;
+        await OpenFacialInviteAsync(visit, result.Value.InviteUrl);
+        await LoadAsync();
+    }
+
+    private async Task OpenFacialInviteAsync(ConciergeVisitViewModel visit, string inviteUrl)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(FacialInviteShareDialog.Visit)] = visit,
+            [nameof(FacialInviteShareDialog.InviteUrl)] = inviteUrl
+        };
+        await Dialogs.ShowAsync<FacialInviteShareDialog>(string.Empty, parameters,
             new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.ExtraSmall, CloseOnEscapeKey = true });
     }
 
@@ -261,7 +312,11 @@
         Snackbar.Add("Nova autorização criada com os dados anteriores.", Severity.Success);
         _view = MobileVisitorView.Today;
         await LoadAsync();
-        if (result.Data is ConciergeVisitViewModel created && !string.IsNullOrWhiteSpace(created.CredentialCode)) await OpenPassAsync(created);
+        if (result.Data is ConciergeVisitViewModel created)
+        {
+            if (!string.IsNullOrWhiteSpace(created.FacialInviteUrl)) await OpenFacialInviteAsync(created, created.FacialInviteUrl);
+            else if (created.CredentialType.Equals("QrCode", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(created.CredentialCode)) await OpenPassAsync(created);
+        }
     }
 
     private void SetView(MobileVisitorView view)
@@ -274,16 +329,21 @@
 
     private async Task DecideAsync(ConciergeVisitViewModel visit, bool approved)
     {
-        if (!AppState.SelectedLicenseId.HasValue) return;
-        var result = await Api.DecideConciergeVisitAsync(AppState.SelectedLicenseId.Value, visit.Id, approved, string.Empty);
+        var licenseId = AppState.SelectedLicenseId;
+        if (!licenseId.HasValue) return;
+        var result = await Api.DecideConciergeVisitAsync(licenseId.Value, visit.Id, approved, string.Empty);
         Snackbar.Add(result.Success ? (approved ? "Visita aprovada." : "Visita recusada.") : result.Error ?? "Falha na operação.", result.Success ? Severity.Success : Severity.Error);
         if (result.Success) await LoadAsync();
     }
 
     private bool MatchesSearch(ConciergeVisitViewModel visit) => string.IsNullOrWhiteSpace(_search) || new[] { visit.VisitorName, visit.HostName, visit.BlockName, visit.UnitNumber, visit.VehiclePlate, visit.Document }.Any(x => x?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) == true);
-    private static Color StatusColor(string status) => status switch { "CheckedIn" => Color.Success, "PendingApproval" => Color.Warning, "Denied" or "Canceled" => Color.Error, _ => Color.Primary };
-    private static string StatusClass(string status) => status switch { "CheckedIn" => "success", "PendingApproval" => "warning", "Denied" or "Canceled" => "error", _ => "info" };
-    private static string StatusLabel(string status) => status switch { "CheckedIn" => "No condomínio", "PendingApproval" => "Aguardando aprovação", "Denied" => "Recusada", "Canceled" => "Cancelada", "Expected" => "Prevista", "CheckedOut" => "Finalizada", _ => status };
+    private static bool IsFacialInviteShareable(ConciergeVisitViewModel visit) =>
+        visit.CredentialType.Equals("Face", StringComparison.OrdinalIgnoreCase) &&
+        visit.Status is not "Denied" and not "Canceled" and not "CheckedOut" &&
+        visit.FacialInviteStatus is not "Completed";
+    private static Color StatusColor(string status) => status switch { "CheckedIn" => Color.Success, "PendingApproval" or "PendingEnrollment" => Color.Warning, "Denied" or "Canceled" => Color.Error, _ => Color.Primary };
+    private static string StatusClass(string status) => status switch { "CheckedIn" => "success", "PendingApproval" or "PendingEnrollment" => "warning", "Denied" or "Canceled" => "error", _ => "info" };
+    private static string StatusLabel(string status) => status switch { "CheckedIn" => "No condomínio", "PendingApproval" => "Aguardando aprovação", "PendingEnrollment" => "Aguardando foto facial", "Denied" => "Recusada", "Canceled" => "Cancelada", "Expected" or "Scheduled" => "Prevista", "CheckedOut" => "Finalizada", _ => status };
 
     public void Dispose()
     {

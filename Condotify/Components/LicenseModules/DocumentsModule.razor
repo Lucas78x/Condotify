@@ -11,38 +11,59 @@
 }
 else
 {
-    <section class="content-panel">
-        <div class="panel-heading">
-            <div><MudText Typo="Typo.h5">Documentos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Visíveis a todos os moradores desta licença</MudText></div>
+    <div class="module-page-heading">
+        <div class="module-page-heading-copy">
+            <span class="module-heading-icon blue"><MudIcon Icon="@Icons.Material.Outlined.FolderOpen" /></span>
+            <div>
+                <MudText Typo="Typo.h5" HtmlTag="h2">Central de documentos</MudText>
+                <MudText Typo="Typo.body2">Organize arquivos importantes e disponibilize-os no aplicativo dos moradores.</MudText>
+            </div>
+        </div>
+        <div class="module-page-heading-actions">
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.UploadFile" OnClick="OpenUploadAsync" Disabled="!CanManage">Novo documento</MudButton>
         </div>
+    </div>
 
-        <MudSelect T="string" Label="Filtrar por categoria" Value="_categoryFilter" ValueChanged="OnCategoryFilterChanged" Class="mb-3" Clearable Dense>
-            @foreach (var option in CategoryOptions)
+    <section class="content-panel">
+        <div class="panel-heading">
+            <div><MudText Typo="Typo.h6">Biblioteca do condomínio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">@(_documents.Count == 0 ? "Nenhum arquivo publicado" : $"{_documents.Count} arquivo(s) publicado(s)")</MudText></div>
+            @if (_documents.Count > 0)
             {
-                <MudSelectItem T="string" Value="option.Value">@option.Label</MudSelectItem>
+                <MudSelect T="string" Label="Categoria" Value="_categoryFilter" ValueChanged="OnCategoryFilterChanged" Class="resource-category-filter" Clearable Dense Variant="Variant.Outlined">
+                    @foreach (var option in CategoryOptions)
+                    {
+                        <MudSelectItem T="string" Value="option.Value">@option.Label</MudSelectItem>
+                    }
+                </MudSelect>
             }
-        </MudSelect>
+        </div>
 
         @if (FilteredDocuments.Count == 0)
         {
-            <div class="empty-state compact-empty">
-                <span class="category-badge category-badge-lg category-primary">
-                    <MudIcon Icon="@Icons.Material.Outlined.Description" Size="Size.Large" />
-                </span>
-                <MudText Typo="Typo.subtitle1">@EmptyStateTitle</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary">@EmptyStateHint</MudText>
-                @if (string.IsNullOrWhiteSpace(_categoryFilter))
-                {
-                    <div class="documents-empty-legend">
-                        @foreach (var option in CategoryOptions)
+            <div class="resource-empty-state">
+                <div class="resource-empty-visual">
+                    <span><MudIcon Icon="@Icons.Material.Outlined.Description" /></span>
+                    <i class="resource-sheet sheet-one"></i>
+                    <i class="resource-sheet sheet-two"></i>
+                </div>
+                <div class="resource-empty-copy">
+                    <MudText Typo="Typo.overline">BIBLIOTECA DIGITAL</MudText>
+                    <MudText Typo="Typo.h5">@EmptyStateTitle</MudText>
+                    <MudText Typo="Typo.body2">@EmptyStateHint</MudText>
+                    @if (string.IsNullOrWhiteSpace(_categoryFilter))
+                    {
+                        <div class="documents-empty-legend">
+                            @foreach (var option in CategoryOptions.Take(4))
+                            {
+                                <span class="category-chip @CategoryClass(option.Value)"><MudIcon Icon="@CategoryIcon(option.Value)" Size="Size.Small" />@option.Label</span>
+                            }
+                        </div>
+                        @if (CanManage)
                         {
-                            <span class="category-chip @CategoryClass(option.Value)">
-                                <MudIcon Icon="@CategoryIcon(option.Value)" Size="Size.Small" />@option.Label
-                            </span>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.UploadFile" OnClick="OpenUploadAsync">Publicar primeiro documento</MudButton>
                         }
-                    </div>
-                }
+                    }
+                </div>
             </div>
         }
         else

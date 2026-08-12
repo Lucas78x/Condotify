@@ -81,6 +81,8 @@
 
     private async Task OpenDoorAsync(AccessDeviceRowViewModel device)
     {
+        var licenseId = AppState.SelectedLicenseId;
+        if (!licenseId.HasValue || _opening.HasValue) return;
         var confirmed = await Dialogs.ShowMessageBoxAsync(
             "Confirmar acionamento",
             $"Abrir a porta principal de {device.Name}? A operação será auditada.",
@@ -90,7 +92,7 @@
         try
         {
             _opening = device.Id;
-            var result = await Api.OpenDoorAsync(AppState.SelectedLicenseId!.Value, device.Id, 1, "Acionamento pelo aplicativo mobile");
+            var result = await Api.OpenDoorAsync(licenseId.Value, device.Id, 1, "Acionamento pelo aplicativo mobile");
             Snackbar.Add(result.Success ? "Porta acionada com sucesso." : result.Error ?? "O equipamento não confirmou o acionamento.", result.Success ? Severity.Success : Severity.Error);
         }
         finally

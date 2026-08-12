@@ -10,6 +10,7 @@ using CondotifyAPI.Domain.Models.Equipments;
 using CondotifyAPI.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using CondotifyAPI.Services.Security;
+using CondotifyAPI.Services.Authorization;
 
 namespace CondotifyAPI.Services.AccessControl;
 
@@ -19,6 +20,7 @@ public interface ICredentialReconciliationService
         Guid credentialId,
         string actor,
         string? imageBase64 = null,
+        Guid? licenseId = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -59,23 +61,29 @@ public sealed class CredentialReconciliationService : ICredentialReconciliationS
         Guid credentialId,
         string actor,
         string? imageBase64 = null,
+        Guid? licenseId = null,
         CancellationToken cancellationToken = default)
     {
         var credential = await _context.ResidentAccessCredentials
             .Include(x => x.Resident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
-            .Include(x => x.Resident).ThenInclude(x => x.UnitLinks)
+            .Include(x => x.Resident).ThenInclude(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .Include(x => x.Devices)
             .FirstOrDefaultAsync(x => x.Id == credentialId, cancellationToken);
         if (credential is null)
             return new(false, 0, 0, 0, 0, "Credencial nao encontrada.");
 
         var resident = credential.Resident;
-        var licenseId = resident.Unit.Block.LicenseId;
-        var resolution = await _routeResolver.ResolveAsync(licenseId, resident, credential.CredentialType);
+        var selectedLicenseId = licenseId ?? ResidentLicenseScope.ResolvePrimaryUnit(resident)?.Block?.LicenseId;
+        if (!selectedLicenseId.HasValue || selectedLicenseId.Value == Guid.Empty ||
+            ResidentLicenseScope.ResolveUnitForLicense(resident, selectedLicenseId.Value) is null)
+            return new(false, 0, 0, 0, 0, "A pessoa nao possui uma unidade valida para reconciliar a credencial.");
+        var resolution = await _routeResolver.ResolveAsync(selectedLicenseId.Value, resident, credential.CredentialType);
         var devices = await _context.Devices
-            .Where(x => x.LicenseId == licenseId)
+            .Where(x => x.LicenseId == selectedLicenseId.Value)
             .ToDictionaryAsync(x => x.Id, cancellationToken);
-        var targetIds = resolution.Targets.Select(x => x.Device.Id).ToHashSet();
+        var targetIds = credential.IsActive
+            ? resolution.Targets.Select(x => x.Device.Id).ToHashSet()
+            : [];
         var now = DateTime.UtcNow;
         var removed = 0;
         var failures = 0;
@@ -106,11 +114,15 @@ public sealed class CredentialReconciliationService : ICredentialReconciliationS
         }
 
         var synced = 0;
-        foreach (var target in resolution.Targets)
+        var activeTargets = credential.IsActive
+            ? resolution.Targets
+            : Array.Empty<ResolvedAccessRouteTarget>();
+
+        foreach (var target in activeTargets)
         {
             var binding = credential.Devices.FirstOrDefault(x => x.DeviceId == target.Device.Id);
             var photo = credential.CredentialType == AccessCredentialTypeEnum.Face
-                ? await _media.ResolveDataUriAsync(licenseId, imageBase64 ?? resident.ImgUrl, cancellationToken)
+                ? await _media.ResolveDataUriAsync(selectedLicenseId.Value, imageBase64 ?? resident.ImgUrl, cancellationToken)
                 : null;
             if (credential.CredentialType == AccessCredentialTypeEnum.Face && string.IsNullOrWhiteSpace(photo))
             {
@@ -151,7 +163,7 @@ public sealed class CredentialReconciliationService : ICredentialReconciliationS
             : $"{synced} de {resolution.Targets.Count} terminal(is) sincronizado(s); {failures} pendencia(s); {removed} vinculo(s) removido(s).";
         _context.AccessOperationAudits.Add(new AccessOperationAuditDTO
         {
-            Id = Guid.NewGuid(), LicenseId = licenseId, EntityType = "Credential", EntityId = credential.Id,
+            Id = Guid.NewGuid(), LicenseId = selectedLicenseId.Value, EntityType = "Credential", EntityId = credential.Id,
             Action = "Reconcile", Status = success ? "Success" : failures > 0 ? "Pending" : "NoRoute",
             Summary = summary, DetailsJson = JsonSerializer.Serialize(new { resolution.RouteNames, TargetCount = resolution.Targets.Count, synced, failures, removed }),
             UserName = actor, CreatedAt = now

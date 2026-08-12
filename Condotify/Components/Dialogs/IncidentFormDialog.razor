@@ -6,10 +6,11 @@
     <DialogContent>
         <EditForm Model="_form" OnValidSubmit="SaveAsync"><DataAnnotationsValidator />
             <MudStack Spacing="2">
-                <MudTextField @bind-Value="_form.Title" Label="Título" Variant="Variant.Outlined" Required MaxLength="180" />
-                <MudTextField @bind-Value="_form.Description" Label="Descrição e providências iniciais" Variant="Variant.Outlined" Lines="4" MaxLength="4000" />
+                <MudTextField @bind-Value="_form.Title" Label="Título" Variant="Variant.Outlined" Immediate Required MaxLength="180" />
+                <MudTextField @bind-Value="_form.Description" Label="Descrição e providências iniciais" Variant="Variant.Outlined" Immediate Lines="4" MaxLength="4000" />
+                <MudTextField @bind-Value="_form.LocationLabel" Label="Local da ocorrência" Placeholder="Ex.: garagem B, elevador social, unidade 42" Variant="Variant.Outlined" Immediate MaxLength="240" />
                 <MudGrid Spacing="2">
-                    <MudItem xs="12" sm="6"><MudSelect T="int" @bind-Value="_form.Category" Label="Categoria" Variant="Variant.Outlined"><MudSelectItem Value="0">Acesso</MudSelectItem><MudSelectItem Value="1">Visitante</MudSelectItem><MudSelectItem Value="2">Veículo</MudSelectItem><MudSelectItem Value="3">Equipamento</MudSelectItem><MudSelectItem Value="4">Encomenda</MudSelectItem><MudSelectItem Value="5">Segurança</MudSelectItem><MudSelectItem Value="6">Outro</MudSelectItem></MudSelect></MudItem>
+                    <MudItem xs="12" sm="6"><MudSelect T="int" @bind-Value="_form.Category" Label="Categoria" Variant="Variant.Outlined"><MudSelectItem Value="0">Acesso</MudSelectItem><MudSelectItem Value="1">Visitante</MudSelectItem><MudSelectItem Value="2">Veículo</MudSelectItem><MudSelectItem Value="3">Equipamento</MudSelectItem><MudSelectItem Value="4">Encomenda</MudSelectItem><MudSelectItem Value="5">Segurança</MudSelectItem><MudSelectItem Value="7">Hidráulica</MudSelectItem><MudSelectItem Value="8">Elétrica</MudSelectItem><MudSelectItem Value="9">Elevador</MudSelectItem><MudSelectItem Value="10">Limpeza</MudSelectItem><MudSelectItem Value="11">Estrutural</MudSelectItem><MudSelectItem Value="12">Jardinagem</MudSelectItem><MudSelectItem Value="6">Outro</MudSelectItem></MudSelect></MudItem>
                     <MudItem xs="12" sm="6"><MudSelect T="int" @bind-Value="_form.Severity" Label="Gravidade" Variant="Variant.Outlined"><MudSelectItem Value="0">Baixa</MudSelectItem><MudSelectItem Value="1">Média</MudSelectItem><MudSelectItem Value="2">Alta</MudSelectItem><MudSelectItem Value="3">Crítica</MudSelectItem></MudSelect></MudItem>
                 </MudGrid>
                 <MudDatePicker Label="Prazo opcional" @bind-Date="_form.DueAt" Variant="Variant.Outlined" Clearable />

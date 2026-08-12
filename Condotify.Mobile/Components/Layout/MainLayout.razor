@@ -9,6 +9,8 @@
 @inject MobileBiometricService Biometrics
 @inject NavigationManager Navigation
 @inject MobilePullToRefreshState PullToRefresh
+@inject MobileOfflineOperationsService OfflineOperations
+@inject MobileOfflineCache OfflineCache
 @inject IJSRuntime JS
 
 <MudThemeProvider Theme="@Condotify.UI.CondotifyTheme.Default" IsDarkMode="@Appearance.IsDarkMode" />
@@ -68,10 +70,22 @@ else
 
         @if (!NetworkState.IsOnline)
         {
-            <div class="connectivity-banner" role="status">
-                <MudIcon Icon="@Icons.Material.Outlined.WifiOff" Size="Size.Small" />
-                <span>Sem conexão. Alguns dados podem estar desatualizados.</span>
+            <div class="connectivity-banner @(OfflineOperations.CanOperateOffline ? "offline-ready" : "offline-blocked")" role="status">
+                <MudIcon Icon="@(OfflineOperations.CanOperateOffline ? Icons.Material.Outlined.OfflineBolt : Icons.Material.Outlined.WifiOff)" Size="Size.Small" />
+                <span>
+                    <strong>@(OfflineOperations.CanOperateOffline ? "Modo offline protegido" : "Sem conexão")</strong>
+                    @(OfflineOperations.CanOperateOffline
+                        ? $" · base válida até {OfflineOperations.BundleExpiresAt?.ToLocalTime():dd/MM HH:mm} · {OfflineOperations.PendingCount} pendente(s)"
+                        : $" · {OfflineOperations.AvailabilityMessage}")
+                </span>
             </div>
+        }
+        else if (OfflineOperations.IsSyncing || OfflineOperations.PendingCount > 0)
+        {
+            <button type="button" class="connectivity-banner sync-pending" disabled="@OfflineOperations.IsSyncing" @onclick="SyncOfflineAsync">
+                <MudIcon Icon="@Icons.Material.Outlined.CloudSync" Size="Size.Small" />
+                <span><strong>@(OfflineOperations.IsSyncing ? "Sincronizando operação" : $"{OfflineOperations.PendingCount} operação(ões) pendente(s)")</strong> · toque para enviar agora</span>
+            </button>
         }
 
         <div id="ptr-indicator" class="ptr-indicator" aria-hidden="true"><span class="ptr-icon">&#8635;</span></div>
@@ -125,6 +139,7 @@ else
     private bool _locked;
     private bool _unlocking;
     private bool _lockChecked;
+    private bool _redirectingToLogin;
     private static string Initials(string? name) =>
         string.IsNullOrWhiteSpace(name)
             ? "?"
@@ -137,7 +152,9 @@ else
         NetworkState.Changed += Refresh;
         Appearance.Changed += Refresh;
         AppLock.Changed += RefreshLock;
+        OfflineOperations.Changed += Refresh;
         Navigation.LocationChanged += OnLocationChanged;
+        _ = OfflineOperations.InitializeAsync();
         _ = MonitorLockAsync(_lockMonitorCts.Token);
     }
 
@@ -204,6 +221,8 @@ else
     private async Task LogoutAsync()
     {
         try { await Push.UnregisterAsync(); } catch { }
+        try { await OfflineOperations.ClearAllAsync(); } catch { }
+        await OfflineCache.RemoveHomeAsync(Session.Current, AppState.SelectedLicenseId);
         await Session.LogoutAsync();
         AppState.Clear();
         Navigation.NavigateTo("/login", replace: true);
@@ -212,7 +231,23 @@ else
     private void OpenLicenses() => Navigation.NavigateTo("/licenses");
     private void OpenNotifications() => Navigation.NavigateTo("/notifications");
     private void OpenProfile() => Navigation.NavigateTo("/profile");
-    private void Refresh() => InvokeAsync(StateHasChanged);
+    private void Refresh() => InvokeAsync(() =>
+    {
+        if (!Session.IsAuthenticated && !IsLoginRoute)
+        {
+            if (!_redirectingToLogin)
+            {
+                _redirectingToLogin = true;
+                AppState.Clear();
+                Navigation.NavigateTo("/login", replace: true);
+            }
+            return;
+        }
+
+        _redirectingToLogin = false;
+        StateHasChanged();
+    });
+    private async Task SyncOfflineAsync() => await OfflineOperations.SyncAsync();
 
     private static string Icon(string key) => key switch
     {
@@ -231,6 +266,7 @@ else
         NetworkState.Changed -= Refresh;
         Appearance.Changed -= Refresh;
         AppLock.Changed -= RefreshLock;
+        OfflineOperations.Changed -= Refresh;
         Navigation.LocationChanged -= OnLocationChanged;
         _lockMonitorCts.Cancel();
         _lockMonitorCts.Dispose();

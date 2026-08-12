@@ -8,6 +8,8 @@
 @inject NavigationManager Navigation
 @inject MobileAppLockService AppLock
 @inject MobileBiometricService Biometrics
+@inject MobileOfflineOperationsService OfflineOperations
+@inject MobileOfflineCache OfflineCache
 
 <PageTitle>Minha conta | Condotify</PageTitle>
 <PageHeader Eyebrow="CONTA E SEGURANÇA" Title="Minha conta" Subtitle="Dados do perfil e contexto da sessão." />
@@ -149,6 +151,8 @@
         var result = await Api.LogoutAllAuthSessionsAsync();
         if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível encerrar as sessões.", Severity.Error); return; }
         try { await Push.UnregisterAsync(); } catch { }
+        try { await OfflineOperations.ClearAllAsync(); } catch { }
+        await OfflineCache.RemoveHomeAsync(Session.Current, AppState.SelectedLicenseId);
         await Session.LogoutAsync();
         AppState.Clear();
         Navigation.NavigateTo("/login", replace: true);
@@ -157,7 +161,9 @@
     private async Task LoadPhotoAsync(string? reference)
     {
         if (!CondotifyApiClient.TryParseMediaReference(reference, out var licenseId, out var mediaId)) return;
-        var result = await Api.GetPersonPhotoAsync(licenseId, mediaId);
+        var result = Session.Current?.Principal == MobilePrincipalKind.Resident
+            ? await Api.GetResidentMediaAsync(mediaId)
+            : await Api.GetPersonPhotoAsync(licenseId, mediaId);
         if (!result.Success) return;
         _photoDataUrl = result.Value;
         await InvokeAsync(StateHasChanged);

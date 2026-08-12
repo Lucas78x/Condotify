@@ -127,12 +127,13 @@
         using var concurrency = new SemaphoreSlim(3);
         var requests = people.Select(async person =>
         {
-            if (!CondotifyApiClient.TryParseMediaReference(person.ImageUrl, out var licenseId, out var mediaId)) return;
+            if (!CondotifyApiClient.TryParseMediaReference(person.ImageUrl, out var licenseId, out var mediaId))
+                return (person.Id, Photo: (string?)null);
             await concurrency.WaitAsync(cancellationToken);
             try
             {
                 var result = await Api.GetPersonPhotoAsync(licenseId, mediaId, cancellationToken);
-                if (result.Success && !string.IsNullOrWhiteSpace(result.Value)) _photos[person.Id] = result.Value;
+                return (person.Id, Photo: result.Success && !string.IsNullOrWhiteSpace(result.Value) ? result.Value : null);
             }
             finally
             {
@@ -141,7 +142,8 @@
         });
         try
         {
-            await Task.WhenAll(requests);
+            foreach (var item in await Task.WhenAll(requests))
+                if (!string.IsNullOrWhiteSpace(item.Photo)) _photos[item.Id] = item.Photo;
         }
         catch (OperationCanceledException)
         {

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CondotifyAPI.Data.Equipments;
+using Condotify.Models;
 using Xunit;
 
 namespace CondotifyAPI.Tests;
@@ -32,5 +33,14 @@ public class CftvStreamingContractTests
         Assert.Equal(
             ["ExpiresAt", "PlaybackUrl", "Protocol", "SessionId", "Token"],
             names);
+    }
+
+    [Fact]
+    public void CameraListContract_NeverExposesThePersistedPassword()
+    {
+        var names = typeof(CftvDeviceRowViewModel).GetProperties().Select(x => x.Name).ToArray();
+
+        Assert.DoesNotContain(names, name => name.Contains("Password", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(names, name => name.Contains("Senha", StringComparison.OrdinalIgnoreCase));
     }
 }

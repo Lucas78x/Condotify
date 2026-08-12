@@ -19,6 +19,7 @@ public partial class DatabaseContext
     public DbSet<VehicleAccessAuditDTO> VehicleAccessAudits { get; set; }
     public DbSet<RegistrationInviteDTO> RegistrationInvites { get; set; }
     public DbSet<AccessVisitDTO> AccessVisits { get; set; }
+    public DbSet<VisitFacialInviteDTO> VisitFacialInvites { get; set; }
     public DbSet<AccessWatchlistEntryDTO> AccessWatchlistEntries { get; set; }
     public DbSet<ResidentPasswordRecoveryTokenDTO> ResidentPasswordRecoveryTokens { get; set; }
 
@@ -30,6 +31,7 @@ public partial class DatabaseContext
         builder.ApplyConfiguration(new VehicleAccessAuditConfiguration());
         builder.ApplyConfiguration(new RegistrationInviteConfiguration());
         builder.ApplyConfiguration(new AccessVisitConfiguration());
+        builder.ApplyConfiguration(new VisitFacialInviteConfiguration());
         builder.ApplyConfiguration(new AccessWatchlistEntryConfiguration());
         builder.ApplyConfiguration(new ResidentPasswordRecoveryTokenConfiguration());
     }

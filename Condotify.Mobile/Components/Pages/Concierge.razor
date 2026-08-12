@@ -5,19 +5,41 @@
 @inject CondotifyApiClient Api
 @inject IDialogService Dialogs
 @inject MobileDeviceActions DeviceActions
+@inject MobileConnectivityState NetworkState
+@inject MobileOfflineOperationsService OfflineOperations
 @inject ISnackbar Snackbar
 
 <PageTitle>Portaria | Condotify</PageTitle>
 <PageHeader Eyebrow="CENTRAL EM TEMPO REAL" Title="Portaria" Subtitle="Visitantes, acessos e situação dos equipamentos.">
     <Actions>
+        @if (OfflineOperations.PendingCount > 0 || OfflineOperations.IsSyncing)
+        {
+            <MudBadge Content="@OfflineOperations.PendingCount" Color="Color.Warning" Overlap="true">
+                <MudIconButton Icon="@Icons.Material.Outlined.CloudSync" Disabled="@(!NetworkState.IsOnline || OfflineOperations.IsSyncing)" OnClick="SyncOfflineAsync" aria-label="Sincronizar fila offline" />
+            </MudBadge>
+        }
         <MudIconButton Icon="@Icons.Material.Outlined.QrCodeScanner" Color="Color.Primary" OnClick="OpenScannerAsync" aria-label="Ler QR Code" />
         <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="() => LoadAsync(true)" aria-label="Atualizar" />
     </Actions>
 </PageHeader>
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_dashboard?.Visits.Count == 0)" EmptyTitle="Nenhuma visita prevista" EmptyText="Novas autorizações aparecerão aqui." Retry="() => LoadAsync(true)">
+    @if (_usingOffline || OfflineOperations.DeviceStatus is OfflineDeviceStatus.Pending or OfflineDeviceStatus.Revoked)
+    {
+        <div class="offline-operations-card @(_usingOffline ? "active" : "attention")" role="status">
+            <span class="offline-operations-icon"><MudIcon Icon="@(_usingOffline ? Icons.Material.Outlined.OfflineBolt : Icons.Material.Outlined.AdminPanelSettings)" /></span>
+            <div>
+                <strong>@(_usingOffline ? "Operação offline protegida" : "Preparação da operação offline")</strong>
+                <span>@OfflineOperations.AvailabilityMessage @OfflineOperations.PendingCount operação(ões) aguardando sincronização.</span>
+            </div>
+            @if (OfflineOperations.BundleExpiresAt.HasValue)
+            {
+                <small>Base válida até @OfflineOperations.BundleExpiresAt.Value.ToLocalTime().ToString("dd/MM HH:mm")</small>
+            }
+        </div>
+    }
     <section class="screen-overview concierge-overview">
-        <span class="live-indicator"><span></span>Central ativa · atualização automática</span>
+        <span class="live-indicator @(_usingOffline ? "offline" : null)"><span></span>@(_usingOffline ? "Base local segura" : "Central ativa · atualização automática")</span>
         <div class="screen-overview-main">
             <span>Fluxo de acesso</span>
             <strong>@(_dashboard?.PendingApprovals ?? 0) aprovação(ões) aguardando decisão</strong>
@@ -97,9 +119,13 @@
     private Guid? _changingVisit;
     private bool _hasLoaded;
     private int _previousPending;
+    private bool _usingOffline;
 
     protected override async Task OnInitializedAsync()
     {
+        OfflineOperations.Changed += OnOfflineChanged;
+        NetworkState.Changed += OnOfflineChanged;
+        await OfflineOperations.InitializeAsync();
         await LoadAsync(true);
         _ = PollAsync(_lifetimeCts.Token);
     }
@@ -117,16 +143,40 @@
             if (!AppState.SelectedLicenseId.HasValue) { _error = "Selecione um condomínio."; return; }
             if (showLoading && !_hasLoaded) _loading = true;
             _error = string.Empty;
+            if (!NetworkState.IsOnline)
+            {
+                var cached = await OfflineOperations.GetOfflineDashboardAsync(AppState.SelectedLicenseId.Value, cancellationToken);
+                if (cached is not null)
+                {
+                    _dashboard = cached;
+                    _usingOffline = true;
+                    _hasLoaded = true;
+                }
+                else if (!_hasLoaded) _error = OfflineOperations.AvailabilityMessage;
+                return;
+            }
+
             var result = await Api.GetConciergeDashboardAsync(AppState.SelectedLicenseId.Value, cancellationToken);
             if (cancellationToken.IsCancellationRequested) return;
             if (result.Success && result.Value is not null)
             {
                 if (_hasLoaded && result.Value.PendingApprovals > _previousPending) DeviceActions.Confirm();
                 _dashboard = result.Value;
+                _usingOffline = false;
                 _previousPending = result.Value.PendingApprovals;
                 _hasLoaded = true;
             }
-            else if (!_hasLoaded) _error = result.Error ?? "Não foi possível carregar a portaria.";
+            else
+            {
+                var cached = await OfflineOperations.GetOfflineDashboardAsync(AppState.SelectedLicenseId.Value, cancellationToken);
+                if (cached is not null)
+                {
+                    _dashboard = cached;
+                    _usingOffline = true;
+                    _hasLoaded = true;
+                }
+                else if (!_hasLoaded) _error = result.Error ?? "Não foi possível carregar a portaria.";
+            }
         }
         finally
         {
@@ -148,37 +198,55 @@
 
     private async Task OpenScannerAsync()
     {
-        if (!AppState.SelectedLicenseId.HasValue) return;
+        var licenseId = AppState.SelectedLicenseId;
+        if (!licenseId.HasValue) return;
         DeviceActions.Tap();
-        var parameters = new DialogParameters { [nameof(QrScannerDialog.LicenseId)] = AppState.SelectedLicenseId.Value };
+        var parameters = new DialogParameters { [nameof(QrScannerDialog.LicenseId)] = licenseId.Value };
         var dialog = await Dialogs.ShowAsync<QrScannerDialog>(string.Empty, parameters,
             new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true });
         var result = await dialog.Result;
         if (result is null || result.Canceled || result.Data is not ConciergeVisitViewModel visit) return;
 
-        Snackbar.Add($"Entrada de {visit.VisitorName} registrada.", Severity.Success);
+        var queuedOffline = !NetworkState.IsOnline || OfflineOperations.PendingCount > 0;
+        Snackbar.Add(queuedOffline
+            ? $"Entrada de {visit.VisitorName} autorizada offline e protegida na fila."
+            : $"Entrada de {visit.VisitorName} registrada.", Severity.Success);
         await LoadAsync(false);
-        await OfferDoorAsync(visit.VisitorName);
+        if (!queuedOffline) await OfferDoorAsync(licenseId.Value, visit.VisitorName);
     }
 
     private async Task ChangeVisitStatusAsync(ConciergeVisitViewModel visit, int status)
     {
-        if (!AppState.SelectedLicenseId.HasValue || _changingVisit.HasValue) return;
+        var licenseId = AppState.SelectedLicenseId;
+        if (!licenseId.HasValue || _changingVisit.HasValue) return;
         _changingVisit = visit.Id;
         try
         {
-            var result = await Api.UpdateConciergeVisitStatusAsync(AppState.SelectedLicenseId.Value, visit.Id, status, string.Empty);
+            if (!NetworkState.IsOnline)
+            {
+                var queued = await OfflineOperations.QueueVisitOperationAsync(
+                    licenseId.Value,
+                    visit.Id,
+                    status == 1 ? OfflineOperationKind.VisitCheckIn : OfflineOperationKind.VisitCheckOut);
+                Snackbar.Add(queued.Message, queued.Success ? Severity.Success : Severity.Warning);
+                if (!queued.Success) return;
+                DeviceActions.Confirm();
+                await LoadAsync(false);
+                return;
+            }
+
+            var result = await Api.UpdateConciergeVisitStatusAsync(licenseId.Value, visit.Id, status, string.Empty);
             var successMessage = status == 1 ? $"Entrada de {visit.VisitorName} registrada." : $"Saída de {visit.VisitorName} registrada.";
             Snackbar.Add(result.Success ? successMessage : result.Error ?? "Não foi possível atualizar a visita.", result.Success ? Severity.Success : Severity.Error);
             if (!result.Success) return;
             DeviceActions.Confirm();
             await LoadAsync(false);
-            if (status == 1) await OfferDoorAsync(visit.VisitorName);
+            if (status == 1) await OfferDoorAsync(licenseId.Value, visit.VisitorName);
         }
         finally { _changingVisit = null; }
     }
 
-    private async Task OfferDoorAsync(string visitorName)
+    private async Task OfferDoorAsync(Guid licenseId, string visitorName)
     {
         var device = _dashboard?.Devices.FirstOrDefault(item => item.Online);
         if (device is null)
@@ -189,14 +257,16 @@
 
         var confirmed = await Dialogs.ShowMessageBoxAsync("Entrada autorizada",
             $"Deseja abrir o acesso de {device.Name} para {visitorName}?", yesText: "Abrir acesso", cancelText: "Agora não");
-        if (confirmed != true || !AppState.SelectedLicenseId.HasValue) return;
-        var result = await Api.OpenDoorAsync(AppState.SelectedLicenseId.Value, device.Id, 1, $"Entrada autorizada para {visitorName} pelo aplicativo mobile");
+        if (confirmed != true) return;
+        var result = await Api.OpenDoorAsync(licenseId, device.Id, 1, $"Entrada autorizada para {visitorName} pelo aplicativo mobile");
         Snackbar.Add(result.Success ? "Acesso acionado com sucesso." : result.Error ?? "O equipamento não confirmou o acionamento.", result.Success ? Severity.Success : Severity.Error);
     }
 
     private async Task DecideAsync(ConciergeVisitViewModel visit, bool approved)
     {
-        var result = await Api.DecideConciergeVisitAsync(AppState.SelectedLicenseId!.Value, visit.Id, approved, string.Empty);
+        var licenseId = AppState.SelectedLicenseId;
+        if (!licenseId.HasValue) return;
+        var result = await Api.DecideConciergeVisitAsync(licenseId.Value, visit.Id, approved, string.Empty);
         Snackbar.Add(result.Success ? (approved ? "Visita aprovada." : "Visita recusada.") : result.Error ?? "Falha na operação.", result.Success ? Severity.Success : Severity.Error);
         if (result.Success) { DeviceActions.Confirm(); await LoadAsync(false); }
     }
@@ -214,12 +284,26 @@
         _ => status
     };
 
+    private async Task SyncOfflineAsync()
+    {
+        var success = await OfflineOperations.SyncAsync();
+        Snackbar.Add(success ? "Base e fila offline sincronizadas." : OfflineOperations.LastError, success ? Severity.Success : Severity.Warning);
+        await LoadAsync(false);
+    }
+
+    private void OnOfflineChanged() => InvokeAsync(async () =>
+    {
+        await LoadAsync(false);
+        StateHasChanged();
+    });
+
     public void Dispose()
     {
+        OfflineOperations.Changed -= OnOfflineChanged;
+        NetworkState.Changed -= OnOfflineChanged;
         _lifetimeCts.Cancel();
         _lifetimeCts.Dispose();
         _loadCts?.Cancel();
         _loadCts?.Dispose();
-        _loadGate.Dispose();
     }
 }
