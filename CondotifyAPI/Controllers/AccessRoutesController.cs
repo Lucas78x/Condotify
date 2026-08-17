@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Linq.Expressions;
 using CondotifyAPI.Data.AccessControl;
 using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.DTO.Resident;
@@ -36,12 +37,11 @@ public sealed class AccessRoutesController : ControllerBase
         if (!await HasLicenseAccessAsync(licenseId))
             return NotFound();
 
-        var routes = await RouteQuery(licenseId)
-            .AsNoTracking()
+        var routes = await RouteOutQuery(licenseId)
             .OrderBy(x => x.Name)
             .ToListAsync();
 
-        return Ok(routes.Select(ToOut));
+        return Ok(routes);
     }
 
     [HttpGet("resolution/residents/{residentId:guid}")]
@@ -163,13 +163,12 @@ public sealed class AccessRoutesController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        var createdRoute = await RouteQuery(licenseId)
-            .AsNoTracking()
+        var createdRoute = await RouteOutQuery(licenseId)
             .FirstAsync(x => x.Id == route.Id);
 
         return Created(
             string.Empty,
-            ToOut(createdRoute));
+            createdRoute);
     }
 
     [HttpPut("{routeId:guid}")]
@@ -213,8 +212,8 @@ public sealed class AccessRoutesController : ControllerBase
 
         /*
          * Importante:
-         * N„o carregamos route.Devices com Include().
-         * Os vÌnculos ser„o removidos diretamente no banco.
+         * N√£o carregamos route.Devices com Include().
+         * Os v√≠nculos ser√£o removidos diretamente no banco.
          */
         var route = await _context.AccessRoutes
             .FirstOrDefaultAsync(x =>
@@ -230,12 +229,12 @@ public sealed class AccessRoutesController : ControllerBase
         try
         {
             /*
-             * Remove todos os vÌnculos antigos diretamente no banco.
+             * Remove todos os v√≠nculos antigos diretamente no banco.
              *
              * Isso evita:
              * - RemoveRange em entidades desatualizadas;
-             * - coleÁ„o rastreada inconsistente;
-             * - exclus„o duplicada;
+             * - cole√ß√£o rastreada inconsistente;
+             * - exclus√£o duplicada;
              * - DbUpdateConcurrencyException nos dispositivos antigos.
              */
             await _context.AccessRouteDevices
@@ -250,7 +249,7 @@ public sealed class AccessRoutesController : ControllerBase
             route.UpdatedAt = DateTime.UtcNow;
 
             /*
-             * Cria novos vÌnculos.
+             * Cria novos v√≠nculos.
              */
             var newDevices = CreateRouteDevices(
                 route.Id,
@@ -295,14 +294,13 @@ public sealed class AccessRoutesController : ControllerBase
             throw;
         }
 
-        var updatedRoute = await RouteQuery(licenseId)
-            .AsNoTracking()
+        var updatedRoute = await RouteOutQuery(licenseId)
             .FirstOrDefaultAsync(x => x.Id == routeId);
 
         if (updatedRoute is null)
             return NotFound();
 
-        return Ok(ToOut(updatedRoute));
+        return Ok(updatedRoute);
     }
 
     [HttpDelete("{routeId:guid}")]
@@ -328,9 +326,9 @@ public sealed class AccessRoutesController : ControllerBase
         try
         {
             /*
-             * Remove os vÌnculos explicitamente antes da rota.
-             * Isso tambÈm evita problemas caso o cascade delete
-             * n„o esteja configurado corretamente.
+             * Remove os v√≠nculos explicitamente antes da rota.
+             * Isso tamb√©m evita problemas caso o cascade delete
+             * n√£o esteja configurado corretamente.
              */
             await _context.AccessRouteDevices
                 .Where(x => x.AccessRouteId == routeId)
@@ -372,13 +370,44 @@ public sealed class AccessRoutesController : ControllerBase
         }
     }
 
-    private IQueryable<AccessRouteDTO> RouteQuery(Guid licenseId)
-    {
-        return _context.AccessRoutes
-            .Include(x => x.Devices)
-            .ThenInclude(x => x.Device)
-            .Where(x => x.LicenseId == licenseId);
-    }
+    private IQueryable<AccessRouteOut> RouteOutQuery(Guid licenseId) =>
+        _context.AccessRoutes
+            .AsNoTracking()
+            .IgnoreAutoIncludes()
+            .Where(x => x.LicenseId == licenseId)
+            .Select(RouteOutProjection);
+
+    // A proje√ß√£o √© intencional: carregar a entidade completa do equipamento tamb√©m
+    // materializa Password e aciona a descriptografia. A tela de rotas s√≥ precisa
+    // do nome e do tipo do equipamento, portanto nunca deve depender da chave usada
+    // para proteger credenciais de hardware.
+    internal static readonly Expression<Func<AccessRouteDTO, AccessRouteOut>> RouteOutProjection =
+        route => new AccessRouteOut
+        {
+            Id = route.Id,
+            Name = route.Name,
+            Description = route.Description,
+            Audience = (long)route.Audience,
+            IsActive = route.IsActive,
+            AllowTemporary = route.AllowTemporary,
+            DaysOfWeekMask = route.DaysOfWeekMask,
+            StartTime = route.StartTime,
+            EndTime = route.EndTime,
+            Devices = route.Devices
+                .OrderBy(x => x.Device.Name)
+                .ThenBy(x => x.PortalNumber)
+                .Select(x => new AccessRouteDeviceOut
+                {
+                    Id = x.Id,
+                    DeviceId = x.DeviceId,
+                    DeviceName = x.Device.Name,
+                    DeviceType = x.Device.Type.ToString(),
+                    PortalNumber = x.PortalNumber,
+                    Direction = x.Direction.ToString(),
+                    IsActive = x.IsActive
+                })
+                .ToList()
+        };
 
     private IQueryable<ResidentAccessDTO> ResidentQuery(Guid licenseId)
     {
@@ -458,7 +487,7 @@ public sealed class AccessRoutesController : ControllerBase
 
     /// <summary>
     /// Atualiza somente os campos principais da rota.
-    /// N„o altera a coleÁ„o Devices.
+    /// N√£o altera a cole√ß√£o Devices.
     /// </summary>
     private static void ApplyRoute(
         AccessRouteDTO route,
@@ -475,7 +504,7 @@ public sealed class AccessRoutesController : ControllerBase
     }
 
     /// <summary>
-    /// Cria os vÌnculos da rota com os equipamentos.
+    /// Cria os v√≠nculos da rota com os equipamentos.
     /// </summary>
     private static List<AccessRouteDeviceDTO> CreateRouteDevices(
         Guid routeId,
@@ -492,37 +521,6 @@ public sealed class AccessRoutesController : ControllerBase
                 IsActive = item.IsActive
             })
             .ToList();
-    }
-
-    private static AccessRouteOut ToOut(AccessRouteDTO route)
-    {
-        return new AccessRouteOut
-        {
-            Id = route.Id,
-            Name = route.Name,
-            Description = route.Description,
-            Audience = (long)route.Audience,
-            IsActive = route.IsActive,
-            AllowTemporary = route.AllowTemporary,
-            DaysOfWeekMask = route.DaysOfWeekMask,
-            StartTime = route.StartTime,
-            EndTime = route.EndTime,
-
-            Devices = route.Devices
-                .OrderBy(x => x.Device.Name)
-                .ThenBy(x => x.PortalNumber)
-                .Select(x => new AccessRouteDeviceOut
-                {
-                    Id = x.Id,
-                    DeviceId = x.DeviceId,
-                    DeviceName = x.Device.Name,
-                    DeviceType = x.Device.Type.ToString(),
-                    PortalNumber = x.PortalNumber,
-                    Direction = x.Direction.ToString(),
-                    IsActive = x.IsActive
-                })
-                .ToList()
-        };
     }
 
     private async Task<bool> HasLicenseAccessAsync(Guid licenseId)

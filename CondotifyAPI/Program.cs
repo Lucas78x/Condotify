@@ -212,7 +212,9 @@ builder.Services.AddHttpClient("FcmOAuth", client => client.Timeout = TimeSpan.F
 builder.Services.AddHttpClient<IMediaGatewayClient, MediaGatewayClient>(client =>
 {
     client.BaseAddress = new Uri(
-        Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_GATEWAY_URL") ?? "http://mediamtx:9997");
+        Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_GATEWAY_URL")
+        ?? builder.Configuration["MediaGateway:BaseUrl"]
+        ?? "http://mediamtx:9997");
     client.Timeout = TimeSpan.FromSeconds(5);
 });
 builder.Services.AddHttpClient<ILprRecognitionClient, HttpLprRecognitionClient>(client =>
@@ -244,6 +246,9 @@ builder.Services.AddScoped<IResidentAuthorizationService, ResidentAuthorizationS
 builder.Services.AddScoped<IIncidentService, IncidentService>();
 builder.Services.AddScoped<IMaintenanceService, MaintenanceService>();
 builder.Services.AddScoped<IAutomationRuleEvaluationService, AutomationRuleEvaluationService>();
+builder.Services.AddSingleton<IWalletSecretProtector, WalletSecretProtector>();
+builder.Services.AddScoped<IWalletIntegrationStore, WalletIntegrationStore>();
+builder.Services.AddSingleton<IGoogleWalletJwtSigner, GoogleWalletJwtSigner>();
 builder.Services.AddScoped<IDigitalPassProviderService, DigitalPassProviderService>();
 builder.Services.AddScoped<IAppleWalletPassService, AppleWalletPassService>();
 builder.Services.AddScoped<IDigitalPassIssuanceService, DigitalPassIssuanceService>();
@@ -348,6 +353,7 @@ app.Use(async (context, next) =>
 });
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseMiddleware<CondotifyAPI.Services.Security.FirstAccessPasswordChangeMiddleware>();
 // Popula o ICurrentTenantAccessor (filtro global de tenant) logo apos a autenticacao e
 // ANTES de UseAuthorization()/MapControllers, para que filtros de Authorization do MVC
 // (RequireLicensePermissionAttribute) e endpoints minimal API ja encontrem o escopo pronto.

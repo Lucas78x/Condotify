@@ -27,8 +27,8 @@
                     <div class="setup-progress-label"><span>Configuração inicial</span><strong>25%</strong></div>
                     <div class="setup-progress" role="progressbar" aria-label="Configuração inicial" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25"><span></span></div>
                     <div class="overview-onboarding-actions">
-                        <MudButton Href="@($"/licencas/{LicenseId}/estrutura")" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add">Criar primeiro bloco</MudButton>
-                        <MudButton Href="@($"/licencas/{LicenseId}/estrutura")" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.UploadFile">Importar planilha</MudButton>
+                        <MudButton Href="@Url("estrutura")" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add">Criar primeiro bloco</MudButton>
+                        <MudButton Href="@Url("estrutura")" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.UploadFile">Importar planilha</MudButton>
                     </div>
                 </div>
             </div>
@@ -43,9 +43,9 @@
                     </div>
                 </div>
                 <div class="panel-body setup-actions">
-                    <a class="setup-action" href="/licencas/@LicenseId/estrutura"><span class="setup-action-index">01</span><span><strong>Criar estrutura</strong><small>Blocos, andares e unidades</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-                    <a class="setup-action" href="/licencas/@LicenseId/estrutura"><span class="setup-action-index">02</span><span><strong>Convidar moradores</strong><small>Envio seguro por link</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
-                    <a class="setup-action" href="/licencas/@LicenseId/credenciais"><span class="setup-action-index">03</span><span><strong>Configurar acessos</strong><small>Credenciais e equipamentos</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                    <a class="setup-action" href="@Url("estrutura")"><span class="setup-action-index">01</span><span><strong>Criar estrutura</strong><small>Blocos, andares e unidades</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                    <a class="setup-action" href="@Url("estrutura")"><span class="setup-action-index">02</span><span><strong>Convidar moradores</strong><small>Envio seguro por link</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                    <a class="setup-action" href="@Url("credenciais")"><span class="setup-action-index">03</span><span><strong>Configurar acessos</strong><small>Credenciais e equipamentos</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
                 </div>
             </MudPaper>
 
@@ -62,7 +62,7 @@ else
         <MudPaper Class="content-panel" Elevation="0">
             <div class="panel-toolbar">
                 <div><MudText Typo="Typo.h5" Class="panel-title">Estrutura do condomínio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Distribuição cadastrada por bloco</MudText></div>
-                <MudButton Href="@($"/licencas/{LicenseId}/estrutura")" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.AccountTree">Ver estrutura</MudButton>
+                <MudButton Href="@Url("estrutura")" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.AccountTree">Ver estrutura</MudButton>
             </div>
             <div class="panel-body">
                 <div class="hierarchy-grid group-card-grid">
@@ -72,7 +72,7 @@ else
                             <span class="hierarchy-card-icon"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span>
                             <span class="hierarchy-card-main"><strong>@block.Name</strong><small>Bloco</small></span>
                             <span class="hierarchy-card-stats"><span><strong>@block.TotalUnits</strong>unidade@(block.TotalUnits == 1 ? "" : "s")</span><span><strong>@block.TotalResidents</strong>pessoas</span></span>
-                            <a href="/licencas/@LicenseId/estrutura" class="hierarchy-card-action"><span>Ver estrutura</span><MudIcon Icon="@Icons.Material.Outlined.ArrowForward" /></a>
+                            <a href="@Url("estrutura")" class="hierarchy-card-action"><span>Ver estrutura</span><MudIcon Icon="@Icons.Material.Outlined.ArrowForward" /></a>
                         </div>
                     }
                 </div>
@@ -92,12 +92,12 @@ else
             <MudPaper Class="content-panel" Elevation="0">
                 <div class="panel-toolbar"><MudText Typo="Typo.subtitle1" Class="panel-title">Ações rápidas</MudText></div>
                 <div class="panel-body quick-actions">
-                    <a class="qa-item" href="/licencas/@LicenseId/estrutura"><MudIcon Icon="@Icons.Material.Outlined.AddHomeWork" />Novo bloco<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
-                    <a class="qa-item" href="/licencas/@LicenseId/estrutura"><MudIcon Icon="@Icons.Material.Outlined.Groups" />Ver moradores<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
-                    <a class="qa-item" href="/licencas/@LicenseId/credenciais"><MudIcon Icon="@Icons.Material.Outlined.Badge" />Configurar acessos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                    <a class="qa-item" href="@Url("estrutura")"><MudIcon Icon="@Icons.Material.Outlined.AddHomeWork" />Novo bloco<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                    <a class="qa-item" href="@Url("estrutura")"><MudIcon Icon="@Icons.Material.Outlined.Groups" />Ver moradores<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                    <a class="qa-item" href="@Url("credenciais")"><MudIcon Icon="@Icons.Material.Outlined.Badge" />Configurar acessos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
                     @if (CanViewDocuments)
                     {
-                        <a class="qa-item" href="/licencas/@LicenseId/documentos"><MudIcon Icon="@Icons.Material.Outlined.Description" />Ver documentos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                        <a class="qa-item" href="@Url("documentos")"><MudIcon Icon="@Icons.Material.Outlined.Description" />Ver documentos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
                     }
                 </div>
             </MudPaper>
@@ -108,5 +108,8 @@ else
 @code {
     [Parameter, EditorRequired] public LicenseFullViewModel License { get; set; } = new();
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public string LicenseUrlKey { get; set; } = string.Empty;
     [Parameter] public bool CanViewDocuments { get; set; }
+
+    private string Url(string section) => LicenseRoutes.Workspace(LicenseUrlKey, section);
 }

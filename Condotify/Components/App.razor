@@ -1,4 +1,5 @@
 @using static Microsoft.AspNetCore.Components.Web.RenderMode
+@inject IWebHostEnvironment HostEnvironment
 
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -11,8 +12,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="css/portal.css?v=20260811.3" />
-    <link rel="stylesheet" href="css/design-system.css?v=20260811.cameras1" />
+    <link rel="stylesheet" href="@VersionedAsset("css/portal.css")" />
+    <link rel="stylesheet" href="@VersionedAsset("css/design-system.css")" />
+    <link rel="stylesheet" href="Condotify.styles.css?v=20260815-wallet1" />
     <link rel="icon" type="image/svg+xml" href="assets/logo/condotify-mark.svg" />
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
@@ -36,3 +38,16 @@
 </body>
 
 </html>
+
+@code {
+    private string VersionedAsset(string relativePath)
+    {
+        var normalizedPath = relativePath.Replace('/', Path.DirectorySeparatorChar);
+        var absolutePath = Path.Combine(HostEnvironment.WebRootPath, normalizedPath);
+        var version = File.Exists(absolutePath)
+            ? File.GetLastWriteTimeUtc(absolutePath).Ticks.ToString("x")
+            : "missing";
+
+        return $"{relativePath}?v={version}";
+    }
+}

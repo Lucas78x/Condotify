@@ -12,6 +12,7 @@ using CondotifyAPI.Domain.Models.License;
 using CondotifyAPI.Domain.Models.Ticket;
 using CondotifyAPI.Domain.Models.Units;
 using CondotifyAPI.Domain.Models.Users;
+using CondotifyAPI.Domain.Utilities;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
@@ -100,6 +101,15 @@ public class CondotifyCommandsRepository : ICondotifyCommandsRepository
 
         if (existentLicense != null)
             return null;
+
+        var baseUrlKey = UrlKeyGenerator.Create(license.Code, license.Name);
+        license.UrlKey = baseUrlKey;
+        if (await _context.Licenses.AsNoTracking().AnyAsync(x => x.UrlKey == license.UrlKey))
+        {
+            var suffix = license.Id.ToString("N")[..8];
+            var prefixLength = Math.Max(1, 100 - suffix.Length - 1);
+            license.UrlKey = $"{baseUrlKey[..Math.Min(baseUrlKey.Length, prefixLength)].TrimEnd('-')}-{suffix}";
+        }
 
         var dto = _mapper.Map<LicenseDTO>(license);
         dto.EnterpriseId = enterpriseId;

@@ -110,7 +110,9 @@ namespace Condotify.Controllers
                     });
 
                     Response.Cookies.Delete("AuthToken");
-                    return Redirect("/");
+                    return principal.FindFirstValue("first_access") == "true"
+                        ? Redirect("/seguranca?primeiroAcesso=1")
+                        : Redirect("/");
                 }
 
                 if (response.IsSuccessStatusCode && result?.MfaRequired == true && !string.IsNullOrWhiteSpace(result.ChallengeToken))
@@ -309,6 +311,7 @@ namespace Condotify.Controllers
                     AddClaim(json.RootElement, claims, "name", ClaimTypes.Name);
                     AddClaim(json.RootElement, claims, "enterprise_id", ClaimsSessionContextProvider.EnterpriseIdClaim);
                     AddClaim(json.RootElement, claims, "access_type", "access_type");
+                    AddClaim(json.RootElement, claims, "first_access", "first_access");
                     AddClaim(json.RootElement, claims, "principal_type", "principal_type");
                     AddExpirationClaim(json.RootElement, claims);
                 }

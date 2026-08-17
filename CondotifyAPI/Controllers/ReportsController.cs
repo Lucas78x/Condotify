@@ -4,6 +4,7 @@ using CondotifyAPI.Domain.Enums.Resident;
 using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Jwt;
 using CondotifyAPI.Services.Authorization;
+using CondotifyAPI.Services.Reports;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -207,6 +208,32 @@ public sealed class ReportsController(DatabaseContext context) : ControllerBase
         output.AttentionItems = BuildAttentionItems(licenseId, output);
 
         return Ok(output);
+    }
+
+    [HttpGet("export/{format}")]
+    [RequireLicensePermission(LicensePermissionEnum.ViewDashboard)]
+    public async Task<IActionResult> Export(Guid licenseId, string format, [FromQuery] int days = 30, CancellationToken cancellationToken = default)
+    {
+        var reportResult = await Get(licenseId, days, cancellationToken);
+        if (reportResult is not OkObjectResult { Value: LicenseReportsViewModel report }) return reportResult;
+
+        var license = await context.Licenses.AsNoTracking().Where(x => x.Id == licenseId)
+            .Select(x => new { x.Name, x.Code }).FirstOrDefaultAsync(cancellationToken);
+        if (license is null) return NotFound();
+
+        var safeCode = new string((license.Code ?? "condominio").ToLowerInvariant()
+            .Select(character => char.IsLetterOrDigit(character) ? character : '-').ToArray()).Trim('-');
+        if (string.IsNullOrWhiteSpace(safeCode)) safeCode = "condominio";
+        var licenseCode = license.Code ?? "condominio";
+        var prefix = $"relatorio-condotify-{safeCode}-{report.PeriodEnd:yyyyMMdd}";
+
+        return format.Trim().ToLowerInvariant() switch
+        {
+            "xlsx" or "excel" => File(ReportExportService.CreateExcel(report, license.Name, licenseCode), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", prefix + ".xlsx"),
+            "pdf" => File(ReportExportService.CreatePdf(report, license.Name, licenseCode), "application/pdf", prefix + ".pdf"),
+            "csv" => File(ReportExportService.CreateCsv(report, license.Name, licenseCode), "text/csv; charset=utf-8", prefix + ".csv"),
+            _ => BadRequest(new { Error = "Formato inválido. Use xlsx, pdf ou csv." })
+        };
     }
 
     internal static int NormalizePeriod(int days) => days switch

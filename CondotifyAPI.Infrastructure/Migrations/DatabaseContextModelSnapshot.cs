@@ -2826,7 +2826,15 @@ namespace CondotifyAPI.Infrastructure.Migrations
                         .HasColumnType("character varying(40)")
                         .HasDefaultValue("Unidade");
 
+                    b.Property<string>("UrlKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UrlKey")
+                        .IsUnique();
 
                     b.HasIndex("EnterpriseId", "Name")
                         .IsUnique();
@@ -4119,6 +4127,109 @@ namespace CondotifyAPI.Infrastructure.Migrations
                     b.HasIndex("LicenseId", "IsActive", "NextDueAt");
 
                     b.ToTable("PreventiveMaintenancePlans", (string)null);
+                });
+
+            modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.WalletIntegrationDTO", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AuthenticationMode")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ClassSuffix")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<DateTime?>("CredentialExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CredentialFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("CredentialPassword")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CredentialSecret")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("EnterpriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("IntermediateCertificate")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsValidated")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("IssuerId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime?>("LastValidatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastValidationMessage")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("PassTypeIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<int>("Provider")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ServiceAccountEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("TeamIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedByName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EnterpriseId", "IsActive");
+
+                    b.HasIndex("EnterpriseId", "Provider")
+                        .IsUnique();
+
+                    b.ToTable("WalletIntegrations", (string)null);
                 });
 
             modelBuilder.Entity("CondotifyAPI.Domain.DTO.Operations.WorkOrderActivityDTO", b =>

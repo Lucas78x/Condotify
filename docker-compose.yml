@@ -37,6 +37,7 @@ services:
       JWTCondotify_Audience: Condotify
       CONDOTIFY_API_KEY: ${CONDOTIFY_API_KEY:?Defina CONDOTIFY_API_KEY no arquivo .env}
       CONDOTIFY_EQUIPMENT_SECRET: ${EQUIPMENT_SECRET:?Defina EQUIPMENT_SECRET no arquivo .env}
+      CONDOTIFY_WALLET_SECRET: ${CONDOTIFY_WALLET_SECRET:?Defina CONDOTIFY_WALLET_SECRET no arquivo .env; use uma chave exclusiva para as credenciais Google e Apple Wallet}
       CONDOTIFY_TIME_ZONE: ${CONDOTIFY_TIME_ZONE:-America/Sao_Paulo}
       CONDOTIFY_MEDIA_SECRET: ${MEDIA_SECRET:?Defina MEDIA_SECRET no arquivo .env; ele protege as imagens privadas e agora tambem o acesso ao video ao vivo de todas as cameras}
       CONDOTIFY_PRIVATE_MEDIA_PATH: /app/data/private-media

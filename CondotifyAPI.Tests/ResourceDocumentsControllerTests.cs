@@ -17,11 +17,11 @@ public sealed class ResourceDocumentsControllerTests
     }
 
     [Theory]
-    [InlineData(nameof(ResourceDocumentsController.Upload), typeof(HttpPostAttribute), null)]
-    [InlineData(nameof(ResourceDocumentsController.List), typeof(HttpGetAttribute), null)]
-    [InlineData(nameof(ResourceDocumentsController.GetFile), typeof(HttpGetAttribute), "{documentId:guid}/file")]
-    [InlineData(nameof(ResourceDocumentsController.Delete), typeof(HttpDeleteAttribute), "{documentId:guid}")]
-    public void Actions_UseExpectedRouteAndVerb(string actionName, Type httpAttributeType, string? route)
+    [InlineData(nameof(ResourceDocumentsController.Upload), typeof(HttpPostAttribute), null, LicensePermissionEnum.ManageDocuments)]
+    [InlineData(nameof(ResourceDocumentsController.List), typeof(HttpGetAttribute), null, LicensePermissionEnum.ViewDocuments)]
+    [InlineData(nameof(ResourceDocumentsController.GetFile), typeof(HttpGetAttribute), "{documentId:guid}/file", LicensePermissionEnum.ViewDocuments)]
+    [InlineData(nameof(ResourceDocumentsController.Delete), typeof(HttpDeleteAttribute), "{documentId:guid}", LicensePermissionEnum.ManageDocuments)]
+    public void Actions_UseExpectedRouteVerbAndPermission(string actionName, Type httpAttributeType, string? route, LicensePermissionEnum expectedPermission)
     {
         var method = typeof(ResourceDocumentsController).GetMethod(actionName);
 
@@ -31,6 +31,6 @@ public sealed class ResourceDocumentsControllerTests
         Assert.Equal(route, httpAttribute.Template);
 
         var permission = Assert.Single(method.GetCustomAttributes<RequireLicensePermissionAttribute>(inherit: true));
-        Assert.Equal(LicensePermissionEnum.ManageDocuments, Assert.IsType<LicensePermissionEnum>(Assert.Single(permission.Arguments!)));
+        Assert.Equal(expectedPermission, Assert.IsType<LicensePermissionEnum>(Assert.Single(permission.Arguments!)));
     }
 }

@@ -99,7 +99,7 @@ public sealed class ResourceDocumentsController(
     }
 
     [HttpGet]
-    [RequireLicensePermission(LicensePermissionEnum.ManageDocuments)]
+    [RequireLicensePermission(LicensePermissionEnum.ViewDocuments)]
     public async Task<IActionResult> List(Guid licenseId, CancellationToken cancellationToken)
     {
         var documents = await context.ResourceDocuments.AsNoTracking()
@@ -111,7 +111,7 @@ public sealed class ResourceDocumentsController(
     }
 
     [HttpGet("{documentId:guid}/file")]
-    [RequireLicensePermission(LicensePermissionEnum.ManageDocuments)]
+    [RequireLicensePermission(LicensePermissionEnum.ViewDocuments)]
     public async Task<IActionResult> GetFile(Guid licenseId, Guid documentId, CancellationToken cancellationToken)
     {
         var document = await context.ResourceDocuments.AsNoTracking()

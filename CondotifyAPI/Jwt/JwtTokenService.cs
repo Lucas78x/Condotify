@@ -64,6 +64,7 @@ namespace CondotifyAPI.Jwt
                 new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
                 new("name", user.Name ?? ""),
                 new("access_type", user.AccessType.ToString()),
+                new("first_access", user.FirstAccess ? "true" : "false"),
                 new(PrincipalTypes.Claim, PrincipalTypes.User)
             };
 

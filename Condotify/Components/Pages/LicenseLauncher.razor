@@ -60,7 +60,7 @@
         var result = await Api.GetLicensesAsync(); _loading = false;
         if (result.Success) _licenses = result.Value ?? []; else _error = result.Error;
     }
-    private string Target(LicenseViewModel license) => $"/licencas/{license.Id}/{Section}";
+    private string Target(LicenseViewModel license) => LicenseRoutes.Workspace(license, Section);
     private static string Location(LicenseViewModel license) => string.IsNullOrWhiteSpace(license.Cidade) ? "Localização não informada" : $"{license.Cidade}{(string.IsNullOrWhiteSpace(license.Estado) ? string.Empty : $" - {license.Estado}")}";
     private static string Monogram(string name) => string.IsNullOrWhiteSpace(name) ? "C" : name.Trim()[0].ToString().ToUpperInvariant();
 }

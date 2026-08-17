@@ -1,5 +1,7 @@
 @using Condotify.UI
 @inherits LayoutComponentBase
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
 
 <MudThemeProvider Theme="CondotifyTheme.Default" ObserveSystemDarkModeChange="false" />
 <MudPopoverProvider />
@@ -51,6 +53,18 @@
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var relativePath = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', 2)[0];
+        if (user.FindFirstValue("first_access") == "true" &&
+            !string.Equals(relativePath, "seguranca", StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo("/seguranca?primeiroAcesso=1", replace: true);
+        }
+    }
+
     private static string Initials(ClaimsPrincipal user)
     {
         var name = user.Identity?.Name;
@@ -62,9 +76,9 @@
     {
         "Developer" => "Desenvolvedor",
         "Admin" => "Administrador geral",
-        "Manager" => "Gestor",
+        "Manager" => "Síndico / gestor",
         "Editor" => "Editor",
-        "Viewer" => "Usuário",
-        _ => "Usuário"
+        "Viewer" => "Equipe operacional",
+        _ => "Conta de acesso"
     };
 }

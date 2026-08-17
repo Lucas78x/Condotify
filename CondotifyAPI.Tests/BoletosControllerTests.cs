@@ -20,15 +20,16 @@ public sealed class BoletosControllerTests
     }
 
     [Theory]
-    [InlineData(nameof(BoletosController.UploadBatch), typeof(HttpPostAttribute), "batches")]
-    [InlineData(nameof(BoletosController.ListBatches), typeof(HttpGetAttribute), "batches")]
-    [InlineData(nameof(BoletosController.GetBatch), typeof(HttpGetAttribute), "batches/{batchId:guid}")]
-    [InlineData(nameof(BoletosController.GetDocumentFile), typeof(HttpGetAttribute), "documents/{documentId:guid}/file")]
-    [InlineData(nameof(BoletosController.UpdateDocument), typeof(HttpPutAttribute), "documents/{documentId:guid}")]
-    [InlineData(nameof(BoletosController.Publish), typeof(HttpPostAttribute), "batches/{batchId:guid}/publish")]
-    [InlineData(nameof(BoletosController.Cancel), typeof(HttpPostAttribute), "batches/{batchId:guid}/cancel")]
-    [InlineData(nameof(BoletosController.DeleteDocument), typeof(HttpDeleteAttribute), "documents/{documentId:guid}")]
-    public void Actions_UseExpectedRouteAndVerb(string actionName, Type httpAttributeType, string route)
+    [InlineData(nameof(BoletosController.UploadBatch), typeof(HttpPostAttribute), "batches", LicensePermissionEnum.ManageFinance)]
+    [InlineData(nameof(BoletosController.UploadSingle), typeof(HttpPostAttribute), "single", LicensePermissionEnum.ManageFinance)]
+    [InlineData(nameof(BoletosController.ListBatches), typeof(HttpGetAttribute), "batches", LicensePermissionEnum.ViewFinance)]
+    [InlineData(nameof(BoletosController.GetBatch), typeof(HttpGetAttribute), "batches/{batchId:guid}", LicensePermissionEnum.ViewFinance)]
+    [InlineData(nameof(BoletosController.GetDocumentFile), typeof(HttpGetAttribute), "documents/{documentId:guid}/file", LicensePermissionEnum.ViewFinance)]
+    [InlineData(nameof(BoletosController.UpdateDocument), typeof(HttpPutAttribute), "documents/{documentId:guid}", LicensePermissionEnum.ManageFinance)]
+    [InlineData(nameof(BoletosController.Publish), typeof(HttpPostAttribute), "batches/{batchId:guid}/publish", LicensePermissionEnum.ManageFinance)]
+    [InlineData(nameof(BoletosController.Cancel), typeof(HttpPostAttribute), "batches/{batchId:guid}/cancel", LicensePermissionEnum.ManageFinance)]
+    [InlineData(nameof(BoletosController.DeleteDocument), typeof(HttpDeleteAttribute), "documents/{documentId:guid}", LicensePermissionEnum.ManageFinance)]
+    public void Actions_UseExpectedRouteVerbAndPermission(string actionName, Type httpAttributeType, string route, LicensePermissionEnum expectedPermission)
     {
         var method = typeof(BoletosController).GetMethod(actionName);
 
@@ -38,7 +39,7 @@ public sealed class BoletosControllerTests
         Assert.Equal(route, httpAttribute.Template);
 
         var permission = Assert.Single(method.GetCustomAttributes<RequireLicensePermissionAttribute>(inherit: true));
-        Assert.Equal(LicensePermissionEnum.ManageFinance, Assert.IsType<LicensePermissionEnum>(Assert.Single(permission.Arguments!)));
+        Assert.Equal(expectedPermission, Assert.IsType<LicensePermissionEnum>(Assert.Single(permission.Arguments!)));
     }
 
     private static readonly DateTime Now = new(2026, 8, 7, 12, 0, 0, DateTimeKind.Utc);

@@ -264,7 +264,7 @@ public sealed class BoletosController(
     }
 
     [HttpGet("batches")]
-    [RequireLicensePermission(LicensePermissionEnum.ManageFinance)]
+    [RequireLicensePermission(LicensePermissionEnum.ViewFinance)]
     public async Task<IActionResult> ListBatches(Guid licenseId, CancellationToken cancellationToken)
     {
         var batches = await context.BoletoBatches.AsNoTracking()
@@ -277,7 +277,7 @@ public sealed class BoletosController(
     }
 
     [HttpGet("batches/{batchId:guid}")]
-    [RequireLicensePermission(LicensePermissionEnum.ManageFinance)]
+    [RequireLicensePermission(LicensePermissionEnum.ViewFinance)]
     public async Task<IActionResult> GetBatch(Guid licenseId, Guid batchId, CancellationToken cancellationToken)
     {
         var detail = await LoadDetailAsync(licenseId, batchId, cancellationToken);
@@ -285,7 +285,7 @@ public sealed class BoletosController(
     }
 
     [HttpGet("documents/{documentId:guid}/file")]
-    [RequireLicensePermission(LicensePermissionEnum.ManageFinance)]
+    [RequireLicensePermission(LicensePermissionEnum.ViewFinance)]
     public async Task<IActionResult> GetDocumentFile(Guid licenseId, Guid documentId, CancellationToken cancellationToken)
     {
         var document = await context.BoletoDocuments.AsNoTracking()

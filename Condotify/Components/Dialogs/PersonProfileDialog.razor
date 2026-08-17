@@ -285,7 +285,12 @@
         var result = await Api.GetPersonProfileAsync(LicenseId, ResidentId);
         _loading = false;
         if (!result.Success || result.Value is null) { _error = result.Error; return; }
-        _profile = result.Value;
+        ApplyProfile(result.Value);
+    }
+
+    private void ApplyProfile(PersonProfileViewModel profile)
+    {
+        _profile = profile;
         _form.Name = _profile.Name; _form.Email = _profile.Email; _form.PhoneNumber = _profile.PhoneNumber;
         _form.CommercialPhone = _profile.CommercialPhone; _form.CPF = _profile.CPF; _form.RG = _profile.RG;
         _form.BirthDate = _profile.BirthDate; _form.Description = _profile.Description; _form.ImageUrl = _profile.ImageUrl;
@@ -299,7 +304,7 @@
         var result = await Api.UpdatePersonProfileAsync(LicenseId, ResidentId, _form);
         _saving = false;
         if (!result.Success || result.Value is null) { _error = result.Error; return; }
-        _profile = result.Value;
+        ApplyProfile(result.Value);
         await LoadRouteResolutionAsync();
         Snackbar.Add("Cadastro atualizado.", Severity.Success);
     }
@@ -348,8 +353,21 @@
                 Snackbar.Add(_error, Severity.Error);
                 return;
             }
-            _profile = result.Value;
-            Snackbar.Add("Foto preparada e salva. A facial já pode ser ativada.", Severity.Success);
+            ApplyProfile(result.Value);
+
+            // A API converte a imagem em uma referência privada. Recarregar o
+            // cadastro aqui impede que a prévia local em base64 esconda uma
+            // falha de persistência que só apareceria ao reabrir o diálogo.
+            var persisted = await Api.GetPersonProfileAsync(LicenseId, ResidentId, uploadTimeout.Token);
+            if (!persisted.Success || persisted.Value is null || !IsPersistedFacePhoto(persisted.Value.ImageUrl))
+            {
+                _error = persisted.Error ?? "A API não confirmou a persistência da foto.";
+                Snackbar.Add(_error, Severity.Error);
+                return;
+            }
+
+            ApplyProfile(persisted.Value);
+            Snackbar.Add("Foto salva e confirmada. A facial já pode ser ativada.", Severity.Success);
         }
         catch (OperationCanceledException)
         {
@@ -377,7 +395,7 @@
             Snackbar.Add(result.Error ?? "Não foi possível remover a foto.", Severity.Error);
             return;
         }
-        _profile = result.Value;
+        ApplyProfile(result.Value);
         Snackbar.Add("Foto removida do cadastro.", Severity.Success);
     }
 
@@ -536,6 +554,9 @@
     private static int RelationshipValue(string value) => value switch { "OwnerResponsible" => 1, "TenantResponsible" => 2, "Dependent" => 4, "Resident" => 0, _ => 3 };
     private PersonCredentialViewModel? FaceCredential => _profile?.Credentials.FirstOrDefault(x => IsFace(x.Type));
     private bool HasProfilePhoto => !string.IsNullOrWhiteSpace(_form.ImageUrl);
+    private static bool IsPersistedFacePhoto(string? imageUrl) =>
+        !string.IsNullOrWhiteSpace(imageUrl) &&
+        imageUrl.StartsWith("/private-media/", StringComparison.OrdinalIgnoreCase);
     private bool HasPreparedFacePhoto
     {
         get

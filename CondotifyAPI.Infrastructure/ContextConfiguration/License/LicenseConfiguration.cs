@@ -21,6 +21,13 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.License
             builder.Property(l => l.CNPJ)
                 .HasMaxLength(18);
 
+            builder.Property(l => l.UrlKey)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            builder.HasIndex(l => l.UrlKey)
+                .IsUnique();
+
             builder.Property(l => l.GroupLabelSingular).IsRequired().HasMaxLength(40).HasDefaultValue("Bloco");
             builder.Property(l => l.GroupLabelPlural).IsRequired().HasMaxLength(40).HasDefaultValue("Blocos");
             builder.Property(l => l.UnitLabelSingular).IsRequired().HasMaxLength(40).HasDefaultValue("Unidade");

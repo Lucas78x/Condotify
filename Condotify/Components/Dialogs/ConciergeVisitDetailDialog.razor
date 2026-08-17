@@ -23,7 +23,26 @@
             }
             else
             {
-                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.Face">A foto facial foi encaminhada aos terminais definidos pelas rotas temporárias.</MudAlert>
+                @if (Visit.Status == "PendingEnrollment")
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.MarkEmailRead">O visitante ainda precisa concluir o cadastro da foto pelo convite seguro.</MudAlert>
+                    <section class="visitor-facial-invite-share">
+                        <span><MudIcon Icon="@Icons.Material.Outlined.FaceRetouchingNatural" /></span>
+                        <div><strong>Convite facial do visitante</strong><small>O link expira automaticamente junto com a autorização e pode ser renovado quando necessário.</small></div>
+                        @if (string.IsNullOrWhiteSpace(_facialInviteUrl))
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Refresh" Disabled="_reissuingInvite" OnClick="ReissueFacialInviteAsync">@(_reissuingInvite ? "Gerando..." : "Gerar novo link")</MudButton>
+                        }
+                        else
+                        {
+                            <div class="visitor-facial-invite-actions"><MudButton Href="@_facialInviteUrl" Target="_blank" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.OpenInNew">Abrir convite</MudButton><MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ContentCopy" OnClick="CopyFacialInviteLinkAsync">Copiar link</MudButton></div>
+                        }
+                    </section>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.Face">A foto facial foi encaminhada aos terminais definidos pelas rotas temporárias.</MudAlert>
+                }
             }
 
             <div class="visit-detail-grid">
@@ -36,7 +55,7 @@
                 <div><small>Veículo</small><strong>@Fallback(Visit.VehiclePlate)</strong></div>
                 <div><small>Utilizações</small><strong>@UsesLabel(Visit)</strong></div>
                 <div><small>Aprovação</small><strong>@ApprovalLabel(Visit)</strong></div>
-                <div><small>Recorrencia</small><strong>@RecurrenceLabel(Visit)</strong></div>
+                <div><small>Recorrência</small><strong>@RecurrenceLabel(Visit)</strong></div>
             </div>
 
             <section class="digital-pass-section">
@@ -60,10 +79,16 @@
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public ConciergeVisitViewModel Visit { get; set; } = new();
     private string _qrDataUri = string.Empty;
+    private string _facialInviteUrl = string.Empty;
     private DigitalPassViewModel? _pass;
     private bool _issuing;
+    private bool _reissuingInvite;
 
-    protected override void OnParametersSet() => _qrDataUri = QrCodeRenderer.ToPngDataUri(Visit.CredentialCode);
+    protected override void OnParametersSet()
+    {
+        _qrDataUri = QrCodeRenderer.ToPngDataUri(Visit.CredentialCode);
+        _facialInviteUrl = Visit.FacialInviteUrl;
+    }
     private async Task CopyCodeAsync()
     {
         await Js.InvokeVoidAsync("navigator.clipboard.writeText", Visit.CredentialCode);
@@ -73,10 +98,20 @@
     private async Task IssuePassAsync() { _issuing = true; var result = await Api.IssueDigitalPassAsync(Visit.LicenseId, Visit.Id); _issuing = false; if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível emitir o passe.", Severity.Error); return; } _pass = result.Value; Snackbar.Add("Passe digital emitido.", Severity.Success); }
     private async Task CopyPassLinkAsync() { if (_pass is null) return; await Js.InvokeVoidAsync("navigator.clipboard.writeText", _pass.PublicUrl); Snackbar.Add("Link do passe copiado.", Severity.Success); }
     private async Task RevokePassAsync() { var result = await Api.RevokeDigitalPassAsync(Visit.LicenseId, Visit.Id); if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível revogar.", Severity.Error); return; } _pass = null; Snackbar.Add("Passe revogado. O link anterior não funciona mais.", Severity.Success); }
+    private async Task ReissueFacialInviteAsync()
+    {
+        _reissuingInvite = true;
+        var result = await Api.ReissueConciergeFacialInviteAsync(Visit.LicenseId, Visit.Id);
+        _reissuingInvite = false;
+        if (!result.Success || result.Value is null) { Snackbar.Add(result.Error ?? "Não foi possível gerar o convite facial.", Severity.Error); return; }
+        _facialInviteUrl = result.Value.InviteUrl;
+        Snackbar.Add("Novo link facial gerado.", Severity.Success);
+    }
+    private async Task CopyFacialInviteLinkAsync() { if (string.IsNullOrWhiteSpace(_facialInviteUrl)) return; await Js.InvokeVoidAsync("navigator.clipboard.writeText", _facialInviteUrl); Snackbar.Add("Link do convite facial copiado.", Severity.Success); }
     private static string Fallback(string value) => string.IsNullOrWhiteSpace(value) ? "Não informado" : value;
     private static string UsesLabel(ConciergeVisitViewModel visit) => visit.MaxUses.HasValue ? $"{visit.UseCount} de {visit.MaxUses}" : $"{visit.UseCount} sem limite";
     private static string Initials(string name) => string.Join(string.Empty, name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
-    private static string StatusLabel(string status) => status switch { "Scheduled" => "Agendada", "CheckedIn" => "No local", "CheckedOut" => "Finalizada", "Canceled" => "Cancelada", "Expired" => "Expirada", "Denied" => "Negada", "PendingApproval" => "Aguardando aprovação", _ => status };
+    private static string StatusLabel(string status) => status switch { "Scheduled" => "Agendada", "CheckedIn" => "No local", "CheckedOut" => "Finalizada", "Canceled" => "Cancelada", "Expired" => "Expirada", "Denied" => "Negada", "PendingApproval" => "Aguardando aprovação", "PendingEnrollment" => "Aguardando cadastro facial", _ => "Em processamento" };
     private static string ApprovalLabel(ConciergeVisitViewModel visit) => !visit.ApprovalRequired ? "Dispensada" : visit.ApprovedAt.HasValue ? $"{visit.ApprovedBy} em {visit.ApprovedAt.Value.ToLocalTime():dd/MM HH:mm}" : "Pendente";
     private static string RecurrenceLabel(ConciergeVisitViewModel visit) => visit.RecurrenceCount > 1 ? $"Ocorrência {visit.RecurrenceSequence} de {visit.RecurrenceCount}" : "Visita única";
 }

@@ -2377,6 +2377,13 @@ details[open] > :not(summary) {
     margin-top: 3px;
 }
 
+@media (min-width: 1181px) {
+    .workspace-hero-compact .workspace-metadata {
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+}
+
 .workspace-hero-compact .workspace-hero-actions {
     justify-content: flex-end;
     margin-top: 0;

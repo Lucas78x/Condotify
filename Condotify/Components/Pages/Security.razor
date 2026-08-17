@@ -6,6 +6,13 @@
 
 <PageTitle>Segurança | Condotify</PageTitle>
 
+@if (!string.IsNullOrWhiteSpace(PrimeiroAcesso))
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4" Icon="@Icons.Material.Outlined.Password">
+        Este é o primeiro acesso desta conta. Altere a senha temporária antes de continuar na plataforma.
+    </MudAlert>
+}
+
 <PageHeader Title="Segurança da conta" Subtitle="Gerencie sua senha e as camadas de proteção do seu acesso." Eyebrow="CONTA">
     <Actions>
         <MudChip T="string" Variant="Variant.Outlined" Color="@(_status.Enabled ? Color.Success : Color.Warning)" Icon="@(_status.Enabled ? Icons.Material.Outlined.VerifiedUser : Icons.Material.Outlined.GppMaybe)">@(_status.Enabled ? "Proteção reforçada" : "Ação recomendada")</MudChip>
@@ -24,7 +31,7 @@ else
                 <MudText Typo="Typo.h5" Class="panel-title">Alterar senha</MudText>
                 <MudText Typo="Typo.caption" Color="Color.Secondary">Confirme sua senha atual antes de definir uma nova.</MudText>
             </div>
-            <MudIcon Icon="@Icons.Material.Outlined.Password" Color="Color.Primary" />
+            <span class="panel-heading-icon" aria-hidden="true"><MudIcon Icon="@Icons.Material.Outlined.Password" /></span>
         </div>
         <div class="panel-body">
             @if (!string.IsNullOrWhiteSpace(_passwordError))
@@ -32,9 +39,9 @@ else
                 <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_passwordError</MudAlert>
             }
             <div class="password-change-grid">
-                <MudTextField T="string" @bind-Value="_password.CurrentPassword" Label="Senha atual" Variant="Variant.Outlined" InputType="@PasswordInputType" Adornment="Adornment.End" AdornmentIcon="@PasswordIcon" OnAdornmentClick="TogglePasswordVisibility" autocomplete="current-password" />
-                <MudTextField T="string" @bind-Value="_password.NewPassword" Label="Nova senha" Variant="Variant.Outlined" InputType="@PasswordInputType" Adornment="Adornment.End" AdornmentIcon="@PasswordIcon" OnAdornmentClick="TogglePasswordVisibility" autocomplete="new-password" HelperText="Mínimo de 8 caracteres" />
-                <MudTextField T="string" @bind-Value="_password.ConfirmPassword" Label="Confirmar nova senha" Variant="Variant.Outlined" InputType="@PasswordInputType" Adornment="Adornment.End" AdornmentIcon="@PasswordIcon" OnAdornmentClick="TogglePasswordVisibility" autocomplete="new-password" />
+                <MudTextField T="string" @bind-Value="_password.CurrentPassword" Label="Senha atual" Immediate Variant="Variant.Outlined" InputType="@PasswordInputType" Adornment="Adornment.End" AdornmentIcon="@PasswordIcon" OnAdornmentClick="TogglePasswordVisibility" autocomplete="current-password" />
+                <MudTextField T="string" @bind-Value="_password.NewPassword" Label="Nova senha" Immediate Variant="Variant.Outlined" InputType="@PasswordInputType" Adornment="Adornment.End" AdornmentIcon="@PasswordIcon" OnAdornmentClick="TogglePasswordVisibility" autocomplete="new-password" HelperText="Mínimo de 8 caracteres" />
+                <MudTextField T="string" @bind-Value="_password.ConfirmPassword" Label="Confirmar nova senha" Immediate Variant="Variant.Outlined" InputType="@PasswordInputType" Adornment="Adornment.End" AdornmentIcon="@PasswordIcon" OnAdornmentClick="TogglePasswordVisibility" autocomplete="new-password" />
             </div>
             <div class="password-change-actions">
                 <span>Use letras maiúsculas e minúsculas, número e caractere especial. Após a alteração, você entrará novamente com a nova senha.</span>
@@ -50,7 +57,7 @@ else
                     <MudText Typo="Typo.h5" Class="panel-title">Autenticação em duas etapas</MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary">Exige um código adicional ao entrar na plataforma.</MudText>
                 </div>
-                <MudIcon Icon="@Icons.Material.Outlined.PhonelinkLock" Color="Color.Primary" />
+                <span class="panel-heading-icon" aria-hidden="true"><MudIcon Icon="@Icons.Material.Outlined.PhonelinkLock" /></span>
             </div>
             <div class="panel-body">
                 @if (_status.Enabled)
@@ -111,6 +118,7 @@ else
 }
 
 @code {
+    [SupplyParameterFromQuery(Name = "primeiroAcesso")] public string? PrimeiroAcesso { get; set; }
     private bool _loading = true;
     private bool _saving;
     private bool _savingPassword;

@@ -2,6 +2,7 @@
 @using System.Text
 @inject CondotifyApiClient Api
 @inject IJSRuntime Js
+@inject ISnackbar Snackbar
 
 <section class="reports-module">
     <header class="reports-intro">
@@ -20,7 +21,11 @@
                     <button type="button" class="@(_days == option.Days ? "is-active" : null)" aria-pressed="@(_days == option.Days)" @onclick="() => ChangePeriodAsync(option.Days)">@option.Label</button>
                 }
             </div>
-            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Download" Disabled="@(_data is null || _loading)" OnClick="ExportCsvAsync">Exportar CSV</MudButton>
+            <MudMenu Label="@(_exporting ? "Gerando arquivo..." : "Exportar relatório")" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Download" EndIcon="@Icons.Material.Outlined.ExpandMore" Disabled="@(_data is null || _loading || _exporting)" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <MudMenuItem Icon="@Icons.Material.Outlined.TableView" OnClick="@(() => ExportAsync("xlsx"))"><strong>Excel</strong>&nbsp;— relatório completo</MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Outlined.PictureAsPdf" OnClick="@(() => ExportAsync("pdf"))"><strong>PDF</strong>&nbsp;— apresentação e impressão</MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Outlined.DataObject" OnClick="@(() => ExportAsync("csv"))"><strong>CSV</strong>&nbsp;— dados brutos</MudMenuItem>
+            </MudMenu>
             <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Refresh" Disabled="@_loading" OnClick="LoadAsync">Atualizar</MudButton>
         </div>
     </header>
@@ -113,7 +118,7 @@
                 }
                 <div class="reports-operation-strip">
                     <div><span>Taxa de autorização</span><strong>@FormatPercent(_data.Operation.AuthorizationRate)</strong></div>
-                    <div><span>Horário de maior movimento</span><strong>@_data.Operation.PeakHour.ToString("00")h–@((_data.Operation.PeakHour + 1) % 24).ToString("00")h</strong></div>
+                    <div><span>Horário de maior movimento</span><strong>@FormatPeakHour(_data.Operation.PeakHour)</strong></div>
                     <div><span>Visitantes pendentes</span><strong>@_data.Operation.VisitorsPending</strong></div>
                     <div><span>Visitantes expirados</span><strong>@_data.Operation.VisitorsExpired</strong></div>
                 </div>
@@ -151,7 +156,7 @@
                 <div class="reports-quality-list">
                     @foreach (var indicator in _data.QualityIndicators)
                     {
-                        <a class="reports-quality-row" href="@indicator.TargetUrl">
+                        <a class="reports-quality-row" href="@LicenseRoutes.CanonicalizeLegacy(indicator.TargetUrl, LicenseId, LicenseUrlKey)">
                             <span class="reports-quality-status @indicator.Tone"><MudIcon Icon="@QualityIcon(indicator)" /></span>
                             <span class="reports-quality-copy"><strong>@indicator.Label</strong><small>@indicator.Description</small></span>
                             <span class="reports-quality-progress"><i><b class="@indicator.Tone" style="width:@indicator.Percentage.ToString("0.#", CultureInfo.InvariantCulture)%"></b></i><small>@indicator.Value de @indicator.Total</small></span>
@@ -176,7 +181,7 @@
                     <div class="reports-attention-list">
                         @foreach (var item in _data.AttentionItems.Take(5))
                         {
-                            <a href="@item.TargetUrl" class="reports-attention-item @item.Severity">
+                            <a href="@LicenseRoutes.CanonicalizeLegacy(item.TargetUrl, LicenseId, LicenseUrlKey)" class="reports-attention-item @item.Severity">
                                 <span class="reports-attention-count">@item.Count</span>
                                 <span><strong>@item.Title</strong><small>@item.Description</small></span>
                                 <MudIcon Icon="@Icons.Material.Outlined.ArrowForward" />
@@ -248,9 +253,11 @@
 
 @code {
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public string LicenseUrlKey { get; set; } = string.Empty;
 
     private LicenseReportsViewModel? _data;
     private bool _loading = true;
+    private bool _exporting;
     private string _error = string.Empty;
     private int _days = 30;
     private static readonly (int Days, string Label)[] PeriodOptions = [(30, "30 dias"), (90, "90 dias"), (180, "6 meses"), (365, "1 ano")];
@@ -371,32 +378,28 @@
     private static string Initial(string value) => string.IsNullOrWhiteSpace(value) ? "B" : value.Trim()[0].ToString().ToUpperInvariant();
     private static string FormatNumber(int value) => value.ToString("N0", CultureInfo.GetCultureInfo("pt-BR"));
     private static string FormatPercent(decimal value) => $"{value.ToString("0.#", CultureInfo.GetCultureInfo("pt-BR"))}%";
+    private static string FormatPeakHour(int hour) => $"{hour:00}h-{(hour + 1) % 24:00}h";
     private static string PercentStyle(decimal value) => $"{Math.Clamp(value, 0, 100).ToString("0.#", CultureInfo.InvariantCulture)}%";
 
-    private async Task ExportCsvAsync()
+    private async Task ExportAsync(string format)
     {
         if (_data is null) return;
-        var csv = new StringBuilder("\uFEFF");
-        csv.AppendLine("Relatório;Indicador;Valor;Detalhe");
-        CsvRow(csv, "Resumo", "Período", _data.PeriodDays.ToString(), $"{_data.PeriodStart:dd/MM/yyyy} a {_data.PeriodEnd:dd/MM/yyyy}");
-        CsvRow(csv, "Resumo", "Índice de qualidade", _data.QualityScore.ToString(), "Escala de 0 a 100");
-        CsvRow(csv, "Moradores e app", "Moradores ativos", _data.Residents.Active.ToString(), $"{_data.Residents.Registered} cadastrados");
-        CsvRow(csv, "Moradores e app", "Contas criadas", _data.Residents.AccountsCreated.ToString(), FormatPercent(_data.Residents.AccountActivationRate));
-        CsvRow(csv, "Moradores e app", "Aplicativo vinculado", _data.Residents.AppLinked.ToString(), FormatPercent(_data.Residents.AppAdoptionRate));
-        CsvRow(csv, "Moradores e app", "Uso recente", _data.Residents.RecentlyActive.ToString(), FormatPercent(_data.Residents.RecentUsageRate));
-        CsvRow(csv, "Estrutura", "Unidades ocupadas", _data.Structure.OccupiedUnits.ToString(), $"{_data.Structure.Units} unidades cadastradas");
-        CsvRow(csv, "Operação", "Acessos", _data.Operation.AccessEvents.ToString(), $"{_data.Operation.AuthorizedAccesses} autorizados; {_data.Operation.DeniedAccesses} negados");
-        CsvRow(csv, "Operação", "Visitantes", _data.Operation.VisitorsCreated.ToString(), $"{_data.Operation.VisitorsCheckedIn} com entrada registrada");
-        foreach (var indicator in _data.QualityIndicators)
-            CsvRow(csv, "Qualidade cadastral", indicator.Label, indicator.Value.ToString(), $"{FormatPercent(indicator.Percentage)} de {indicator.Total}");
-        foreach (var block in _data.AdoptionByBlock)
-            CsvRow(csv, "Adoção por bloco", block.BlockName, block.AccountsCreated.ToString(), $"{block.Residents} moradores; {block.AppLinked} apps vinculados; {FormatPercent(block.AdoptionRate)}");
-        await Js.InvokeVoidAsync("portalInterop.downloadText", $"relatorio-condotify-{DateTime.Now:yyyyMMdd-HHmm}.csv", csv.ToString(), "text/csv;charset=utf-8");
+        _exporting = true;
+        try
+        {
+            var result = await Api.ExportLicenseReportAsync(LicenseId, format, _days);
+            if (!result.Success || result.Value is null)
+            {
+                Snackbar.Add(result.Error ?? "Não foi possível gerar o relatório.", Severity.Error);
+                return;
+            }
+            await Js.InvokeVoidAsync("portalInterop.downloadBase64", result.Value.FileName, result.Value.ContentBase64, result.Value.ContentType);
+            Snackbar.Add($"Relatório {format.ToUpperInvariant()} gerado com sucesso.", Severity.Success);
+        }
+        finally
+        {
+            _exporting = false;
+        }
     }
-
-    private static void CsvRow(StringBuilder builder, params string[] fields) =>
-        builder.AppendLine(string.Join(";", fields.Select(CsvEscape)));
-
-    private static string CsvEscape(string value) => "\"" + (value ?? string.Empty).Replace("\"", "\"\"") + "\"";
     private sealed record FunnelItem(string Index, string Label, int Value, decimal Percentage, string Hint);
 }

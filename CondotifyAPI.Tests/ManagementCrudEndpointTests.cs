@@ -225,7 +225,7 @@ public sealed class ManagementCrudEndpointTests
     [Theory]
     [InlineData(nameof(AlertNotificationsController.UpdatePolicy), typeof(HttpPutAttribute), "policy")]
     [InlineData(nameof(AlertNotificationsController.TestChannel), typeof(HttpPostAttribute), "test")]
-    public void NotificationMutations_ShouldRequireAlertManagement(
+    public void NotificationMutations_ShouldRequireSettingsManagement(
         string methodName,
         Type attributeType,
         string route)
@@ -239,7 +239,7 @@ public sealed class ManagementCrudEndpointTests
         var permission = Assert.Single(
             method.GetCustomAttributes<RequireLicensePermissionAttribute>(inherit: true));
         Assert.Equal(
-            LicensePermissionEnum.ManageAlerts,
+            LicensePermissionEnum.ManageSettings,
             Assert.IsType<LicensePermissionEnum>(Assert.Single(permission.Arguments!)));
     }
 

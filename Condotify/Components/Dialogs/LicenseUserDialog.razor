@@ -4,19 +4,20 @@
     <DialogContent>
         <div class="dialog-description"><MudIcon Icon="@Icons.Material.Outlined.AdminPanelSettings" /><div><strong>@(Existing is null ? "Novo usuário da operação" : "Acesso de usuário")</strong><span>O acesso vale somente para este condomínio.</span></div></div>
         @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
-        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+        <EditForm EditContext="_editContext">
             <DataAnnotationsValidator />
+            <ValidationSummary class="form-validation-summary" />
             <div class="form-grid">
-                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome completo" Required Disabled="@(Existing is not null)" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.Email" Label="E-mail de acesso" Required Disabled="@(Existing is not null)" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome completo" Required Immediate Disabled="@(Existing is not null)" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.Email" Label="E-mail de acesso" Required Immediate Disabled="@(Existing is not null)" Variant="Variant.Outlined" />
                 @if (Existing is null)
                 {
-                    <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Variant="Variant.Outlined" />
-                    <MudTextField T="string" @bind-Value="_form.Password" Label="Senha temporária" Required InputType="InputType.Password" Variant="Variant.Outlined" HelperText="Mínimo de 8 caracteres; a troca será solicitada no primeiro acesso." />
+                    <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Immediate Variant="Variant.Outlined" />
+                    <MudTextField T="string" @bind-Value="_form.Password" Label="Senha temporária" Required Immediate InputType="InputType.Password" Variant="Variant.Outlined" HelperText="Mínimo de 8 caracteres; a troca será solicitada no primeiro acesso." />
                 }
                 <MudSelect T="int" Value="_form.Role" ValueChanged="RoleChanged" Label="Perfil inicial" Variant="Variant.Outlined" Class="full">
                     <MudSelectItem Value="0">Administrador da licença</MudSelectItem>
-                    <MudSelectItem Value="1">Gestor</MudSelectItem>
+                    <MudSelectItem Value="1">Síndico / gestor</MudSelectItem>
                     <MudSelectItem Value="2">Portaria</MudSelectItem>
                     <MudSelectItem Value="3">Operador</MudSelectItem>
                     <MudSelectItem Value="4">Somente leitura</MudSelectItem>
@@ -40,7 +41,7 @@
             {
                 <MudSwitch T="bool" @bind-Value="_form.IsActive" Label="Acesso ativo para esta licença" Color="Color.Success" Class="mt-3" />
             }
-            <div class="form-actions dialog-form-actions"><MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : "Salvar acesso")</MudButton></div>
+            <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" OnClick="SaveAsync" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : "Salvar acesso")</MudButton></div>
         </EditForm>
     </DialogContent>
 </MudDialog>
@@ -50,11 +51,13 @@
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
     [Parameter] public LicenseUserAccessViewModel? Existing { get; set; }
     private readonly LicenseUserFormViewModel _form = new();
+    private EditContext _editContext = null!;
     private bool _saving;
     private string? _error;
 
     protected override void OnInitialized()
     {
+        _editContext = new EditContext(_form);
         if (Existing is null) { _form.Permissions = LicensePermissionCatalog.Defaults(_form.Role); return; }
         _form.Name = Existing.Name; _form.Email = Existing.Email; _form.PhoneNumber = Existing.PhoneNumber;
         _form.Role = RoleValue(Existing.Role); _form.Permissions = Existing.Permissions; _form.IsActive = Existing.IsActive;
@@ -69,6 +72,10 @@
         : LicensePermissionCatalog.RemoveDependents(_form.Permissions, permission);
     private async Task SaveAsync()
     {
+        _error = null;
+        if (!_editContext.Validate()) { _error = "Revise os campos destacados antes de salvar."; return; }
+        if (Existing is null && string.IsNullOrWhiteSpace(_form.Password)) { _error = "Informe uma senha temporária."; return; }
+        if (Existing is null && _form.Password.Length < 8) { _error = "A senha temporária deve ter pelo menos 8 caracteres."; return; }
         _saving = true; _error = null;
         var result = Existing is null ? await Api.CreateLicenseUserAsync(LicenseId, _form) : await Api.UpdateLicenseUserAsync(LicenseId, Existing.Id, _form);
         _saving = false;

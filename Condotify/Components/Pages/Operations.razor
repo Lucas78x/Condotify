@@ -136,7 +136,7 @@ else
                             <span class="operations-job-icon"><MudIcon Icon="@JobIcon(job.Status)" /></span>
                             <div class="operations-job-title">
                                 <span><strong>@OperationLabel(job.Operation)</strong><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@JobColor(job.Status)">@JobStatusLabel(job.Status)</MudChip></span>
-                                <a href="@($"/licencas/{job.LicenseId}")">@(string.IsNullOrWhiteSpace(job.LicenseName) ? "Condomínio" : job.LicenseName)</a>
+                                <a href="@LicenseTarget(job.LicenseId)">@(string.IsNullOrWhiteSpace(job.LicenseName) ? "Condomínio" : job.LicenseName)</a>
                                 <small>Solicitado por @(string.IsNullOrWhiteSpace(job.RequestedBy) ? "Sistema" : job.RequestedBy) · @RelativeTime(job.CreatedAt)</small>
                             </div>
                             <div class="operations-job-actions">
@@ -243,7 +243,7 @@ else
                 <div class="operations-activity-list">
                     @foreach (var activity in _dashboard.RecentActivities)
                     {
-                        <a href="@($"/licencas/{activity.LicenseId}")" class="operations-activity-row">
+                        <a href="@LicenseTarget(activity.LicenseId)" class="operations-activity-row">
                             <span class="activity-status @ActivityTone(activity.Status)"></span>
                             <span>
                                 <strong>@ActivityLabel(activity.Action)</strong>
@@ -266,6 +266,7 @@ else
     private OperationalDashboardViewModel? _dashboard;
     private OperationalAlertSummaryViewModel? _alertSummary;
     private List<AccessBatchOperationViewModel> _jobs = [];
+    private List<LicenseViewModel> _licenses = [];
     private readonly CancellationTokenSource _refreshCancellation = new();
     private string _jobFilter = "all";
     private bool _jobsBusy;
@@ -300,10 +301,12 @@ else
         var dashboardTask = Api.GetOperationalDashboardAsync();
         var alertsTask = Api.GetOperationalAlertSummaryAsync();
         var jobsTask = Api.GetOperationalAccessJobsAsync(take: 50);
-        await Task.WhenAll(dashboardTask, alertsTask, jobsTask);
+        var licensesTask = Api.GetLicensesAsync();
+        await Task.WhenAll(dashboardTask, alertsTask, jobsTask, licensesTask);
         var result = await dashboardTask;
         var alerts = await alertsTask;
         var jobs = await jobsTask;
+        var licenses = await licensesTask;
         _loading = false;
         if (result.Success)
             _dashboard = result.Value;
@@ -315,6 +318,14 @@ else
             _jobs = jobs.Value ?? [];
         else
             _jobsError = jobs.Error;
+        if (licenses.Success)
+            _licenses = licenses.Value ?? [];
+    }
+
+    private string LicenseTarget(Guid licenseId)
+    {
+        var license = _licenses.FirstOrDefault(x => Guid.TryParse(x.Id, out var id) && id == licenseId);
+        return license is null ? LicenseRoutes.Legacy(licenseId) : LicenseRoutes.Workspace(license);
     }
 
     private async Task RefreshJobsAsync()

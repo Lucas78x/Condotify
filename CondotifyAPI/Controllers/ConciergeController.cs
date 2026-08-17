@@ -9,6 +9,7 @@ using CondotifyAPI.Domain.DTO.Unit;
 using CondotifyAPI.Domain.Enums.AccessControl;
 using CondotifyAPI.Domain.Enums.Invitation;
 using CondotifyAPI.Domain.Enums.Resident;
+using CondotifyAPI.Domain.Enums.Equipments;
 using CondotifyAPI.Infrastructure;
 using CondotifyAPI.Services.AccessControl;
 using CondotifyAPI.Services.Authorization;
@@ -126,7 +127,9 @@ public sealed class ConciergeController(
     public async Task<IActionResult> CreateVisit(Guid licenseId, [FromBody] CreateConciergeVisitIn input)
     {
         if (!await HasAccessAsync(licenseId)) return NotFound();
-        if (string.IsNullOrWhiteSpace(input.VisitorName)) return BadRequest(new { Errors = "Informe o nome do visitante." });
+        NormalizeCreateVisitInput(input);
+        var inputError = ValidateCreateVisitInput(input);
+        if (inputError is not null) return BadRequest(new { Errors = inputError });
         var validFrom = Utc(input.ValidFrom); var validTo = Utc(input.ValidTo);
         if (validTo <= validFrom || validTo <= DateTime.UtcNow) return BadRequest(new { Errors = "A janela de acesso informada e invalida." });
         if (input.CredentialType is not (AccessCredentialTypeEnum.QrCode or AccessCredentialTypeEnum.Face))
@@ -168,10 +171,7 @@ public sealed class ConciergeController(
             if (existing is not null) return Ok(ToOut(existing));
         }
 
-        var visitorRoutes = await context.AccessRoutes
-            .Include(x => x.Devices).ThenInclude(x => x.Device)
-            .Where(x => x.LicenseId == licenseId && x.IsActive && x.AllowTemporary && (x.Audience & AccessRouteAudienceEnum.Visitor) != 0)
-            .ToListAsync();
+        var visitorRoutes = await VisitorRouteQuery(context, licenseId).ToListAsync();
         if (visitorRoutes.Count == 0)
             return BadRequest(new { Errors = "Configure ao menos uma rota ativa para visitantes antes de autorizar a visita." });
         if (input.RouteIds.Count > 0 && !input.RouteIds.ToHashSet().IsSubsetOf(visitorRoutes.Select(x => x.Id).ToHashSet()))
@@ -182,17 +182,17 @@ public sealed class ConciergeController(
         if (createFacialInvite && !visitorRoutes
                 .Where(x => selectedRouteIds.Contains(x.Id))
                 .SelectMany(x => x.Devices)
-                .Any(x => x.IsActive && x.Device.Type.SupportsFace()))
+                .Any(x => x.IsActive && x.DeviceType.SupportsFace()))
             return BadRequest(new { Errors = "Selecione ao menos uma rota com equipamento facial." });
 
-        var photoReference = createFacialInvite || string.IsNullOrWhiteSpace(input.ImageBase64)
+        var photoReference = createFacialInvite || input.CredentialType != AccessCredentialTypeEnum.Face || string.IsNullOrWhiteSpace(input.ImageBase64)
             ? string.Empty
             : await media.StoreDataUriAsync(licenseId, input.ImageBase64.Trim(), HttpContext.RequestAborted);
         var now = DateTime.UtcNow; var guestId = Guid.NewGuid(); var credentialId = Guid.NewGuid();
         var guest = new ResidentAccessDTO
         {
             Id = guestId, UnitId = hostUnit.Id, Name = input.VisitorName.Trim(), Email = string.Empty, Password = string.Empty,
-            PhoneNumber = input.PhoneNumber.Trim(), CommercialPhone = string.Empty, CPF = input.Document.Trim(), RG = string.Empty,
+            PhoneNumber = input.PhoneNumber, CommercialPhone = string.Empty, CPF = normalizedDocument, RG = string.Empty,
             BirthDate = string.Empty, ApartmentNumber = hostUnit.Number, ImgUrl = photoReference, Description = input.Purpose.Trim(),
             AccessType = ResidentAccessTypeEnum.Guest, FirstAccess = true, NotifyAccess = false, IsActive = true,
             Temporary = true, Expire = validTo, LastAccess = now, CreatedAt = now, AccessCredentials = []
@@ -215,7 +215,7 @@ public sealed class ConciergeController(
         {
             Id = Guid.NewGuid(), LicenseId = licenseId, HostResidentId = host.Id, GuestResidentId = guestId, CredentialId = credentialId,
             VisitorName = guest.Name, Document = normalizedDocument, PhoneNumber = input.PhoneNumber.Trim(), Company = input.Company.Trim(),
-            Purpose = input.Purpose.Trim(), VehiclePlate = normalizedPlate, PhotoUrl = guest.ImgUrl,
+            Purpose = input.Purpose, VehiclePlate = normalizedPlate, PhotoUrl = guest.ImgUrl,
             Status = createFacialInvite ? AccessVisitStatusEnum.PendingEnrollment : input.RequireApproval ? AccessVisitStatusEnum.PendingApproval : AccessVisitStatusEnum.Scheduled, ValidFrom = validFrom, ValidTo = validTo,
             ApprovalRequired = input.RequireApproval, ExpectedCheckoutAt = validTo,
             RecurrenceGroupId = input.RepeatCount > 1 ? Guid.NewGuid() : null, RecurrenceSequence = 1, RecurrenceCount = input.RepeatCount,
@@ -258,7 +258,7 @@ public sealed class ConciergeController(
         if (!input.RequireApproval && !createFacialInvite) Queue(licenseId, credentialId, input.IdempotencyKey, CurrentUser());
         Audit(licenseId, visit.Id, "VisitCreated", createFacialInvite ? "PendingEnrollment" : "Queued",
             createFacialInvite ? $"Convite facial temporário criado para {visit.VisitorName}." : $"Visita de {visit.VisitorName} para {host.Name} agendada.",
-            new { input.HostResidentId, input.VisitorName, input.CredentialType, validFrom, validTo, input.MaxUses, input.RouteIds, createFacialInvite, HasPhoto = !string.IsNullOrWhiteSpace(input.ImageBase64) });
+            new { input.HostResidentId, input.VisitorName, input.CredentialType, validFrom, validTo, input.MaxUses, input.RouteIds, createFacialInvite, HasPhoto = input.CredentialType == AccessCredentialTypeEnum.Face && !string.IsNullOrWhiteSpace(input.ImageBase64) });
         await context.SaveChangesAsync();
         string facialInviteUrl = string.Empty;
         if (createFacialInvite)
@@ -272,6 +272,68 @@ public sealed class ConciergeController(
             $"{visit.VisitorName} foi registrado para o seu endereco.",
             $"visitor-created:{visit.Id:N}");
         return Created("", ToOut(visit, host, credential, facialInviteUrl, hostUnit));
+    }
+
+    internal static IQueryable<VisitorRouteCandidate> VisitorRouteQuery(
+        DatabaseContext database,
+        Guid licenseId) =>
+        database.AccessRoutes
+            .AsNoTracking()
+            .IgnoreAutoIncludes()
+            .Where(route =>
+                route.LicenseId == licenseId &&
+                route.IsActive &&
+                route.AllowTemporary &&
+                (route.Audience & AccessRouteAudienceEnum.Visitor) != 0)
+            .Select(route => new VisitorRouteCandidate
+            {
+                Id = route.Id,
+                Devices = route.Devices
+                    .Select(link => new VisitorRouteDeviceCandidate
+                    {
+                        IsActive = link.IsActive,
+                        DeviceType = link.Device.Type
+                    })
+                    .ToList()
+            });
+
+    internal sealed class VisitorRouteCandidate
+    {
+        public Guid Id { get; init; }
+        public List<VisitorRouteDeviceCandidate> Devices { get; init; } = [];
+    }
+
+    internal sealed class VisitorRouteDeviceCandidate
+    {
+        public bool IsActive { get; init; }
+        public DeviceTypeEnum DeviceType { get; init; }
+    }
+
+    internal static void NormalizeCreateVisitInput(CreateConciergeVisitIn input)
+    {
+        input.VisitorName = Clean(input.VisitorName);
+        input.Document = Clean(input.Document);
+        input.PhoneNumber = Clean(input.PhoneNumber);
+        input.Company = Clean(input.Company);
+        input.Purpose = Clean(input.Purpose);
+        input.VehiclePlate = Clean(input.VehiclePlate);
+        input.ImageBase64 = Clean(input.ImageBase64);
+        input.IdempotencyKey = Clean(input.IdempotencyKey);
+        input.RouteIds ??= [];
+    }
+
+    internal static string? ValidateCreateVisitInput(CreateConciergeVisitIn input)
+    {
+        if (string.IsNullOrWhiteSpace(input.VisitorName)) return "Informe o nome do visitante.";
+        if (input.VisitorName.Length > 150) return "O nome do visitante deve ter no máximo 150 caracteres.";
+        if (NormalizeDocument(input.Document).Length > 14) return "O documento deve ter no máximo 14 caracteres alfanuméricos.";
+        if (input.PhoneNumber.Length > 20) return "O telefone deve ter no máximo 20 caracteres.";
+        if (input.Company.Length > 150) return "A empresa deve ter no máximo 150 caracteres.";
+        if (input.Purpose.Length > 200) return "O motivo da visita deve ter no máximo 200 caracteres.";
+        if (NormalizePlate(input.VehiclePlate).Length > 20) return "A placa deve ter no máximo 20 caracteres alfanuméricos.";
+        if (input.IdempotencyKey.Length > 140) return "A chave de idempotência é inválida.";
+        if (input.RouteIds.Count > 100) return "Selecione no máximo 100 rotas.";
+        return null;
     }
 
     [HttpPost("visits/{visitId:guid}/facial-invite")]
@@ -453,8 +515,8 @@ public sealed class ConciergeController(
         var guest = new ResidentAccessDTO
         {
             Id = guestId, UnitId = hostUnit.Id, Name = input.VisitorName.Trim(), Email = string.Empty, Password = string.Empty,
-            PhoneNumber = input.PhoneNumber.Trim(), CommercialPhone = string.Empty, CPF = document, RG = string.Empty,
-            BirthDate = string.Empty, ApartmentNumber = hostUnit.Number, ImgUrl = photoReference, Description = input.Purpose.Trim(),
+            PhoneNumber = input.PhoneNumber, CommercialPhone = string.Empty, CPF = document, RG = string.Empty,
+            BirthDate = string.Empty, ApartmentNumber = hostUnit.Number, ImgUrl = photoReference, Description = input.Purpose,
             AccessType = ResidentAccessTypeEnum.Guest, FirstAccess = true, NotifyAccess = false, IsActive = true,
             Temporary = true, Expire = validTo, LastAccess = now, CreatedAt = now, AccessCredentials = []
         };
@@ -475,8 +537,8 @@ public sealed class ConciergeController(
         var visit = new AccessVisitDTO
         {
             Id = Guid.NewGuid(), LicenseId = licenseId, HostResidentId = host.Id, GuestResidentId = guestId, CredentialId = credentialId,
-            VisitorName = guest.Name, Document = document, PhoneNumber = input.PhoneNumber.Trim(), Company = input.Company.Trim(),
-            Purpose = input.Purpose.Trim(), VehiclePlate = plate, PhotoUrl = photoReference,
+            VisitorName = guest.Name, Document = document, PhoneNumber = input.PhoneNumber, Company = input.Company,
+            Purpose = input.Purpose, VehiclePlate = plate, PhotoUrl = photoReference,
             Status = input.RequireApproval ? AccessVisitStatusEnum.PendingApproval : AccessVisitStatusEnum.Scheduled,
             ValidFrom = validFrom, ValidTo = validTo, ExpectedCheckoutAt = validTo, ApprovalRequired = input.RequireApproval,
             RecurrenceGroupId = groupId, RecurrenceSequence = sequence, RecurrenceCount = input.RepeatCount,
@@ -518,8 +580,9 @@ public sealed class ConciergeController(
         };
     }
     private static string Token() => Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
-    private static string NormalizePlate(string value) => new(value.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
-    private static string NormalizeDocument(string value) => new(value.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+    private static string Clean(string? value) => value?.Trim() ?? string.Empty;
+    private static string NormalizePlate(string? value) => new((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+    private static string NormalizeDocument(string? value) => new((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
     private static string NormalizeScannedCode(string? value)
     {
         var raw = value?.Trim() ?? string.Empty;

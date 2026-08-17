@@ -12,7 +12,7 @@ else if (Active is not null)
 {
     <MudPaper Class="emergency-active-panel" Elevation="0">
         <div class="emergency-pulse"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></div>
-        <div class="emergency-active-copy"><span>@TypeLabel(Active.Type) · ATIVADO @Active.ActivatedAt.ToLocalTime().ToString("dd/MM HH:mm")</span><MudText Typo="Typo.h4">@Active.Title</MudText><p>@Active.Instructions</p><small>Ativado por @Active.ActivatedByName · Ocorrência vinculada</small><MudButton Href="@($"/licencas/{LicenseId}/ocorrencias")" Variant="Variant.Outlined" Color="Color.Inherit" StartIcon="@Icons.Material.Outlined.AssignmentLate">Abrir central de ocorrências</MudButton></div>
+        <div class="emergency-active-copy"><span>@TypeLabel(Active.Type) · ATIVADO @Active.ActivatedAt.ToLocalTime().ToString("dd/MM HH:mm")</span><MudText Typo="Typo.h4">@Active.Title</MudText><p>@Active.Instructions</p><small>Ativado por @Active.ActivatedByName · Ocorrência vinculada</small><MudButton Href="@LicenseRoutes.Workspace(LicenseUrlKey, "ocorrencias")" Variant="Variant.Outlined" Color="Color.Inherit" StartIcon="@Icons.Material.Outlined.AssignmentLate">Abrir central de ocorrências</MudButton></div>
     </MudPaper>
     @if (CanManage)
     {
@@ -52,6 +52,7 @@ else
 
 @code {
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public string LicenseUrlKey { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string LicenseCode { get; set; } = string.Empty;
     [Parameter] public bool CanManage { get; set; }
     private List<EmergencySessionViewModel> _sessions = []; private bool _loading = true; private bool _saving; private string? _error;

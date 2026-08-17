@@ -24,12 +24,25 @@ public sealed class PrivateMediaStore : IPrivateMediaStore
     {
         _root = Environment.GetEnvironmentVariable("CONDOTIFY_PRIVATE_MEDIA_PATH")
             ?? configuration["PrivateMedia:Path"]
-            ?? Path.Combine(AppContext.BaseDirectory, "App_Data", "private-media");
+            ?? DefaultStoragePath(configuration);
         var secret = Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_SECRET")
             ?? Environment.GetEnvironmentVariable("CONDOTIFY_EQUIPMENT_SECRET")
             ?? throw new InvalidOperationException("Defina CONDOTIFY_MEDIA_SECRET para proteger as imagens privadas.");
         _key = SHA256.HashData(Encoding.UTF8.GetBytes(secret));
         Directory.CreateDirectory(_root);
+    }
+
+    private static string DefaultStoragePath(IConfiguration configuration)
+    {
+        // AppContext.BaseDirectory aponta para bin/Debug durante o desenvolvimento.
+        // Conteúdo gravado ali desaparece ao limpar/recompilar a solução, embora a
+        // referência continue no banco. O content root é estável entre execuções;
+        // em publicação ele normalmente coincide com a pasta do aplicativo.
+        var contentRoot = configuration[HostDefaults.ContentRootKey];
+        return Path.Combine(
+            string.IsNullOrWhiteSpace(contentRoot) ? AppContext.BaseDirectory : contentRoot,
+            "App_Data",
+            "private-media");
     }
 
     public async Task<string> StoreDataUriAsync(Guid licenseId, string dataUri, CancellationToken cancellationToken = default)

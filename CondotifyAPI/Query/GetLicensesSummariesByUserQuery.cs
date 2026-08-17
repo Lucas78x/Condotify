@@ -41,6 +41,7 @@ namespace CondotifyAPI.Query
                 Id = license.Id,
                 Nome = license.Name,
                 Codigo = license.Code,
+                UrlKey = license.UrlKey,
                 Moradores = license.Blocks?.Sum(b =>
                     b.Units.Sum(u =>
                         u.Residents.Count(r => r.AccessType == ResidentAccessTypeEnum.Responsible

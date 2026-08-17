@@ -102,6 +102,7 @@ public static class DevelopmentDataSeeder
                 City = enterprise.City,
                 Country = enterprise.Country,
                 Code = "DEMO-001",
+                UrlKey = "demo-001",
                 Organization = OrganizationTypeEnum.Residential,
                 Building = BuildingTypeEnum.Vertical,
                 Type = LicenseTypeEnum.Demo,

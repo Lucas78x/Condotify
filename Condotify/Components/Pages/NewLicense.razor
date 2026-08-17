@@ -77,6 +77,6 @@
         }
 
         Snackbar.Add("Licença criada com sucesso.", Severity.Success);
-        Navigation.NavigateTo($"/licencas/{result.Value}");
+        Navigation.NavigateTo(LicenseRoutes.Workspace(result.Value!.UrlKey));
     }
 }

@@ -106,6 +106,27 @@ public class LicenseAccessController : ControllerBase
         }
     }
 
+    [HttpGet("by-url-key/{urlKey}")]
+    [Authorize]
+    public async Task<IActionResult> GetLicenseByUrlKey(string urlKey)
+    {
+        var normalizedKey = urlKey.Trim().ToLowerInvariant();
+        var licenseId = await _context.Licenses
+            .AsNoTracking()
+            .Where(x => x.UrlKey == normalizedKey)
+            .Select(x => (Guid?)x.Id)
+            .FirstOrDefaultAsync();
+
+        if (licenseId is null || await _authorization.GetGrantAsync(User, licenseId.Value) is null)
+            return NotFound();
+
+        var license = await _sender.Send(new GetLicenseByIdQuery(licenseId.Value));
+        if (license is null) return NotFound();
+
+        await EnrichLicenseSummaryAsync(license, licenseId.Value);
+        return Ok(license);
+    }
+
     private async Task EnrichLicenseListAsync(List<LicenseSummaryDto> licenses)
     {
         if (licenses.Count == 0) return;

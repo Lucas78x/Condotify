@@ -31,7 +31,7 @@ public sealed class AlertNotificationsController(
     }
 
     [HttpPut("policy")]
-    [RequireLicensePermission(LicensePermissionEnum.ManageAlerts)]
+    [RequireLicensePermission(LicensePermissionEnum.ManageSettings)]
     public async Task<IActionResult> UpdatePolicy(
         Guid licenseId,
         [FromBody] UpdateAlertNotificationPolicyIn input)
@@ -233,7 +233,7 @@ public sealed class AlertNotificationsController(
     }
 
     [HttpPost("test")]
-    [RequireLicensePermission(LicensePermissionEnum.ManageAlerts)]
+    [RequireLicensePermission(LicensePermissionEnum.ManageSettings)]
     public async Task<IActionResult> TestChannel(
         Guid licenseId,
         [FromBody] TestAlertNotificationChannelIn input)

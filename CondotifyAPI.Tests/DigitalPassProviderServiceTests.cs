@@ -14,11 +14,11 @@ namespace CondotifyAPI.Tests;
 public sealed class DigitalPassProviderServiceTests
 {
     [Fact]
-    public void Build_ShouldAlwaysReturnTheSecureWebPass()
+    public async Task Build_ShouldAlwaysReturnTheSecureWebPass()
     {
-        var service = new DigitalPassProviderService(new ConfigurationBuilder().Build());
+        var service = new DigitalPassProviderService(new StubStore(), new StubSigner());
 
-        var output = service.Build(Pass(), "secret-token", "https://app.condotify.test/passe/secret-token");
+        var output = await service.BuildAsync(Pass(), "secret-token", "https://app.condotify.test/passe/secret-token");
 
         Assert.Equal("https://app.condotify.test/passe/secret-token", output.PublicUrl);
         Assert.Equal("VIS-ABC123", output.CredentialCode);
@@ -27,39 +27,27 @@ public sealed class DigitalPassProviderServiceTests
     }
 
     [Fact]
-    public void Build_ShouldCreateGoogleSaveUrlOnlyWhenSigningConfigurationIsComplete()
+    public async Task Build_ShouldCreateGoogleSaveUrlOnlyWhenSigningConfigurationIsComplete()
     {
         using var rsa = RSA.Create(2048);
-        var settings = new Dictionary<string, string?>
-        {
-            ["DigitalPass:GoogleWallet:IssuerId"] = "3388000000022000000",
-            ["DigitalPass:GoogleWallet:ServiceAccountEmail"] = "wallet@test.iam.gserviceaccount.com",
-            ["DigitalPass:GoogleWallet:PrivateKey"] = rsa.ExportRSAPrivateKeyPem(),
-            ["DigitalPass:GoogleWallet:ClassSuffix"] = "condotify_access"
-        };
-        var service = new DigitalPassProviderService(new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
+        var store = new StubStore(new GoogleWalletSettings(Guid.Empty, "3388000000022000000", "wallet@test.iam.gserviceaccount.com", "condotify_access", WalletAuthenticationModeEnum.PrivateKey, rsa.ExportRSAPrivateKeyPem(), true));
+        var service = new DigitalPassProviderService(store, new GoogleWalletJwtSigner(new StubHttpClientFactory()));
 
-        var output = service.Build(Pass(), "secret-token", "https://app.condotify.test/passe/secret-token");
+        var output = await service.BuildAsync(Pass(), "secret-token", "https://app.condotify.test/passe/secret-token");
 
         Assert.True(output.GoogleWalletConfigured);
         Assert.StartsWith("https://pay.google.com/gp/v/save/", output.GoogleWalletUrl, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Build_ShouldWorkTwiceInARowWithTheSameConfiguredKey()
+    public async Task Build_ShouldWorkTwiceInARowWithTheSameConfiguredKey()
     {
         using var rsa = RSA.Create(2048);
-        var settings = new Dictionary<string, string?>
-        {
-            ["DigitalPass:GoogleWallet:IssuerId"] = "3388000000022000000",
-            ["DigitalPass:GoogleWallet:ServiceAccountEmail"] = "wallet@test.iam.gserviceaccount.com",
-            ["DigitalPass:GoogleWallet:PrivateKey"] = rsa.ExportRSAPrivateKeyPem(),
-            ["DigitalPass:GoogleWallet:ClassSuffix"] = "condotify_access"
-        };
-        var service = new DigitalPassProviderService(new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
+        var store = new StubStore(new GoogleWalletSettings(Guid.Empty, "3388000000022000000", "wallet@test.iam.gserviceaccount.com", "condotify_access", WalletAuthenticationModeEnum.PrivateKey, rsa.ExportRSAPrivateKeyPem(), true));
+        var service = new DigitalPassProviderService(store, new GoogleWalletJwtSigner(new StubHttpClientFactory()));
 
-        var first = service.Build(Pass(), "token-one", "https://app.condotify.test/passe/token-one");
-        var second = service.Build(Pass(), "token-two", "https://app.condotify.test/passe/token-two");
+        var first = await service.BuildAsync(Pass(), "token-one", "https://app.condotify.test/passe/token-one");
+        var second = await service.BuildAsync(Pass(), "token-two", "https://app.condotify.test/passe/token-two");
 
         Assert.True(first.GoogleWalletConfigured);
         Assert.True(second.GoogleWalletConfigured);
@@ -67,7 +55,7 @@ public sealed class DigitalPassProviderServiceTests
     }
 
     [Fact]
-    public void AppleWallet_ShouldBuildASignedPkpassWhenCertificatesAreConfigured()
+    public async Task AppleWallet_ShouldBuildASignedPkpassWhenCertificatesAreConfigured()
     {
         using var signerKey = RSA.Create(2048);
         var signerRequest = new CertificateRequest("CN=Pass Type ID", signerKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -75,17 +63,10 @@ public sealed class DigitalPassProviderServiceTests
         using var wwdrKey = RSA.Create(2048);
         var wwdrRequest = new CertificateRequest("CN=Apple Worldwide Developer Relations", wwdrKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         using var wwdr = wwdrRequest.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
-        var settings = new Dictionary<string, string?>
-        {
-            ["DigitalPass:AppleWallet:PassTypeIdentifier"] = "pass.com.condotify.access",
-            ["DigitalPass:AppleWallet:TeamIdentifier"] = "CONDOTIFY1",
-            ["DigitalPass:AppleWallet:SigningCertificatePfxBase64"] = Convert.ToBase64String(signer.Export(X509ContentType.Pfx, "test")),
-            ["DigitalPass:AppleWallet:SigningCertificatePassword"] = "test",
-            ["DigitalPass:AppleWallet:WwdrCertificateBase64"] = Convert.ToBase64String(wwdr.Export(X509ContentType.Cert))
-        };
-        var service = new AppleWalletPassService(new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
+        var settings = new AppleWalletSettings(Guid.Empty, "pass.com.condotify.access", "CONDOTIFY1", Convert.ToBase64String(signer.Export(X509ContentType.Pfx, "test")), "test", Convert.ToBase64String(wwdr.Export(X509ContentType.Cert)), true);
+        var service = new AppleWalletPassService(new StubStore(apple: settings));
 
-        var bytes = service.Build(Pass());
+        var bytes = await service.BuildAsync(Pass());
 
         using var archive = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
         Assert.NotNull(archive.GetEntry("pass.json"));
@@ -109,5 +90,21 @@ public sealed class DigitalPassProviderServiceTests
             Status = DigitalPassStatusEnum.Active, IssuedAt = DateTime.UtcNow,
             ExpiresAt = visit.ValidTo
         };
+    }
+
+    private sealed class StubStore(GoogleWalletSettings? google = null, AppleWalletSettings? apple = null) : IWalletIntegrationStore
+    {
+        public Task<GoogleWalletSettings?> GetGoogleAsync(Guid enterpriseId, CancellationToken cancellationToken = default) => Task.FromResult(google);
+        public Task<AppleWalletSettings?> GetAppleAsync(Guid enterpriseId, CancellationToken cancellationToken = default) => Task.FromResult(apple);
+    }
+
+    private sealed class StubSigner : IGoogleWalletJwtSigner
+    {
+        public Task<string> SignAsync(IReadOnlyDictionary<string, object> payload, GoogleWalletSettings settings, CancellationToken cancellationToken = default) => Task.FromResult(string.Empty);
+    }
+
+    private sealed class StubHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new();
     }
 }

@@ -1,0 +1,246 @@
+@using Microsoft.AspNetCore.Components.Forms
+@inject CondotifyApiClient Api
+@inject ISnackbar Snackbar
+
+<section class="wallet-integrations">
+    <div class="wallet-hero">
+        <div class="wallet-hero-icon"><MudIcon Icon="@Icons.Material.Outlined.AccountBalanceWallet" /></div>
+        <div>
+            <span class="wallet-eyebrow">CARTEIRAS DIGITAIS</span>
+            <h2>Google e Apple Wallet em um só lugar</h2>
+            <p>Configure uma vez para todos os condomínios desta empresa. As chaves nunca voltam para o navegador.</p>
+        </div>
+        <div class="wallet-flow" aria-label="Fluxo de configuração">
+            <span class="done">1</span><strong>Identificar</strong><i></i>
+            <span class="done">2</span><strong>Validar</strong><i></i>
+            <span>3</span><strong>Ativar</strong>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+    }
+    else if (_data is null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@(_error ?? "Não foi possível carregar as integrações.")</MudAlert>
+    }
+    else
+    {
+        @if (!_data.EncryptionReady)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Icon="@Icons.Material.Outlined.KeyOff" Class="wallet-vault-alert">
+                O cofre está bloqueado. Defina <code>CONDOTIFY_WALLET_SECRET</code> com pelo menos 32 caracteres na API antes de salvar credenciais.
+            </MudAlert>
+        }
+        else
+        {
+            <div class="vault-ready"><MudIcon Icon="@Icons.Material.Outlined.EnhancedEncryption" /><div><strong>Cofre protegido e disponível</strong><span>Credenciais cifradas por empresa, com auditoria e versionamento.</span></div></div>
+        }
+
+        <div class="wallet-grid">
+            <article class="wallet-provider-card google-card">
+                <header>
+                    <div class="provider-mark google-mark">G</div>
+                    <div><span>GOOGLE WALLET</span><h3>Passe para Android</h3></div>
+                    @StatusChip(_data.Google)
+                </header>
+
+                <div class="provider-status">
+                    <div><span>Origem</span><strong>@_data.Google.Source</strong></div>
+                    <div><span>Última validação</span><strong>@DateLabel(_data.Google.LastValidatedAt)</strong></div>
+                    <div><span>Versão</span><strong>@VersionLabel(_data.Google)</strong></div>
+                </div>
+
+                <div class="mode-picker">
+                    <button type="button" class="mode-option @(_google.AuthenticationMode == "PrivateKey" ? "selected" : null)" @onclick="@(() => _google.AuthenticationMode = "PrivateKey")">
+                        <MudIcon Icon="@Icons.Material.Outlined.Key" /><span><strong>Chave protegida</strong><small>Ideal para servidor próprio</small></span>
+                    </button>
+                    <button type="button" class="mode-option @(_google.AuthenticationMode == "ManagedIdentity" ? "selected" : null)" @onclick="@(() => _google.AuthenticationMode = "ManagedIdentity")">
+                        <MudIcon Icon="@Icons.Material.Outlined.CloudDone" /><span><strong>Identidade gerenciada</strong><small>Sem chave privada no Condotify</small></span>
+                    </button>
+                </div>
+
+                <div class="wallet-form">
+                    <MudTextField @bind-Value="_google.IssuerId" Label="Issuer ID" Variant="Variant.Outlined" Disabled="_savingGoogle" />
+                    <MudTextField @bind-Value="_google.ServiceAccountEmail" Label="E-mail da conta de serviço" Variant="Variant.Outlined" Disabled="_savingGoogle" />
+                    <MudTextField @bind-Value="_google.ClassSuffix" Label="Classe do passe" Variant="Variant.Outlined" Disabled="_savingGoogle" />
+                    @if (_google.AuthenticationMode == "PrivateKey")
+                    {
+                        <MudTextField @bind-Value="_google.PrivateKey" Label="Chave privada PEM" Placeholder="Cole a chave somente na primeira configuração ou para substituí-la" Variant="Variant.Outlined" Lines="4" InputType="InputType.Password" Disabled="_savingGoogle" />
+                        @if (_data.Google.HasCredential) { <span class="credential-kept"><MudIcon Icon="@Icons.Material.Outlined.CheckCircle" /> Uma chave já está protegida. Deixe vazio para mantê-la.</span> }
+                    }
+                    else
+                    {
+                        <div class="managed-note"><MudIcon Icon="@Icons.Material.Outlined.Info" /><span>A API usará as credenciais do próprio servidor e solicitará ao Google a assinatura remota via <strong>IAM signJwt</strong>.</span></div>
+                    }
+                </div>
+
+                @ValidationMessage(_data.Google)
+                <footer>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Verified" Disabled="@(_savingGoogle || !_data.EncryptionReady)" OnClick="SaveGoogleAsync">
+                        @(_savingGoogle ? "Validando..." : "Salvar e validar")
+                    </MudButton>
+                    <div class="activation-control"><span><strong>Integração ativa</strong><small>Aparece nos passes emitidos</small></span><MudSwitch T="bool" Value="_data.Google.IsActive" ValueChanged="ToggleGoogleAsync" Disabled="@(_activating || !_data.Google.IsValidated)" Color="Color.Success" /></div>
+                </footer>
+            </article>
+
+            <article class="wallet-provider-card apple-card">
+                <header>
+                    <div class="provider-mark apple-mark"><MudIcon Icon="@Icons.Material.Outlined.PhoneIphone" /></div>
+                    <div><span>APPLE WALLET</span><h3>Passe para iPhone</h3></div>
+                    @StatusChip(_data.Apple)
+                </header>
+
+                <div class="provider-status">
+                    <div><span>Origem</span><strong>@_data.Apple.Source</strong></div>
+                    <div><span>Expiração</span><strong>@DateLabel(_data.Apple.CredentialExpiresAt, true)</strong></div>
+                    <div><span>Versão</span><strong>@VersionLabel(_data.Apple)</strong></div>
+                </div>
+
+                <div class="wallet-form apple-form">
+                    <MudTextField @bind-Value="_apple.PassTypeIdentifier" Label="Pass Type Identifier" Placeholder="pass.com.empresa.acesso" Variant="Variant.Outlined" Disabled="_savingApple" />
+                    <MudTextField @bind-Value="_apple.TeamIdentifier" Label="Team Identifier" Variant="Variant.Outlined" Disabled="_savingApple" />
+                    <MudTextField @bind-Value="_apple.CertificatePassword" Label="Senha do certificado" Variant="Variant.Outlined" InputType="InputType.Password" Disabled="_savingApple" />
+                    <div class="certificate-drop @(_appleCertificateName.Length > 0 ? "selected" : null)">
+                        <MudIcon Icon="@(_appleCertificateName.Length > 0 ? Icons.Material.Outlined.TaskAlt : Icons.Material.Outlined.UploadFile)" />
+                        <div><strong>@(_appleCertificateName.Length > 0 ? _appleCertificateName : _data.Apple.HasCredential ? "Certificado protegido" : "Selecione o certificado")</strong><span>.p12 ou .pfx • até 2 MB</span></div>
+                        <label><span>@(_data.Apple.HasCredential ? "Substituir" : "Selecionar")</span><InputFile OnChange="ReadAppleCertificateAsync" accept=".p12,.pfx,application/x-pkcs12" disabled="@_savingApple" /></label>
+                    </div>
+                    <div class="managed-note apple-note"><MudIcon Icon="@Icons.Material.Outlined.AutoAwesome" /><span>O certificado intermediário WWDR G4 é obtido e validado automaticamente pela API.</span></div>
+                    @if (!string.IsNullOrWhiteSpace(_data.Apple.CredentialFingerprint))
+                    {
+                        <span class="certificate-fingerprint">Fingerprint: <strong>@_data.Apple.CredentialFingerprint</strong></span>
+                    }
+                </div>
+
+                @ValidationMessage(_data.Apple)
+                <footer>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Verified" Disabled="@(_savingApple || !_data.EncryptionReady)" OnClick="SaveAppleAsync">
+                        @(_savingApple ? "Validando..." : "Salvar e validar")
+                    </MudButton>
+                    <div class="activation-control"><span><strong>Integração ativa</strong><small>Assina o arquivo .pkpass</small></span><MudSwitch T="bool" Value="_data.Apple.IsActive" ValueChanged="ToggleAppleAsync" Disabled="@(_activating || !_data.Apple.IsValidated)" Color="Color.Success" /></div>
+                </footer>
+            </article>
+        </div>
+
+        <div class="wallet-security-strip">
+            <div><MudIcon Icon="@Icons.Material.Outlined.VisibilityOff" /><span><strong>Segredos não são exibidos</strong>Depois de salvar, o Portal recebe apenas status e fingerprint mascarado.</span></div>
+            <div><MudIcon Icon="@Icons.Material.Outlined.History" /><span><strong>Alterações auditadas</strong>Configuração, ativação e desativação entram no histórico operacional.</span></div>
+            <div><MudIcon Icon="@Icons.Material.Outlined.RestartAlt" /><span><strong>Rotação segura</strong>Uma credencial substituída precisa ser validada antes de voltar a operar.</span></div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    private const long MaxCertificateSize = 2_000_000;
+    private WalletIntegrationsViewModel? _data;
+    private GoogleWalletConfigurationViewModel _google = new();
+    private AppleWalletConfigurationViewModel _apple = new();
+    private bool _loading = true;
+    private bool _savingGoogle;
+    private bool _savingApple;
+    private bool _activating;
+    private string? _error;
+    private string _appleCertificateName = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var result = await Api.GetWalletIntegrationsAsync(LicenseId);
+        _loading = false;
+        if (!result.Success || result.Value is null) { _error = result.Error; return; }
+        _data = result.Value;
+        _google = new GoogleWalletConfigurationViewModel
+        {
+            IssuerId = _data.Google.IssuerId,
+            ServiceAccountEmail = _data.Google.ServiceAccountEmail,
+            ClassSuffix = string.IsNullOrWhiteSpace(_data.Google.ClassSuffix) ? "condotify_access" : _data.Google.ClassSuffix,
+            AuthenticationMode = _data.Google.AuthenticationMode is "ManagedIdentity" ? "ManagedIdentity" : "PrivateKey"
+        };
+        _apple = new AppleWalletConfigurationViewModel
+        {
+            PassTypeIdentifier = _data.Apple.PassTypeIdentifier,
+            TeamIdentifier = _data.Apple.TeamIdentifier
+        };
+    }
+
+    private async Task SaveGoogleAsync()
+    {
+        if (_data is null) return;
+        if (string.IsNullOrWhiteSpace(_google.IssuerId) || string.IsNullOrWhiteSpace(_google.ServiceAccountEmail) || string.IsNullOrWhiteSpace(_google.ClassSuffix))
+        { Snackbar.Add("Preencha a identificação do Google Wallet.", Severity.Warning); return; }
+        _savingGoogle = true;
+        var result = await Api.SaveGoogleWalletIntegrationAsync(LicenseId, _google);
+        _savingGoogle = false;
+        _google.PrivateKey = string.Empty;
+        if (!result.Success || result.Value is null) { Snackbar.Add(result.Error ?? "Não foi possível salvar o Google Wallet.", Severity.Error); return; }
+        _data.Google = result.Value;
+        Snackbar.Add(result.Value.IsValidated ? "Google Wallet validado. Agora você pode ativá-lo." : result.Value.LastValidationMessage, result.Value.IsValidated ? Severity.Success : Severity.Warning);
+    }
+
+    private async Task ReadAppleCertificateAsync(InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        if (file.Size > MaxCertificateSize) { Snackbar.Add("O certificado excede 2 MB.", Severity.Error); return; }
+        await using var stream = file.OpenReadStream(MaxCertificateSize);
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+        var bytes = memory.ToArray();
+        try
+        {
+            _apple.CertificateBase64 = Convert.ToBase64String(bytes);
+            _apple.CertificateFileName = file.Name;
+            _appleCertificateName = file.Name;
+        }
+        finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(bytes); }
+    }
+
+    private async Task SaveAppleAsync()
+    {
+        if (_data is null) return;
+        if (string.IsNullOrWhiteSpace(_apple.PassTypeIdentifier) || string.IsNullOrWhiteSpace(_apple.TeamIdentifier))
+        { Snackbar.Add("Preencha os identificadores da Apple.", Severity.Warning); return; }
+        _savingApple = true;
+        var result = await Api.SaveAppleWalletIntegrationAsync(LicenseId, _apple);
+        _savingApple = false;
+        _apple.CertificateBase64 = string.Empty;
+        _apple.CertificatePassword = string.Empty;
+        if (!result.Success || result.Value is null) { Snackbar.Add(result.Error ?? "Não foi possível salvar o Apple Wallet.", Severity.Error); return; }
+        _data.Apple = result.Value;
+        _appleCertificateName = string.Empty;
+        Snackbar.Add(result.Value.IsValidated ? "Apple Wallet validado. Agora você pode ativá-lo." : result.Value.LastValidationMessage, result.Value.IsValidated ? Severity.Success : Severity.Warning);
+    }
+
+    private async Task ToggleGoogleAsync(bool value) => await ToggleAsync("Google", value);
+    private async Task ToggleAppleAsync(bool value) => await ToggleAsync("Apple", value);
+    private async Task ToggleAsync(string provider, bool value)
+    {
+        if (_data is null) return;
+        _activating = true;
+        var result = await Api.SetWalletIntegrationActivationAsync(LicenseId, provider, value);
+        _activating = false;
+        if (!result.Success || result.Value is null) { Snackbar.Add(result.Error ?? "Não foi possível alterar a integração.", Severity.Error); return; }
+        if (provider == "Google") _data.Google = result.Value; else _data.Apple = result.Value;
+        Snackbar.Add(value ? $"{provider} Wallet ativado." : $"{provider} Wallet desativado.", value ? Severity.Success : Severity.Info);
+    }
+
+    private static RenderFragment StatusChip(WalletIntegrationStatusViewModel status) => builder =>
+    {
+        var css = status.IsActive ? "active" : status.IsValidated ? "ready" : status.IsConfigured ? "pending" : "empty";
+        var label = status.IsActive ? "Ativa" : status.IsValidated ? "Pronta" : status.IsConfigured ? "Pendente" : "Não configurada";
+        builder.OpenElement(0, "span"); builder.AddAttribute(1, "class", $"provider-chip {css}"); builder.AddContent(2, label); builder.CloseElement();
+    };
+    private static RenderFragment ValidationMessage(WalletIntegrationStatusViewModel status) => builder =>
+    {
+        if (string.IsNullOrWhiteSpace(status.LastValidationMessage)) return;
+        builder.OpenElement(0, "div"); builder.AddAttribute(1, "class", $"validation-message {(status.IsValidated ? "success" : "warning")}");
+        builder.OpenElement(2, "span"); builder.AddContent(3, status.IsValidated ? "✓" : "!"); builder.CloseElement();
+        builder.OpenElement(4, "p"); builder.AddContent(5, status.LastValidationMessage); builder.CloseElement(); builder.CloseElement();
+    };
+    private static string DateLabel(DateTime? value, bool dateOnly = false) => value.HasValue ? value.Value.ToLocalTime().ToString(dateOnly ? "dd/MM/yyyy" : "dd/MM/yyyy HH:mm") : "Ainda não realizada";
+    private static string VersionLabel(WalletIntegrationStatusViewModel status) => status.Version > 0 ? $"v{status.Version}" : "—";
+}

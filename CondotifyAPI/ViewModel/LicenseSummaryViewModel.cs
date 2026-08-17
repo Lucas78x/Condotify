@@ -8,6 +8,7 @@ namespace CondotifyAPI.ViewModels
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Code { get; set; } = string.Empty;
+        public string UrlKey { get; set; } = string.Empty;
         public string City { get; set; } = string.Empty;
         public string State { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
@@ -42,6 +43,7 @@ namespace CondotifyAPI.ViewModels
                 Id = license.Id,
                 Name = license.Name,
                 Code = license.Code,
+                UrlKey = license.UrlKey,
                 City = license.City,
                 State = license.Country,
 

@@ -363,11 +363,46 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<LicenseFullViewModel>> GetLicenseAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
         GetAsync<LicenseFullViewModel>($"api/access/licenses/{licenseId}", cancellationToken);
 
+    public Task<ApiResult<LicenseFullViewModel>> GetLicenseByUrlKeyAsync(string urlKey, CancellationToken cancellationToken = default) =>
+        GetAsync<LicenseFullViewModel>($"api/access/licenses/by-url-key/{Uri.EscapeDataString(urlKey.Trim().ToLowerInvariant())}", cancellationToken);
+
     public Task<ApiResult<LicenseReportsViewModel>> GetLicenseReportsAsync(
         Guid licenseId,
         int days = 30,
         CancellationToken cancellationToken = default) =>
         GetAsync<LicenseReportsViewModel>($"api/access/licenses/{licenseId}/reports?days={days}", cancellationToken);
+
+    public async Task<ApiResult<DownloadedFileViewModel>> ExportLicenseReportAsync(Guid licenseId, string format, int days = 30, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var client = await CreateClientAsync(cancellationToken);
+            using var response = await client.GetAsync(BuildApiUrl($"api/access/licenses/{licenseId}/reports/export/{Uri.EscapeDataString(format)}?days={days}"), cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return ApiResult<DownloadedFileViewModel>.Fail(await ReadErrorAsync(response, "Não foi possível gerar o relatório."), response.StatusCode);
+
+            var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            if (content.Length == 0) return ApiResult<DownloadedFileViewModel>.Fail("A API retornou um arquivo vazio.", response.StatusCode);
+            var fileName = response.Content.Headers.ContentDisposition?.FileNameStar
+                ?? response.Content.Headers.ContentDisposition?.FileName?.Trim('"')
+                ?? $"relatorio-condotify.{format}";
+            return ApiResult<DownloadedFileViewModel>.Ok(new DownloadedFileViewModel
+            {
+                FileName = fileName,
+                ContentType = response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream",
+                ContentBase64 = Convert.ToBase64String(content)
+            }, response.StatusCode);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return ApiResult<DownloadedFileViewModel>.Fail("Operação cancelada.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falha ao exportar relatório da licença {LicenseId}", licenseId);
+            return ApiResult<DownloadedFileViewModel>.Fail("Não foi possível gerar o relatório. Tente novamente.");
+        }
+    }
 
     public Task<ApiResult<LicenseStructureViewModel>> GetStructureAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
         GetAsync<LicenseStructureViewModel>($"api/access/licenses/{licenseId}/structure", cancellationToken);
@@ -839,11 +874,11 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<List<VehiclePlateSearchViewModel>>> SearchVehiclesByPlateAsync(Guid licenseId, string plate, CancellationToken cancellationToken = default) =>
         GetAsync<List<VehiclePlateSearchViewModel>>($"api/access/licenses/{licenseId}/vehicles/search?plate={Uri.EscapeDataString(plate)}", cancellationToken);
 
-    public async Task<ApiResult<Guid>> CreateLicenseAsync(CreateLicenseViewModel model, CancellationToken cancellationToken = default)
+    public async Task<ApiResult<LicenseRouteViewModel>> CreateLicenseAsync(CreateLicenseViewModel model, CancellationToken cancellationToken = default)
     {
         var enterpriseId = await _sessionContext.GetEnterpriseIdAsync(cancellationToken);
         if (!Guid.TryParse(enterpriseId, out _))
-            return ApiResult<Guid>.Fail("Nao foi possivel identificar a empresa da sessao. Entre novamente.");
+            return ApiResult<LicenseRouteViewModel>.Fail("Nao foi possivel identificar a empresa da sessao. Entre novamente.");
 
         var payload = new
         {
@@ -862,19 +897,25 @@ public sealed class CondotifyApiClient
 
         var response = await SendAsync(HttpMethod.Post, "api/access/licenses/by-enterprise", payload, false, cancellationToken);
         if (!response.Success || response.Document is null)
-            return ApiResult<Guid>.Fail(response.Error!, response.StatusCode);
+            return ApiResult<LicenseRouteViewModel>.Fail(response.Error!, response.StatusCode);
 
         using (response.Document)
         {
             if (response.Document.RootElement.TryGetProperty("license", out var license) &&
                 license.TryGetProperty("id", out var id) &&
-                Guid.TryParse(id.GetString(), out var createdId))
+                Guid.TryParse(id.GetString(), out var createdId) &&
+                license.TryGetProperty("urlKey", out var urlKey) &&
+                !string.IsNullOrWhiteSpace(urlKey.GetString()))
             {
-                return ApiResult<Guid>.Ok(createdId, response.StatusCode);
+                return ApiResult<LicenseRouteViewModel>.Ok(new LicenseRouteViewModel
+                {
+                    Id = createdId,
+                    UrlKey = urlKey.GetString()!
+                }, response.StatusCode);
             }
         }
 
-        return ApiResult<Guid>.Fail("A licenca foi criada, mas a API nao retornou o identificador.", response.StatusCode);
+        return ApiResult<LicenseRouteViewModel>.Fail("A licenca foi criada, mas a API nao retornou o identificador publico.", response.StatusCode);
     }
 
     public Task<ApiResult<bool>> CreateBlockAsync(Guid licenseId, BlockFormViewModel model, CancellationToken cancellationToken = default) =>
@@ -1272,6 +1313,28 @@ public sealed class CondotifyApiClient
 
     public Task<ApiResult<CredentialPolicyViewModel>> UpdateCredentialPolicyAsync(Guid licenseId, CredentialPolicyViewModel model, CancellationToken cancellationToken = default) =>
         SendForAsync<CredentialPolicyViewModel>(HttpMethod.Patch, $"api/access/licenses/{licenseId}/administration/credential-policy", model, cancellationToken);
+
+    public Task<ApiResult<WalletIntegrationsViewModel>> GetWalletIntegrationsAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<WalletIntegrationsViewModel>($"api/access/licenses/{licenseId}/wallet-integrations", cancellationToken);
+
+    public Task<ApiResult<WalletIntegrationStatusViewModel>> SaveGoogleWalletIntegrationAsync(
+        Guid licenseId,
+        GoogleWalletConfigurationViewModel model,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<WalletIntegrationStatusViewModel>(HttpMethod.Put, $"api/access/licenses/{licenseId}/wallet-integrations/google", model, cancellationToken);
+
+    public Task<ApiResult<WalletIntegrationStatusViewModel>> SaveAppleWalletIntegrationAsync(
+        Guid licenseId,
+        AppleWalletConfigurationViewModel model,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<WalletIntegrationStatusViewModel>(HttpMethod.Put, $"api/access/licenses/{licenseId}/wallet-integrations/apple", model, cancellationToken);
+
+    public Task<ApiResult<WalletIntegrationStatusViewModel>> SetWalletIntegrationActivationAsync(
+        Guid licenseId,
+        string provider,
+        bool isActive,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<WalletIntegrationStatusViewModel>(HttpMethod.Patch, $"api/access/licenses/{licenseId}/wallet-integrations/{provider}/activation", new WalletIntegrationActivationViewModel { IsActive = isActive }, cancellationToken);
 
     public Task<ApiResult<CredentialOperationViewModel>> SetCredentialStatusAsync(Guid licenseId, Guid credentialId, bool isActive, CancellationToken cancellationToken = default) =>
         SendForAsync<CredentialOperationViewModel>(HttpMethod.Patch, $"api/access/licenses/{licenseId}/credentials/{credentialId}/status", new { IsActive = isActive }, cancellationToken);

@@ -8,7 +8,14 @@
 <PageHeader Title="Visão geral" Subtitle="Acompanhe a operação dos seus condomínios em um único lugar." Eyebrow="PAINEL OPERACIONAL">
     <Actions>
         <MudButton Href="/operacoes" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.MonitorHeart">Central de operações</MudButton>
-        <MudButton Href="/licencas/nova" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddBusiness">Nova licença</MudButton>
+        <AuthorizeView Context="dashboardAuth">
+            <Authorized>
+                @if (CanCreateLicense(dashboardAuth.User))
+                {
+                    <MudButton Href="/licencas/nova" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddBusiness">Nova licença</MudButton>
+                }
+            </Authorized>
+        </AuthorizeView>
     </Actions>
 </PageHeader>
 
@@ -78,7 +85,7 @@ else
                 <div class="dashboard-license-list">
                     @foreach (var license in _licenses.Take(6))
                     {
-                        <a href="@($"/licencas/{license.Id}")" class="dashboard-license-row">
+                        <a href="@LicenseRoutes.Workspace(license)" class="dashboard-license-row">
                             <span class="license-monogram">@Monogram(license.Nome)</span>
                             <span class="license-meta">
                                 <span class="license-title">@license.Nome</span>
@@ -161,6 +168,9 @@ else
         string.IsNullOrWhiteSpace(license.Cidade)
             ? "Localização não informada"
             : $"{license.Cidade}{(string.IsNullOrWhiteSpace(license.Estado) ? string.Empty : $" - {license.Estado}")}";
+
+    private static bool CanCreateLicense(System.Security.Claims.ClaimsPrincipal user) =>
+        user.FindFirst("access_type")?.Value is "Admin" or "Developer";
 
     private static string AlertIcon(string type) => type switch
     {

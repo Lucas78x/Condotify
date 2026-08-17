@@ -1,6 +1,7 @@
 using CondotifyAPI.Services.Security;
 using DigitalWorldOnline.Management.Api.Controllers;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using DigitalWorldOnline.Management.Api.Data;
 
@@ -182,6 +183,35 @@ public sealed class SecurityServicesTests
             Environment.SetEnvironmentVariable("CONDOTIFY_MEDIA_SECRET", previousSecret);
             Environment.SetEnvironmentVariable("CONDOTIFY_PRIVATE_MEDIA_PATH", previousPath);
             if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void PrivateMedia_ShouldUseStableContentRootByDefault()
+    {
+        var contentRoot = Path.Combine(Path.GetTempPath(), $"condotify-root-{Guid.NewGuid():N}");
+        var previousSecret = Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_SECRET");
+        var previousPath = Environment.GetEnvironmentVariable("CONDOTIFY_PRIVATE_MEDIA_PATH");
+        try
+        {
+            Environment.SetEnvironmentVariable("CONDOTIFY_MEDIA_SECRET", "test-media-secret-with-enough-entropy");
+            Environment.SetEnvironmentVariable("CONDOTIFY_PRIVATE_MEDIA_PATH", null);
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    [HostDefaults.ContentRootKey] = contentRoot
+                })
+                .Build();
+
+            _ = new PrivateMediaStore(configuration);
+
+            Assert.True(Directory.Exists(Path.Combine(contentRoot, "App_Data", "private-media")));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CONDOTIFY_MEDIA_SECRET", previousSecret);
+            Environment.SetEnvironmentVariable("CONDOTIFY_PRIVATE_MEDIA_PATH", previousPath);
+            if (Directory.Exists(contentRoot)) Directory.Delete(contentRoot, true);
         }
     }
 }

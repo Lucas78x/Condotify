@@ -22,6 +22,14 @@ public class JwtPrincipalTypeTests
     }
 
     [Fact]
+    public void StaffToken_CarriesFirstAccessRequirement()
+    {
+        var token = ReadToken(CreateService().CreateAccessToken(SampleUser(firstAccess: true)));
+
+        Assert.Equal("true", token.Claims.First(x => x.Type == "first_access").Value);
+    }
+
+    [Fact]
     public void ResidentToken_CarriesPrincipalTypeResident()
     {
         var token = ReadToken(CreateService().CreateResidentAccessToken(SampleResident(), LicenseId));
@@ -71,7 +79,7 @@ public class JwtPrincipalTypeTests
         return new JwtTokenService(configuration);
     }
 
-    private static UserAccess SampleUser() => UserAccess.Create(
+    private static UserAccess SampleUser(bool firstAccess = false) => UserAccess.Create(
         "Lucas Bastos",
         "lucas@test.com",
         "Senha123!",
@@ -80,7 +88,7 @@ public class JwtPrincipalTypeTests
         "1234567",
         "1990-01-01",
         AccessTypeEnum.Admin,
-        false,
+        firstAccess,
         DateTime.UtcNow,
         DateTime.UtcNow,
         Hasher,

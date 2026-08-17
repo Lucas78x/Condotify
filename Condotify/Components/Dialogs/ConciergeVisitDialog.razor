@@ -12,10 +12,10 @@
         {
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
         }
-        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+        <EditForm Model="_form" OnValidSubmit="SaveAsync" OnInvalidSubmit="HandleInvalidSubmit">
             <DataAnnotationsValidator />
             <div class="visit-form-section">
-                <div class="form-section-heading"><span>1</span><div><strong>Destino</strong><small>Localize o morador que recebera a visita.</small></div></div>
+                <div class="form-section-heading"><span>1</span><div><strong>Destino</strong><small>Localize o morador que receberá a visita.</small></div></div>
                 <MudAutocomplete T="GlobalResidentSearchViewModel" @bind-Value="_host" SearchFunc="SearchHostsAsync"
                                  ToStringFunc="@(x => x is null ? string.Empty : $"{x.Name} - {x.BlockName} / {x.UnitNumber}")"
                                  Label="Morador ou unidade" Placeholder="Digite pelo menos 2 caracteres" Variant="Variant.Outlined"
@@ -25,14 +25,14 @@
             <div class="visit-form-section">
                 <div class="form-section-heading"><span>2</span><div><strong>Visitante</strong><small>Dados para identificação na portaria.</small></div></div>
                 <div class="form-grid form-grid-two">
-                    <MudTextField T="string" @bind-Value="_form.VisitorName" Label="Nome completo" Required Variant="Variant.Outlined" />
-                    <MudTextField T="string" @bind-Value="_form.Document" Label="CPF, RG ou documento" Variant="Variant.Outlined" />
-                    <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Telefone" Variant="Variant.Outlined" />
-                    <MudTextField T="string" @bind-Value="_form.Company" Label="Empresa" Variant="Variant.Outlined" />
-                    <MudTextField T="string" @bind-Value="_form.Purpose" Label="Motivo da visita" Variant="Variant.Outlined" />
+                    <MudTextField T="string" @bind-Value="_form.VisitorName" Label="Nome completo" Required MaxLength="150" Immediate="true" Variant="Variant.Outlined" />
+                    <MudTextField T="string" @bind-Value="_form.Document" Label="CPF, RG ou documento" MaxLength="20" Immediate="true" Variant="Variant.Outlined" />
+                    <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Telefone" MaxLength="20" Immediate="true" Variant="Variant.Outlined" />
+                    <MudTextField T="string" @bind-Value="_form.Company" Label="Empresa" MaxLength="150" Immediate="true" Variant="Variant.Outlined" />
+                    <MudTextField T="string" @bind-Value="_form.Purpose" Label="Motivo da visita" MaxLength="200" Immediate="true" Variant="Variant.Outlined" />
                     <MudAutocomplete T="string" @bind-Value="_form.VehiclePlate" SearchFunc="SearchPlatesAsync"
-                                     ToStringFunc="@(x => x ?? string.Empty)" CoerceText="true" CoerceValue="true"
-                                     Label="Placa do veículo" Placeholder="Digite ao menos 2 caracteres" Variant="Variant.Outlined"
+                                     ToStringFunc="@(x => x ?? string.Empty)" CoerceText="true" CoerceValue="true" Immediate="true"
+                                     Label="Placa do veículo" Placeholder="Digite ao menos 2 caracteres" MaxLength="20" Variant="Variant.Outlined"
                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.DirectionsCar" Clearable="true">
                         <ItemTemplate Context="plateResult">
                             <div><strong>@plateResult</strong><br /><small>@_plateOwnerByValue.GetValueOrDefault(plateResult)</small></div>
@@ -50,29 +50,42 @@
                 </div>
                 @if (_form.CredentialType == 1)
                 {
-                    <div class="visitor-photo-field">
-                        @if (string.IsNullOrWhiteSpace(_form.ImageBase64))
-                        {
-                            <div class="visitor-photo-placeholder"><MudIcon Icon="@Icons.Material.Outlined.Person" /></div>
-                        }
-                        else
-                        {
-                            <img src="@_form.ImageBase64" alt="Pré-visualização da foto do visitante" />
-                        }
-                        <div><strong>@(_photoName ?? "Foto frontal obrigatória")</strong><small>JPG ou PNG, rosto centralizado e bem iluminado.</small></div>
-                        <label class="file-button"><MudIcon Icon="@Icons.Material.Outlined.AddAPhoto" Size="Size.Small" /> Selecionar foto<InputFile OnChange="ReadPhotoAsync" accept="image/jpeg,image/png" /></label>
+                    <div class="credential-segment facial-delivery-segment" role="radiogroup" aria-label="Forma de cadastro facial">
+                        <button type="button" role="radio" aria-checked="@(!_form.CreateFacialInvite)" class="@FacialModeClass(false)" @onclick="() => SelectFacialMode(false)"><MudIcon Icon="@Icons.Material.Outlined.AddAPhoto" /><span><strong>Foto pela portaria</strong><small>Cadastre a imagem agora</small></span></button>
+                        <button type="button" role="radio" aria-checked="@_form.CreateFacialInvite" class="@FacialModeClass(true)" @onclick="() => SelectFacialMode(true)"><MudIcon Icon="@Icons.Material.Outlined.MarkEmailRead" /><span><strong>Convite facial</strong><small>O visitante cadastra a própria foto</small></span></button>
                     </div>
+                    @if (_form.CreateFacialInvite)
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.AutoAwesome" Class="facial-invite-hint">
+                            Após autorizar, será criado um link seguro e temporário para o visitante concluir o cadastro facial.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <div class="visitor-photo-field">
+                            @if (string.IsNullOrWhiteSpace(_form.ImageBase64))
+                            {
+                                <div class="visitor-photo-placeholder"><MudIcon Icon="@Icons.Material.Outlined.Person" /></div>
+                            }
+                            else
+                            {
+                                <img src="@_form.ImageBase64" alt="Pré-visualização da foto do visitante" />
+                            }
+                            <div><strong>@(_photoName ?? "Foto frontal obrigatória")</strong><small>JPG ou PNG, rosto centralizado e bem iluminado.</small></div>
+                            <label class="file-button"><MudIcon Icon="@Icons.Material.Outlined.AddAPhoto" Size="Size.Small" /> Selecionar foto<InputFile OnChange="ReadPhotoAsync" accept="image/jpeg,image/png" /></label>
+                        </div>
+                    }
                 }
                 <div class="form-grid form-grid-three visit-validity-grid">
                     <MudDatePicker @bind-Date="_fromDate" Label="Data inicial" Variant="Variant.Outlined" />
                     <MudTimePicker @bind-Time="_fromTime" Label="Hora inicial" Variant="Variant.Outlined" />
-                    <MudNumericField T="int?" @bind-Value="_form.MaxUses" Label="Limite de acessos" Min="1" Variant="Variant.Outlined" />
+                    <MudNumericField T="int?" @bind-Value="_form.MaxUses" Label="Limite de acessos" Min="1" Max="100" Variant="Variant.Outlined" />
                     <MudDatePicker @bind-Date="_toDate" Label="Data final" Variant="Variant.Outlined" />
                     <MudTimePicker @bind-Time="_toTime" Label="Hora final" Variant="Variant.Outlined" />
                 </div>
                 <div class="visit-policy-options">
-                    <MudSwitch T="bool" @bind-Value="_form.RequireApproval" Color="Color.Primary" Label="Exigir aprovação antes de liberar" />
-                    <MudSwitch T="bool" @bind-Value="_recurring" Color="Color.Primary" Label="Repetir esta autorização" />
+                    <MudSwitch T="bool" @bind-Value="_form.RequireApproval" Color="Color.Primary" Label="Exigir aprovação antes de liberar" Disabled="@_form.CreateFacialInvite" />
+                    <MudSwitch T="bool" @bind-Value="_recurring" Color="Color.Primary" Label="Repetir esta autorização" Disabled="@_form.CreateFacialInvite" />
                 </div>
                 @if (_recurring)
                 {
@@ -87,7 +100,7 @@
                 <div class="form-section-heading"><span>4</span><div><strong>Rotas permitidas</strong><small>Somente os terminais destas rotas receberão a credencial.</small></div></div>
                 @if (Routes.Count == 0)
                 {
-                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Nenhuma rota para visitantes esta configurada. Cadastre uma rota antes de liberar o acesso.</MudAlert>
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Nenhuma rota para visitantes está configurada. Solicite ao síndico ou administrador a configuração antes de liberar o acesso.</MudAlert>
                 }
                 else
                 {
@@ -118,10 +131,10 @@
 
     private readonly ConciergeVisitFormViewModel _form = new();
     private GlobalResidentSearchViewModel? _host;
-    private DateTime? _fromDate = DateTime.Today;
-    private TimeSpan? _fromTime = DateTime.Now.TimeOfDay;
-    private DateTime? _toDate = DateTime.Today;
-    private TimeSpan? _toTime = DateTime.Now.AddHours(4).TimeOfDay;
+    private DateTime? _fromDate;
+    private TimeSpan? _fromTime;
+    private DateTime? _toDate;
+    private TimeSpan? _toTime;
     private bool _saving;
     private string? _error;
     private string? _photoName;
@@ -129,6 +142,12 @@
 
     protected override void OnInitialized()
     {
+        var now = DateTime.Now;
+        var suggestedEnd = now.AddHours(4);
+        _fromDate = now.Date;
+        _fromTime = now.TimeOfDay;
+        _toDate = suggestedEnd.Date;
+        _toTime = suggestedEnd.TimeOfDay;
         Routes = Routes.Where(x => x.IsActive && x.AllowTemporary && ((AccessRouteAudience)x.Audience).HasFlag(AccessRouteAudience.Visitor)).ToList();
         _form.RouteIds = Routes.Select(x => x.Id).ToList();
     }
@@ -156,17 +175,37 @@
     private void SelectCredential(int type)
     {
         _form.CredentialType = type;
+        if (type != 1)
+        {
+            _form.CreateFacialInvite = false;
+            _form.ImageBase64 = string.Empty;
+            _photoName = null;
+        }
         _error = null;
     }
 
     private string SegmentClass(int type) => _form.CredentialType == type ? "credential-segment-option selected" : "credential-segment-option";
+    private string FacialModeClass(bool invite) => _form.CreateFacialInvite == invite ? "credential-segment-option selected" : "credential-segment-option";
+    private void SelectFacialMode(bool invite)
+    {
+        _form.CreateFacialInvite = invite;
+        if (invite)
+        {
+            _form.ImageBase64 = string.Empty;
+            _photoName = null;
+            _form.RequireApproval = false;
+            _recurring = false;
+            _form.RepeatCount = 1;
+        }
+        _error = null;
+    }
     private bool IsRouteSelected(Guid routeId) => _form.RouteIds.Contains(routeId);
     private void SetRoute(Guid routeId, bool selected)
     {
         if (selected && !_form.RouteIds.Contains(routeId)) _form.RouteIds.Add(routeId);
         if (!selected) _form.RouteIds.Remove(routeId);
     }
-    private static string RouteSummary(AccessRouteViewModel route) => route.Devices.Count == 0 ? "Sem terminais vinculados" : $"{route.Devices.Count} terminal(is) - {route.StartTime:hh\\:mm} as {route.EndTime:hh\\:mm}";
+    private static string RouteSummary(AccessRouteViewModel route) => route.Devices.Count == 0 ? "Sem terminais vinculados" : $"{route.Devices.Count} terminal(is) - {route.StartTime:hh\\:mm} às {route.EndTime:hh\\:mm}";
 
     private async Task ReadPhotoAsync(InputFileChangeEventArgs args)
     {
@@ -183,8 +222,8 @@
 
     private async Task SaveAsync()
     {
-        if (_host is null) { _error = "Selecione o morador que recebera a visita."; return; }
-        if (_form.CredentialType == 1 && string.IsNullOrWhiteSpace(_form.ImageBase64)) { _error = "Selecione uma foto para a credencial facial temporária."; return; }
+        if (_host is null) { _error = "Selecione o morador que receberá a visita."; return; }
+        if (_form.CredentialType == 1 && !_form.CreateFacialInvite && string.IsNullOrWhiteSpace(_form.ImageBase64)) { _error = "Selecione uma foto para a credencial facial temporária."; return; }
         if (_form.RouteIds.Count == 0) { _error = "Selecione ao menos uma rota de acesso."; return; }
         if (!_fromDate.HasValue || !_toDate.HasValue) { _error = "Informe o início e o término da visita."; return; }
         _form.HostResidentId = _host.Id;
@@ -199,6 +238,14 @@
         _saving = false;
         if (!result.Success) { _error = result.Error; return; }
         Dialog.Close(DialogResult.Ok(result.Value));
+    }
+
+    private void HandleInvalidSubmit(EditContext context)
+    {
+        var messages = context.GetValidationMessages().Distinct().ToList();
+        _error = messages.Count == 0
+            ? "Revise os dados do visitante antes de autorizar o acesso."
+            : string.Join(" ", messages);
     }
 
     private void Cancel() => Dialog.Cancel();

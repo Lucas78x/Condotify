@@ -107,6 +107,10 @@ else if (_dashboard is not null)
                                             <MudMenuItem Icon="@Icons.Material.Outlined.Block" OnClick="@(() => ChangeVisitStatusAsync(visit, 5, "Acesso negado pela portaria"))">Negar acesso</MudMenuItem>
                                             <MudMenuItem Icon="@Icons.Material.Outlined.EventBusy" OnClick="@(() => ChangeVisitStatusAsync(visit, 3, "Visita cancelada"))">Cancelar visita</MudMenuItem>
                                         }
+                                        @if (visit.Status == "PendingEnrollment")
+                                        {
+                                            <MudMenuItem Icon="@Icons.Material.Outlined.EventBusy" OnClick="@(() => ChangeVisitStatusAsync(visit, 3, "Convite facial cancelado"))">Cancelar convite facial</MudMenuItem>
+                                        }
                                         @if (visit.Status == "CheckedIn")
                                         {
                                             <MudMenuItem Icon="@Icons.Material.Outlined.Logout" OnClick="@(() => ChangeVisitStatusAsync(visit, 2, "Saída confirmada na portaria"))">Registrar saída</MudMenuItem>
@@ -313,7 +317,16 @@ else if (_dashboard is not null)
         var parameters = new DialogParameters<ConciergeVisitDialog> { { x => x.LicenseId, _licenseId.Value }, { x => x.Routes, _routes } };
         var dialog = await DialogService.ShowAsync<ConciergeVisitDialog>("", parameters, options);
         var result = await dialog.Result;
-        if (result is { Canceled: false }) { Snackbar.Add("Visita autorizada e enviada para conciliação.", Severity.Success); await LoadDashboardAsync(); }
+        if (result is not { Canceled: false }) return;
+        if (result.Data is ConciergeVisitViewModel createdVisit && createdVisit.Status == "PendingEnrollment")
+        {
+            Snackbar.Add("Convite facial criado. Compartilhe o link com o visitante.", Severity.Success);
+            await LoadDashboardAsync();
+            await OpenVisitDetailsAsync(createdVisit);
+            return;
+        }
+        Snackbar.Add("Visita autorizada e enviada para conciliação.", Severity.Success);
+        await LoadDashboardAsync();
     }
 
     private async Task ChangeVisitStatusAsync(ConciergeVisitViewModel visit, int status, string reason)
@@ -389,9 +402,9 @@ else if (_dashboard is not null)
     public async ValueTask DisposeAsync() { StopRefreshLoop(); await DisconnectHubAsync(); }
 
     private static string Initials(string name) => string.Join(string.Empty, name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
-    private static string StatusLabel(string status) => status switch { "Scheduled" => "Agendada", "CheckedIn" => "No local", "CheckedOut" => "Finalizada", "Canceled" => "Cancelada", "Expired" => "Expirada", "Denied" => "Negada", "PendingApproval" => "Aguardando aprovação", _ => status };
+    private static string StatusLabel(string status) => status switch { "Scheduled" => "Agendada", "CheckedIn" => "No local", "CheckedOut" => "Finalizada", "Canceled" => "Cancelada", "Expired" => "Expirada", "Denied" => "Negada", "PendingApproval" => "Aguardando aprovação", "PendingEnrollment" => "Aguardando cadastro facial", _ => "Em processamento" };
     private static string StatusClass(string status) => status.ToLowerInvariant();
-    private static string StatusDot(string status) => status is "Scheduled" or "CheckedIn" or "PendingApproval" ? "active" : "inactive";
+    private static string StatusDot(string status) => status is "Scheduled" or "CheckedIn" or "PendingApproval" or "PendingEnrollment" ? "active" : "inactive";
     private static string VisitWindow(ConciergeVisitViewModel visit) => visit.ValidFrom.ToLocalTime().Date == visit.ValidTo.ToLocalTime().Date ? $"{visit.ValidFrom.ToLocalTime():dd/MM, HH:mm} - {visit.ValidTo.ToLocalTime():HH:mm}" : $"{visit.ValidFrom.ToLocalTime():dd/MM HH:mm} - {visit.ValidTo.ToLocalTime():dd/MM HH:mm}";
     private static string CredentialLabel(ConciergeVisitViewModel visit) => visit.CredentialType == "Face" ? "Facial" : visit.MaxUses.HasValue ? $"QR - {visit.UseCount}/{visit.MaxUses}" : "QR Code";
     private static List<DevicePortalCapabilityViewModel> DevicePortals(

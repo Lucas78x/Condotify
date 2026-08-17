@@ -1,0 +1,28 @@
+@page "/licencas/{LicenseId:guid}"
+@page "/licencas/{LicenseId:guid}/{Section}"
+@attribute [Authorize]
+@inject CondotifyApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Redirecionando | Condotify</PageTitle>
+
+<div class="loading-state" aria-live="polite">
+    <MudProgressCircular Indeterminate Color="Color.Primary" />
+</div>
+
+@code {
+    [Parameter] public Guid LicenseId { get; set; }
+    [Parameter] public string? Section { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var result = await Api.GetLicenseAsync(LicenseId);
+        if (result.Success && result.Value is not null && !string.IsNullOrWhiteSpace(result.Value.UrlKey))
+        {
+            Navigation.NavigateTo(LicenseRoutes.Workspace(result.Value.UrlKey, Section), replace: true);
+            return;
+        }
+
+        Navigation.NavigateTo("/licencas", replace: true);
+    }
+}

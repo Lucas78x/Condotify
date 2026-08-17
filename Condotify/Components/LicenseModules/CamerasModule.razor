@@ -190,7 +190,7 @@ else
                 }
                 else
                 {
-                    <MudButton Href="@($"/licencas/{LicenseId}/ocorrencias")" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.AddAlert">Abrir ocorrência</MudButton>
+                    <MudButton Href="@LicenseRoutes.Workspace(LicenseUrlKey, "ocorrencias")" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.AddAlert">Abrir ocorrência</MudButton>
                 }
             </div>
         </aside>
@@ -231,6 +231,7 @@ else
 
 @code {
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public string LicenseUrlKey { get; set; } = string.Empty;
     [Parameter] public bool CanManage { get; set; }
     [Parameter] public bool CanOperate { get; set; }
 
@@ -568,6 +569,7 @@ else
     private async Task ExitFullscreenAsync()
     {
         try { await Js.InvokeVoidAsync("condotifyCftv.exitFullscreen"); }
+        catch (JSDisconnectedException) { }
         catch (JSException) { }
         catch (InvalidOperationException) { }
     }
@@ -628,8 +630,13 @@ else
 
     public async ValueTask DisposeAsync()
     {
-        await ExitFullscreenAsync();
-        await StopStreamAsync();
+        try
+        {
+            await ExitFullscreenAsync();
+            await StopStreamAsync();
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
     }
 
     private sealed class CftvPlaybackInfo

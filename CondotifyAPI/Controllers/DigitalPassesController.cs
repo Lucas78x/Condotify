@@ -62,14 +62,13 @@ public sealed class DigitalPassesController(
         if (invalid) return StatusCode(StatusCodes.Status410Gone, new { Errors = "Este passe foi revogado ou expirou." });
         pass.LastViewedAt = DateTime.UtcNow; pass.ViewCount++; pass.UpdatedAt = DateTime.UtcNow;
         await context.SaveChangesAsync(HttpContext.RequestAborted);
-        return Ok(ToOutput(pass, token, DigitalPassProviderService.ResolvePublicUrl(configuration, $"{Request.Scheme}://{Request.Host}", token)));
+        return Ok(await ToOutputAsync(pass, token, DigitalPassProviderService.ResolvePublicUrl(configuration, $"{Request.Scheme}://{Request.Host}", token)));
     }
 
     [AllowAnonymous]
     [HttpGet("api/public/passes/{token}/apple")]
     public async Task<IActionResult> Apple(string token)
     {
-        if (!appleWallet.IsConfigured) return NotFound();
         if (string.IsNullOrWhiteSpace(token) || token.Length > 200) return NotFound();
         // IgnoreQueryFilters() deliberado: passe publico (Apple Wallet) e AllowAnonymous
         // (autenticado pelo token na URL), sem principal para popular o accessor. Consulta
@@ -79,12 +78,13 @@ public sealed class DigitalPassesController(
             .Include(x => x.Visit).ThenInclude(x => x.HostResident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .FirstOrDefaultAsync(x => x.TokenHash == DigitalPassIssuanceService.Hash(token), HttpContext.RequestAborted);
         if (pass is null) return NotFound();
+        if (!await appleWallet.IsConfiguredAsync(pass.License.EnterpriseId, HttpContext.RequestAborted)) return NotFound();
         if (pass.Status != DigitalPassStatusEnum.Active || pass.ExpiresAt <= DateTime.UtcNow ||
             pass.Visit.Status is not (AccessVisitStatusEnum.Scheduled or AccessVisitStatusEnum.CheckedIn))
             return StatusCode(StatusCodes.Status410Gone);
         try
         {
-            return File(appleWallet.Build(pass), "application/vnd.apple.pkpass", $"condotify-{pass.Id:N}.pkpass");
+            return File(await appleWallet.BuildAsync(pass, HttpContext.RequestAborted), "application/vnd.apple.pkpass", $"condotify-{pass.Id:N}.pkpass");
         }
         catch (Exception exception) when (exception is CryptographicException or FormatException or InvalidOperationException)
         {
@@ -92,10 +92,10 @@ public sealed class DigitalPassesController(
         }
     }
 
-    private Condotify.Models.DigitalPassViewModel ToOutput(DigitalPassDTO pass, string token, string publicUrl)
+    private async Task<Condotify.Models.DigitalPassViewModel> ToOutputAsync(DigitalPassDTO pass, string token, string publicUrl)
     {
-        var output = providers.Build(pass, token, publicUrl);
-        if (appleWallet.IsConfigured)
+        var output = await providers.BuildAsync(pass, token, publicUrl, HttpContext.RequestAborted);
+        if (await appleWallet.IsConfiguredAsync(pass.License.EnterpriseId, HttpContext.RequestAborted))
         {
             output.AppleWalletUrl = $"{Request.Scheme}://{Request.Host}/api/public/passes/{Uri.EscapeDataString(token)}/apple";
             output.AppleWalletConfigured = true;

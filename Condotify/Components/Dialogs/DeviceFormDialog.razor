@@ -14,7 +14,7 @@
             <DataAnnotationsValidator />
             <MudText Typo="Typo.overline" Class="form-section-label">IDENTIFICAÇÃO</MudText>
             <div class="form-grid form-grid-three">
-                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome do equipamento" Placeholder="Ex.: Facial portaria" Required Variant="Variant.Outlined" For="@(() => _form.Name)" />
+                <MudTextField T="string" @bind-Value="_form.Name" Label="Nome do equipamento" Placeholder="Ex.: Facial portaria" Required Immediate="true" Variant="Variant.Outlined" For="@(() => _form.Name)" />
                 <MudSelect T="string" Value="@_brand" ValueChanged="@BrandChanged" Label="Marca" Required Variant="Variant.Outlined" Disabled="IsEditing">
                     @foreach (var brand in DeviceCatalog.AccessDevices.Select(x => x.Brand).Distinct())
                     {
@@ -32,11 +32,11 @@
             <MudDivider Class="form-divider" />
             <MudText Typo="Typo.overline" Class="form-section-label">CONEXÃO</MudText>
             <div class="form-grid form-grid-three">
-                <MudTextField T="string" @bind-Value="_form.IPAddress" Label="Endereço IP" Placeholder="192.168.0.10" Required Variant="Variant.Outlined" For="@(() => _form.IPAddress)" />
+                <MudTextField T="string" @bind-Value="_form.IPAddress" Label="Endereço IP" Placeholder="192.168.0.10" Required Immediate="true" Variant="Variant.Outlined" For="@(() => _form.IPAddress)" />
                 <MudNumericField T="int" @bind-Value="_form.Port" Label="Porta HTTP" Min="1" Max="65535" Variant="Variant.Outlined" />
                 <MudSwitch T="bool" @bind-Value="_form.IsActive" Color="Color.Success" Label="Ativar após identificar o terminal" />
-                <MudTextField T="string" @bind-Value="_form.Username" Label="Usuário" Required Variant="Variant.Outlined" For="@(() => _form.Username)" />
-                <MudTextField T="string" @bind-Value="_form.Password" Label="@(IsEditing ? "Nova senha" : "Senha")" Required="@(!IsEditing)" InputType="InputType.Password" Variant="Variant.Outlined" For="@(() => _form.Password)" HelperText="@(IsEditing ? "Deixe em branco para manter a senha atual." : null)" />
+                <MudTextField T="string" @bind-Value="_form.Username" Label="Usuário" Required Immediate="true" Variant="Variant.Outlined" For="@(() => _form.Username)" />
+                <MudTextField T="string" @bind-Value="_form.Password" Label="@(IsEditing ? "Nova senha" : "Senha")" Required="@(!IsEditing)" Immediate="true" InputType="InputType.Password" Variant="Variant.Outlined" For="@(() => _form.Password)" HelperText="@(IsEditing ? "Deixe em branco para manter a senha atual." : null)" />
             </div>
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense Class="mt-4">Número de série, endereço MAC e firmware serão consultados no equipamento. As portas também serão descobertas quando o modelo oferecer essa informação.</MudAlert>
             <div class="form-actions dialog-form-actions">

@@ -58,7 +58,7 @@
                 <MudTd DataLabel="Unidade"><strong>@context.UnitNumber</strong><div class="license-code">@context.BlockName</div></MudTd>
                 <MudTd DataLabel="Contato">@(!string.IsNullOrWhiteSpace(context.PhoneNumber) ? context.PhoneNumber : context.Email)</MudTd>
                 <MudTd DataLabel="Credenciais"><div class="credential-bindings">@foreach (var credential in context.Credentials) { <span class="sync-state @(credential.IsActive ? "ok" : "pending")">@CredentialLabel(credential.Type) @credential.Identifier</span> }</div></MudTd>
-                <MudTd><MudTooltip Text="Abrir cadastro no condomínio"><MudIconButton Href="@($"/licencas/{context.LicenseId}/moradores")" Icon="@Icons.Material.Outlined.ArrowForward" Color="Color.Primary" /></MudTooltip></MudTd>
+                <MudTd><MudTooltip Text="Abrir cadastro no condomínio"><MudIconButton Href="@LicenseTarget(context.LicenseId, "estrutura")" Icon="@Icons.Material.Outlined.ArrowForward" Color="Color.Primary" /></MudTooltip></MudTd>
             </RowTemplate>
             <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 20, 50, 100 })" RowsPerPageString="Itens por página" InfoFormat="{first_item}-{last_item} de {all_items}" AllItemsText="Todos" /></PagerContent>
         </MudTable></div>
@@ -101,4 +101,9 @@
     private static string Monogram(string name) => string.IsNullOrWhiteSpace(name) ? "P" : name.Trim()[0].ToString().ToUpperInvariant();
     private static string DocumentLabel(GlobalResidentSearchViewModel item) => !string.IsNullOrWhiteSpace(item.CPF) ? $"CPF {item.CPF}" : !string.IsNullOrWhiteSpace(item.RG) ? $"RG {item.RG}" : item.AccessType;
     private static string CredentialLabel(string type) => type switch { "Face" => "Facial", "QrCode" => "QR", "Card" => "Cartão", "VehicleTag" => "Veicular", "Password" => "PIN", _ => "Tag" };
+    private string LicenseTarget(Guid licenseId, string section)
+    {
+        var license = _licenses.FirstOrDefault(x => Guid.TryParse(x.Id, out var id) && id == licenseId);
+        return license is null ? LicenseRoutes.Legacy(licenseId, section) : LicenseRoutes.Workspace(license, section);
+    }
 }

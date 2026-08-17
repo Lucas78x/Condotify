@@ -67,8 +67,8 @@ public sealed class DigitalPassIssuanceService(
         pass.Visit = visit; pass.License = visit.License;
 
         var publicUrl = DigitalPassProviderService.ResolvePublicUrl(configuration, requestHostRoot, token);
-        var output = providers.Build(pass, token, publicUrl);
-        if (appleWallet.IsConfigured)
+        var output = await providers.BuildAsync(pass, token, publicUrl, cancellationToken);
+        if (await appleWallet.IsConfiguredAsync(visit.License.EnterpriseId, cancellationToken))
         {
             output.AppleWalletUrl = $"{requestHostRoot}/api/public/passes/{Uri.EscapeDataString(token)}/apple";
             output.AppleWalletConfigured = true;

@@ -1,5 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
+using CondotifyAPI.Domain.DTO.License;
+using CondotifyAPI.Domain.Utilities;
+
 namespace CondotifyAPI.Infrastructure;
 
 public partial class DatabaseContext : DbContext
@@ -30,6 +33,31 @@ public partial class DatabaseContext : DbContext
             ?? "Server=localhost;Database=Condotify;User Id=postgres;Pwd=postgres";
     }
 
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        PrepareLicenseUrlKeys();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        PrepareLicenseUrlKeys();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void PrepareLicenseUrlKeys()
+    {
+        foreach (var entry in ChangeTracker.Entries<LicenseDTO>().Where(x => x.State == EntityState.Added))
+        {
+            if (!string.IsNullOrWhiteSpace(entry.Entity.UrlKey)) continue;
+
+            var baseKey = UrlKeyGenerator.Create(entry.Entity.Code, entry.Entity.Name);
+            var suffix = entry.Entity.Id.ToString("N")[..8];
+            var prefixLength = Math.Max(1, 100 - suffix.Length - 1);
+            entry.Entity.UrlKey = $"{baseKey[..Math.Min(baseKey.Length, prefixLength)].TrimEnd('-')}-{suffix}";
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -54,6 +82,7 @@ public partial class DatabaseContext : DbContext
         RefreshTokensEntityConfiguration(modelBuilder);
         MobileEntityConfiguration(modelBuilder);
         SafetyOperationsEntityConfiguration(modelBuilder);
+        WalletIntegrationEntityConfiguration(modelBuilder);
         BoletoEntityConfiguration(modelBuilder);
         FinancialEntityConfiguration(modelBuilder);
         ResourceDocumentEntityConfiguration(modelBuilder);

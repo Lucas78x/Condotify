@@ -6,35 +6,40 @@ public static class LicensePermissionCatalog
 {
     public static IReadOnlyList<LicensePermissionOption> Options { get; } =
     [
-        new(LicensePermission.ViewDashboard, "Operacao", "Ver painel", "Indicadores e resumo do condominio"),
-        new(LicensePermission.ViewEvents, "Operacao", "Consultar acessos", "Eventos autorizados, recusas e logs"),
-        new(LicensePermission.OperateDevices, "Operacao", "Acionar equipamentos", "Abertura remota e comandos operacionais"),
-        new(LicensePermission.ViewAlerts, "Operacao", "Ver alertas", "Falhas, avisos e saude operacional"),
-        new(LicensePermission.ManageAlerts, "Operacao", "Tratar alertas", "Reconhecer, resolver e reabrir ocorrencias"),
-        new(LicensePermission.ViewIncidents, "Operacao", "Ver ocorrencias", "Central, historico e linha do tempo operacional"),
-        new(LicensePermission.ManageIncidents, "Operacao", "Tratar ocorrencias", "Abrir, atribuir, comentar e resolver ocorrencias"),
-        new(LicensePermission.ViewAutomations, "Operacao", "Ver automacoes", "Consultar regras e execucoes automaticas"),
-        new(LicensePermission.ManageAutomations, "Operacao", "Gerenciar automacoes", "Criar, editar, ativar e testar regras"),
-        new(LicensePermission.ViewEmergency, "Seguranca", "Ver modo de emergencia", "Acompanhar emergencias e orientacoes ativas"),
-        new(LicensePermission.ManageEmergency, "Seguranca", "Ativar modo de emergencia", "Ativar e encerrar protocolos com auditoria"),
+        new(LicensePermission.ViewDashboard, "Operação", "Ver painel", "Indicadores e resumo do condomínio"),
+        new(LicensePermission.ViewEvents, "Operação", "Consultar acessos", "Eventos autorizados, recusas e registros"),
+        new(LicensePermission.OperateDevices, "Operação", "Acionar equipamentos", "Abertura remota e comandos operacionais"),
+        new(LicensePermission.ViewAlerts, "Operação", "Ver alertas", "Falhas, avisos e saúde operacional"),
+        new(LicensePermission.ManageAlerts, "Operação", "Tratar alertas", "Reconhecer, resolver e reabrir ocorrências"),
+        new(LicensePermission.ViewIncidents, "Operação", "Ver ocorrências", "Central, histórico e linha do tempo operacional"),
+        new(LicensePermission.ManageIncidents, "Operação", "Tratar ocorrências", "Abrir, atribuir, comentar e resolver ocorrências"),
+        new(LicensePermission.ViewAutomations, "Operação", "Ver automações", "Consultar regras e execuções automáticas"),
+        new(LicensePermission.ManageAutomations, "Operação", "Gerenciar automações", "Criar, editar, ativar e testar regras"),
+        new(LicensePermission.ViewEmergency, "Segurança", "Ver modo de emergência", "Acompanhar emergências e orientações ativas"),
+        new(LicensePermission.ManageEmergency, "Segurança", "Ativar modo de emergência", "Ativar e encerrar protocolos com auditoria"),
         new(LicensePermission.ViewStructure, "Cadastros", "Ver estrutura", "Blocos, unidades e pessoas"),
         new(LicensePermission.ManageStructure, "Cadastros", "Editar estrutura", "Criar e alterar blocos e unidades"),
         new(LicensePermission.ViewPeople, "Cadastros", "Ver pessoas", "Moradores, visitantes e prestadores"),
-        new(LicensePermission.ManagePeople, "Cadastros", "Editar pessoas", "Cadastros, veiculos e convites"),
-        new(LicensePermission.ViewCredentials, "Credenciais", "Ver credenciais", "Faciais, QR Codes, cartoes e tags"),
+        new(LicensePermission.ManagePeople, "Cadastros", "Editar pessoas", "Cadastros, veículos e convites"),
+        new(LicensePermission.ViewCredentials, "Credenciais", "Ver credenciais", "Faciais, QR Codes, cartões e tags"),
         new(LicensePermission.ManageCredentials, "Credenciais", "Gerenciar credenciais", "Emitir, ativar, renovar e restaurar"),
-        new(LicensePermission.ViewDevices, "Infraestrutura", "Ver equipamentos", "Terminais e cameras"),
-        new(LicensePermission.ManageDevices, "Infraestrutura", "Configurar equipamentos", "Rede, modelos e conexoes"),
-        new(LicensePermission.ViewDeliveries, "Portaria", "Ver encomendas", "Consulta da operacao de encomendas"),
+        new(LicensePermission.ViewDevices, "Infraestrutura", "Ver equipamentos", "Terminais e câmeras"),
+        new(LicensePermission.ManageDevices, "Infraestrutura", "Configurar equipamentos", "Rede, modelos e conexões"),
+        new(LicensePermission.ViewDeliveries, "Portaria", "Ver encomendas", "Consulta da operação de encomendas"),
         new(LicensePermission.ManageDeliveries, "Portaria", "Gerenciar encomendas", "Receber e entregar encomendas"),
-        new(LicensePermission.ViewBookings, "Areas comuns", "Ver agendamentos", "Consulta de locais e reservas de areas comuns"),
-        new(LicensePermission.ManageBookings, "Areas comuns", "Gerenciar agendamentos", "Cadastrar locais e aprovar, recusar ou cancelar reservas"),
-        new(LicensePermission.ViewUsers, "Administracao", "Ver usuarios", "Equipe vinculada ao condominio"),
-        new(LicensePermission.ManageUsers, "Administracao", "Gerenciar usuarios", "Criar acessos e alterar permissoes"),
-        new(LicensePermission.ViewSettings, "Administracao", "Ver configuracoes", "Politicas e parametros da licenca"),
-        new(LicensePermission.ManageSettings, "Administracao", "Editar configuracoes", "Alterar politicas de credenciais"),
-        new(LicensePermission.ViewBackups, "Seguranca", "Ver backups", "Historico de configuracoes e simulacoes"),
-        new(LicensePermission.ManageBackups, "Seguranca", "Gerenciar backups", "Criar, restaurar e excluir snapshots")
+        new(LicensePermission.ViewBookings, "Áreas comuns", "Ver agendamentos", "Consulta de locais e reservas de áreas comuns"),
+        new(LicensePermission.ManageBookings, "Áreas comuns", "Gerenciar agendamentos", "Cadastrar locais e aprovar, recusar ou cancelar reservas"),
+        new(LicensePermission.ViewFinance, "Financeiro", "Ver financeiro", "Indicadores, cobranças, inadimplência e boletos"),
+        new(LicensePermission.ManageFinance, "Financeiro", "Gerenciar financeiro", "Criar cobranças, importar, publicar e conciliar dados"),
+        new(LicensePermission.ViewDocuments, "Documentos", "Ver documentos", "Consultar e baixar arquivos do condomínio"),
+        new(LicensePermission.ManageDocuments, "Documentos", "Gerenciar documentos", "Enviar, organizar e remover arquivos"),
+        new(LicensePermission.ManageAnnouncements, "Comunicação", "Gerenciar comunicados", "Criar, publicar e administrar comunicados"),
+        new(LicensePermission.ViewUsers, "Administração", "Ver usuários", "Equipe vinculada ao condomínio"),
+        new(LicensePermission.ManageUsers, "Administração", "Gerenciar usuários", "Criar acessos e alterar permissões"),
+        new(LicensePermission.ViewSettings, "Administração", "Ver configurações", "Políticas e parâmetros da licença"),
+        new(LicensePermission.ManageSettings, "Administração", "Editar configurações", "Alterar políticas de credenciais"),
+        new(LicensePermission.ViewBackups, "Segurança", "Ver backups", "Histórico de configurações e simulações"),
+        new(LicensePermission.ManageBackups, "Segurança", "Gerenciar backups", "Criar, restaurar e excluir versões")
     ];
 
     public static long Defaults(int role) => role switch
@@ -79,6 +84,8 @@ public static class LicensePermissionCatalog
         if (value.HasFlag(LicensePermission.ManageIncidents)) value |= LicensePermission.ViewIncidents;
         if (value.HasFlag(LicensePermission.ManageAutomations)) value |= LicensePermission.ViewAutomations;
         if (value.HasFlag(LicensePermission.ManageEmergency)) value |= LicensePermission.ViewEmergency | LicensePermission.ViewIncidents;
+        if (value.HasFlag(LicensePermission.ManageFinance)) value |= LicensePermission.ViewFinance;
+        if (value.HasFlag(LicensePermission.ManageDocuments)) value |= LicensePermission.ViewDocuments;
         return (long)value;
     }
 
@@ -101,6 +108,8 @@ public static class LicensePermissionCatalog
             LicensePermission.ViewIncidents => ~(LicensePermission.ManageIncidents | LicensePermission.ManageEmergency),
             LicensePermission.ViewAutomations => ~LicensePermission.ManageAutomations,
             LicensePermission.ViewEmergency => ~LicensePermission.ManageEmergency,
+            LicensePermission.ViewFinance => ~LicensePermission.ManageFinance,
+            LicensePermission.ViewDocuments => ~LicensePermission.ManageDocuments,
             _ => LicensePermission.All
         };
         return (long)value;

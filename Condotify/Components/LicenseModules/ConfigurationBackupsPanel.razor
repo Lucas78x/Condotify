@@ -51,13 +51,14 @@
                         <MudSelectItem Value="168">Semanalmente</MudSelectItem>
                     </MudSelect>
                     <MudNumericField T="int" @bind-Value="_policy.ExternalRetentionDays" Label="Retenção externa" Adornment="Adornment.End" AdornmentText="dias" Min="7" Max="3650" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(!CanManage || !_policy.ExportEnabled)" />
-                    <MudSwitch T="bool" @bind-Value="_policy.ExportEnabled" Label="Cópia externa" Color="Color.Primary" Disabled="@(!CanManage)" />
-                    <MudSwitch T="bool" @bind-Value="_policy.Enabled" Label="Automático" Color="Color.Primary" Disabled="@(!CanManage)" />
+                    <div class="backup-switch-field"><MudSwitch T="bool" @bind-Value="_policy.ExportEnabled" Label="Cópia externa" Color="Color.Primary" Disabled="@(!CanManage)" /></div>
+                    <div class="backup-switch-field"><MudSwitch T="bool" @bind-Value="_policy.Enabled" Label="Automático" Color="Color.Primary" Disabled="@(!CanManage)" /></div>
                 </div>
                 <div class="backup-automation-actions">
-                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@(_policy.ExternalStorageReady ? Color.Success : Color.Error)" Icon="@(_policy.ExternalStorageReady ? Icons.Material.Outlined.CloudDone : Icons.Material.Outlined.CloudOff)">
-                        @_policy.ExternalStorageLabel
-                    </MudChip>
+                    <div class="backup-storage-status @(_policy.ExternalStorageReady ? "is-ready" : "is-missing")">
+                        <MudIcon Icon="@(_policy.ExternalStorageReady ? Icons.Material.Outlined.CloudDone : Icons.Material.Outlined.CloudOff)" />
+                        <span>@_policy.ExternalStorageLabel</span>
+                    </div>
                     @if (CanManage)
                     {
                         <MudTooltip Text="Salvar política"><MudIconButton Icon="@Icons.Material.Outlined.Save" Color="Color.Primary" Disabled="@(_savingPolicy || _running)" OnClick="SavePolicyAsync" /></MudTooltip>

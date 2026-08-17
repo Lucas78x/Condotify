@@ -5,19 +5,65 @@
 <PageTitle>Ocorrências | Condotify</PageTitle>
 <PageHeader Title="Central de ocorrências" Subtitle="Acompanhe a operação e a passagem de turno entre todos os condomínios." Eyebrow="OPERAÇÃO E SEGURANÇA" />
 
-<div class="concierge-license-bar incidents-license-bar">
-    <MudSelect T="Guid?" Value="_licenseId" ValueChanged="SelectLicenseAsync" Label="Condomínio" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Apartment">
-        @foreach (var license in _licenses) { <MudSelectItem T="Guid?" Value="@(Guid.TryParse(license.Id, out var id) ? id : null)">@license.Nome - @license.Codigo</MudSelectItem> }
-    </MudSelect>
-</div>
+@if (_loading || _licenses.Count > 0)
+{
+    <div class="concierge-license-bar incidents-license-bar">
+        <MudSelect T="Guid?" Value="_licenseId" ValueChanged="SelectLicenseAsync" Label="Condomínio" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Apartment">
+            @foreach (var license in _licenses) { <MudSelectItem T="Guid?" Value="@(Guid.TryParse(license.Id, out var id) ? id : null)">@license.Nome - @license.Codigo</MudSelectItem> }
+        </MudSelect>
+    </div>
+}
 
 @if (_loading) { <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div> }
 else if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert> }
 else if (_licenseId.HasValue) { <IncidentsModule @key="_licenseId" LicenseId="_licenseId.Value" CanManage="_canManage" /> }
+else if (_licenses.Count == 0)
+{
+    <MudPaper Class="content-panel" Elevation="0">
+        <div class="empty-state compact-empty incidents-disabled-state">
+            <MudIcon Icon="@Icons.Material.Outlined.ToggleOff" Size="Size.Large" Color="Color.Secondary" />
+            <MudText Typo="Typo.subtitle1">Ocorrências desativadas</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Nenhum condomínio disponível possui este módulo ativo.</MudText>
+            <MudButton Href="/licencas" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Settings">Abrir condomínios</MudButton>
+        </div>
+    </MudPaper>
+}
 else { <MudPaper Class="content-panel" Elevation="0"><div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.Apartment" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Selecione um condomínio</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A fila operacional daquele ambiente aparecerá aqui.</MudText></div></MudPaper> }
 
 @code {
-    private List<LicenseViewModel> _licenses = []; private Guid? _licenseId; private bool _loading = true; private bool _canManage; private string? _error;
-    protected override async Task OnInitializedAsync() { var result = await Api.GetLicensesAsync(); _loading = false; if (!result.Success) { _error = result.Error; return; } _licenses = (result.Value ?? []).Where(l => (l.EnabledModules & (long)LicenseModuleEnum.Incidents) != 0).ToList(); if (_licenses.Count == 1 && Guid.TryParse(_licenses[0].Id, out var id)) await SelectLicenseAsync(id); }
-    private async Task SelectLicenseAsync(Guid? value) { _licenseId = value; _canManage = false; if (!value.HasValue) return; var result = await Api.GetLicenseAdministrationAsync(value.Value); _canManage = result.Success && result.Value?.CurrentAccess.Has(LicensePermission.ManageIncidents) == true; }
+    private List<LicenseViewModel> _licenses = [];
+    private Guid? _licenseId;
+    private bool _loading = true;
+    private bool _canManage;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.GetLicensesAsync();
+        if (!result.Success)
+        {
+            _error = result.Error;
+            _loading = false;
+            return;
+        }
+
+        _licenses = (result.Value ?? [])
+            .Where(license => (license.EnabledModules & (long)LicenseModuleEnum.Incidents) != 0)
+            .ToList();
+
+        if (_licenses.Count == 1 && Guid.TryParse(_licenses[0].Id, out var onlyLicenseId))
+            await SelectLicenseAsync(onlyLicenseId);
+
+        _loading = false;
+    }
+
+    private async Task SelectLicenseAsync(Guid? value)
+    {
+        _licenseId = value;
+        _canManage = false;
+        if (!value.HasValue) return;
+
+        var result = await Api.GetLicenseAdministrationAsync(value.Value);
+        _canManage = result.Success && result.Value?.CurrentAccess.Has(LicensePermission.ManageIncidents) == true;
+    }
 }

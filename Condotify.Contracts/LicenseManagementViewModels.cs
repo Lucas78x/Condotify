@@ -462,6 +462,8 @@ namespace Condotify.Models
         ManageAutomations = 1L << 26,
         ViewEmergency = 1L << 27,
         ManageEmergency = 1L << 28,
+        ViewVehicles = 1L << 29,
+        ManageVehicles = 1L << 30,
         ViewFinance = 1L << 31,
         ManageFinance = 1L << 32,
         ViewDocuments = 1L << 33,
@@ -500,10 +502,12 @@ namespace Condotify.Models
 
     public class LicenseUserFormViewModel
     {
-        [Required] public string Name { get; set; } = string.Empty;
-        [Required, EmailAddress] public string Email { get; set; } = string.Empty;
+        [Required(ErrorMessage = "Informe o nome completo.")] public string Name { get; set; } = string.Empty;
+        [Required(ErrorMessage = "Informe o e-mail de acesso.")]
+        [EmailAddress(ErrorMessage = "Informe um e-mail válido.")]
+        public string Email { get; set; } = string.Empty;
         public string PhoneNumber { get; set; } = string.Empty;
-        [MinLength(8)] public string Password { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
         public int Role { get; set; } = 3;
         public long Permissions { get; set; }
         public bool IsActive { get; set; } = true;
@@ -1091,19 +1095,19 @@ namespace Condotify.Models
 
     public class ConciergeVisitFormViewModel
     {
-        [Required] public Guid HostResidentId { get; set; }
-        [Required] public string VisitorName { get; set; } = string.Empty;
-        public string Document { get; set; } = string.Empty;
-        public string PhoneNumber { get; set; } = string.Empty;
-        public string Company { get; set; } = string.Empty;
-        public string Purpose { get; set; } = string.Empty;
-        public string VehiclePlate { get; set; } = string.Empty;
+        [Required(ErrorMessage = "Selecione o morador que receberá a visita.")] public Guid HostResidentId { get; set; }
+        [Required(ErrorMessage = "Informe o nome do visitante."), MaxLength(150, ErrorMessage = "O nome do visitante deve ter no máximo 150 caracteres.")] public string VisitorName { get; set; } = string.Empty;
+        [MaxLength(20, ErrorMessage = "O documento deve ter no máximo 20 caracteres.")] public string Document { get; set; } = string.Empty;
+        [MaxLength(20, ErrorMessage = "O telefone deve ter no máximo 20 caracteres.")] public string PhoneNumber { get; set; } = string.Empty;
+        [MaxLength(150, ErrorMessage = "A empresa deve ter no máximo 150 caracteres.")] public string Company { get; set; } = string.Empty;
+        [MaxLength(200, ErrorMessage = "O motivo da visita deve ter no máximo 200 caracteres.")] public string Purpose { get; set; } = string.Empty;
+        [MaxLength(20, ErrorMessage = "A placa deve ter no máximo 20 caracteres.")] public string VehiclePlate { get; set; } = string.Empty;
         public string ImageBase64 { get; set; } = string.Empty;
         public int CredentialType { get; set; } = 2;
         public bool CreateFacialInvite { get; set; }
         public DateTime ValidFrom { get; set; } = DateTime.Now;
         public DateTime ValidTo { get; set; } = DateTime.Now.AddHours(4);
-        public int? MaxUses { get; set; } = 1;
+        [Range(1, 100, ErrorMessage = "O limite de acessos deve estar entre 1 e 100.")] public int? MaxUses { get; set; } = 1;
         public List<Guid> RouteIds { get; set; } = [];
         public bool RequireApproval { get; set; }
         public int RepeatCount { get; set; } = 1;

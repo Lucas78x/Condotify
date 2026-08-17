@@ -40,7 +40,20 @@ public sealed class CftvHealthMonitoringWorker(
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
             scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
 
-            var devices = await context.CFTVDevices.ToListAsync(cancellationToken);
+            // A verificacao de saude nao usa credenciais. Projetar somente os
+            // campos necessarios evita que uma senha antiga, criptografada com
+            // outra chave, interrompa a verificacao de todas as demais cameras.
+            var devices = await context.CFTVDevices
+                .AsNoTracking()
+                .Select(device => new
+                {
+                    device.Id,
+                    device.IpAddress,
+                    device.RTSPPort,
+                    device.IsActive,
+                    device.HealthMessage
+                })
+                .ToListAsync(cancellationToken);
             foreach (var device in devices)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -48,16 +61,21 @@ public sealed class CftvHealthMonitoringWorker(
                 var port = ParsePort(device.RTSPPort, DefaultRtspPort);
                 var reachable = await TcpReachableAsync(device.IpAddress, port, ProbeTimeoutMs, cancellationToken);
 
-                device.IsActive = reachable;
-                device.HealthMessage = DescribeHealth(reachable);
-                if (reachable) device.LastSeenAt = DateTime.UtcNow;
+                var healthMessage = DescribeHealth(reachable);
+                var now = DateTime.UtcNow;
+                if (device.IsActive != reachable ||
+                    !string.Equals(device.HealthMessage, healthMessage, StringComparison.Ordinal) ||
+                    reachable)
+                {
+                    await context.CFTVDevices
+                        .Where(candidate => candidate.Id == device.Id)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(candidate => candidate.IsActive, reachable)
+                            .SetProperty(candidate => candidate.HealthMessage, healthMessage)
+                            .SetProperty(candidate => candidate.LastSeenAt, candidate => reachable ? now : candidate.LastSeenAt),
+                            cancellationToken);
+                }
             }
-
-            // So grava quando algo de fato mudou (estado, mensagem ou LastSeenAt de uma
-            // camera que respondeu agora). Com muitas cameras estaveis isso evita um
-            // UPDATE em toda a tabela a cada passagem do worker.
-            if (context.ChangeTracker.HasChanges())
-                await context.SaveChangesAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

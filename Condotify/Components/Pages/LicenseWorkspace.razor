@@ -1,5 +1,5 @@
-@page "/licencas/{LicenseId:guid}"
-@page "/licencas/{LicenseId:guid}/{Section}"
+@page "/condominios/{LicenseUrlKey}"
+@page "/condominios/{LicenseUrlKey}/{Section}"
 @attribute [Authorize]
 @inject CondotifyApiClient Api
 @inject NavigationManager Navigation
@@ -49,11 +49,11 @@ else
                 <div class="workspace-hero-actions">
                     @if (Has(LicensePermission.ViewStructure))
                     {
-                        <MudButton Href="@($"/licencas/{LicenseId}/estrutura")" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AutoAwesome">@(_license.TotalBlocks == 0 ? "Configurar condomínio" : "Abrir estrutura")</MudButton>
+                        <MudButton Href="@WorkspaceUrl("estrutura")" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AutoAwesome">@(_license.TotalBlocks == 0 ? "Configurar condomínio" : "Abrir estrutura")</MudButton>
                     }
                     @if (AdministracaoVisible)
                     {
-                        <MudButton Href="@($"/licencas/{LicenseId}/administracao")" Variant="Variant.Outlined" Color="@(CurrentSection == "administracao" ? Color.Primary : Color.Default)" StartIcon="@Icons.Material.Outlined.Tune">Administrar</MudButton>
+                        <MudButton Href="@WorkspaceUrl("administracao")" Variant="Variant.Outlined" Color="@(CurrentSection == "administracao" ? Color.Primary : Color.Default)" StartIcon="@Icons.Material.Outlined.Tune">Administrar</MudButton>
                     }
                 </div>
             </div>
@@ -98,13 +98,13 @@ else
         @switch (CurrentSection)
         {
             case "relatorios":
-                <ReportsModule LicenseId="LicenseId" />
+                <ReportsModule LicenseId="LicenseId" LicenseUrlKey="@_license.UrlKey" />
                 break;
             case "equipamentos":
                 <DevicesModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDevices)" CanOperate="@Has(LicensePermission.OperateDevices)" />
                 break;
             case "cameras":
-                <CamerasModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDevices)" CanOperate="@Has(LicensePermission.OperateDevices)" />
+                <CamerasModule LicenseId="LicenseId" LicenseUrlKey="@_license.UrlKey" CanManage="@Has(LicensePermission.ManageDevices)" CanOperate="@Has(LicensePermission.OperateDevices)" />
                 break;
             case "rotas":
                 <AccessRoutesModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDevices)" />
@@ -137,21 +137,23 @@ else
                 <AutomationsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageAutomations)" />
                 break;
             case "emergencia":
-                <EmergencyModule LicenseId="LicenseId" LicenseCode="@_license.Code" CanManage="@Has(LicensePermission.ManageEmergency)" />
+                <EmergencyModule LicenseId="LicenseId" LicenseUrlKey="@_license.UrlKey" LicenseCode="@_license.Code" CanManage="@Has(LicensePermission.ManageEmergency)" />
                 break;
             case "administracao":
                 <AdministrationModule LicenseId="LicenseId" InitialData="_administration" EnabledModules="_license.EnabledModules" OnModulesChanged="@(value => _license.EnabledModules = value)" />
                 break;
             default:
-                <OverviewModule License="_license" LicenseId="LicenseId" CanViewDocuments="@(Has(LicensePermission.ManageDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents))" />
+                <OverviewModule License="_license" LicenseId="LicenseId" LicenseUrlKey="@_license.UrlKey" CanViewDocuments="@(Has(LicensePermission.ViewDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents))" />
                 break;
         }
     }
 }
 
 @code {
-    [Parameter] public Guid LicenseId { get; set; }
+    [Parameter] public string LicenseUrlKey { get; set; } = string.Empty;
     [Parameter] public string? Section { get; set; }
+
+    private Guid LicenseId => _license?.Id ?? Guid.Empty;
 
     private sealed record WorkspaceTab(string Section, string Label, string Icon, LicensePermission Permission, Condotify.Models.LicenseModuleEnum? Module = null);
     private sealed record WorkspaceArea(string Label, string Icon, WorkspaceTab[] Tabs);
@@ -183,7 +185,7 @@ else
         new("Financeiro", Icons.Material.Outlined.AccountBalanceWallet, [
             new("financeiro", "Gestão", Icons.Material.Outlined.AccountBalanceWallet, LicensePermission.ViewFinance, Condotify.Models.LicenseModuleEnum.Finance),
             new("boletos", "Boletos", Icons.Material.Outlined.ReceiptLong, LicensePermission.ViewFinance, Condotify.Models.LicenseModuleEnum.Finance),
-            new("documentos", "Documentos", Icons.Material.Outlined.Description, LicensePermission.ManageDocuments, Condotify.Models.LicenseModuleEnum.Documents),
+            new("documentos", "Documentos", Icons.Material.Outlined.Description, LicensePermission.ViewDocuments, Condotify.Models.LicenseModuleEnum.Documents),
         ]),
     ];
 
@@ -205,24 +207,29 @@ else
         : Has(LicensePermission.ViewEmergency) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Emergency) ? "emergencia"
         : Has(LicensePermission.ViewBookings) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Bookings) ? "agendamento"
         : Has(LicensePermission.ViewFinance) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Finance) ? "financeiro"
-        : Has(LicensePermission.ManageDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents) ? "documentos"
+        : Has(LicensePermission.ViewDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents) ? "documentos"
         : Has(LicensePermission.ManageAnnouncements) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Announcements) ? "comunicados"
-        : Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts) ? "administracao"
+        : Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) ? "administracao"
         : "sem-acesso";
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_license?.Id == LicenseId) return;
+        if (string.Equals(_license?.UrlKey, LicenseUrlKey, StringComparison.OrdinalIgnoreCase)) return;
         _loading = true;
-        var licenseTask = Api.GetLicenseAsync(LicenseId);
-        var administrationTask = Api.GetLicenseAdministrationAsync(LicenseId);
-        await Task.WhenAll(licenseTask, administrationTask);
-        var result = await licenseTask;
-        var administration = await administrationTask;
+        _error = null;
+        _license = null;
+        _administration = null;
+        var result = await Api.GetLicenseByUrlKeyAsync(LicenseUrlKey);
+        ApiResult<LicenseAdministrationViewModel>? administration = null;
+        if (result.Success && result.Value is not null)
+            administration = await Api.GetLicenseAdministrationAsync(result.Value.Id);
         _loading = false;
         if (result.Success) _license = result.Value;
         else _error = result.Error;
-        if (administration.Success) _administration = administration.Value;
+        if (administration?.Success == true) _administration = administration.Value;
+
+        if (_license is not null && !string.Equals(LicenseUrlKey, _license.UrlKey, StringComparison.Ordinal))
+            Navigation.NavigateTo(LicenseRoutes.Workspace(_license.UrlKey, Section), replace: true);
     }
 
     private bool Has(LicensePermission permission) => _administration?.CurrentAccess.Has(permission) == true;
@@ -232,7 +239,7 @@ else
 
     private bool AdministracaoVisible =>
         Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) ||
-        Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts);
+        Has(LicensePermission.ViewBackups);
 
     private string LocationLabel => string.IsNullOrWhiteSpace(_license?.City)
         ? "Localização não informada"
@@ -264,7 +271,9 @@ else
         if (!string.IsNullOrWhiteSpace(target)) NavigateTo(target);
     }
 
-    private void NavigateTo(string section) => Navigation.NavigateTo($"/licencas/{LicenseId}/{section}");
+    private string WorkspaceUrl(string? section = null) => LicenseRoutes.Workspace(_license?.UrlKey ?? LicenseUrlKey, section);
+
+    private void NavigateTo(string section) => Navigation.NavigateTo(WorkspaceUrl(section));
 
     private bool SectionAllowed(string section) => IsModuleEnabled(ModuleFor(section)) && section switch
     {
@@ -277,9 +286,9 @@ else
         "emergencia" => Has(LicensePermission.ViewEmergency),
         "agendamento" => Has(LicensePermission.ViewBookings),
         "financeiro" or "boletos" => Has(LicensePermission.ViewFinance),
-        "documentos" => Has(LicensePermission.ManageDocuments),
+        "documentos" => Has(LicensePermission.ViewDocuments),
         "comunicados" => Has(LicensePermission.ManageAnnouncements),
-        "administracao" => Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) || Has(LicensePermission.ViewAlerts),
+        "administracao" => Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups),
         _ => false
     };
 

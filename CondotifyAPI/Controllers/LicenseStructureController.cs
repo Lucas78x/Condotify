@@ -371,25 +371,68 @@ public class LicenseStructureController : ControllerBase
         var name = input.Name?.Trim();
         var ipAddress = input.IPAddress?.Trim();
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(ipAddress) || input.Port is < 1 or > 65535)
-            return BadRequest(new { Result = "InvalidRequest", Errors = "Nome, endereco IP e uma porta valida sao obrigatorios." });
+            return BadRequest(new { Result = "InvalidRequest", Errors = "Nome, endereço IP e uma porta válida são obrigatórios." });
 
-        var device = await _context.Devices.FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId);
-        if (device == null) return NotFound();
+        var device = await AccessDeviceUpdateQuery(_context, licenseId, deviceId).FirstOrDefaultAsync();
+        if (device is null) return NotFound();
         if (await _context.Devices.AnyAsync(x => x.Id != deviceId && x.LicenseId == licenseId && x.IPAddress == ipAddress && x.Port == input.Port))
-            return Conflict(new { Result = "DuplicateDevice", Errors = "Ja existe um equipamento com o mesmo IP e porta nesta licenca." });
+            return Conflict(new { Result = "DuplicateDevice", Errors = "Já existe um equipamento com o mesmo IP e porta nesta licença." });
+
+        var username = input.Username?.Trim() ?? string.Empty;
+        var passwordChanged = !string.IsNullOrWhiteSpace(input.Password);
+        var updatedAt = DateTime.UtcNow;
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        var update = _context.Devices.Where(x => x.Id == deviceId && x.LicenseId == licenseId);
+        var affected = passwordChanged
+            ? await update.ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.Name, name)
+                .SetProperty(x => x.IPAddress, ipAddress)
+                .SetProperty(x => x.Port, input.Port)
+                .SetProperty(x => x.Username, username)
+                .SetProperty(x => x.Password, input.Password!)
+                .SetProperty(x => x.IsActive, input.IsActive)
+                .SetProperty(x => x.LastUpdatedAt, updatedAt))
+            : await update.ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.Name, name)
+                .SetProperty(x => x.IPAddress, ipAddress)
+                .SetProperty(x => x.Port, input.Port)
+                .SetProperty(x => x.Username, username)
+                .SetProperty(x => x.IsActive, input.IsActive)
+                .SetProperty(x => x.LastUpdatedAt, updatedAt));
+        if (affected == 0) return NotFound();
 
         var before = new { device.Name, device.IPAddress, device.Port, device.Username, device.IsActive };
-        device.Name = name;
-        device.IPAddress = ipAddress;
-        device.Port = input.Port;
-        device.Username = input.Username?.Trim() ?? string.Empty;
-        if (!string.IsNullOrWhiteSpace(input.Password)) device.Password = input.Password;
-        device.IsActive = input.IsActive;
-        device.LastUpdatedAt = DateTime.UtcNow;
-        AddDeviceAudit(device.Id, ActionTypeEnum.Update, "Configuracao do equipamento atualizada");
-        AddManagementAudit(licenseId, "Device", device.Id, "Updated", $"Equipamento {device.Name} atualizado.", new { Before = before, After = new { device.Name, device.IPAddress, device.Port, device.Username, device.IsActive }, PasswordChanged = !string.IsNullOrWhiteSpace(input.Password) });
+        var after = new { Name = name, IPAddress = ipAddress, Port = input.Port, Username = username, input.IsActive };
+        AddDeviceAudit(deviceId, ActionTypeEnum.Update, "Configuração do equipamento atualizada");
+        AddManagementAudit(licenseId, "Device", deviceId, "Updated", $"Equipamento {name} atualizado.", new { Before = before, After = after, PasswordChanged = passwordChanged });
         await _context.SaveChangesAsync();
-        return Ok(new { device.Id, device.Name, device.IPAddress, device.Port, device.IsActive });
+        await transaction.CommitAsync();
+        return Ok(new { Id = deviceId, Name = name, IPAddress = ipAddress, Port = input.Port, input.IsActive });
+    }
+
+    internal static IQueryable<AccessDeviceUpdateSnapshot> AccessDeviceUpdateQuery(DatabaseContext database, Guid licenseId, Guid deviceId) =>
+        database.Devices
+            .AsNoTracking()
+            .IgnoreAutoIncludes()
+            .Where(x => x.Id == deviceId && x.LicenseId == licenseId)
+            .Select(x => new AccessDeviceUpdateSnapshot
+            {
+                Id = x.Id,
+                Name = x.Name,
+                IPAddress = x.IPAddress,
+                Port = x.Port,
+                Username = x.Username,
+                IsActive = x.IsActive
+            });
+
+    internal sealed class AccessDeviceUpdateSnapshot
+    {
+        public Guid Id { get; init; }
+        public string Name { get; init; } = string.Empty;
+        public string IPAddress { get; init; } = string.Empty;
+        public int Port { get; init; }
+        public string Username { get; init; } = string.Empty;
+        public bool IsActive { get; init; }
     }
 
     [HttpDelete("devices/{deviceId:guid}")]

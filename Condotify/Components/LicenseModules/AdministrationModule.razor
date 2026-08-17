@@ -15,7 +15,7 @@ else
                 {
                     <MudTabPanel Text="Usuários e acesso" Icon="@Icons.Material.Outlined.ManageAccounts">
                         <div class="admin-tab-head"><div><strong>Equipe deste condomínio</strong><span>Cada usuário enxerga e opera apenas o que foi permitido.</span></div>@if (CanManageUsers) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" OnClick="@(() => OpenUserAsync(null))">Novo usuário</MudButton> }</div>
-                        <div class="admin-summary-strip"><div><strong>@_data.Users.Count</strong><span>Usuários vinculados</span></div><div><strong>@_data.Users.Count(x => x.IsActive)</strong><span>Acessos ativos</span></div><div><strong>@_data.Users.Count(x => x.Role is "Administrator" or "Manager")</strong><span>Gestores</span></div></div>
+                        <div class="admin-summary-strip"><div><strong>@_data.Users.Count</strong><span>Usuários vinculados</span></div><div><strong>@_data.Users.Count(x => x.IsActive)</strong><span>Acessos ativos</span></div><div><strong>@_data.Users.Count(x => x.Role is "Administrator" or "Manager")</strong><span>Síndicos e gestores</span></div></div>
                         @if (_data.Users.Count == 0) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.GroupOff" /><span>Nenhum usuário vinculado a esta licença.</span></div> }
                         else
                         {
@@ -50,11 +50,14 @@ else
                 @if (CanViewAlerts)
                 {
                     <MudTabPanel Text="Notificações" Icon="@Icons.Material.Outlined.NotificationsActive">
-                        <AlertNotificationsPanel LicenseId="LicenseId" CanManage="CanManageAlerts" CanViewSettings="CanViewSettings" CanManageSettings="CanManageSettings" />
+                        <AlertNotificationsPanel LicenseId="LicenseId" CanManage="CanManageSettings" CanViewSettings="CanViewSettings" CanManageSettings="CanManageSettings" />
                     </MudTabPanel>
                 }
                 @if (_isPlatformAdmin)
                 {
+                    <MudTabPanel Text="Carteiras digitais" Icon="@Icons.Material.Outlined.AccountBalanceWallet">
+                        <WalletIntegrationsPanel LicenseId="LicenseId" />
+                    </MudTabPanel>
                     <MudTabPanel Text="Módulos" Icon="@Icons.Material.Outlined.ToggleOn">
                         <div class="admin-tab-head"><div><strong>Módulos ativos deste condomínio</strong><span>Controle exclusivo da plataforma — o síndico não vê nem altera esta lista.</span></div></div>
                         <div class="policy-switches">
@@ -100,7 +103,7 @@ else
     private async Task SavePolicyAsync() { if (_data is null || !CanManageSettings) return; _savingPolicy = true; var result = await Api.UpdateCredentialPolicyAsync(LicenseId, _data.Policy); _savingPolicy = false; if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao salvar as políticas.", Severity.Error); return; } _data.Policy = result.Value ?? _data.Policy; Snackbar.Add("Políticas de credenciais atualizadas.", Severity.Success); }
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
     private static int PermissionCount(long value) => LicensePermissionCatalog.Options.Count(x => (value & (long)x.Permission) == (long)x.Permission);
-    private static string RoleLabel(string role) => role switch { "Administrator" => "Administrador", "Manager" => "Gestor", "Concierge" => "Portaria", "Operator" => "Operador", "Viewer" => "Somente leitura", _ => role };
+    private static string RoleLabel(string role) => role switch { "Administrator" => "Administrador", "Manager" => "Síndico / gestor", "Concierge" => "Portaria", "Operator" => "Operador", "Viewer" => "Somente leitura", _ => role };
 
     private static readonly (Condotify.Models.LicenseModuleEnum Module, string Label)[] ModuleOptions =
     [

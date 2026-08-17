@@ -52,9 +52,10 @@
                 }
             </MudTabPanel>
 
-            <MudTabPanel Text="Inventario" Icon="@Icons.Material.Outlined.Inventory2">
+            <MudTabPanel Text="Inventário" Icon="@Icons.Material.Outlined.Inventory2">
+                <div class="device-inventory-panel">
                 <div class="inventory-toolbar">
-                    <div><strong>Estado confirmado no terminal</strong><span>Compare o equipamento com a base central antes de corrigir divergencias.</span></div>
+                    <div><strong>Estado confirmado no terminal</strong><span>Compare o equipamento com a base central antes de corrigir divergências.</span></div>
                     @if (CanManage)
                     {
                         <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Download" Disabled="_busy" OnClick="RefreshInventoryAsync">Ler equipamento</MudButton>
@@ -69,11 +70,11 @@
                 </div>
                 @if (_inventory.Count == 0)
                 {
-                    <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /><span>Leia o equipamento para gerar o primeiro inventario.</span></div>
+                    <div class="profile-empty profile-empty-compact inventory-empty"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /><span>Leia o equipamento para gerar o primeiro inventário.</span></div>
                 }
                 else
                 {
-                    <MudTable Items="_inventory" Hover Dense Elevation="0">
+                    <MudTable Items="_inventory" Hover Dense FixedHeader Elevation="0" Class="inventory-table">
                         <HeaderContent><MudTh></MudTh><MudTh>Pessoa</MudTh><MudTh>Tipo</MudTh><MudTh>Identificador</MudTh><MudTh>Estado</MudTh><MudTh>Observado</MudTh></HeaderContent>
                         <RowTemplate>
                             <MudTd><MudCheckBox T="bool" @bind-Value="context.Selected" Disabled="@(context.Status is "Synced" or "OrphanRemote" || !context.CredentialId.HasValue)" /></MudTd>
@@ -85,20 +86,23 @@
                         </RowTemplate>
                     </MudTable>
                 }
+                </div>
             </MudTabPanel>
 
             <MudTabPanel Text="Eventos" Icon="@Icons.Material.Outlined.ReceiptLong">
+                <div class="device-events-panel">
                 @if (_events.Count == 0)
                 {
-                    <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.EventNote" /><span>Nenhum evento armazenado para este terminal.</span></div>
+                    <div class="profile-empty profile-empty-compact device-events-empty"><MudIcon Icon="@Icons.Material.Outlined.EventNote" /><span>Nenhum evento armazenado para este terminal.</span></div>
                 }
                 else
                 {
-                    <MudTable Items="_events" Hover Dense Elevation="0">
+                    <MudTable Items="_events" Hover Dense FixedHeader Elevation="0" Class="device-events-table">
                         <HeaderContent><MudTh>Horário</MudTh><MudTh>Resultado</MudTh><MudTh>Pessoa</MudTh><MudTh>Porta</MudTh></HeaderContent>
                         <RowTemplate><MudTd>@context.OccurredAt.ToLocalTime().ToString("dd/MM HH:mm:ss")</MudTd><MudTd><MudChip T="string" Size="Size.Small" Color="@(context.Authorized ? Color.Success : Color.Error)" Variant="Variant.Outlined">@context.Event</MudChip></MudTd><MudTd>@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : context.ExternalUserId)</MudTd><MudTd>@context.Portal</MudTd></RowTemplate>
                     </MudTable>
                 }
+                </div>
             </MudTabPanel>
         </MudTabs>
     </DialogContent>
