@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-DOMAIN="${1:-fefacess.grupoff.com}"
-EXPECTED_IP="${2:-}"
-SSH_PORT="${3:-22}"
+DOMAIN="${1:-fefaccess.grupoff.net.br}"
+SSH_PORT="${2:-22}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if [[ "$DOMAIN" != "fefacess.grupoff.com" ]]; then
+if [[ "$DOMAIN" != "fefaccess.grupoff.net.br" ]]; then
     echo "Dominio inesperado: $DOMAIN" >&2
     exit 2
 fi
@@ -46,9 +45,13 @@ CONDOTIFY_SMTP_ENABLE_SSL=true
 EOF
 fi
 
+# Corrige a configuracao criada por uma execucao interrompida com o host antigo.
+sed -i 's/fefacess\.grupoff\.com/fefaccess.grupoff.net.br/g' .env
+
 chmod 600 .env
 sudo install -d -m 0750 -o 1654 -g 1654 "$ROOT_DIR/backups"
 sudo install -d -m 0755 /var/www/certbot
+sudo install -d -m 0755 /var/www/certbot/.well-known/acme-challenge
 
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nginx ufw curl ca-certificates openssl snapd
@@ -61,8 +64,10 @@ fi
 sudo ln -sf /snap/bin/certbot /usr/local/bin/certbot
 
 sudo rm -f /etc/nginx/sites-enabled/default
-sudo install -m 0644 deploy/nginx/fefacess.bootstrap.conf /etc/nginx/sites-available/fefacess.grupoff.com
-sudo ln -sfn /etc/nginx/sites-available/fefacess.grupoff.com /etc/nginx/sites-enabled/fefacess.grupoff.com
+sudo rm -f /etc/nginx/sites-enabled/fefacess.grupoff.com
+sudo rm -f /etc/nginx/sites-available/fefacess.grupoff.com
+sudo install -m 0644 deploy/nginx/fefaccess.bootstrap.conf /etc/nginx/sites-available/fefaccess.grupoff.net.br
+sudo ln -sfn /etc/nginx/sites-available/fefaccess.grupoff.net.br /etc/nginx/sites-enabled/fefaccess.grupoff.net.br
 sudo nginx -t
 sudo systemctl enable --now nginx
 sudo systemctl reload nginx
@@ -106,8 +111,13 @@ curl -fsS \
     -H "X-Forwarded-Host: $DOMAIN" \
     http://127.0.0.1:5035/ >/dev/null
 
-resolved_ip="$(getent ahostsv4 "$DOMAIN" 2>/dev/null | awk 'NR == 1 { print $1 }' || true)"
-if [[ -n "$EXPECTED_IP" && "$resolved_ip" == "$EXPECTED_IP" ]]; then
+challenge_token="condotify-$(openssl rand -hex 12)"
+challenge_path="/var/www/certbot/.well-known/acme-challenge/$challenge_token"
+printf '%s' "$challenge_token" | sudo tee "$challenge_path" >/dev/null
+public_challenge="$(curl -fsS --max-time 15 "http://$DOMAIN/.well-known/acme-challenge/$challenge_token" 2>/dev/null || true)"
+sudo rm -f "$challenge_path"
+
+if [[ "$public_challenge" == "$challenge_token" ]]; then
     sudo certbot certonly \
         --webroot \
         --webroot-path /var/www/certbot \
@@ -117,7 +127,7 @@ if [[ -n "$EXPECTED_IP" && "$resolved_ip" == "$EXPECTED_IP" ]]; then
         --register-unsafely-without-email \
         --deploy-hook 'systemctl reload nginx'
 
-    sudo install -m 0644 deploy/nginx/fefacess.grupoff.com.conf /etc/nginx/sites-available/fefacess.grupoff.com
+    sudo install -m 0644 deploy/nginx/fefaccess.grupoff.net.br.conf /etc/nginx/sites-available/fefaccess.grupoff.net.br
     sudo nginx -t
     sudo systemctl reload nginx
     sudo certbot renew --dry-run

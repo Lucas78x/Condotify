@@ -30,8 +30,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       # 8080 e publicada; 8081 e interna e serve apenas api/internal/*.
       ASPNETCORE_URLS: http://+:8080;http://+:8081
-      AllowedHosts: ${CONDOTIFY_PUBLIC_HOST:-fefacess.grupoff.com}
-      ReverseProxy__AllowedHost: ${CONDOTIFY_PUBLIC_HOST:-fefacess.grupoff.com}
+      AllowedHosts: ${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br}
+      ReverseProxy__AllowedHost: ${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br}
       CONDOTIFY_INTERNAL_PORT: "8081"
       CONDOTIFY_DB_CONNECTION: Host=postgres;Port=5432;Database=Condotify;Username=postgres;Password=${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
       JWTCondotify_Secret: ${JWT_SECRET:?Defina JWT_SECRET no arquivo .env}
@@ -61,8 +61,8 @@ services:
       CONDOTIFY_MEDIA_WEBRTC_BASEURL: ${CONDOTIFY_MEDIA_WEBRTC_BASEURL:-http://localhost:8889}
       CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE: ${CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE:-24}
       CONDOTIFY_LPR_OCR_URL: http://lpr-ocr:8000
-      CONDOTIFY_PUBLIC_PORTAL_URL: ${CONDOTIFY_PUBLIC_PORTAL_URL:-https://fefacess.grupoff.com}
-      CONDOTIFY_PUBLIC_APP_URL: ${CONDOTIFY_PUBLIC_APP_URL:-https://fefacess.grupoff.com}
+      CONDOTIFY_PUBLIC_PORTAL_URL: ${CONDOTIFY_PUBLIC_PORTAL_URL:-https://fefaccess.grupoff.net.br}
+      CONDOTIFY_PUBLIC_APP_URL: ${CONDOTIFY_PUBLIC_APP_URL:-https://fefaccess.grupoff.net.br}
     ports:
       - "127.0.0.1:7118:8080"
     volumes:
@@ -120,8 +120,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      AllowedHosts: ${CONDOTIFY_PUBLIC_HOST:-fefacess.grupoff.com}
-      ReverseProxy__AllowedHost: ${CONDOTIFY_PUBLIC_HOST:-fefacess.grupoff.com}
+      AllowedHosts: ${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br}
+      ReverseProxy__AllowedHost: ${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br}
       CondotifyApi__BaseUrl: http://api:8080
       CondotifyApi__ApiKey: ${CONDOTIFY_API_KEY:?Defina CONDOTIFY_API_KEY no arquivo .env}
       DataProtection__KeysPath: /app/data-protection
