@@ -30,7 +30,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       # 8080 e publicada; 8081 e interna e serve apenas api/internal/*.
       ASPNETCORE_URLS: http://+:8080;http://+:8081
-      AllowedHosts: ${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br}
+      # O portal e o MediaMTX chamam a API pelo nome interno "api".
+      AllowedHosts: "${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br};api;localhost"
       ReverseProxy__AllowedHost: ${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br}
       CONDOTIFY_INTERNAL_PORT: "8081"
       CONDOTIFY_DB_CONNECTION: Host=postgres;Port=5432;Database=Condotify;Username=postgres;Password=${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
