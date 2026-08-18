@@ -12,7 +12,7 @@ Plataforma de gestao condominial com portal Blazor Server/MudBlazor, API ASP.NET
 1. Inicie o banco:
 
    ```powershell
-   docker-compose up -d postgres
+   docker compose up -d postgres
    ```
 
 2. Inicie a API:
@@ -49,6 +49,12 @@ Em desenvolvimento, as migrations sao aplicadas automaticamente e o banco recebe
 dotnet build Condotify.sln
 dotnet test CondotifyAPI.Tests
 ```
+
+## Deploy na VPS
+
+O ambiente de producao usa um compose raiz com stacks incluidas e Caddy em
+container como unico ponto de entrada HTTP/HTTPS. Consulte
+[`deploy/README.md`](deploy/README.md).
 
 O portal centraliza a comunicacao com a API em `CondotifyApiClient`; os componentes nao montam requisicoes HTTP individualmente. A sessao web usa cookie protegido e mantem o JWT da API dentro do ticket autenticado.
 

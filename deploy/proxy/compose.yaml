@@ -1,0 +1,42 @@
+services:
+  caddy:
+    image: caddy:2.11.4-alpine
+    container_name: web-caddy
+    restart: unless-stopped
+    environment:
+      CONDOTIFY_PUBLIC_HOST: ${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      # Monte o diretorio, e nao somente o arquivo, para permitir reloads
+      # atomicos do Caddyfile sem depender do inode do host.
+      - ./config:/etc/caddy:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - web
+      - media
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  # Nomes externos estaveis permitem que novas aplicacoes tenham seu proprio
+  # compose e entrem no proxy sem compartilhar as redes privadas da Condotify.
+  web:
+    name: ${CONDOTIFY_WEB_NETWORK:-condotify-web}
+    external: true
+  media:
+    name: ${CONDOTIFY_MEDIA_PROXY_NETWORK:-condotify-media-proxy}
+    external: true
+
+volumes:
+  # /data guarda certificados e chaves privadas; nunca trate este volume como
+  # cache nem o remova durante atualizacoes.
+  caddy-data:
+  caddy-config:

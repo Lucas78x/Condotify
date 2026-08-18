@@ -1,0 +1,43 @@
+{
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+{$CONDOTIFY_PUBLIC_HOST:fefaccess.grupoff.net.br} {
+	encode zstd gzip
+
+	# O DNS esta proxied pelo Cloudflare, que nao encaminha o ALPN especial do
+	# desafio tls-alpn-01 ate a origem. HTTP-01 continua automatico na porta 80.
+	tls {
+		issuer acme {
+			disable_tlsalpn_challenge
+		}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+
+	@api path /api/* /hubs/* /.well-known/* /health/live /health/ready
+	handle @api {
+		reverse_proxy api:8080
+	}
+
+	# handle_path remove o prefix, reproduzindo o proxy_pass com barra final da
+	# configuracao Nginx anterior.
+	handle_path /media/hls/* {
+		reverse_proxy mediamtx:8888
+	}
+
+	handle_path /media/webrtc/* {
+		reverse_proxy mediamtx:8889
+	}
+
+	handle {
+		reverse_proxy portal:8080
+	}
+}
