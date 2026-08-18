@@ -68,41 +68,33 @@ public class MediaGatewayClientTests
     }
 
     [Fact]
-    public async Task EnsurePathAsync_OnConflict_DeletesAndRetriesAdd_AndReturnsTrueWhenTheRetrySucceeds()
+    public async Task EnsurePathAsync_WhenPathAlreadyExists_ReusesItWithoutDeleting()
     {
-        // O MediaMTX devolve 400 tanto quando o caminho ja existe quanto quando a
-        // configuracao e invalida. Para uma origem rotacionada (ex.: senha trocada),
-        // aceitar o 400 como sucesso deixaria a fonte antiga registrada para sempre.
-        // O fluxo correto e apagar o caminho existente e tentar registrar de novo.
-        var addAttempts = 0;
         var (client, handler) = Create(request =>
-        {
-            if (request.RequestUri!.ToString().Contains("/add/"))
+            new HttpResponseMessage(HttpStatusCode.BadRequest)
             {
-                addAttempts++;
-                return addAttempts == 1
-                    ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("path already exists", Encoding.UTF8) }
-                    : new HttpResponseMessage(HttpStatusCode.OK);
-            }
-
-            return new HttpResponseMessage(HttpStatusCode.OK);
-        });
+                Content = new StringContent("path already exists", Encoding.UTF8)
+            });
 
         var ok = await client.EnsurePathAsync("l1_d2_c1_m", "rtsp://x", CancellationToken.None);
 
         Assert.True(ok);
-        Assert.Equal(2, addAttempts);
-        Assert.Contains(handler.Requests, x => x.Method == HttpMethod.Delete && x.RequestUri!.ToString().Contains("/v3/config/paths/delete/l1_d2_c1_m"));
+        Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
     }
 
     [Fact]
-    public async Task EnsurePathAsync_OnConflict_ReturnsFalse_WhenTheRetryAlsoFails()
+    public async Task EnsurePathAsync_OnInvalidConfiguration_ReturnsFalseWithoutDeleting()
     {
-        var (client, _) = Create(request => request.RequestUri!.ToString().Contains("/add/")
-            ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("invalid configuration", Encoding.UTF8) }
-            : new HttpResponseMessage(HttpStatusCode.OK));
+        var (client, handler) = Create(_ =>
+            new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent("invalid configuration", Encoding.UTF8)
+            });
 
         Assert.False(await client.EnsurePathAsync("l1_d2_c1_m", "rtsp://x", CancellationToken.None));
+        Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
     }
 
     [Fact]

@@ -1,0 +1,13 @@
+:root {
+    /* F&F Access: fonte única dos tokens de marca do portal web. */
+    --brand-primary: #092557;
+    --brand-primary-rgb: 9 37 87;
+    --brand-primary-strong: #061a3d;
+    --brand-primary-muted: #20364a;
+    --brand-primary-soft: #edf2f8;
+    --brand-primary-border: color-mix(in srgb, var(--brand-primary) 30%, #fff);
+    --brand-accent: #7bc053;
+    --brand-accent-bright: #9fd06d;
+    --brand-accent-strong: #5a9e38;
+    --brand-accent-soft: #eff7e9;
+}

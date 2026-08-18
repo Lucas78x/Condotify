@@ -1,7 +1,8 @@
 <span class="brand-symbol @Class" aria-hidden="true">
-    <img src="assets/logo/condotify-mark.svg" alt="" />
+    <img src="@(Inverted ? "assets/logo/ff-access-logo-dark.png" : "assets/logo/ff-access-logo-light.png")" alt="" />
 </span>
 
 @code {
     [Parameter] public string Class { get; set; } = string.Empty;
+    [Parameter] public bool Inverted { get; set; }
 }

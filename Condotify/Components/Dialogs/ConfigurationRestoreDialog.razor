@@ -24,7 +24,7 @@
         <div class="safe-restore-steps">
             <div class="active"><span>1</span><div><b>Escopo</b><small>Escolha o que recuperar</small></div></div>
             <i></i>
-            <div class="@(_preview is not null ? "active" : null)"><span>2</span><div><b>Comparação</b><small>Condotify × equipamento</small></div></div>
+            <div class="@(_preview is not null ? "active" : null)"><span>2</span><div><b>Comparação</b><small>F&amp;F Access × equipamento</small></div></div>
             <i></i>
             <div class="@(_preview?.CanRestore == true && _previewSignature == CurrentSignature ? "active" : null)"><span>3</span><div><b>Confirmação</b><small>Execução transacional</small></div></div>
         </div>
@@ -103,7 +103,7 @@
                 <MudAlert Severity="@(_options.Mode == "Reconcile" ? Severity.Warning : Severity.Info)" Variant="Variant.Outlined">
                     @(_options.Mode == "Reconcile"
                         ? _massSelection
-                            ? "A reconciliação desativa no Condotify os itens atuais ausentes no snapshot. Nada é excluído definitivamente."
+                            ? "A reconciliação desativa na F&F Access os itens atuais ausentes no snapshot. Nada é excluído definitivamente."
                             : "No modo individual, a reconciliação afeta apenas vínculos dos equipamentos selecionados e preserva todo o restante."
                         : "A mesclagem cria ou atualiza os itens do snapshot e preserva as demais configurações atuais.")
                 </MudAlert>
@@ -125,7 +125,7 @@
             <div class="restore-scanning-state">
                 <div class="restore-radar"><span></span><MudIcon Icon="@Icons.Material.Outlined.Radar" /></div>
                 <strong>Comparando o snapshot com o ambiente atual</strong>
-                <small>Consultando Condotify, vínculos e inventários dos equipamentos selecionados...</small>
+                <small>Consultando F&amp;F Access, vínculos e inventários dos equipamentos selecionados...</small>
             </div>
         }
         else if (!string.IsNullOrWhiteSpace(_error))
@@ -164,7 +164,7 @@
                 @if (_preview.EquipmentComparisons.Count > 0)
                 {
                     <div class="equipment-comparison-block">
-                        <div class="result-subhead"><div><MudIcon Icon="@Icons.Material.Outlined.CompareArrows" /><span><b>Condotify × equipamentos</b><small>Inventário real consultado durante a simulação</small></span></div></div>
+                        <div class="result-subhead"><div><MudIcon Icon="@Icons.Material.Outlined.CompareArrows" /><span><b>F&amp;F Access × equipamentos</b><small>Inventário real consultado durante a simulação</small></span></div></div>
                         <div class="equipment-comparison-list">
                             @foreach (var comparison in _preview.EquipmentComparisons)
                             {
@@ -348,7 +348,7 @@
         if (_preview is null) return;
         var report = new
         {
-            Product = "Condotify",
+            Product = "F&F Access",
             Report = "Simulação de restauração segura",
             Backup = new { Backup.Id, Backup.Version, Backup.Name, Backup.CreatedAt },
             Scope = new { _preview.IsMassRestore, _preview.SelectedDeviceCount },

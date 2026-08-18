@@ -191,7 +191,7 @@ public sealed class AlertNotificationChannelSender(
                 policy.SmtpUsername,
                 policy.SmtpPassword,
                 policy.SmtpFromEmail,
-                string.IsNullOrWhiteSpace(policy.SmtpFromName) ? "Condotify" : policy.SmtpFromName,
+                string.IsNullOrWhiteSpace(policy.SmtpFromName) ? "F&F Access" : policy.SmtpFromName,
                 policy.SmtpEnableSsl);
 
         var host = Get("CONDOTIFY_SMTP_HOST", "Notifications:Smtp:Host");
@@ -210,7 +210,7 @@ public sealed class AlertNotificationChannelSender(
             Get("CONDOTIFY_SMTP_USERNAME", "Notifications:Smtp:Username") ?? string.Empty,
             Get("CONDOTIFY_SMTP_PASSWORD", "Notifications:Smtp:Password") ?? string.Empty,
             fromEmail,
-            Get("CONDOTIFY_SMTP_FROM_NAME", "Notifications:Smtp:FromName") ?? "Condotify",
+            Get("CONDOTIFY_SMTP_FROM_NAME", "Notifications:Smtp:FromName") ?? "F&F Access",
             enableSsl);
     }
 
@@ -224,7 +224,7 @@ public sealed class AlertNotificationChannelSender(
         var encoder = HtmlEncoder.Default;
         return $"""
             <div style="font-family:Arial,sans-serif;color:#202532;max-width:640px">
-              <p style="font-size:12px;color:#657083;text-transform:uppercase">Condotify · Central de operações</p>
+              <p style="font-size:12px;color:#092557;text-transform:uppercase">F&amp;F Access · Central de operações</p>
               <h2 style="font-size:20px">{encoder.Encode(message.Title)}</h2>
               <p>{encoder.Encode(message.Message)}</p>
               <table style="font-size:14px;border-collapse:collapse">

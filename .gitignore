@@ -386,3 +386,12 @@ client_secret_*.json
 /.codex_runtime/
 /.codex-presentation/
 *.pptx.inspect.ndjson
+
+# APK local disponibilizado pelo portal apenas para testes em dispositivos da rede
+/Condotify/wwwroot/downloads/*.apk
+
+# Credenciais e artefatos locais de validacao (nunca versionar)
+/credencial*.txt
+/credential*.txt
+/.playwright-mcp/
+/camera-stream-validado.png

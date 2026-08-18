@@ -67,24 +67,18 @@ public sealed class MediaGatewayClient : IMediaGatewayClient
 
             if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
-                // O gateway devolve 400 tanto quando o caminho ja existe quanto quando a
-                // configuracao e invalida. Aceitar isso como sucesso sem mais nada faria uma
-                // fonte rotacionada (ex.: senha trocada) nunca se propagar: o caminho antigo
-                // continuaria registrado para sempre. Em vez disso apagamos e tentamos de
-                // novo; se ainda existia, o registro novo assume a fonte atual, e se a
-                // configuracao era mesmo invalida, a segunda tentativa falha e devolvemos false.
-                using var deleteResponse = await _http.DeleteAsync($"/v3/config/paths/delete/{path}", cancellationToken);
+                var detail = await response.Content.ReadAsStringAsync(cancellationToken);
 
-                using var retryResponse = await _http.PostAsJsonAsync(
-                    $"/v3/config/paths/add/{path}",
-                    configuration,
-                    cancellationToken);
-
-                if (retryResponse.IsSuccessStatusCode) return true;
+                // Abrir WebRTC e, em seguida, tentar o fallback HLS registra o mesmo caminho
+                // duas vezes. Remover e recriar o caminho existente encerra a sessao ativa no
+                // MediaMTX. A edicao da camera ja invalida explicitamente os caminhos, portanto
+                // reutilizar o registro aqui e seguro e preserva os espectadores conectados.
+                if (detail.Contains("path already exists", StringComparison.OrdinalIgnoreCase))
+                    return true;
 
                 _logger.LogWarning(
-                    "O gateway de midia recusou o registro do caminho {Path} mesmo apos nova tentativa. Status {Status}.",
-                    path, (int)retryResponse.StatusCode);
+                    "O gateway de midia recusou a configuracao do caminho {Path}. Status {Status}.",
+                    path, (int)response.StatusCode);
                 return false;
             }
 

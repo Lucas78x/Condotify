@@ -29,7 +29,7 @@ public sealed class MobileBiometricService
         var cancellation = new Android.OS.CancellationSignal();
         var executor = activity.MainExecutor!;
         var builder = new Android.Hardware.Biometrics.BiometricPrompt.Builder(activity)
-            .SetTitle("Desbloquear Condotify")
+            .SetTitle("Desbloquear F&F Access")
             .SetSubtitle(reason);
         if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.Q)
             builder.SetDeviceCredentialAllowed(true);

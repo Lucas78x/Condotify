@@ -110,8 +110,8 @@ public sealed class SecurityServicesTests
     {
         var uri = new TotpService().BuildUri("ABCDEF234567", "user+access@example.com");
 
-        Assert.Contains("Condotify:user%2Baccess%40example.com", uri);
-        Assert.Contains("issuer=Condotify", uri);
+        Assert.Contains("F%26F%20Access:user%2Baccess%40example.com", uri);
+        Assert.Contains("issuer=F%26F%20Access", uri);
         Assert.Contains("digits=6", uri);
         Assert.Contains("period=30", uri);
     }

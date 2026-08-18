@@ -60,7 +60,7 @@ public sealed class AutomationRuleEvaluationService(
         {
             var incident = await incidents.CreateAsync(new IncidentCreationRequest(
                 rule.LicenseId, signal.Title, signal.Message, signal.Category, rule.Severity,
-                IncidentSourceEnum.Automation, "Automacao Condotify", null, signal.ResourceType,
+                IncidentSourceEnum.Automation, "Automação F&F Access", null, signal.ResourceType,
                 signal.ResourceId, null, IncidentTimelineTypeEnum.Automation,
                 System.Text.Json.JsonSerializer.Serialize(new { rule.Id, rule.Name, rule.TriggerType })), cancellationToken);
             incidentId = incident.Id;

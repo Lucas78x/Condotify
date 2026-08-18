@@ -9,7 +9,7 @@
     </TitleContent>
     <DialogContent>
         <div class="facial-share-hero">
-            <span class="facial-share-brand"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /> Condotify</span>
+            <span class="facial-share-brand"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /> F&amp;F Access</span>
             <div class="facial-share-person"><small>CONVITE PARA</small><strong>@Visit.VisitorName</strong><span>@Visit.BlockName @(!string.IsNullOrWhiteSpace(Visit.UnitNumber) ? $"· Unidade {Visit.UnitNumber}" : string.Empty)</span></div>
             <div class="facial-share-animation" role="img" aria-label="Animação explicando o cadastro facial pelo celular">
                 <div class="facial-share-phone">
@@ -46,7 +46,7 @@
 
     private Task ShareAsync() => DeviceActions.ShareTextAsync(
         $"Cadastro facial para {Visit.VisitorName}",
-        $"Olá, {Visit.VisitorName}!\n\nVocê recebeu um convite facial do Condotify para {Visit.BlockName} / {Visit.UnitNumber}.\nAbra o link, siga as orientações e envie sua foto antes da visita.\n\nVálido de {Visit.ValidFrom.ToLocalTime():dd/MM HH:mm} até {Visit.ValidTo.ToLocalTime():dd/MM HH:mm}\n\n{InviteUrl}");
+        $"Olá, {Visit.VisitorName}!\n\nVocê recebeu um convite facial da F&F Access para {Visit.BlockName} / {Visit.UnitNumber}.\nAbra o link, siga as orientações e envie sua foto antes da visita.\n\nVálido de {Visit.ValidFrom.ToLocalTime():dd/MM HH:mm} até {Visit.ValidTo.ToLocalTime():dd/MM HH:mm}\n\n{InviteUrl}");
 
     private void Close() => Dialog.Close();
 }

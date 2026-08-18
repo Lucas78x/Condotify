@@ -5,10 +5,14 @@
       "launchBrowser": true,
       "launchUrl": "swagger",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "CONDOTIFY_INTERNAL_PORT": "8081",
+        "CONDOTIFY_MEDIA_GATEWAY_URL": "http://127.0.0.1:9997",
+        "CONDOTIFY_MEDIA_HLS_BASEURL": "http://172.30.2.163:8888",
+        "CONDOTIFY_MEDIA_WEBRTC_BASEURL": "http://172.30.2.163:8889"
       },
       "dotnetRunMessages": true,
-      "applicationUrl": "https://localhost:7118"
+      "applicationUrl": "http://172.30.2.163:5094;http://0.0.0.0:8081"
     },
     "https": {
       "commandName": "Project",

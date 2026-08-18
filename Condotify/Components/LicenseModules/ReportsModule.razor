@@ -100,7 +100,7 @@
                     <div class="reports-chart" aria-label="Gráfico de acessos e visitantes">
                         <svg viewBox="0 0 760 250" preserveAspectRatio="none" role="img">
                             <defs>
-                                <linearGradient id="report-access-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3156d3" stop-opacity=".24" /><stop offset="1" stop-color="#3156d3" stop-opacity=".02" /></linearGradient>
+                                <linearGradient id="report-access-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="@Condotify.UI.CondotifyTheme.PrimaryColor" stop-opacity=".24" /><stop offset="1" stop-color="@Condotify.UI.CondotifyTheme.PrimaryColor" stop-opacity=".02" /></linearGradient>
                             </defs>
                             @foreach (var y in new[] { 40, 90, 140, 190, 230 }) { <line x1="38" y1="@y" x2="742" y2="@y" class="reports-chart-gridline" /> }
                             <polygon points="@AreaPoints(_data.Trend, x => x.Authorized)" class="reports-chart-area" />
@@ -261,7 +261,7 @@
     private string _error = string.Empty;
     private int _days = 30;
     private static readonly (int Days, string Label)[] PeriodOptions = [(30, "30 dias"), (90, "90 dias"), (180, "6 meses"), (365, "1 ano")];
-    private static readonly string[] DistributionColors = ["#3156d3", "#0f927b", "#d58b10", "#7554c9", "#d94e63", "#4c7a9b"];
+    private static readonly string[] DistributionColors = [Condotify.UI.CondotifyTheme.PrimaryColor, "#0f927b", "#d58b10", "#7554c9", "#d94e63", "#4c7a9b"];
 
     protected override Task OnInitializedAsync() => LoadAsync();
 

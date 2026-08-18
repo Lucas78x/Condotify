@@ -2,6 +2,8 @@ using Condotify.Components;
 using Condotify.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.StaticFiles;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +30,18 @@ builder.Services.AddMudServices();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
 builder.Services.AddMemoryCache();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+        | ForwardedHeaders.XForwardedProto
+        | ForwardedHeaders.XForwardedHost;
+    options.ForwardLimit = 1;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+
+    var allowedHost = builder.Configuration["ReverseProxy:AllowedHost"];
+    if (!string.IsNullOrWhiteSpace(allowedHost)) options.AllowedHosts.Add(allowedHost);
+});
 builder.Services.AddSingleton<WebSessionRefreshCoordinator>();
 builder.Services.AddScoped<ISessionContextProvider, ClaimsSessionContextProvider>();
 builder.Services.AddScoped<CondotifyApiClient>();
@@ -58,6 +72,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler(errorApp =>
@@ -81,7 +97,16 @@ app.Use(async (context, next) =>
     context.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
     await next();
 });
-app.UseStaticFiles();
+if (app.Environment.IsDevelopment())
+{
+    var developmentContentTypes = new FileExtensionContentTypeProvider();
+    developmentContentTypes.Mappings[".apk"] = "application/vnd.android.package-archive";
+    app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = developmentContentTypes });
+}
+else
+{
+    app.UseStaticFiles();
+}
 
 app.UseRouting();
 

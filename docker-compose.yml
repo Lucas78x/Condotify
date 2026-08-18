@@ -8,9 +8,9 @@ services:
     environment:
       POSTGRES_DB: Condotify
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - condotify-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -30,8 +30,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       # 8080 e publicada; 8081 e interna e serve apenas api/internal/*.
       ASPNETCORE_URLS: http://+:8080;http://+:8081
+      AllowedHosts: ${CONDOTIFY_PUBLIC_HOST:-fefacess.grupoff.com}
+      ReverseProxy__AllowedHost: ${CONDOTIFY_PUBLIC_HOST:-fefacess.grupoff.com}
       CONDOTIFY_INTERNAL_PORT: "8081"
-      CONDOTIFY_DB_CONNECTION: Host=postgres;Port=5432;Database=Condotify;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      CONDOTIFY_DB_CONNECTION: Host=postgres;Port=5432;Database=Condotify;Username=postgres;Password=${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
       JWTCondotify_Secret: ${JWT_SECRET:?Defina JWT_SECRET no arquivo .env}
       JWTCondotify_Issuer: Condotify
       JWTCondotify_Audience: Condotify
@@ -51,7 +53,7 @@ services:
       CONDOTIFY_SMTP_FROM_NAME: ${CONDOTIFY_SMTP_FROM_NAME:-Condotify}
       CONDOTIFY_SMTP_ENABLE_SSL: ${CONDOTIFY_SMTP_ENABLE_SSL:-true}
       CONDOTIFY_MEDIA_GATEWAY_URL: http://mediamtx:9997
-      CONDOTIFY_MEDIA_TRANSCODE_AUDIO: "true"
+      CONDOTIFY_MEDIA_TRANSCODE_AUDIO: ${CONDOTIFY_MEDIA_TRANSCODE_AUDIO:-true}
       # Endereco publico pelo qual o aplicativo alcanca o gateway de video. Em
       # producao, aponte para o host/proxy que expoe as portas 8888 (HLS) e
       # 8889 (WebRTC) -- um unico proxy pode fazer frente as duas.
@@ -59,8 +61,10 @@ services:
       CONDOTIFY_MEDIA_WEBRTC_BASEURL: ${CONDOTIFY_MEDIA_WEBRTC_BASEURL:-http://localhost:8889}
       CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE: ${CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE:-24}
       CONDOTIFY_LPR_OCR_URL: http://lpr-ocr:8000
+      CONDOTIFY_PUBLIC_PORTAL_URL: ${CONDOTIFY_PUBLIC_PORTAL_URL:-https://fefacess.grupoff.com}
+      CONDOTIFY_PUBLIC_APP_URL: ${CONDOTIFY_PUBLIC_APP_URL:-https://fefacess.grupoff.com}
     ports:
-      - "7118:8080"
+      - "127.0.0.1:7118:8080"
     volumes:
       - condotify-private-media:/app/data/private-media
       - ${BACKUP_EXPORT_PATH:-./backups}:/app/data/backups
@@ -85,8 +89,8 @@ services:
       # 8888 (HLS) e 8889 (WebRTC) sao os unicos publicados, e apenas
       # porque o callback de autenticacao protege cada leitura.
       # 9997 (Control API) NAO e publicada: ver mediamtx/mediamtx.yml.
-      - "8888:8888"
-      - "8889:8889"
+      - "127.0.0.1:18888:8888"
+      - "127.0.0.1:18889:8889"
       - "8189:8189/udp"
     depends_on:
       - api
@@ -116,11 +120,13 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
+      AllowedHosts: ${CONDOTIFY_PUBLIC_HOST:-fefacess.grupoff.com}
+      ReverseProxy__AllowedHost: ${CONDOTIFY_PUBLIC_HOST:-fefacess.grupoff.com}
       CondotifyApi__BaseUrl: http://api:8080
       CondotifyApi__ApiKey: ${CONDOTIFY_API_KEY:?Defina CONDOTIFY_API_KEY no arquivo .env}
       DataProtection__KeysPath: /app/data-protection
     ports:
-      - "5035:8080"
+      - "127.0.0.1:5035:8080"
     volumes:
       - condotify-data-protection:/app/data-protection
     depends_on:
@@ -134,10 +140,10 @@ services:
       - tools
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@condotify.local
-      PGADMIN_DEFAULT_PASSWORD: postgres
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?Defina PGADMIN_PASSWORD para habilitar o perfil tools}
       PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:
-      - "5050:80"
+      - "127.0.0.1:5050:80"
     volumes:
       - condotify-pgadmin-data:/var/lib/pgadmin
     depends_on:

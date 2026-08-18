@@ -12,7 +12,7 @@ public sealed class WalletIntegrationsViewModel
 public sealed class WalletIntegrationStatusViewModel
 {
     public string Provider { get; set; } = string.Empty;
-    public string Source { get; set; } = "Cofre Condotify";
+    public string Source { get; set; } = "Cofre F&F Access";
     public string AuthenticationMode { get; set; } = string.Empty;
     public bool IsConfigured { get; set; }
     public bool IsValidated { get; set; }

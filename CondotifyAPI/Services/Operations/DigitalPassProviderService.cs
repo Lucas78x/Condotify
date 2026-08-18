@@ -46,7 +46,7 @@ public sealed class DigitalPassProviderService(
                 ["id"] = objectId,
                 ["classId"] = $"{settings.IssuerId}.{settings.ClassSuffix}",
                 ["state"] = "ACTIVE",
-                ["cardTitle"] = Localized("Condotify"),
+                ["cardTitle"] = Localized("F&F Access"),
                 ["header"] = Localized($"Acesso de {pass.VisitorName}"),
                 ["subheader"] = Localized(pass.LicenseName),
                 ["hexBackgroundColor"] = "#173E9C",
@@ -68,7 +68,7 @@ public sealed class DigitalPassProviderService(
                 },
                 ["linksModuleData"] = new Dictionary<string, object>
                 {
-                    ["uris"] = new object[] { new Dictionary<string, object> { ["uri"] = pass.PublicUrl, ["description"] = "Abrir passe no Condotify", ["id"] = "condotify" } }
+                    ["uris"] = new object[] { new Dictionary<string, object> { ["uri"] = pass.PublicUrl, ["description"] = "Abrir passe na F&F Access", ["id"] = "condotify" } }
                 }
             };
             var payload = new Dictionary<string, object>

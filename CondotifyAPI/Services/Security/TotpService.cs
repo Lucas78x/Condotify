@@ -31,7 +31,7 @@ public sealed class TotpService : ITotpService
     }
 
     public string BuildUri(string secret, string email) =>
-        $"otpauth://totp/Condotify:{Uri.EscapeDataString(email)}?secret={secret}&issuer=Condotify&digits=6&period=30";
+        $"otpauth://totp/F%26F%20Access:{Uri.EscapeDataString(email)}?secret={secret}&issuer=F%26F%20Access&digits=6&period=30";
 
     private static string Code(string secret, long counter)
     {

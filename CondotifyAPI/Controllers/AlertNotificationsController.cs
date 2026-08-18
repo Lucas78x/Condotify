@@ -130,7 +130,7 @@ public sealed class AlertNotificationsController(
         var username = input.Username?.Trim() ?? string.Empty;
         var password = input.Password ?? string.Empty;
         var fromEmail = input.FromEmail?.Trim() ?? string.Empty;
-        var fromName = string.IsNullOrWhiteSpace(input.FromName) ? "Condotify" : input.FromName.Trim();
+        var fromName = string.IsNullOrWhiteSpace(input.FromName) ? "F&F Access" : input.FromName.Trim();
 
         if (!ValidSmtpHost(host))
             return BadRequest(new { Result = "InvalidSmtpHost", Errors = "Informe um servidor SMTP válido, sem protocolo ou caminho." });
@@ -196,7 +196,7 @@ public sealed class AlertNotificationsController(
         policy.SmtpUsername = string.Empty;
         policy.SmtpPassword = string.Empty;
         policy.SmtpFromEmail = string.Empty;
-        policy.SmtpFromName = "Condotify";
+        policy.SmtpFromName = "F&F Access";
         policy.SmtpEnableSsl = true;
         policy.UpdatedAt = DateTime.UtcNow;
         AddAudit(licenseId, "SmtpSettingsRemoved", "Configuração SMTP web removida.", new { });
@@ -257,7 +257,7 @@ public sealed class AlertNotificationsController(
             policy.License.Name,
             "ChannelTest",
             OperationalAlertSeverity.Info.ToString(),
-            "Teste de notificação do Condotify",
+            "Teste de notificação da F&F Access",
             "O canal foi acionado manualmente pela central de administração.",
             "Test",
             0,
@@ -330,7 +330,7 @@ public sealed class AlertNotificationsController(
             Username = webConfigured ? policy.SmtpUsername : string.Empty,
             PasswordConfigured = webConfigured && !string.IsNullOrWhiteSpace(policy.SmtpPassword),
             FromEmail = webConfigured ? policy.SmtpFromEmail : string.Empty,
-            FromName = webConfigured ? policy.SmtpFromName : "Condotify",
+            FromName = webConfigured ? policy.SmtpFromName : "F&F Access",
             EnableSsl = !webConfigured || policy.SmtpEnableSsl
         };
     }

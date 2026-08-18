@@ -363,7 +363,7 @@ public sealed class CredentialManagementController : ControllerBase
             Success = true,
             Synced = credential.Devices.Count > 0 && successCount == credential.Devices.Count,
             Message = credential.Devices.Count == 0
-                ? "Status alterado no Condotify. A credencial ainda nao esta vinculada a equipamentos."
+                ? "Status alterado na F&F Access. A credencial ainda não está vinculada a equipamentos."
                 : $"Status alterado em {successCount} de {credential.Devices.Count} equipamento(s)."
         });
     }
@@ -513,7 +513,7 @@ public sealed class CredentialManagementController : ControllerBase
         {
             Success = true,
             Synced = true,
-            Message = "Credencial removida do Condotify e dos equipamentos vinculados."
+            Message = "Credencial removida da F&F Access e dos equipamentos vinculados."
         });
     }
 

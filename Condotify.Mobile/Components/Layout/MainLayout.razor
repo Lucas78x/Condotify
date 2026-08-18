@@ -26,7 +26,7 @@ else
 {
     <MudLayout Class="@($"mobile-shell {(Appearance.IsDarkMode ? "dark-mode" : "light-mode")}")">
         <MudAppBar Class="mobile-appbar" Elevation="0" Dense="true">
-            <BrandMark Class="appbar-mobile-brand" />
+            <BrandMark Class="appbar-mobile-brand" Inverted="true" />
             <div class="appbar-context">
                 <MudText Typo="Typo.subtitle2">@TopbarTitle</MudText>
                 <MudText Typo="Typo.caption">@ContextLabel</MudText>
@@ -48,12 +48,8 @@ else
         </MudAppBar>
 
         <MudDrawer Class="desktop-rail" Open="true" Variant="DrawerVariant.Persistent" Elevation="0">
-            <div class="desktop-brand">
+            <div class="desktop-brand" aria-label="F&amp;F Access">
                 <BrandMark Class="desktop-brand-mark" />
-                <div>
-                    <MudText Typo="Typo.subtitle1">Condotify</MudText>
-                    <MudText Typo="Typo.caption">Controle de acesso</MudText>
-                </div>
             </div>
             <MudText Typo="Typo.overline" Class="rail-label">Operação</MudText>
             <MudNavMenu>
@@ -113,7 +109,7 @@ else
                 <div class="app-lock-card">
                     <BrandMark Class="app-lock-mark" />
                     <MudIcon Icon="@Icons.Material.Outlined.Lock" Class="app-lock-icon" />
-                    <MudText Typo="Typo.h5">Condotify protegido</MudText>
+                    <MudText Typo="Typo.h5">F&amp;F Access protegido</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">Confirme sua biometria ou o bloqueio do aparelho para continuar.</MudText>
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Fingerprint" Disabled="_unlocking" OnClick="UnlockAsync">@(_unlocking ? "Aguardando confirmação..." : "Desbloquear")</MudButton>
                 </div>

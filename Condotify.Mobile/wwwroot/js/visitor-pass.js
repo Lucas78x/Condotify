@@ -52,19 +52,17 @@
 
     const drawBrandMark = (context, x, y) => {
         fillRoundedRect(context, x, y, 86, 86, 25, "#ffffff");
-        context.strokeStyle = "#3156d3";
-        context.lineWidth = 11;
-        context.lineCap = "round";
-        context.beginPath();
-        context.arc(x + 43, y + 43, 25, Math.PI * 0.3, Math.PI * 1.7);
-        context.stroke();
-        context.fillStyle = "#16356f";
-        context.fillRect(x + 34, y + 41, 12, 25);
-        context.fillRect(x + 49, y + 33, 12, 33);
+        context.fillStyle = "#092557";
+        context.font = "900 25px Inter, Arial, sans-serif";
+        context.textAlign = "center";
+        context.fillText("F&F", x + 43, y + 50);
+        context.fillStyle = "#7bc053";
+        context.fillRect(x + 25, y + 61, 36, 6);
+        context.textAlign = "start";
     };
 
     const drawCalendar = (context, x, y) => {
-        context.strokeStyle = "#3156d3";
+        context.strokeStyle = "#7bc053";
         context.lineWidth = 4;
         roundedRect(context, x, y + 4, 34, 31, 7);
         context.stroke();
@@ -92,9 +90,9 @@
         context.fillRect(0, 0, canvas.width, canvas.height);
 
         const headerGradient = context.createLinearGradient(0, 0, canvas.width, 350);
-        headerGradient.addColorStop(0, "#183471");
-        headerGradient.addColorStop(0.55, "#3156d3");
-        headerGradient.addColorStop(1, "#5277ea");
+        headerGradient.addColorStop(0, "#061a3d");
+        headerGradient.addColorStop(0.55, "#092557");
+        headerGradient.addColorStop(1, "#123d79");
         context.fillStyle = headerGradient;
         context.fillRect(0, 0, canvas.width, 345);
 
@@ -111,7 +109,7 @@
         drawBrandMark(context, 72, 68);
         context.fillStyle = "#ffffff";
         context.font = "800 42px Inter, Arial, sans-serif";
-        context.fillText("Condotify", 180, 112);
+        context.fillText("F&F Access", 180, 112);
         context.fillStyle = "rgba(255,255,255,.72)";
         context.font = "700 19px Inter, Arial, sans-serif";
         context.letterSpacing = "3px";
@@ -173,7 +171,7 @@
         context.drawImage(qrCode, 282, 605, 516, 516);
 
         fillRoundedRect(context, 343, 1133, 394, 52, 26, "#eef3ff");
-        context.fillStyle = "#3156d3";
+        context.fillStyle = "#092557";
         context.font = "700 21px Inter, Arial, sans-serif";
         context.textAlign = "center";
         context.fillText("APONTE A CÂMERA PARA O QR CODE", 540, 1167);

@@ -206,7 +206,7 @@ public sealed class MobileNotificationsController : ControllerBase
             subject.Value.SubjectType,
             MobileNotificationCategory.System,
             "Notificacoes ativadas",
-            "Este dispositivo esta pronto para receber atualizacoes do Condotify.",
+            "Este dispositivo está pronto para receber atualizações da F&F Access.",
             "/home",
             $"mobile-test:{subject.Value.SubjectType}:{subject.Value.Id:N}:{Guid.NewGuid():N}"), cancellationToken);
         return Created(string.Empty, ToNotification(notification));

@@ -13,7 +13,7 @@
     <DialogContent>
         <div class="visitor-pass-hero">
             <div class="visitor-pass-head">
-                <span class="visitor-pass-brand"><span class="visitor-pass-logo">C</span> Condotify</span>
+                <span class="visitor-pass-brand"><span class="visitor-pass-logo">F&amp;F</span> F&amp;F Access</span>
                 <span class="visitor-pass-status"><i></i> Acesso temporário</span>
             </div>
             <div class="visitor-pass-person"><small>VISITANTE</small><strong>@Visit.VisitorName</strong><span>@Visit.BlockName @(!string.IsNullOrWhiteSpace(Visit.UnitNumber) ? $"· Unidade {Visit.UnitNumber}" : string.Empty)</span></div>
@@ -34,7 +34,7 @@
         @if (AllowDigitalPass)
         {
             <section class="visitor-pass-wallet">
-                <div class="visitor-pass-wallet-heading"><MudIcon Icon="@Icons.Material.Outlined.Wallet" /><div><strong>Passe digital Condotify</strong><small>Adicione esta autorização a uma carteira compatível no seu celular.</small></div></div>
+                <div class="visitor-pass-wallet-heading"><MudIcon Icon="@Icons.Material.Outlined.Wallet" /><div><strong>Passe digital F&amp;F Access</strong><small>Adicione esta autorização a uma carteira compatível no seu celular.</small></div></div>
                 @if (_pass is null && !_hasActivePass)
                 {
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Outlined.AddCard" Disabled="_issuing" OnClick="IssuePassAsync">@(_issuing ? "Emitindo..." : "Adicionar à carteira")</MudButton>

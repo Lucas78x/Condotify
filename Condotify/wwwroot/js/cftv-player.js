@@ -103,7 +103,12 @@ window.condotifyCftv = (() => {
         video.muted = true;
         video.volume = 1;
 
-        if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        const hlsJsSupported = window.Hls && window.Hls.isSupported();
+
+        // Some Chromium builds advertise native HLS support but fail to demux
+        // the CMAF/low-latency stream produced by MediaMTX. Prefer hls.js when
+        // it is available and reserve native playback for platforms that need it.
+        if (!hlsJsSupported && video.canPlayType("application/vnd.apple.mpegurl")) {
             const session = { video, hasAudio: true, mode: "hls-native" };
             sessions.set(elementId, session);
             video.src = url;
@@ -112,7 +117,7 @@ window.condotifyCftv = (() => {
             return { hasAudio: true };
         }
 
-        if (!window.Hls || !window.Hls.isSupported())
+        if (!hlsJsSupported)
             throw new Error("Este navegador não oferece reprodução HLS compatível.");
 
         const inheritedToken = new URL(url, document.baseURI).searchParams.get("token");

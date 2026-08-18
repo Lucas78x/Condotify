@@ -150,7 +150,7 @@ public sealed class FinancialAutomationRunner(
             foreach (var link in links.Where(x => x.UnitId == charge.UnitId).GroupBy(x => x.ResidentId).Select(x => x.First()))
             {
                 if (policy.PushEnabled)
-                    scheduled += AddDelivery(charge, link.ResidentId, FinancialReminderChannelEnum.Push, stage, "Aplicativo Condotify", existingKeys, now);
+                    scheduled += AddDelivery(charge, link.ResidentId, FinancialReminderChannelEnum.Push, stage, "Aplicativo F&F Access", existingKeys, now);
                 if (policy.EmailEnabled && !string.IsNullOrWhiteSpace(link.Resident.Email))
                     scheduled += AddDelivery(charge, link.ResidentId, FinancialReminderChannelEnum.Email, stage,
                         FinancialReminderEmailSender.Mask(link.Resident.Email), existingKeys, now);

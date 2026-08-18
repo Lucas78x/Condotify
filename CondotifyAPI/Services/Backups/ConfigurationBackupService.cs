@@ -744,12 +744,12 @@ public sealed class ConfigurationBackupService(
         {
             if (!currentDevices.TryGetValue(snapshot.Id, out var device))
             {
-                comparisons.Add(UnavailableComparison(snapshot, "O equipamento ainda não existe no Condotify atual."));
+                comparisons.Add(UnavailableComparison(snapshot, "O equipamento ainda não existe na F&F Access atual."));
                 AddEquipmentWarning(
                     report,
                     "EquipmentUnavailable",
                     snapshot,
-                    "Não foi possível comparar porque o equipamento ainda não existe no Condotify.",
+                    "Não foi possível comparar porque o equipamento ainda não existe na F&F Access.",
                     "Restaure o cadastro do equipamento e execute uma nova comparação.");
                 continue;
             }
@@ -823,7 +823,7 @@ public sealed class ConfigurationBackupService(
                     report,
                     "EquipmentDrift",
                     snapshot,
-                    $"Condotify e equipamento divergem: {divergent} diferente(s), {missing} ausente(s) e {orphan} órfão(s).",
+                    $"F&F Access e equipamento divergem: {divergent} diferente(s), {missing} ausente(s) e {orphan} órfão(s).",
                     "Revise o relatório e restaure para enfileirar a reconciliação deste terminal.");
             }
         }
@@ -1455,7 +1455,7 @@ public sealed class ConfigurationBackupService(
             value.SmtpUsername = SmtpUsername ?? string.Empty;
             value.SmtpPassword = SmtpPassword ?? string.Empty;
             value.SmtpFromEmail = SmtpFromEmail ?? string.Empty;
-            value.SmtpFromName = string.IsNullOrWhiteSpace(SmtpFromName) ? "Condotify" : SmtpFromName;
+            value.SmtpFromName = string.IsNullOrWhiteSpace(SmtpFromName) ? "F&F Access" : SmtpFromName;
             value.SmtpEnableSsl = SmtpEnableSsl;
             value.UpdatedAt = now;
         }

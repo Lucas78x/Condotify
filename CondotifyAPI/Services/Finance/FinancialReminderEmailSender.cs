@@ -50,11 +50,11 @@ public sealed class FinancialReminderEmailSender(
         using var message = new MailMessage
         {
             From = new MailAddress(settings.FromEmail, settings.FromName),
-            Subject = $"Condotify · {stageLabel}",
+            Subject = $"F&F Access · {stageLabel}",
             IsBodyHtml = true,
             Body = $"""
                 <div style="font-family:Inter,Arial,sans-serif;color:#1d2635;max-width:620px;line-height:1.55">
-                  <p style="font-size:12px;font-weight:700;color:#3156d3;text-transform:uppercase">Condotify · Gestão financeira</p>
+                  <p style="font-size:12px;font-weight:700;color:#092557;text-transform:uppercase">F&amp;F Access · Gestão financeira</p>
                   <h2 style="font-size:21px;margin:10px 0">{encoder.Encode(stageLabel)}</h2>
                   <p>Olá, {encoder.Encode(residentName)}.</p>
                   <p>Há uma atualização referente a <strong>{encoder.Encode(reference)}</strong> da sua unidade em {encoder.Encode(licenseName)}.</p>
@@ -97,7 +97,7 @@ public sealed class FinancialReminderEmailSender(
         if (policy is not null && !string.IsNullOrWhiteSpace(policy.SmtpHost) &&
             !string.IsNullOrWhiteSpace(policy.SmtpFromEmail) && policy.SmtpPort is > 0 and <= 65535)
             return new SmtpSettings(policy.SmtpHost.Trim(), policy.SmtpPort, policy.SmtpUsername,
-                policy.SmtpPassword, policy.SmtpFromEmail, string.IsNullOrWhiteSpace(policy.SmtpFromName) ? "Condotify" : policy.SmtpFromName,
+                policy.SmtpPassword, policy.SmtpFromEmail, string.IsNullOrWhiteSpace(policy.SmtpFromName) ? "F&F Access" : policy.SmtpFromName,
                 policy.SmtpEnableSsl);
 
         var host = Get("CONDOTIFY_SMTP_HOST", "Notifications:Smtp:Host");
@@ -108,7 +108,7 @@ public sealed class FinancialReminderEmailSender(
         return new SmtpSettings(host, port,
             Get("CONDOTIFY_SMTP_USERNAME", "Notifications:Smtp:Username") ?? string.Empty,
             Get("CONDOTIFY_SMTP_PASSWORD", "Notifications:Smtp:Password") ?? string.Empty,
-            from, Get("CONDOTIFY_SMTP_FROM_NAME", "Notifications:Smtp:FromName") ?? "Condotify", ssl);
+            from, Get("CONDOTIFY_SMTP_FROM_NAME", "Notifications:Smtp:FromName") ?? "F&F Access", ssl);
     }
 
     private string? Get(string environmentName, string configurationName) =>

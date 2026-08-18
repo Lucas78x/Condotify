@@ -68,7 +68,7 @@ public sealed class SmtpSettingsOut
     public string Username { get; set; } = string.Empty;
     public bool PasswordConfigured { get; set; }
     public string FromEmail { get; set; } = string.Empty;
-    public string FromName { get; set; } = "Condotify";
+    public string FromName { get; set; } = "F&F Access";
     public bool EnableSsl { get; set; } = true;
 }
 
@@ -79,6 +79,6 @@ public sealed class UpdateSmtpSettingsIn
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public string FromEmail { get; set; } = string.Empty;
-    public string FromName { get; set; } = "Condotify";
+    public string FromName { get; set; } = "F&F Access";
     public bool EnableSsl { get; set; } = true;
 }

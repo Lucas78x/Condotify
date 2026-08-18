@@ -4,39 +4,64 @@
 @inject MobileAppState AppState
 @inject CondotifyApiClient Api
 
-<PageTitle>Auditoria de acesso | Condotify</PageTitle>
-<PageHeader Eyebrow="RASTREABILIDADE" Title="Auditoria de acesso" Subtitle="Histórico de decisões, credenciais e acionamentos da equipe.">
-    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
-</PageHeader>
+<PageTitle>Auditoria de acesso | F&amp;F Access</PageTitle>
+<PageHeader Eyebrow="RASTREABILIDADE" Title="Auditoria de acesso" Subtitle="Acompanhe tudo o que aconteceu nos acessos." />
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_audits.Count == 0)" EmptyTitle="Nenhuma operação registrada" EmptyText="As ações da equipe aparecerão aqui." Retry="LoadAsync">
-    <section class="screen-overview audit-overview">
-        <span class="screen-overview-icon primary"><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span>
-        <div class="screen-overview-main"><span>Rastreabilidade operacional</span><strong>@_audits.Count ações recentes</strong><small>Usuário, horário, resultado e resumo em uma linha do tempo.</small></div>
-        <span class="overview-badge">Auditado</span>
+    <section class="audit-summary" aria-label="Resumo da auditoria">
+        <span class="audit-summary-icon"><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span>
+        <div>
+            <strong>@CountLabel(_audits.Count, "registro recente", "registros recentes")</strong>
+            <span>@CountLabel(SuccessCount, "concluído", "concluídos") · @AttentionLabel</span>
+        </div>
+        <button type="button" class="audit-summary-refresh" @onclick="LoadAsync" aria-label="Atualizar auditoria" title="Atualizado @LastUpdateLabel">
+            <MudIcon Icon="@Icons.Material.Outlined.Refresh" Size="Size.Small" />
+        </button>
     </section>
 
     <div class="directory-toolbar elevated-search audit-toolbar">
         <MudTextField @bind-Value="_search" Immediate="true" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense"
-                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Placeholder="Buscar ação, pessoa ou usuário" />
-        <MudSelect T="string" @bind-Value="_status" Variant="Variant.Outlined" Margin="Margin.Dense" Label="Resultado">
-            <MudSelectItem T="string" Value="@string.Empty">Todos</MudSelectItem>
-            <MudSelectItem T="string" Value="@("Success")">Sucesso</MudSelectItem>
-            <MudSelectItem T="string" Value="@("Failed")">Falhas</MudSelectItem>
-        </MudSelect>
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Placeholder="Buscar ação, pessoa ou equipamento" />
+        <div class="audit-filter-chips" role="group" aria-label="Filtrar por resultado">
+            @foreach (var option in StatusFilters)
+            {
+                <button type="button" class="@($"audit-filter-chip {(_status == option.Value ? "active" : string.Empty)}")"
+                        aria-pressed="@(_status == option.Value)" @onclick="() => _status = option.Value">
+                    @option.Label
+                </button>
+            }
+        </div>
     </div>
 
-    <section class="content-panel audit-timeline">
-        @foreach (var audit in FilteredAudits)
+    <section class="audit-feed" aria-live="polite">
+        @foreach (var group in GroupedAudits)
         {
-            <article class="audit-entry">
-                <span class="audit-dot @AuditStatusClass(audit.Status)"><MudIcon Icon="@AuditIcon(audit.Action)" Size="Size.Small" /></span>
-                <div class="audit-entry-main">
-                    <div class="audit-entry-head"><strong>@ActionLabel(audit.Action)</strong><time>@audit.CreatedAt.ToLocalTime().ToString("dd/MM · HH:mm")</time></div>
-                    <p>@audit.Summary</p>
-                    <small><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Size="Size.Small" /> @Value(audit.UserName) · @EntityLabel(audit.EntityType)</small>
+            <div class="audit-day-group">
+                <div class="audit-day-heading"><strong>@DateGroupLabel(group.Key)</strong><span>@CountLabel(group.Count(), "registro", "registros")</span></div>
+                <div class="content-panel audit-timeline">
+                    @foreach (var audit in group)
+                    {
+                        <article class="audit-entry">
+                            <span class="audit-dot @AuditStatusClass(audit.Status)"><MudIcon Icon="@AuditIcon(audit.Action, audit.EntityType)" Size="Size.Small" /></span>
+                            <div class="audit-entry-main">
+                                <div class="audit-entry-topline">
+                                    <span class="audit-entity">@MobileAccessPresentation.AuditEntityLabel(audit.EntityType)</span>
+                                    <span class="audit-status @AuditStatusClass(audit.Status)"><i></i>@MobileAccessPresentation.AuditStatusLabel(audit.Status)</span>
+                                </div>
+                                <strong class="audit-action">@MobileAccessPresentation.AuditActionLabel(audit.Action, audit.EntityType)</strong>
+                                @if (!string.IsNullOrWhiteSpace(audit.Summary))
+                                {
+                                    <p>@audit.Summary</p>
+                                }
+                                <div class="audit-entry-meta">
+                                    <span><MudIcon Icon="@Icons.Material.Outlined.PersonOutline" Size="Size.Small" />@Value(audit.UserName)</span>
+                                    <time><MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" />@audit.CreatedAt.ToLocalTime().ToString("HH:mm")</time>
+                                </div>
+                            </div>
+                        </article>
+                    }
                 </div>
-            </article>
+            </div>
         }
         @if (!FilteredAudits.Any())
         {
@@ -52,10 +77,31 @@
     private string _error = string.Empty;
     private string _search = string.Empty;
     private string _status = string.Empty;
+    private DateTime? _lastUpdatedAt;
+    private static readonly (string Value, string Label)[] StatusFilters =
+    [
+        (string.Empty, "Todos"),
+        ("success", "Concluídos"),
+        ("pending", "Pendentes"),
+        ("alert", "Atenção")
+    ];
+
     private IEnumerable<AccessAuditViewModel> FilteredAudits => _audits.Where(audit =>
-        (string.IsNullOrWhiteSpace(_status) || audit.Status.Contains(_status, StringComparison.OrdinalIgnoreCase)) &&
-        (string.IsNullOrWhiteSpace(_search) || new[] { audit.Action, audit.Summary, audit.UserName, audit.EntityType }
+        (string.IsNullOrWhiteSpace(_status) || AuditStatusClass(audit.Status) == _status) &&
+        (string.IsNullOrWhiteSpace(_search) || new[]
+        {
+            audit.Action, audit.Summary, audit.UserName, audit.EntityType,
+            MobileAccessPresentation.AuditActionLabel(audit.Action, audit.EntityType),
+            MobileAccessPresentation.AuditEntityLabel(audit.EntityType),
+            MobileAccessPresentation.AuditStatusLabel(audit.Status)
+        }
             .Any(value => value.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))));
+    private IEnumerable<IGrouping<DateTime, AccessAuditViewModel>> GroupedAudits =>
+        FilteredAudits.GroupBy(audit => audit.CreatedAt.ToLocalTime().Date);
+    private int SuccessCount => _audits.Count(audit => MobileAccessPresentation.AuditStatusKind(audit.Status) == MobileAuditStatusKind.Success);
+    private int AttentionCount => _audits.Count(audit => MobileAccessPresentation.AuditStatusKind(audit.Status) == MobileAuditStatusKind.Alert);
+    private string AttentionLabel => AttentionCount == 1 ? "1 precisa de atenção" : $"{AttentionCount} precisam de atenção";
+    private string LastUpdateLabel => _lastUpdatedAt?.ToString("HH:mm") ?? "agora";
 
     protected override Task OnInitializedAsync() => LoadAsync();
     private async Task LoadAsync()
@@ -76,13 +122,32 @@
         if (token.IsCancellationRequested) return;
         _audits = (result.Value ?? []).OrderByDescending(item => item.CreatedAt).ToList();
         if (!result.Success) _error = result.Error ?? "Não foi possível carregar a auditoria.";
+        else _lastUpdatedAt = DateTime.Now;
         _loading = false;
     }
 
-    private static string AuditStatusClass(string status) => status.Contains("Success", StringComparison.OrdinalIgnoreCase) ? "success" : status.Contains("Fail", StringComparison.OrdinalIgnoreCase) ? "error" : "info";
-    private static string AuditIcon(string action) => action.Contains("Door", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.LockOpen : action.Contains("Visit", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Badge : action.Contains("Credential", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Key : Icons.Material.Outlined.History;
-    private static string ActionLabel(string action) => action switch { "VisitQrScanned" => "Entrada por QR Code", "VisitStatus" => "Movimentação de visitante", "CredentialStatus" => "Situação da credencial", "OpenDoor" => "Acionamento de porta", _ => string.IsNullOrWhiteSpace(action) ? "Operação" : action };
-    private static string EntityLabel(string entity) => entity switch { "Visit" => "Visitante", "Resident" => "Pessoa", "Credential" => "Credencial", "Device" => "Equipamento", _ => string.IsNullOrWhiteSpace(entity) ? "Sistema" : entity };
+    private static string AuditStatusClass(string status) => MobileAccessPresentation.AuditStatusKind(status) switch
+    {
+        MobileAuditStatusKind.Success => "success",
+        MobileAuditStatusKind.Pending => "pending",
+        MobileAuditStatusKind.Alert => "alert",
+        _ => "neutral"
+    };
+    private static string AuditIcon(string action, string entity) =>
+        action.Contains("Door", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.LockOpen :
+        entity.Contains("Visit", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Badge :
+        entity.Contains("Credential", StringComparison.OrdinalIgnoreCase) || entity.Contains("Pass", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Key :
+        entity.Contains("Device", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.Sensors :
+        entity.Contains("Offline", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Outlined.OfflineBolt :
+        Icons.Material.Outlined.History;
+    private static string DateGroupLabel(DateTime date)
+    {
+        if (date == DateTime.Today) return "Hoje";
+        if (date == DateTime.Today.AddDays(-1)) return "Ontem";
+        var label = date.ToString("dddd, dd 'de' MMMM", new System.Globalization.CultureInfo("pt-BR"));
+        return char.ToUpperInvariant(label[0]) + label[1..];
+    }
+    private static string CountLabel(int count, string singular, string plural) => $"{count} {(count == 1 ? singular : plural)}";
     private static string Value(string value) => string.IsNullOrWhiteSpace(value) ? "Sistema" : value;
     public void Dispose() { _loadCts?.Cancel(); _loadCts?.Dispose(); }
 }

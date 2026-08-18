@@ -31,12 +31,8 @@
     </MudAppBar>
 
     <MudDrawer @bind-Open="_drawerOpen" Elevation="0" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md" Class="portal-drawer">
-        <div class="brand-block">
-            <BrandMark Class="portal-brand-symbol" />
-            <div>
-                <MudText Typo="Typo.subtitle1" Class="brand-name">Condotify</MudText>
-                <MudText Typo="Typo.caption" Class="brand-subtitle">Controle de acesso</MudText>
-            </div>
+        <div class="brand-block" aria-label="F&amp;F Access">
+            <BrandMark Class="portal-brand-symbol" Inverted="true" />
         </div>
         <NavMenu />
     </MudDrawer>

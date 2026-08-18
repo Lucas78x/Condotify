@@ -149,7 +149,7 @@ public sealed class ConfigurationBackupArchiveService : IConfigurationBackupArch
         if (content.Length is < HeaderSize + 1 or > MaxArchiveBytes)
             throw new InvalidDataException("O arquivo de backup esta vazio ou excede 15 MB.");
         if (!content.AsSpan(0, Magic.Length).SequenceEqual(Magic))
-            throw new InvalidDataException("O arquivo nao possui o formato de backup Condotify.");
+            throw new InvalidDataException("O arquivo não possui o formato de backup F&F Access.");
         var offset = Magic.Length;
         var salt = content.AsSpan(offset, SaltSize);
         offset += SaltSize;

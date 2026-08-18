@@ -3,19 +3,28 @@ using MudBlazor;
 namespace Condotify.UI;
 
 /// <summary>
-/// Fonte unica do tema visual do Condotify, compartilhada entre o portal web
+/// Fonte unica do tema visual da F&F Access, compartilhada entre o portal web
 /// e o aplicativo mobile. Nao definir cores, raios ou tipografia fixos nos
 /// componentes: acrescentar aqui.
 /// </summary>
 public static class CondotifyTheme
 {
+    public const string PrimaryColor = "#092557";
+    public const string PrimaryStrongColor = "#061A3D";
+    public const string PrimaryMutedColor = "#20364A";
+    public const string PrimarySoftColor = "#EDF2F8";
+    public const string AccentColor = "#7BC053";
+    public const string AccentBrightColor = "#9DCA66";
+    public const string AccentStrongColor = "#5A9E38";
+    public const string AccentSoftColor = "#EFF7E9";
+
     public static MudTheme Default { get; } = new()
     {
         PaletteLight = new PaletteLight
         {
-            Primary = "#3156D3",
-            Secondary = "#586579",
-            Tertiary = "#007C69",
+            Primary = PrimaryColor,
+            Secondary = AccentColor,
+            Tertiary = AccentBrightColor,
             Success = "#12805A",
             Warning = "#A96300",
             Error = "#BF3548",
@@ -32,9 +41,9 @@ public static class CondotifyTheme
         },
         PaletteDark = new PaletteDark
         {
-            Primary = "#7C9CFF",
-            Secondary = "#9AA7B8",
-            Tertiary = "#3FBFA6",
+            Primary = AccentBrightColor,
+            Secondary = AccentColor,
+            Tertiary = "#B6D98C",
             Success = "#3DD68C",
             Warning = "#F0A73C",
             Error = "#F2707F",

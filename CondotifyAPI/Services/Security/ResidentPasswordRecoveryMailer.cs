@@ -67,7 +67,7 @@ public sealed class ResidentPasswordRecoveryMailer(
         using var mail = new MailMessage
         {
             From = new MailAddress(settings.FromEmail, settings.FromName),
-            Subject = "Condotify - Codigo para redefinir sua senha",
+            Subject = "F&F Access - Código para redefinir sua senha",
             Body = BuildBody(residentName, recoveryCode),
             IsBodyHtml = true,
         };
@@ -105,10 +105,10 @@ public sealed class ResidentPasswordRecoveryMailer(
         var encoder = HtmlEncoder.Default;
         return $"""
             <div style="font-family:Arial,sans-serif;color:#202532;max-width:640px">
-              <p style="font-size:12px;color:#657083;text-transform:uppercase">Condotify</p>
+              <p style="font-size:12px;color:#092557;text-transform:uppercase">F&amp;F Access</p>
               <h2 style="font-size:20px">Redefinicao de senha</h2>
               <p>Ola, {encoder.Encode(residentName)}. Recebemos uma solicitacao para redefinir a senha da sua conta.</p>
-              <p>Abra o aplicativo Condotify, toque em "Esqueci minha senha" e informe o codigo abaixo junto com a nova senha:</p>
+              <p>Abra o aplicativo F&amp;F Access, toque em "Esqueci minha senha" e informe o código abaixo junto com a nova senha:</p>
               <p style="font-size:28px;font-weight:bold;letter-spacing:2px;margin:16px 0">{encoder.Encode(recoveryCode)}</p>
               <p>Este codigo e valido por 30 minutos e so pode ser usado uma vez.</p>
               <p style="margin-top:20px;color:#657083">Se voce nao solicitou isso, ignore este e-mail - sua senha continua a mesma.</p>
@@ -139,7 +139,7 @@ public sealed class ResidentPasswordRecoveryMailer(
             Get("CONDOTIFY_SMTP_USERNAME", "Notifications:Smtp:Username") ?? string.Empty,
             Get("CONDOTIFY_SMTP_PASSWORD", "Notifications:Smtp:Password") ?? string.Empty,
             fromEmail,
-            Get("CONDOTIFY_SMTP_FROM_NAME", "Notifications:Smtp:FromName") ?? "Condotify",
+            Get("CONDOTIFY_SMTP_FROM_NAME", "Notifications:Smtp:FromName") ?? "F&F Access",
             enableSsl);
     }
 

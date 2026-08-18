@@ -267,7 +267,7 @@ public sealed class ReportsController(DatabaseContext context) : ControllerBase
         return
         [
             Quality("accounts", "Contas do aplicativo", "Moradores ativos com senha de acesso criada.", report.Residents.AccountsCreated, residents, $"/licencas/{licenseId}/estrutura"),
-            Quality("app", "Aplicativo vinculado", "Moradores com um dispositivo ativo vinculado ao Condotify.", report.Residents.AppLinked, residents, $"/licencas/{licenseId}/estrutura"),
+            Quality("app", "Aplicativo vinculado", "Moradores com um dispositivo ativo vinculado à F&F Access.", report.Residents.AppLinked, residents, $"/licencas/{licenseId}/estrutura"),
             Quality("contact", "Contato completo", "Cadastro com e-mail e telefone para comunicação.", completeContacts, residents, $"/licencas/{licenseId}/estrutura"),
             Quality("document", "Identificação cadastrada", "Moradores com CPF ou RG informado.", withDocuments, residents, $"/licencas/{licenseId}/estrutura"),
             Quality("credentials", "Credencial ativa", "Moradores cobertos por ao menos uma credencial válida.", withCredential, residents, $"/licencas/{licenseId}/credenciais"),

@@ -5,15 +5,14 @@
 @inject MobilePushLifecycle Push
 @inject NavigationManager Navigation
 
-<PageTitle>Entrar | Condotify</PageTitle>
+<PageTitle>Entrar | F&amp;F Access</PageTitle>
 <div class="login-page">
     <div class="login-card">
         @if (_step == LoginStep.Credentials)
         {
             <div class="login-hero">
-                <BrandMark Class="login-hero-mark" />
-                <MudText Typo="Typo.h5">Condotify</MudText>
-                <MudText Typo="Typo.caption">Controle de acesso inteligente</MudText>
+                <BrandMark Class="login-hero-mark" Inverted="true" />
+                <MudText Typo="Typo.caption">Segurança simples de operar</MudText>
             </div>
         }
         else if (_step != LoginStep.ForgotDone)
@@ -32,7 +31,7 @@
             {
                 <div class="login-unified-note">
                     <MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" />
-                    <span><strong>Um único acesso</strong><small>Após entrar, o Condotify abre automaticamente o ambiente correto para seu perfil.</small></span>
+                    <span><strong>Um único acesso</strong><small>Após entrar, a F&amp;F Access abre automaticamente o ambiente correto para seu perfil.</small></span>
                 </div>
 
                 <MudForm @ref="_form" class="login-form">

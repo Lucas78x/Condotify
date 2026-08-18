@@ -16,8 +16,6 @@ public static class MauiProgram
 {
     public static MauiApp CreateMauiApp()
     {
-        ConfigureDevelopmentMediaTransport();
-
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
@@ -33,6 +31,7 @@ public static class MauiProgram
 #else
         var baseUrl = configuredBaseUrl ?? "https://localhost:7118";
 #endif
+        ConfigureMediaTransport(baseUrl);
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["CondotifyApi:BaseUrl"] = baseUrl
@@ -84,9 +83,13 @@ public static class MauiProgram
         return builder.Build();
     }
 
-    private static void ConfigureDevelopmentMediaTransport()
+    private static void ConfigureMediaTransport(string baseUrl)
     {
-#if DEBUG && WINDOWS
+#if WINDOWS
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var apiUri)
+            || !string.Equals(apiUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+            return;
+
         const string allowInsecureMedia = "--allow-running-insecure-content";
         var currentArguments = Environment.GetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") ?? string.Empty;
         if (!currentArguments.Contains(allowInsecureMedia, StringComparison.Ordinal))
@@ -95,9 +98,13 @@ public static class MauiProgram
                 "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
                 string.Join(' ', new[] { currentArguments.Trim(), allowInsecureMedia }.Where(x => x.Length > 0)));
         }
-#elif DEBUG && ANDROID
+#elif ANDROID
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var apiUri)
+            || !string.Equals(apiUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+            return;
+
         Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler.BlazorWebViewMapper.AppendToMapping(
-            "AllowDevelopmentMedia",
+            "AllowConfiguredHttpMedia",
             (handler, _) => handler.PlatformView.Settings.MixedContentMode = Android.Webkit.MixedContentHandling.AlwaysAllow);
 #endif
     }

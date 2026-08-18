@@ -33,6 +33,35 @@ public sealed class MobileAccessPresentationTests
     public void ValidateTagHex_ExplainsInvalidValues(string input, string expected) =>
         Assert.Equal(expected, MobileAccessPresentation.ValidateTagHex(input));
 
+    [Theory]
+    [InlineData("VisitCreated", "Visit", "Visitante autorizado")]
+    [InlineData("OfflineDeviceRegistered", "OfflineOperation", "Operação offline registrada")]
+    [InlineData("Updated", "Device", "Dados atualizados")]
+    [InlineData("Issued", "DigitalPass", "Passe digital emitido")]
+    [InlineData("FutureInternalCode", "Device", "Operação registrada")]
+    public void AuditActionLabel_NeverExposesInternalCodes(string action, string entity, string expected) =>
+        Assert.Equal(expected, MobileAccessPresentation.AuditActionLabel(action, entity));
+
+    [Theory]
+    [InlineData("Device", "Equipamento")]
+    [InlineData("OfflineOperation", "Operação offline")]
+    [InlineData("UnknownEntity", "Sistema")]
+    public void AuditEntityLabel_UsesFriendlyNames(string entity, string expected) =>
+        Assert.Equal(expected, MobileAccessPresentation.AuditEntityLabel(entity));
+
+    [Theory]
+    [InlineData("Success", "Concluído", MobileAuditStatusKind.Success)]
+    [InlineData("PendingEnrollment", "Aguardando cadastro facial", MobileAuditStatusKind.Pending)]
+    [InlineData("Queued", "Na fila", MobileAuditStatusKind.Pending)]
+    [InlineData("Alert", "Requer atenção", MobileAuditStatusKind.Alert)]
+    [InlineData("Recovered", "Restabelecido", MobileAuditStatusKind.Success)]
+    [InlineData("FutureStatus", "Registrado", MobileAuditStatusKind.Neutral)]
+    public void AuditStatusPresentation_MapsLabelAndKind(string status, string label, MobileAuditStatusKind kind)
+    {
+        Assert.Equal(label, MobileAccessPresentation.AuditStatusLabel(status));
+        Assert.Equal(kind, MobileAccessPresentation.AuditStatusKind(status));
+    }
+
     private static ConciergeVisitViewModel Visit(DateTime from, DateTime to, string status) => new()
     {
         ValidFrom = from,

@@ -25,6 +25,7 @@ using CondotifyAPI.Domain.Models.Resident;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -36,6 +37,19 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+        | ForwardedHeaders.XForwardedProto
+        | ForwardedHeaders.XForwardedHost;
+    options.ForwardLimit = 1;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+
+    var allowedHost = builder.Configuration["ReverseProxy:AllowedHost"];
+    if (!string.IsNullOrWhiteSpace(allowedHost)) options.AllowedHosts.Add(allowedHost);
+});
 
 builder.Host.UseSerilog((context, services, configuration) =>
 {
@@ -278,6 +292,8 @@ builder.Services.AddScoped<IAccessControlDriver, IntelbrasUHFAccessControlDriver
 builder.Services.AddScoped<IAccessControlDriver, HikvisionAccessControlDriver>();
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 var internalPort = int.TryParse(Environment.GetEnvironmentVariable("CONDOTIFY_INTERNAL_PORT"), out var configuredInternalPort)
     ? configuredInternalPort

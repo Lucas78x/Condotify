@@ -11,7 +11,7 @@
 @inject MobileOfflineOperationsService OfflineOperations
 @inject MobileOfflineCache OfflineCache
 
-<PageTitle>Minha conta | Condotify</PageTitle>
+<PageTitle>Minha conta | F&amp;F Access</PageTitle>
 <PageHeader Eyebrow="CONTA E SEGURANÇA" Title="Minha conta" Subtitle="Dados do perfil e contexto da sessão." />
 
 <PageState Loading="_loading" Error="@_error" Retry="LoadAsync">
@@ -83,7 +83,7 @@
         <div class="panel-heading"><div><MudText Typo="Typo.h5">Proteção do aplicativo</MudText><span class="panel-subtitle">Biometria ou bloqueio seguro do aparelho</span></div><MudIcon Icon="@Icons.Material.Outlined.Fingerprint" Color="Color.Primary" /></div>
         <div class="list-row settings-toggle-row">
             <span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.LockPerson" /></span>
-            <div class="list-main"><div class="list-title">Bloqueio local</div><div class="list-meta">@(_biometricAvailable ? "Exigir confirmação ao reabrir o Condotify" : "Configure biometria, PIN ou padrão seguro no Android")</div></div>
+            <div class="list-main"><div class="list-title">Bloqueio local</div><div class="list-meta">@(_biometricAvailable ? "Exigir confirmação ao reabrir a F&F Access" : "Configure biometria, PIN ou padrão seguro no Android")</div></div>
             <MudSwitch T="bool" Value="@AppLock.Enabled" ValueChanged="ToggleAppLockAsync" Disabled="@(!_biometricAvailable)" Color="Color.Primary" />
         </div>
         @if (AppLock.Enabled)
@@ -138,10 +138,10 @@
             Snackbar.Add("Bloqueio local desativado.", Severity.Info);
             return;
         }
-        var success = await Biometrics.AuthenticateAsync("Confirme para proteger o Condotify neste aparelho");
+        var success = await Biometrics.AuthenticateAsync("Confirme para proteger a F&F Access neste aparelho");
         if (!success) { Snackbar.Add("Não foi possível confirmar o bloqueio do aparelho.", Severity.Warning); return; }
         AppLock.SetEnabled(true);
-        Snackbar.Add("Condotify protegido com o bloqueio do aparelho.", Severity.Success);
+        Snackbar.Add("F&F Access protegida com o bloqueio do aparelho.", Severity.Success);
     }
 
     private async Task LogoutAllAsync()

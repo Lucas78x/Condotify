@@ -333,7 +333,7 @@ public sealed class WalletIntegrationsController(
 
     private static WalletIntegrationStatusViewModel ToStatus(WalletIntegrationDTO row) => new()
     {
-        Provider = row.Provider.ToString(), Source = "Cofre Condotify", AuthenticationMode = row.AuthenticationMode.ToString(),
+        Provider = row.Provider.ToString(), Source = "Cofre F&F Access", AuthenticationMode = row.AuthenticationMode.ToString(),
         IsConfigured = true, IsValidated = row.IsValidated, IsActive = row.IsActive, Version = row.Version,
         IssuerId = row.IssuerId, ServiceAccountEmail = row.ServiceAccountEmail, ClassSuffix = row.ClassSuffix,
         PassTypeIdentifier = row.PassTypeIdentifier, TeamIdentifier = row.TeamIdentifier,

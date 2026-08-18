@@ -9,7 +9,7 @@
 @inject MobileDeviceActions DeviceActions
 @inject MobilePullToRefreshState PullToRefresh
 
-<PageTitle>Reservas | Condotify</PageTitle>
+<PageTitle>Reservas | F&amp;F Access</PageTitle>
 <PageHeader Eyebrow="ÁREAS COMUNS" Title="Reservas" Subtitle="Agenda das áreas comuns.">
     <Actions>
         <div class="page-actions">
@@ -180,7 +180,7 @@
     private void SelectToday() { _visibleMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1); _selectedDate = DateTime.Today; }
     private void SelectDate(DateTime date) { _selectedDate = date.Date; _visibleMonth = new(date.Year, date.Month, 1); DeviceActions.Tap(); }
     private string CalendarDayClass(CalendarDay day) => string.Join(' ', new[] { !day.InMonth ? "outside" : string.Empty, day.Date.Date == DateTime.Today ? "today" : string.Empty, day.Date.Date == _selectedDate.Date ? "selected" : string.Empty, day.Bookings > 0 ? "has-booking" : string.Empty }.Where(value => value.Length > 0));
-    private Task ShareReminderAsync(AmenityBookingViewModel row) => DeviceActions.ShareTextAsync($"Reserva: {row.AmenityName}", $"Lembrete Condotify\n{row.AmenityName}\n{row.Date:dd/MM/yyyy}, das {FormatTime(row.SlotStartTime)} às {FormatTime(row.SlotEndTime)}\n{row.BlockName} / {row.UnitNumber}\nSituação: {StatusLabel(row.Status)}");
+    private Task ShareReminderAsync(AmenityBookingViewModel row) => DeviceActions.ShareTextAsync($"Reserva: {row.AmenityName}", $"Lembrete F&F Access\n{row.AmenityName}\n{row.Date:dd/MM/yyyy}, das {FormatTime(row.SlotStartTime)} às {FormatTime(row.SlotEndTime)}\n{row.BlockName} / {row.UnitNumber}\nSituação: {StatusLabel(row.Status)}");
     private static bool IsCancelable(AmenityBookingViewModel row) => row.Status is "Pending" or "Confirmed";
     private static Color StatusColor(string status) => status switch { "Confirmed" => Color.Success, "Pending" => Color.Warning, "Rejected" or "Cancelled" => Color.Error, _ => Color.Default };
     private static string StatusClass(string status) => status switch { "Confirmed" => "success", "Pending" => "warning", "Rejected" or "Cancelled" => "error", "Completed" => "neutral", _ => "info" };

@@ -455,8 +455,8 @@
     private async Task DeleteCredentialAsync(PersonCredentialViewModel credential)
     {
         var equipmentText = credential.DeviceCount == 0
-            ? "Ela será apagada do Condotify."
-            : $"Ela será removida de {credential.DeviceCount} equipamento(s) antes de ser apagada do Condotify.";
+            ? "Ela será apagada da F&F Access."
+            : $"Ela será removida de {credential.DeviceCount} equipamento(s) antes de ser apagada da F&F Access.";
         var confirmed = await DialogService.ShowMessageBoxAsync(
             "Excluir credencial",
             $"Excluir {CredentialLabel(credential.Type).ToLowerInvariant()} de {_profile?.Name}? {equipmentText} A foto da pessoa permanecerá no cadastro.",

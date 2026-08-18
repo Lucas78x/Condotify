@@ -71,7 +71,7 @@ public sealed class AccessControlOperationsController : ControllerBase
         var credentialIds = await _context.AccessInventoryItems.AsNoTracking()
             .Where(x => x.LicenseId == licenseId && x.DeviceId == deviceId && input.InventoryItemIds.Contains(x.Id) && x.CredentialId.HasValue)
             .Select(x => x.CredentialId!.Value).Distinct().ToListAsync();
-        if (credentialIds.Count == 0) return BadRequest(new { Errors = "Selecione divergencias vinculadas a credenciais do Condotify." });
+        if (credentialIds.Count == 0) return BadRequest(new { Errors = "Selecione divergências vinculadas a credenciais da F&F Access." });
         var batch = QueueBatch(licenseId, credentialIds, CurrentUserName(), input.IdempotencyKey);
         await _context.SaveChangesAsync();
         return Accepted(ToBatchOut(batch));
