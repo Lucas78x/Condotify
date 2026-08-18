@@ -30,8 +30,8 @@ CONDOTIFY_TIME_ZONE=America/Bahia
 CONDOTIFY_PUBLIC_HOST=$DOMAIN
 CONDOTIFY_PUBLIC_PORTAL_URL=https://$DOMAIN
 CONDOTIFY_PUBLIC_APP_URL=https://$DOMAIN
-CONDOTIFY_MEDIA_HLS_BASEURL=https://$DOMAIN:8888
-CONDOTIFY_MEDIA_WEBRTC_BASEURL=https://$DOMAIN:8889
+CONDOTIFY_MEDIA_HLS_BASEURL=https://$DOMAIN/media/hls
+CONDOTIFY_MEDIA_WEBRTC_BASEURL=https://$DOMAIN/media/webrtc
 CONDOTIFY_MEDIA_WEBRTC_HOSTS=$DOMAIN
 CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE=24
 CONDOTIFY_MEDIA_TRANSCODE_AUDIO=true
@@ -79,8 +79,6 @@ sudo ufw default allow outgoing
 sudo ufw allow "$SSH_PORT/tcp" comment 'SSH custom'
 sudo ufw allow 80/tcp comment 'HTTP and ACME'
 sudo ufw allow 443/tcp comment 'HTTPS portal and API'
-sudo ufw allow 8888/tcp comment 'Media HLS TLS'
-sudo ufw allow 8889/tcp comment 'Media WebRTC signaling TLS'
 sudo ufw allow 8189/udp comment 'Media WebRTC ICE'
 sudo ufw --force enable
 

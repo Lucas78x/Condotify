@@ -54,9 +54,8 @@ services:
       CONDOTIFY_SMTP_ENABLE_SSL: ${CONDOTIFY_SMTP_ENABLE_SSL:-true}
       CONDOTIFY_MEDIA_GATEWAY_URL: http://mediamtx:9997
       CONDOTIFY_MEDIA_TRANSCODE_AUDIO: ${CONDOTIFY_MEDIA_TRANSCODE_AUDIO:-true}
-      # Endereco publico pelo qual o aplicativo alcanca o gateway de video. Em
-      # producao, aponte para o host/proxy que expoe as portas 8888 (HLS) e
-      # 8889 (WebRTC) -- um unico proxy pode fazer frente as duas.
+      # Endereco publico pelo qual o aplicativo alcanca o gateway de video.
+      # Em producao, o proxy publica os backends em caminhos HTTPS.
       CONDOTIFY_MEDIA_HLS_BASEURL: ${CONDOTIFY_MEDIA_HLS_BASEURL:-http://localhost:8888}
       CONDOTIFY_MEDIA_WEBRTC_BASEURL: ${CONDOTIFY_MEDIA_WEBRTC_BASEURL:-http://localhost:8889}
       CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE: ${CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE:-24}
@@ -86,8 +85,7 @@ services:
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
     ports:
-      # 8888 (HLS) e 8889 (WebRTC) sao os unicos publicados, e apenas
-      # porque o callback de autenticacao protege cada leitura.
+      # HLS e WebRTC ficam no loopback; o proxy TLS e a unica entrada TCP.
       # 9997 (Control API) NAO e publicada: ver mediamtx/mediamtx.yml.
       - "127.0.0.1:18888:8888"
       - "127.0.0.1:18889:8889"
