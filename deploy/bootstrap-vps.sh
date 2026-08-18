@@ -49,7 +49,9 @@ fi
 sed -i 's/fefacess\.grupoff\.com/fefaccess.grupoff.net.br/g' .env
 
 chmod 600 .env
-sudo install -d -m 0750 -o 1654 -g 1654 "$ROOT_DIR/backups"
+sudo install -d -m 0750 -o 1654 -g "$(id -g)" "$ROOT_DIR/backups"
+sudo chown 1654:"$(id -g)" "$ROOT_DIR/backups"
+sudo chmod 0750 "$ROOT_DIR/backups"
 sudo install -d -m 0755 /var/www/certbot
 sudo install -d -m 0755 /var/www/certbot/.well-known/acme-challenge
 
