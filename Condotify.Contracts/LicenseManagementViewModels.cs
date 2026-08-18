@@ -5,19 +5,20 @@ namespace Condotify.Models
 {
     public class CreateLicenseViewModel
     {
-        [Required]
+        [Required(ErrorMessage = "Informe o nome do condomínio.")]
         public string Name { get; set; } = string.Empty;
 
-        [Required]
+        [Required(ErrorMessage = "Informe o CNPJ.")]
         public string CNPJ { get; set; } = string.Empty;
 
-        [Required]
+        [Required(ErrorMessage = "Informe a cidade.")]
         public string City { get; set; } = string.Empty;
 
-        [Required]
+        [Required(ErrorMessage = "Informe o país.")]
         public string Country { get; set; } = "Brasil";
 
-        [Required]
+        // O cliente gera um codigo estavel quando o operador deixa este campo
+        // opcional em branco (ver CondotifyApiClient.CreateLicenseAsync).
         public string Code { get; set; } = string.Empty;
 
         public int Organization { get; set; } = 1;

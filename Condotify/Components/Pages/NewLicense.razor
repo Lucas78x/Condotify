@@ -22,6 +22,7 @@
         }
         <EditForm Model="_model" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
+            <ValidationSummary />
             <div class="form-grid">
                 <MudTextField T="string" @bind-Value="_model.Name" Label="Nome do condomínio" Required Variant="Variant.Outlined" For="@(() => _model.Name)" />
                 <MudTextField T="string" @bind-Value="_model.CNPJ" Label="CNPJ" Required Variant="Variant.Outlined" For="@(() => _model.CNPJ)" />

@@ -45,7 +45,15 @@ namespace CondotifyAPI.Commands.Licenses
             Building = building;
             Type = type;
             Location = location;
-            ExpireDate = expireDate;
+            // Date-only inputs from the Blazor calendar can arrive as Local (when
+            // the JSON contains an offset) or Unspecified. PostgreSQL timestamptz
+            // only accepts UTC DateTime values through Npgsql.
+            ExpireDate = expireDate.Kind switch
+            {
+                DateTimeKind.Utc => expireDate,
+                DateTimeKind.Local => expireDate.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(expireDate, DateTimeKind.Utc)
+            };
         }
 
         internal class Handler : IRequestHandler<CreateLicenseByEnterpriseCommand, License?>
