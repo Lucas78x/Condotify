@@ -62,8 +62,8 @@ class FastAlprRecognizer:
         if not results:
             return PlateRecognitionResult(plate=None, confidence=0.0)
 
-        best = max(results, key=lambda r: r.ocr.text_confidence if r.ocr else 0.0)
+        best = max(results, key=lambda r: r.ocr.confidence if r.ocr else 0.0)
         if best.ocr is None:
             return PlateRecognitionResult(plate=None, confidence=0.0)
 
-        return PlateRecognitionResult(plate=best.ocr.text, confidence=float(best.ocr.text_confidence))
+        return PlateRecognitionResult(plate=best.ocr.text, confidence=float(best.ocr.confidence))
