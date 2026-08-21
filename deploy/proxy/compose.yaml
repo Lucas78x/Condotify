@@ -1,8 +1,15 @@
+x-proxy-logging: &proxy-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   caddy:
     image: caddy:2.11.4-alpine
     container_name: web-caddy
     restart: unless-stopped
+    logging: *proxy-logging
     environment:
       CONDOTIFY_PUBLIC_HOST: ${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br}
     ports:

@@ -33,7 +33,7 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 
 docker compose config --quiet
-docker compose up -d --build --remove-orphans
+docker compose up -d --build --remove-orphans --wait --wait-timeout 180
 docker compose ps
 
 echo "deployment_commit=$(git rev-parse HEAD)"

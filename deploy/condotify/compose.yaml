@@ -1,8 +1,15 @@
+x-condotify-logging: &condotify-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: condotify-postgres
     restart: unless-stopped
+    logging: *condotify-logging
     environment:
       POSTGRES_DB: Condotify
       POSTGRES_USER: postgres
@@ -22,6 +29,7 @@ services:
       dockerfile: CondotifyAPI/Dockerfile
     container_name: condotify-api
     restart: unless-stopped
+    logging: *condotify-logging
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       # 8080 e publicada na rede do proxy; 8081 serve somente api/internal/*.
@@ -59,6 +67,12 @@ services:
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/condotify-firebase-service-account.json
     expose:
       - "8080"
+    healthcheck:
+      test: ["CMD", "condotify-healthcheck", "/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
     volumes:
       - condotify-private-media:/app/data/private-media
       - ${BACKUP_EXPORT_PATH:-../../backups}:/app/data/backups
@@ -76,6 +90,7 @@ services:
     image: bluenviron/mediamtx:1.9.3-ffmpeg
     container_name: condotify-mediamtx
     restart: unless-stopped
+    logging: *condotify-logging
     environment:
       MTX_WEBRTCADDITIONALHOSTS: ${CONDOTIFY_MEDIA_WEBRTC_HOSTS:-localhost}
     volumes:
@@ -84,7 +99,8 @@ services:
       # Unica porta da aplicacao publicada diretamente: transporte ICE/UDP.
       - "8189:8189/udp"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - condotify-media
       - public-media
@@ -94,6 +110,7 @@ services:
       context: ../../lpr-ocr
     container_name: condotify-lpr-ocr
     restart: unless-stopped
+    logging: *condotify-logging
     # Uploads maiores podem ir para arquivo temporario; tmpfs garante que uma
     # imagem de camera nunca seja persistida em disco (LGPD).
     tmpfs:
@@ -107,6 +124,7 @@ services:
       dockerfile: Condotify/Dockerfile
     container_name: condotify-portal
     restart: unless-stopped
+    logging: *condotify-logging
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
@@ -118,10 +136,17 @@ services:
       DataProtection__KeysPath: /app/data-protection
     expose:
       - "8080"
+    healthcheck:
+      test: ["CMD", "condotify-healthcheck", "/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
     volumes:
       - condotify-data-protection:/app/data-protection
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - default
       - public-web
@@ -130,6 +155,7 @@ services:
     image: dpage/pgadmin4:8
     container_name: condotify-pgadmin
     restart: unless-stopped
+    logging: *condotify-logging
     profiles:
       - tools
     environment:
