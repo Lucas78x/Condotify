@@ -1,4 +1,5 @@
 @inject MobileDeviceActions DeviceActions
+@inject MobileAppState AppState
 
 <MudDialog Class="mobile-dialog facial-share-dialog">
     <TitleContent>
@@ -10,7 +11,7 @@
     <DialogContent>
         <div class="facial-share-hero">
             <span class="facial-share-brand"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /> F&amp;F Access</span>
-            <div class="facial-share-person"><small>CONVITE PARA</small><strong>@Visit.VisitorName</strong><span>@Visit.BlockName @(!string.IsNullOrWhiteSpace(Visit.UnitNumber) ? $"· Unidade {Visit.UnitNumber}" : string.Empty)</span></div>
+            <div class="facial-share-person"><small>CONVITE PARA</small><strong>@Visit.VisitorName</strong><span>@Visit.BlockName @(!string.IsNullOrWhiteSpace(Visit.UnitNumber) ? $"· {AppState.UnitLabelSingular} {Visit.UnitNumber}" : string.Empty)</span></div>
             <div class="facial-share-animation" role="img" aria-label="Animação explicando o cadastro facial pelo celular">
                 <div class="facial-share-phone">
                     <span class="facial-share-camera"></span>

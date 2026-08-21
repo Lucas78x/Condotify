@@ -1,5 +1,6 @@
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
+@inject MobileAppState AppState
 
 <MudDialog Class="mobile-sheet-dialog mobile-incident-dialog">
     <TitleContent><div class="mobile-dialog-title"><span><MudIcon Icon="@Icons.Material.Outlined.Campaign" /></span><div><MudText Typo="Typo.h6">Abrir ocorrência</MudText><MudText Typo="Typo.caption">Conte o que aconteceu para direcionarmos o atendimento.</MudText></div></div></TitleContent>
@@ -13,7 +14,7 @@
             }
         </div>
         <MudTextField @bind-Value="_title" Label="Resumo" Placeholder="Ex.: Vazamento próximo ao elevador" Variant="Variant.Outlined" Immediate MaxLength="180" Class="mt-4" />
-        <MudTextField @bind-Value="_location" Label="Onde aconteceu?" Placeholder="Bloco, andar, área ou ponto de referência" Variant="Variant.Outlined" Immediate MaxLength="240" Class="mt-3" />
+        <MudTextField @bind-Value="_location" Label="Onde aconteceu?" Placeholder="@($"{AppState.GroupLabelSingular}, andar, área ou ponto de referência")" Variant="Variant.Outlined" Immediate MaxLength="240" Class="mt-3" />
         <MudTextField @bind-Value="_description" Label="Descreva o problema" Placeholder="Inclua detalhes que ajudem a equipe a entender e agir." Variant="Variant.Outlined" Immediate Lines="4" MaxLength="4000" Class="mt-3" />
         <div class="incident-photo-field">
             <div><strong>Fotos do local</strong><small>Opcional · até 4 imagens</small></div>

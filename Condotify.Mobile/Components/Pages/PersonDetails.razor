@@ -6,13 +6,13 @@
 @inject NavigationManager Navigation
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>@(_person?.Name ?? "Cadastro da pessoa") | F&amp;F Access</PageTitle>
 <PageHeader Eyebrow="PERFIL DE ACESSO" Title="@(_person?.Name ?? "Cadastro da pessoa")" Subtitle="@PersonSubtitle">
     <Actions>
         <div class="page-actions">
             <MudIconButton Icon="@Icons.Material.Outlined.ArrowBack" OnClick="Back" aria-label="Voltar" />
-            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
         </div>
     </Actions>
 </PageHeader>
@@ -75,7 +75,7 @@
                     <div><span>RG</span><strong>@Value(_person.RG)</strong></div>
                     <div><span>Nascimento</span><strong>@FormatBirthDate(_person.BirthDate)</strong></div>
                     <div><span>Telefone comercial</span><strong>@Value(_person.CommercialPhone)</strong></div>
-                    <div><span>Localização</span><strong>@_person.BlockName / Unidade @_person.UnitNumber</strong></div>
+                    <div><span>Localização</span><strong>@_person.BlockName / @AppState.UnitLabelSingular @_person.UnitNumber</strong></div>
                     <div><span>Notificações de acesso</span><strong>@(_person.NotifyAccess ? "Ativadas" : "Desativadas")</strong></div>
                     <div class="detail-wide"><span>Observações</span><strong>@Value(_person.Description)</strong></div>
                 </div>
@@ -152,8 +152,9 @@
     private string _error = string.Empty;
     private string _tab = "data";
     private string FaceActionLabel => _person?.HasActiveFaceCredential == true ? "Sincronizar facial" : "Ativar reconhecimento facial";
-    private string PersonSubtitle => _person is null ? "Carregando cadastro..." : $"{_person.BlockName} · Unidade {_person.UnitNumber}";
+    private string PersonSubtitle => _person is null ? "Carregando cadastro..." : $"{_person.BlockName} · {AppState.UnitLabelSingular} {_person.UnitNumber}";
 
+    protected override void OnInitialized() => PullToRefresh.Register(LoadAsync);
     protected override Task OnParametersSetAsync() => LoadAsync();
 
     private async Task LoadAsync()
@@ -294,6 +295,7 @@
 
     public void Dispose()
     {
+        PullToRefresh.Unregister(LoadAsync);
         _loadCts?.Cancel();
         _loadCts?.Dispose();
     }

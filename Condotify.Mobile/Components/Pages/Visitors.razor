@@ -12,7 +12,6 @@
 <PageHeader Eyebrow="AUTORIZAÇÕES" Title="Visitantes" Subtitle="@Subtitle">
     <Actions>
         <div class="page-actions">
-            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAddAlt1"
                        Disabled="@(!CanCreate)" OnClick="OpenCreateAsync">Novo visitante</MudButton>
         </div>
@@ -44,7 +43,7 @@
                       Margin="Margin.Dense"
                       Adornment="Adornment.Start"
                       AdornmentIcon="@Icons.Material.Outlined.Search"
-                      Placeholder="Buscar visitante, anfitrião, unidade ou placa"
+                      Placeholder="@($"Buscar visitante, anfitrião, {AppState.UnitLabelSingular.ToLowerInvariant()} ou placa")"
                       aria-label="Buscar visitante" />
     </div>
 
@@ -179,6 +178,7 @@
             var visitsResult = await visitsTask;
             _profile = profileResult.Value;
             _rows = visitsResult.Value ?? [];
+            if (profileResult.Success && profileResult.Value is not null) AppState.SetResidentContext(profileResult.Value);
             if (!profileResult.Success) _error = profileResult.Error ?? "Não foi possível carregar seu vínculo.";
             else if (!visitsResult.Success) _error = visitsResult.Error ?? "Não foi possível carregar os visitantes.";
         }

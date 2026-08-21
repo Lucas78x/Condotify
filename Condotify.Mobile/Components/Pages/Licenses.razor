@@ -1,11 +1,11 @@
 @page "/licenses"
+@implements IDisposable
 @inject MobileAppState AppState
 @inject NavigationManager Navigation
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Condomínios | F&amp;F Access</PageTitle>
-<PageHeader Eyebrow="AMBIENTE DE TRABALHO" Title="Condomínios" Subtitle="Escolha o ambiente que deseja operar.">
-    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
-</PageHeader>
+<PageHeader Eyebrow="AMBIENTE DE TRABALHO" Title="Condomínios" Subtitle="Escolha o ambiente que deseja operar." />
 
 <PageState Loading="_loading" Error="@_error" Empty="@(AppState.Licenses.Count == 0)" EmptyTitle="Nenhum condomínio disponível" EmptyText="Sua conta ainda não possui acesso a um ambiente." Retry="LoadAsync">
     <section class="screen-overview license-overview">
@@ -38,6 +38,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        PullToRefresh.Register(LoadAsync);
         if (AppState.Licenses.Count == 0) await LoadAsync();
     }
 
@@ -58,4 +59,5 @@
 
     private static string Location(LicenseViewModel license) =>
         string.IsNullOrWhiteSpace(license.Cidade) ? string.Empty : $"- {license.Cidade}/{license.Estado}";
+    public void Dispose() => PullToRefresh.Unregister(LoadAsync);
 }

@@ -1,15 +1,15 @@
 @page "/ocorrencias"
 @page "/ocorrencias/{EntityId:guid}"
+@implements IDisposable
 @inject CondotifyApiClient Api
 @inject MobileSessionCoordinator Session
 @inject MobileAppState AppState
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Ocorrências | F&amp;F Access</PageTitle>
-<PageHeader Eyebrow="ATENDIMENTO" Title="Ocorrências" Subtitle="Abra chamados e acompanhe cada etapa do atendimento.">
-    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
-</PageHeader>
+<PageHeader Eyebrow="ATENDIMENTO" Title="Ocorrências" Subtitle="Abra chamados e acompanhe cada etapa do atendimento." />
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_items.Count == 0)" EmptyTitle="Nenhuma ocorrência por aqui" EmptyText="Quando precisar da equipe, abra um chamado com local e detalhes do problema." Retry="LoadAsync">
     <section class="mobile-incidents-hero">
@@ -53,7 +53,11 @@
     private bool IsResident => Session.Current?.Principal == MobilePrincipalKind.Resident;
     private int OpenCount => _items.Count(x => x.Status == "Open"); private int InProgressCount => _items.Count(x => x.Status == "InProgress"); private int ResolvedCount => _items.Count(x => x.Status is "Resolved" or "Closed");
     private IEnumerable<IncidentViewModel> VisibleItems => _items.Where(x => _filter switch { "active" => x.Status is "Open" or "InProgress", "history" => x.Status is "Resolved" or "Closed", _ => true });
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        return LoadAsync();
+    }
     private async Task LoadAsync()
     {
         _loading = true; _error = string.Empty;
@@ -73,4 +77,5 @@
     private static string TimeLabel(IncidentViewModel item) => item.Status is "Resolved" or "Closed" ? $"concluída {item.ResolvedAt?.ToLocalTime():dd/MM}" : item.SlaResolutionDueAt.HasValue ? item.SlaResolutionDueAt < DateTime.UtcNow ? "SLA atrasado" : $"até {item.SlaResolutionDueAt.Value.ToLocalTime():dd/MM HH:mm}" : item.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm");
     private static string TimelineIcon(string type) => type switch { "Comment" => Icons.Material.Outlined.ChatBubbleOutline, "Evidence" => Icons.Material.Outlined.PhotoCamera, "StatusChanged" => Icons.Material.Outlined.SyncAlt, "Assignment" => Icons.Material.Outlined.Person, _ => Icons.Material.Outlined.Flag };
     private static string TimelineLabel(string type) => type switch { "Comment" => "Atualização", "Evidence" => "Evidência", "StatusChanged" => "Situação atualizada", "Assignment" => "Responsável atualizado", _ => "Ocorrência enviada" };
+    public void Dispose() => PullToRefresh.Unregister(LoadAsync);
 }

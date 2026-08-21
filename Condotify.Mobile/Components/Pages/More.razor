@@ -42,7 +42,7 @@
         <section class="settings-section">
             <span class="settings-label">Operação</span>
             <div class="settings-group">
-                <a class="list-row" href="/people"><span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><div class="list-main"><div class="list-title">Pessoas e unidades</div><div class="list-meta">Moradores, prestadores, veículos e credenciais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                <a class="list-row" href="/people"><span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><div class="list-main"><div class="list-title">@($"Pessoas e {UnitPluralLower}")</div><div class="list-meta">Moradores, prestadores, veículos e credenciais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
                 <a class="list-row" href="/visitors"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" /></span><div class="list-main"><div class="list-title">Visitantes</div><div class="list-meta">Autorizações e movimentações</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
                 @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Devices)) { <a class="list-row" href="/devices"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><div class="list-main"><div class="list-title">Equipamentos</div><div class="list-meta">Estado e acionamentos</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
                 <a class="list-row" href="/audit"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span><div class="list-main"><div class="list-title">Auditoria de acesso</div><div class="list-meta">Histórico de ações, entradas e credenciais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
@@ -64,8 +64,8 @@
         <section class="settings-section">
             <span class="settings-label">Condomínio</span>
             <div class="settings-group">
-                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Deliveries)) { <a class="list-row" href="/deliveries"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><div class="list-main"><div class="list-title">Minhas encomendas</div><div class="list-meta">Volumes destinados às suas unidades</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
-                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Finance)) { <a class="list-row" href="/financeiro"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.AccountBalanceWallet" /></span><div class="list-main"><div class="list-title">Financeiro</div><div class="list-meta">Cobranças, situação e documentos da unidade</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Deliveries)) { <a class="list-row" href="/deliveries"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span><div class="list-main"><div class="list-title">Minhas encomendas</div><div class="list-meta">@($"Volumes destinados às suas {UnitPluralLower}")</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
+                @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Finance)) { <a class="list-row" href="/financeiro"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.AccountBalanceWallet" /></span><div class="list-main"><div class="list-title">Financeiro</div><div class="list-meta">@($"Cobranças, situação e documentos da {UnitSingularLower}")</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
                 @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Incidents)) { <a class="list-row" href="/ocorrencias"><span class="settings-icon success"><MudIcon Icon="@Icons.Material.Outlined.SupportAgent" /></span><div class="list-main"><div class="list-title">Ocorrências</div><div class="list-meta">Abra chamados e acompanhe o atendimento</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
                 @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Documents)) { <a class="list-row" href="/documentos"><span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.Description" /></span><div class="list-main"><div class="list-title">Documentos</div><div class="list-meta">Atas, regimento, comunicados e mais</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
                 @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Announcements)) { <a class="list-row" href="/comunicados"><span class="settings-icon warning"><MudIcon Icon="@Icons.Material.Outlined.Campaign" /></span><div class="list-main"><div class="list-title">Comunicados</div><div class="list-meta">Avisos publicados pela administração</div></div><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a> }
@@ -92,6 +92,8 @@
     private string ContextLabel => Session.Current?.Principal == MobilePrincipalKind.Resident
         ? Session.Current?.LicenseName ?? "Meu condomínio"
         : AppState.SelectedLicense?.Nome ?? "Central operacional";
+    private string UnitSingularLower => AppState.UnitLabelSingular.ToLowerInvariant();
+    private string UnitPluralLower => AppState.UnitLabelPlural.ToLowerInvariant();
 
     private long EnabledModules => Session.Current?.Principal == MobilePrincipalKind.Resident
         ? AppState.ResidentEnabledModules

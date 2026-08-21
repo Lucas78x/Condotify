@@ -65,8 +65,14 @@ public sealed class FcmPushTransportTests
         using var document = JsonDocument.Parse(json);
         var message = document.RootElement.GetProperty("message");
         Assert.Equal("sensitive-fcm-token", message.GetProperty("token").GetString());
+        Assert.False(message.TryGetProperty("notification", out _));
+        Assert.Equal("Visitante aguardando", message.GetProperty("data").GetProperty("title").GetString());
+        Assert.Equal("Há uma nova solicitação.", message.GetProperty("data").GetProperty("body").GetString());
         Assert.Equal("Visitor", message.GetProperty("data").GetProperty("category").GetString());
         Assert.Equal("high", message.GetProperty("android").GetProperty("priority").GetString());
+        var aps = message.GetProperty("apns").GetProperty("payload").GetProperty("aps");
+        Assert.Equal("Visitante aguardando", aps.GetProperty("alert").GetProperty("title").GetString());
+        Assert.Equal("default", aps.GetProperty("sound").GetString());
     }
 
     [Fact]

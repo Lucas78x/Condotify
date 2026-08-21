@@ -99,6 +99,8 @@ public sealed class FcmPushTransport : IPushTransport
     {
         var data = new Dictionary<string, string>(message.Data, StringComparer.Ordinal)
         {
+            ["title"] = message.Title,
+            ["body"] = message.Body,
             ["route"] = message.Route,
             ["deepLink"] = message.DeepLink,
             ["category"] = message.Category
@@ -109,13 +111,19 @@ public sealed class FcmPushTransport : IPushTransport
             message = new
             {
                 token = pushToken,
-                notification = new { title = message.Title, body = message.Body },
                 data,
                 android = new { priority = "high" },
                 apns = new
                 {
                     headers = new Dictionary<string, string> { ["apns-priority"] = "10" },
-                    payload = new { aps = new { sound = "default" } }
+                    payload = new
+                    {
+                        aps = new
+                        {
+                            alert = new { title = message.Title, body = message.Body },
+                            sound = "default"
+                        }
+                    }
                 }
             }
         };

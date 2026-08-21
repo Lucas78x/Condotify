@@ -6,6 +6,7 @@
 @inject CondotifyApiClient Api
 @inject MobileWeatherService Weather
 @inject MobileOfflineCache OfflineCache
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Início | F&amp;F Access</PageTitle>
 
@@ -16,7 +17,6 @@
             <h1>@Greeting</h1>
             <span class="home-question">@HomeQuestion</span>
         </div>
-        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar início" />
     </div>
     <div class="home-conditions">
         <MudIcon Icon="@(_weather?.IconKey ?? Icons.Material.Outlined.Schedule)" Size="Size.Small" />
@@ -48,13 +48,13 @@
                 <a class="home-highlight warning" href="/notifications"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" /></span><strong>@(_notifications?.Unread ?? 0) novidade(s)</strong><small>Veja as atualizações da sua rotina</small></a>
                 @if (ModuleOn(Condotify.Models.LicenseModuleEnum.Bookings))
                 {
-                    <a class="home-highlight success" href="/bookings"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><strong>@(_resident?.Units.Count ?? 0) unidade(s)</strong><small>Reservas e áreas comuns</small></a>
+                    <a class="home-highlight success" href="/bookings"><span class="home-highlight-icon"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /></span><strong>@ResidentUnitCountLabel</strong><small>Reservas e áreas comuns</small></a>
                 }
             </div>
         </section>
 
         <section class="content-panel home-panel">
-            <div class="panel-heading"><div><MudText Typo="Typo.h5">Minhas unidades</MudText><span class="panel-subtitle">Vínculos ativos no condomínio</span></div></div>
+            <div class="panel-heading"><div><MudText Typo="Typo.h5">@($"Minhas {AppState.UnitLabelPlural.ToLowerInvariant()}")</MudText><span class="panel-subtitle">Vínculos ativos no condomínio</span></div></div>
             @foreach (var unit in _resident?.Units ?? [])
             {
                 <div class="list-row">
@@ -119,6 +119,15 @@
         ? "O que você precisa hoje?"
         : "Como está a operação agora?";
     private string CurrentDateLabel => DateTime.Now.ToString("dd/MM · HH:mm");
+    private string ResidentUnitCountLabel
+    {
+        get
+        {
+            var count = _resident?.Units.Count ?? 0;
+            var label = count == 1 ? AppState.UnitLabelSingular : AppState.UnitLabelPlural;
+            return $"{count} {label.ToLowerInvariant()}";
+        }
+    }
     private long EnabledModules => Session.Current?.Principal == MobilePrincipalKind.Resident
         ? AppState.ResidentEnabledModules
         : AppState.SelectedLicense?.EnabledModules ?? (long)Condotify.Models.LicenseModuleEnum.All;
@@ -126,6 +135,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        PullToRefresh.Register(LoadAsync);
         if (Session.Current?.Principal == MobilePrincipalKind.Staff && AppState.Licenses.Count == 0)
             await AppState.LoadLicensesAsync();
         await LoadAsync();
@@ -161,12 +171,12 @@
             if (profile.Success && profile.Value is not null)
             {
                 await OfflineCache.SaveAsync(ResidentCacheKey, new ResidentHomeCache(profile.Value, notifications.Value));
-                AppState.SetResidentModules(profile.Value.EnabledModules);
+                AppState.SetResidentContext(profile.Value);
             }
             else
             {
                 var cached = await OfflineCache.LoadAsync<ResidentHomeCache>(ResidentCacheKey, TimeSpan.FromHours(24));
-                if (cached is not null) { _resident = cached.Value.Profile; _notifications = cached.Value.Notifications; _cachedAt = cached.StoredAt; }
+                if (cached is not null) { _resident = cached.Value.Profile; _notifications = cached.Value.Notifications; _cachedAt = cached.StoredAt; AppState.SetResidentContext(cached.Value.Profile); }
                 else _error = profile.Error ?? "Não foi possível carregar seu cadastro.";
             }
         }
@@ -192,6 +202,7 @@
 
     public void Dispose()
     {
+        PullToRefresh.Unregister(LoadAsync);
         _loadCts.Cancel();
         _loadCts.Dispose();
     }

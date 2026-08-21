@@ -6,16 +6,16 @@
 @inject NavigationManager Navigation
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
+@inject MobilePullToRefreshState PullToRefresh
 
-<PageTitle>Pessoas e unidades | F&amp;F Access</PageTitle>
-<PageHeader Eyebrow="GESTÃO DE ACESSO" Title="Pessoas e unidades" Subtitle="Navegue pela estrutura do condomínio até cada cadastro.">
+<PageTitle>@($"Pessoas e {UnitPluralLower}") | F&amp;F Access</PageTitle>
+<PageHeader Eyebrow="GESTÃO DE ACESSO" Title="@($"Pessoas e {UnitPluralLower}")" Subtitle="Navegue pela estrutura do condomínio até cada cadastro.">
     <Actions>
         <MudIconButton Icon="@Icons.Material.Outlined.PersonAdd" Color="Color.Primary" Disabled="@(_structure is null)" OnClick="OpenCreatePersonAsync" aria-label="Cadastrar pessoa" />
-        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
     </Actions>
 </PageHeader>
 
-<PageState Loading="_loading" Error="@_error" Empty="@(_structure?.Blocks.Count == 0)" EmptyTitle="Estrutura vazia" EmptyText="Nenhum bloco ou unidade foi cadastrado neste condomínio." Retry="LoadAsync">
+<PageState Loading="_loading" Error="@_error" Empty="@(_structure?.Blocks.Count == 0)" EmptyTitle="Estrutura vazia" EmptyText="@($"Nenhum {GroupSingularLower} ou {UnitSingularLower} foi cadastrado neste condomínio.")" Retry="LoadAsync">
     @if (_structure is not null)
     {
         <section class="screen-overview directory-overview">
@@ -43,8 +43,8 @@
                           Margin="Margin.Dense"
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Outlined.Search"
-                          Placeholder="Buscar pessoa, bloco ou unidade"
-                          aria-label="Buscar pessoa, bloco ou unidade" />
+                          Placeholder="@($"Buscar pessoa, {GroupSingularLower} ou {UnitSingularLower}")"
+                          aria-label="@($"Buscar pessoa, {GroupSingularLower} ou {UnitSingularLower}")" />
         </div>
 
         @if (!FilteredBlocks.Any())
@@ -93,13 +93,20 @@
     private bool _loading;
     private string _error = string.Empty;
     private string _search = string.Empty;
+    private string GroupSingularLower => (_structure?.GroupLabelSingular ?? AppState.GroupLabelSingular).ToLowerInvariant();
+    private string UnitSingularLower => (_structure?.UnitLabelSingular ?? AppState.UnitLabelSingular).ToLowerInvariant();
+    private string UnitPluralLower => (_structure?.UnitLabelPlural ?? AppState.UnitLabelPlural).ToLowerInvariant();
 
     private int TotalUnits => _structure?.Blocks.Sum(x => x.Units.Count) ?? 0;
     private int TotalPeople => _structure?.Blocks.Sum(x => x.Units.Sum(y => y.Residents.Count)) ?? 0;
     private int TemporaryPeople => _structure?.Blocks.Sum(x => x.Units.Sum(y => y.Residents.Count(z => z.Temporary))) ?? 0;
     private IEnumerable<BlockRowViewModel> FilteredBlocks => (_structure?.Blocks ?? []).Where(BlockMatches);
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        return LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -168,6 +175,7 @@
 
     public void Dispose()
     {
+        PullToRefresh.Unregister(LoadAsync);
         _loadCts?.Cancel();
         _loadCts?.Dispose();
     }

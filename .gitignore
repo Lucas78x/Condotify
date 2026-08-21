@@ -374,9 +374,11 @@ FodyWeavers.xsd
 # Local secrets and mobile provider credentials
 .env
 !.env.example
+/secrets/
 **/google-services.json
 **/GoogleService-Info.plist
 *firebase*service-account*.json
+*firebase-adminsdk*.json
 client_secret_*.json
 
 # Local Codex/Claude work products and generated presentation previews

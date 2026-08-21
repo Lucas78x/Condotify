@@ -32,6 +32,18 @@ public sealed class FirebasePushTokenProvider : IMobilePushTokenProvider, IDispo
     {
         try
         {
+#if ANDROID
+            if (OperatingSystem.IsAndroidVersionAtLeast(33))
+            {
+                var permission = await Permissions.CheckStatusAsync<Permissions.PostNotifications>();
+                if (permission != PermissionStatus.Granted)
+                    permission = await Permissions.RequestAsync<Permissions.PostNotifications>();
+
+                if (permission != PermissionStatus.Granted)
+                    return null;
+            }
+#endif
+
             if (_messaging is not null)
             {
                 await _messaging.CheckIfValidAsync();

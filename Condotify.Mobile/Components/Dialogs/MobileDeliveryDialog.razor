@@ -1,4 +1,5 @@
 @inject CondotifyApiClient Api
+@inject MobileAppState AppState
 
 <MudDialog Class="mobile-dialog">
     <TitleContent>
@@ -9,7 +10,7 @@
         <div class="mobile-form-grid">
             <MudAutocomplete T="GlobalResidentSearchViewModel" @bind-Value="_recipient" SearchFunc="SearchResidentsAsync"
                              ToStringFunc="@(person => person is null ? string.Empty : $"{person.Name} · {person.BlockName}/{person.UnitNumber}")"
-                             Label="Morador e unidade" Placeholder="Digite ao menos 2 letras" Variant="Variant.Outlined" Clearable="true"
+                             Label="@($"Morador e {AppState.UnitLabelSingular.ToLowerInvariant()}")" Placeholder="Digite ao menos 2 letras" Variant="Variant.Outlined" Clearable="true"
                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
             <MudTextField T="string" @bind-Value="_form.Name" Label="Destinatário ou identificação" Variant="Variant.Outlined" />
             <MudSelect T="int" @bind-Value="_form.Type" Label="Transportadora/origem" Variant="Variant.Outlined">
@@ -45,7 +46,7 @@
     {
         if (_recipient is null || _recipient.Id == Guid.Empty || _recipient.UnitId == Guid.Empty)
         {
-            _error = "Selecione o morador e uma unidade válida de destino.";
+            _error = $"Selecione o morador e uma {AppState.UnitLabelSingular.ToLowerInvariant()} válida de destino.";
             return;
         }
         _form.RecipientResidentId = _recipient.Id; _form.UnitId = _recipient.UnitId;

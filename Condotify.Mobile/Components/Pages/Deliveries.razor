@@ -10,7 +10,7 @@
 
 <PageTitle>Encomendas | F&amp;F Access</PageTitle>
 <PageHeader Eyebrow="RECEBIMENTOS" Title="Encomendas" Subtitle="Recebimentos registrados na portaria.">
-    <Actions><div class="page-actions"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
+    <Actions><div class="page-actions">
         @if (Session.Current?.Principal == MobilePrincipalKind.Staff) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateAsync">Receber volume</MudButton> }
     </div></Actions>
 </PageHeader>

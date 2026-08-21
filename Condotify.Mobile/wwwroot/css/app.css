@@ -995,8 +995,6 @@ body { color: var(--app-ink); background: var(--app-soft); }
 .audit-summary > div { min-width: 0; display: grid; gap: 2px; }
 .audit-summary strong { font-size: .93rem; }
 .audit-summary span { color: var(--text-secondary); font-size: .73rem; }
-.audit-summary-refresh { width: 36px; height: 36px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line-soft); border-radius: 11px; background: var(--surface); color: var(--brand-primary); cursor: pointer; }
-.audit-summary-refresh:active { transform: scale(.96); }
 .audit-toolbar { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line-soft); border-radius: 14px; background: color-mix(in srgb, var(--surface) 94%, var(--brand-primary)); box-shadow: 0 5px 16px rgba(31, 48, 78, .06); }
 .audit-filter-chips { display: flex; gap: 7px; overflow-x: auto; padding: 1px; scrollbar-width: none; }
 .audit-filter-chips::-webkit-scrollbar { display: none; }
@@ -1121,7 +1119,7 @@ body { color: var(--app-ink); background: var(--app-soft); }
 .booking-month-grid button.selected { background: var(--brand-primary); color: #fff; box-shadow: 0 7px 15px rgb(var(--brand-primary-rgb) / .25); }
 .booking-month-grid button small { position: absolute; right: 4px; bottom: 3px; min-width: 15px; padding: 1px 4px; border-radius: 999px; background: #dfe8ff; color: var(--brand-primary); font-size: .58rem; font-weight: 900; }
 .booking-month-grid button.selected small { background: rgba(255,255,255,.22); color: #fff; }
-.app-lock-screen { position: fixed; z-index: 5000; inset: 0; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, #14265d 88%, transparent); backdrop-filter: blur(18px); }
+.app-lock-screen { position: fixed; z-index: 5000; inset: 0; width: 100vw; min-height: 100vh; min-height: 100dvh; box-sizing: border-box; display: grid; place-items: center; overflow: auto; overscroll-behavior: none; padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); background: color-mix(in srgb, #14265d 92%, transparent); backdrop-filter: blur(18px); }
 .app-lock-card { width: min(360px, 100%); display: grid; justify-items: center; gap: 14px; padding: 34px 26px; border-radius: 28px; background: var(--mud-palette-surface); box-shadow: 0 30px 80px rgba(4, 12, 36, .35); text-align: center; }
 .app-lock-mark { width: 148px; height: 62px; border-radius: 0; }
 .app-lock-icon { width: 42px !important; height: 42px !important; font-size: 42px !important; color: var(--mud-palette-primary); }

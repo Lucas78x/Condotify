@@ -1,4 +1,5 @@
 @inject MobileDeviceActions DeviceActions
+@inject MobileAppState AppState
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
 @inject IJSRuntime Js
@@ -16,7 +17,7 @@
                 <span class="visitor-pass-brand"><span class="visitor-pass-logo">F&amp;F</span> F&amp;F Access</span>
                 <span class="visitor-pass-status"><i></i> Acesso temporário</span>
             </div>
-            <div class="visitor-pass-person"><small>VISITANTE</small><strong>@Visit.VisitorName</strong><span>@Visit.BlockName @(!string.IsNullOrWhiteSpace(Visit.UnitNumber) ? $"· Unidade {Visit.UnitNumber}" : string.Empty)</span></div>
+            <div class="visitor-pass-person"><small>VISITANTE</small><strong>@Visit.VisitorName</strong><span>@Visit.BlockName @(!string.IsNullOrWhiteSpace(Visit.UnitNumber) ? $"· {AppState.UnitLabelSingular} {Visit.UnitNumber}" : string.Empty)</span></div>
             @if (!string.IsNullOrWhiteSpace(QrDataUri))
             {
                 <div class="visitor-pass-qr"><span class="visitor-pass-qr-corner top-left"></span><span class="visitor-pass-qr-corner top-right"></span><img src="@QrDataUri" alt="QR Code do convite de @Visit.VisitorName" /><span class="visitor-pass-qr-corner bottom-left"></span><span class="visitor-pass-qr-corner bottom-right"></span></div>
@@ -136,8 +137,8 @@
     {
         var block = Visit.BlockName?.Trim();
         var unit = Visit.UnitNumber?.Trim();
-        if (string.IsNullOrWhiteSpace(block)) return string.IsNullOrWhiteSpace(unit) ? "Acesso autorizado" : $"Unidade {unit}";
-        return string.IsNullOrWhiteSpace(unit) ? block : $"{block} · Unidade {unit}";
+        if (string.IsNullOrWhiteSpace(block)) return string.IsNullOrWhiteSpace(unit) ? "Acesso autorizado" : $"{AppState.UnitLabelSingular} {unit}";
+        return string.IsNullOrWhiteSpace(unit) ? block : $"{block} · {AppState.UnitLabelSingular} {unit}";
     }
 
     private void Close() => Dialog.Close();

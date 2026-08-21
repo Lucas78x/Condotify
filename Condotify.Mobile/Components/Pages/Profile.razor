@@ -34,7 +34,7 @@
                 <div><span>Telefone</span><strong>@Value(_resident.PhoneNumber)</strong></div>
                 <div><span>Vínculo</span><strong>@AccessTypeLabel(_resident.AccessType)</strong></div>
                 <div><span>Condomínio</span><strong>@_resident.LicenseName</strong></div>
-                <div><span>Unidades</span><strong>@_resident.Units.Count</strong></div>
+                <div><span>@AppState.UnitLabelPlural</span><strong>@_resident.Units.Count</strong></div>
             </div>
             @if (_resident.Units.Count > 0)
             {
@@ -120,6 +120,7 @@
         if (Session.Current?.Principal == MobilePrincipalKind.Resident)
         {
             var result = await Api.GetResidentProfileAsync();
+            if (result.Success && result.Value is not null) AppState.SetResidentContext(result.Value);
             _resident = result.Value;
             if (!result.Success) _error = result.Error ?? "Não foi possível carregar seu perfil.";
         }

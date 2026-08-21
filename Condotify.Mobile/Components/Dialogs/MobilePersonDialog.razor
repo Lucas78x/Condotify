@@ -4,7 +4,7 @@
     <TitleContent>
         <div class="mobile-dialog-title">
             <MudIcon Icon="@Icons.Material.Outlined.PersonAdd" Color="Color.Primary" />
-            <div><MudText Typo="Typo.h6">Nova pessoa</MudText><MudText Typo="Typo.caption">Vincule o cadastro a uma unidade do condomínio.</MudText></div>
+            <div><MudText Typo="Typo.h6">Nova pessoa</MudText><MudText Typo="Typo.caption">@($"Vincule o cadastro a uma {Structure.UnitLabelSingular.ToLowerInvariant()} do condomínio.")</MudText></div>
         </div>
     </TitleContent>
     <DialogContent>
@@ -13,7 +13,7 @@
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">@_error</MudAlert>
         }
         <div class="mobile-form-grid">
-            <MudSelect T="Guid" @bind-Value="_form.UnitId" Label="Unidade" Variant="Variant.Outlined" Required="true">
+            <MudSelect T="Guid" @bind-Value="_form.UnitId" Label="@Structure.UnitLabelSingular" Variant="Variant.Outlined" Required="true">
                 @foreach (var unit in Units)
                 {
                     <MudSelectItem T="Guid" Value="@unit.Id">@unit.Label</MudSelectItem>
@@ -73,11 +73,11 @@
     private async Task SaveAsync()
     {
         if (_saving) return;
-        if (_form.UnitId == Guid.Empty) { _error = "Selecione uma unidade."; return; }
+        if (_form.UnitId == Guid.Empty) { _error = $"Selecione uma {Structure.UnitLabelSingular.ToLowerInvariant()}."; return; }
         if (string.IsNullOrWhiteSpace(_form.Name)) { _error = "Informe o nome da pessoa."; return; }
         if (_form.Temporary && (!_expire.HasValue || _expire.Value.Date < DateTime.Today)) { _error = "Informe uma expiração válida."; return; }
         var selected = Units.FirstOrDefault(unit => unit.Id == _form.UnitId);
-        if (selected is null) { _error = "A unidade selecionada não pertence a este condomínio."; return; }
+        if (selected is null) { _error = $"A {Structure.UnitLabelSingular.ToLowerInvariant()} selecionada não pertence a este condomínio."; return; }
         _form.ApartmentNumber = selected.Number;
         _form.Expire = _form.Temporary ? _expire?.Date.AddDays(1).AddTicks(-1) : null;
         _form.Relationship = _form.AccessType switch { 1 => 3, 2 => 0, 3 => 0, 4 => 0, _ => 0 };

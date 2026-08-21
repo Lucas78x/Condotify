@@ -1,13 +1,14 @@
 @page "/boletos"
+@implements IDisposable
 @inject CondotifyApiClient Api
+@inject MobileAppState AppState
 @inject ISnackbar Snackbar
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Boletos | F&amp;F Access</PageTitle>
-<PageHeader Eyebrow="FINANCEIRO" Title="Boletos" Subtitle="Boletos disponibilizados pela administração para suas unidades.">
-    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
-</PageHeader>
+<PageHeader Eyebrow="FINANCEIRO" Title="Boletos" Subtitle="@($"Boletos disponibilizados pela administração para suas {UnitPluralLower}.")" />
 
-<PageState Loading="_loading" Error="@_error" Empty="@(_boletos.Count == 0)" EmptyTitle="Nenhum boleto disponível" EmptyText="Quando a administração publicar um boleto para sua unidade, ele aparece aqui." Retry="LoadAsync">
+<PageState Loading="_loading" Error="@_error" Empty="@(_boletos.Count == 0)" EmptyTitle="Nenhum boleto disponível" EmptyText="@($"Quando a administração publicar um boleto para sua {UnitSingularLower}, ele aparece aqui.")" Retry="LoadAsync">
     <section class="list-group boletos-list">
         @foreach (var boleto in _boletos)
         {
@@ -24,12 +25,18 @@
 </PageState>
 
 @code {
+    private string UnitSingularLower => AppState.UnitLabelSingular.ToLowerInvariant();
+    private string UnitPluralLower => AppState.UnitLabelPlural.ToLowerInvariant();
     private List<ResidentBoletoViewModel> _boletos = [];
     private bool _loading;
     private Guid? _opening;
     private string _error = string.Empty;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        return LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -105,4 +112,6 @@
         var cleaned = new string(value.Select(c => invalid.Contains(c) ? '-' : c).ToArray()).Trim();
         return string.IsNullOrWhiteSpace(cleaned) ? "documento" : cleaned;
     }
+
+    public void Dispose() => PullToRefresh.Unregister(LoadAsync);
 }

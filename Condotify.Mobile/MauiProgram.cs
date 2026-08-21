@@ -6,6 +6,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
 using MudBlazor.Services;
 using System.Reflection;
+#if ANDROID || IOS
+using ZXing.Net.Maui.Controls;
+#endif
 #if WINDOWS
 using System.Runtime.InteropServices;
 #endif
@@ -19,6 +22,9 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
+#if ANDROID || IOS
+            .UseBarcodeReader()
+#endif
             .ConfigureFonts(fonts => fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular"));
         ConfigureFirebase(builder);
 
@@ -65,6 +71,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IMobilePushTokenProvider, UnconfiguredPushTokenProvider>();
 #endif
         builder.Services.AddSingleton<MobilePushLifecycle>();
+        builder.Services.AddSingleton<MobileNotificationSettings>();
         builder.Services.AddSingleton<MobileDeepLinkState>();
         builder.Services.AddSingleton<MobileConnectivityState>();
         builder.Services.AddSingleton<MobileAppearanceState>();
@@ -74,6 +81,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<MobileOfflineProtectedStore>();
         builder.Services.AddSingleton<MobileOfflineOperationsService>();
         builder.Services.AddSingleton<MobileDeviceActions>();
+        builder.Services.AddSingleton<MobileQrScanner>();
         builder.Services.AddSingleton<MobilePullToRefreshState>();
 
 #if DEBUG

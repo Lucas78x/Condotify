@@ -3,11 +3,10 @@
 @implements IDisposable
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Alertas | F&amp;F Access</PageTitle>
-<PageHeader Eyebrow="MONITORAMENTO" Title="Alertas operacionais" Subtitle="Ocorrências priorizadas para a equipe.">
-    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
-</PageHeader>
+<PageHeader Eyebrow="MONITORAMENTO" Title="Alertas operacionais" Subtitle="Ocorrências priorizadas para a equipe." />
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_page?.Items.Count == 0)" EmptyTitle="Operação normal" EmptyText="Não há alertas ativos no momento." Retry="LoadAsync">
     <section class="screen-overview alert-overview @((_page?.Critical ?? 0) > 0 ? "has-critical" : "")">
@@ -63,7 +62,11 @@
         ? $"{_page!.Acknowledged} ocorrência(s) já estão em atendimento"
         : "A fila está pronta para a próxima ocorrência";
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        return LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -101,6 +104,7 @@
 
     public void Dispose()
     {
+        PullToRefresh.Unregister(LoadAsync);
         _loadCts?.Cancel();
         _loadCts?.Dispose();
     }

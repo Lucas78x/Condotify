@@ -13,7 +13,6 @@
 <PageHeader Eyebrow="ÁREAS COMUNS" Title="Reservas" Subtitle="Agenda das áreas comuns.">
     <Actions>
         <div class="page-actions">
-            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
             @if (Session.Current?.Principal == MobilePrincipalKind.Resident)
             {
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add"
@@ -117,6 +116,7 @@
         if (Session.Current?.Principal == MobilePrincipalKind.Resident)
         {
             var profileResult = await Api.GetResidentProfileAsync();
+            if (profileResult.Success && profileResult.Value is not null) AppState.SetResidentContext(profileResult.Value);
             _profile = profileResult.Value;
             if (!profileResult.Success)
             {

@@ -8,18 +8,12 @@
 @inject MobileConnectivityState NetworkState
 @inject MobileOfflineOperationsService OfflineOperations
 @inject ISnackbar Snackbar
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Portaria | F&amp;F Access</PageTitle>
 <PageHeader Eyebrow="CENTRAL EM TEMPO REAL" Title="Portaria" Subtitle="Visitantes, acessos e situação dos equipamentos.">
     <Actions>
-        @if (OfflineOperations.PendingCount > 0 || OfflineOperations.IsSyncing)
-        {
-            <MudBadge Content="@OfflineOperations.PendingCount" Color="Color.Warning" Overlap="true">
-                <MudIconButton Icon="@Icons.Material.Outlined.CloudSync" Disabled="@(!NetworkState.IsOnline || OfflineOperations.IsSyncing)" OnClick="SyncOfflineAsync" aria-label="Sincronizar fila offline" />
-            </MudBadge>
-        }
         <MudIconButton Icon="@Icons.Material.Outlined.QrCodeScanner" Color="Color.Primary" OnClick="OpenScannerAsync" aria-label="Ler QR Code" />
-        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="() => LoadAsync(true)" aria-label="Atualizar" />
     </Actions>
 </PageHeader>
 
@@ -123,6 +117,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        PullToRefresh.Register(RefreshAsync);
         OfflineOperations.Changed += OnOfflineChanged;
         NetworkState.Changed += OnOfflineChanged;
         await OfflineOperations.InitializeAsync();
@@ -185,6 +180,8 @@
             await InvokeAsync(StateHasChanged);
         }
     }
+
+    private Task RefreshAsync() => LoadAsync(false);
 
     private async Task PollAsync(CancellationToken cancellationToken)
     {
@@ -284,13 +281,6 @@
         _ => status
     };
 
-    private async Task SyncOfflineAsync()
-    {
-        var success = await OfflineOperations.SyncAsync();
-        Snackbar.Add(success ? "Base e fila offline sincronizadas." : OfflineOperations.LastError, success ? Severity.Success : Severity.Warning);
-        await LoadAsync(false);
-    }
-
     private void OnOfflineChanged() => InvokeAsync(async () =>
     {
         await LoadAsync(false);
@@ -299,6 +289,7 @@
 
     public void Dispose()
     {
+        PullToRefresh.Unregister(RefreshAsync);
         OfflineOperations.Changed -= OnOfflineChanged;
         NetworkState.Changed -= OnOfflineChanged;
         _lifetimeCts.Cancel();

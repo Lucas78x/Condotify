@@ -22,6 +22,11 @@ backups/
 **/npm-debug.log
 **/obj
 **/secrets.dev.yaml
+**/secrets
+**/*firebase*service-account*.json
+**/*firebase-adminsdk*.json
+**/google-services.json
+**/GoogleService-Info.plist
 **/values.dev.yaml
 LICENSE
 README.md

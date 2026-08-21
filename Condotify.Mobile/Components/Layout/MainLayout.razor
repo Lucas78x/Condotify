@@ -76,14 +76,6 @@ else
                 </span>
             </div>
         }
-        else if (OfflineOperations.IsSyncing || OfflineOperations.PendingCount > 0)
-        {
-            <button type="button" class="connectivity-banner sync-pending" disabled="@OfflineOperations.IsSyncing" @onclick="SyncOfflineAsync">
-                <MudIcon Icon="@Icons.Material.Outlined.CloudSync" Size="Size.Small" />
-                <span><strong>@(OfflineOperations.IsSyncing ? "Sincronizando operação" : $"{OfflineOperations.PendingCount} operação(ões) pendente(s)")</strong> · toque para enviar agora</span>
-            </button>
-        }
-
         <div id="ptr-indicator" class="ptr-indicator" aria-hidden="true"><span class="ptr-icon">&#8635;</span></div>
 
         <MudMainContent Class="app-content">
@@ -103,19 +95,19 @@ else
                 </NavLink>
             }
         </nav>
-        @if (_locked)
-        {
-            <div class="app-lock-screen" role="dialog" aria-modal="true" aria-label="Aplicativo bloqueado">
-                <div class="app-lock-card">
-                    <BrandMark Class="app-lock-mark" />
-                    <MudIcon Icon="@Icons.Material.Outlined.Lock" Class="app-lock-icon" />
-                    <MudText Typo="Typo.h5">F&amp;F Access protegido</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Confirme sua biometria ou o bloqueio do aparelho para continuar.</MudText>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Fingerprint" Disabled="_unlocking" OnClick="UnlockAsync">@(_unlocking ? "Aguardando confirmação..." : "Desbloquear")</MudButton>
-                </div>
-            </div>
-        }
     </MudLayout>
+    @if (_locked)
+    {
+        <div class="app-lock-screen" role="dialog" aria-modal="true" aria-label="Aplicativo bloqueado">
+            <div class="app-lock-card">
+                <BrandMark Class="app-lock-mark" />
+                <MudIcon Icon="@Icons.Material.Outlined.Lock" Class="app-lock-icon" />
+                <MudText Typo="Typo.h5">F&amp;F Access protegido</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Confirme sua biometria ou o bloqueio do aparelho para continuar.</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Fingerprint" Disabled="_unlocking" OnClick="UnlockAsync">@(_unlocking ? "Aguardando confirmação..." : "Desbloquear")</MudButton>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -160,6 +152,11 @@ else
         {
             _pullToRefreshRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("condotifyPullToRefresh.attach", _pullToRefreshRef);
+            if (Session.IsAuthenticated)
+            {
+                try { await Push.RegisterAsync(); }
+                catch { }
+            }
         }
 
         if (_lockChecked || !Session.IsAuthenticated || !AppLock.NeedsUnlock) return;
@@ -243,8 +240,6 @@ else
         _redirectingToLogin = false;
         StateHasChanged();
     });
-    private async Task SyncOfflineAsync() => await OfflineOperations.SyncAsync();
-
     private static string Icon(string key) => key switch
     {
         "home" => Icons.Material.Outlined.Home,

@@ -69,6 +69,7 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
         <PackageReference Include="MudBlazor" Version="9.7.0" />
         <PackageReference Include="Plugin.Firebase.CloudMessaging" Version="4.0.1" Condition="Exists('Platforms\Android\google-services.json') Or Exists('Platforms\iOS\GoogleService-Info.plist')" />
+        <PackageReference Include="ZXing.Net.Maui.Controls" Version="0.10.4" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(CondotifyApiBaseUrl)' != ''">

@@ -1,5 +1,6 @@
 ﻿using Android.App;
 using Android.Runtime;
+using Condotify.Mobile.Services;
 
 namespace Condotify.Mobile;
 
@@ -12,4 +13,11 @@ public class MainApplication : MauiApplication
 	}
 
 	protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
+
+    public override void OnCreate()
+    {
+        base.OnCreate();
+        var soundEnabled = Preferences.Default.Get(MobileNotificationSettings.SoundEnabledKey, true);
+        AndroidNotificationChannels.Configure(this, soundEnabled);
+    }
 }

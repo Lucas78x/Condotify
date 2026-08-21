@@ -4,13 +4,13 @@
 @inject MobileAppState AppState
 @inject CondotifyApiClient Api
 @inject NavigationManager Navigation
+@inject MobilePullToRefreshState PullToRefresh
 
-<PageTitle>@(_unit is null ? "Unidade" : $"Unidade {_unit.Number}") | F&amp;F Access</PageTitle>
-<PageHeader Eyebrow="ESTRUTURA DO CONDOMÍNIO" Title="@(_unit is null ? "Unidade" : $"Unidade {_unit.Number}")" Subtitle="@UnitSubtitle">
+<PageTitle>@UnitTitle | F&amp;F Access</PageTitle>
+<PageHeader Eyebrow="ESTRUTURA DO CONDOMÍNIO" Title="@UnitTitle" Subtitle="@UnitSubtitle">
     <Actions>
         <div class="page-actions">
             <MudIconButton Icon="@Icons.Material.Outlined.ArrowBack" OnClick="Back" aria-label="Voltar" />
-            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" />
         </div>
     </Actions>
 </PageHeader>
@@ -20,7 +20,7 @@
     {
         <section class="screen-overview unit-overview">
             <span class="screen-overview-icon primary"><MudIcon Icon="@Icons.Material.Outlined.HomeWork" /></span>
-            <div class="screen-overview-main"><span>Resumo da unidade</span><strong>@_unit.BlockName · Unidade @_unit.Number</strong><small>@_unit.People.Count pessoa(s) e @_unit.Vehicles.Count veículo(s) vinculados</small></div>
+            <div class="screen-overview-main"><span>@($"Resumo da {UnitSingularLower}")</span><strong>@_unit.BlockName · @AppState.UnitLabelSingular @_unit.Number</strong><small>@_unit.People.Count pessoa(s) e @_unit.Vehicles.Count veículo(s) vinculados</small></div>
             <span class="row-status success">Cadastro ativo</span>
         </section>
         <div class="metric-grid">
@@ -30,7 +30,7 @@
             <div class="metric info"><span class="metric-icon"><MudIcon Icon="@Icons.Material.Outlined.Face" /></span><span class="metric-value">@_unit.People.Count(x => x.HasActiveFaceCredential)</span><span class="metric-label">Faces ativas</span></div>
         </div>
 
-        <div class="section-tabs" role="tablist" aria-label="Conteúdo da unidade">
+        <div class="section-tabs" role="tablist" aria-label="@($"Conteúdo da {UnitSingularLower}")">
             <button type="button" class="@(_tab == "people" ? "active" : "")" @onclick="ShowPeople"><MudIcon Icon="@Icons.Material.Outlined.Groups" Size="Size.Small" />Pessoas</button>
             <button type="button" class="@(_tab == "vehicles" ? "active" : "")" @onclick="ShowVehicles"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" Size="Size.Small" />Veículos</button>
         </div>
@@ -66,7 +66,7 @@
             }
             else
             {
-                <div class="panel-heading"><div><MudText Typo="Typo.h5">Veículos da unidade</MudText><span class="panel-subtitle">Veículos e identificadores de acesso</span></div></div>
+                <div class="panel-heading"><div><MudText Typo="Typo.h5">@($"Veículos da {UnitSingularLower}")</MudText><span class="panel-subtitle">Veículos e identificadores de acesso</span></div></div>
                 @if (_unit.Vehicles.Count == 0)
                 {
                     <div class="page-state compact-state"><MudIcon Icon="@Icons.Material.Outlined.NoCrash" Color="Color.Secondary" Size="Size.Large" /><MudText>Nenhum veículo cadastrado.</MudText></div>
@@ -92,8 +92,11 @@
     private bool _loading;
     private string _error = string.Empty;
     private string _tab = "people";
+    private string UnitSingularLower => AppState.UnitLabelSingular.ToLowerInvariant();
+    private string UnitTitle => _unit is null ? AppState.UnitLabelSingular : $"{AppState.UnitLabelSingular} {_unit.Number}";
     private string UnitSubtitle => _unit is null ? "Carregando cadastro..." : $"{_unit.BlockName}{(!string.IsNullOrWhiteSpace(_unit.Floor) ? $" · {_unit.Floor}º andar" : "")}";
 
+    protected override void OnInitialized() => PullToRefresh.Register(LoadAsync);
     protected override Task OnParametersSetAsync() => LoadAsync();
 
     private async Task LoadAsync()
@@ -106,14 +109,14 @@
         _error = string.Empty;
         if (Session.Current?.Principal != MobilePrincipalKind.Staff || !AppState.SelectedLicenseId.HasValue)
         {
-            _error = "Não foi possível acessar esta unidade.";
+            _error = $"Não foi possível acessar esta {UnitSingularLower}.";
             _loading = false;
             return;
         }
         var result = await Api.GetUnitDetailsAsync(AppState.SelectedLicenseId.Value, EntityId, cancellationToken);
         if (cancellationToken.IsCancellationRequested) return;
         _unit = result.Value;
-        if (!result.Success) _error = result.Error ?? "Não foi possível carregar a unidade.";
+        if (!result.Success) _error = result.Error ?? $"Não foi possível carregar a {UnitSingularLower}.";
         await LoadPhotosAsync(cancellationToken);
         if (cancellationToken.IsCancellationRequested) return;
         _loading = false;
@@ -169,6 +172,7 @@
 
     public void Dispose()
     {
+        PullToRefresh.Unregister(LoadAsync);
         _loadCts?.Cancel();
         _loadCts?.Dispose();
     }

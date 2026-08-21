@@ -29,7 +29,7 @@
                         <MudSelectItem T="Guid" Value="amenity.Id">@amenity.Name</MudSelectItem>
                     }
                 </MudSelect>
-                <MudSelect T="Guid" @bind-Value="_form.UnitId" Label="Unidade" Variant="Variant.Outlined" Required="true">
+                <MudSelect T="Guid" @bind-Value="_form.UnitId" Label="@Profile.UnitLabelSingular" Variant="Variant.Outlined" Required="true">
                     @foreach (var unit in AvailableUnits)
                     {
                         <MudSelectItem T="Guid" Value="@unit.UnitId">@unit.BlockName / @unit.Number</MudSelectItem>
@@ -166,7 +166,7 @@
     private string Validate()
     {
         if (_amenityId == Guid.Empty) return "Selecione uma área comum.";
-        if (_form.UnitId == Guid.Empty) return "Selecione a unidade responsavel pela reserva.";
+        if (_form.UnitId == Guid.Empty) return $"Selecione a {Profile.UnitLabelSingular.ToLowerInvariant()} responsável pela reserva.";
         if (!_date.HasValue) return "Selecione a data da reserva.";
         if (_form.SlotId == Guid.Empty) return "Selecione um horário disponível.";
         if (SelectedAmenity?.RequiresTermsAcceptance == true && !_form.TermsAccepted) return "Aceite o regulamento para continuar.";

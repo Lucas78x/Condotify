@@ -1,11 +1,11 @@
 @page "/documentos"
+@implements IDisposable
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Documentos | F&amp;F Access</PageTitle>
-<PageHeader Eyebrow="CONDOMÍNIO" Title="Documentos" Subtitle="Atas, regimento, convenção e comunicados publicados pela administração.">
-    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
-</PageHeader>
+<PageHeader Eyebrow="CONDOMÍNIO" Title="Documentos" Subtitle="Atas, regimento, convenção e comunicados publicados pela administração." />
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_documents.Count == 0)" EmptyTitle="Nenhum documento disponível" EmptyText="Quando a administração publicar um documento, ele aparece aqui." Retry="LoadAsync">
     <MudSelect T="string" Label="Filtrar por categoria" Value="_categoryFilter" ValueChanged="OnCategoryFilterChanged" Class="mb-3" Clearable Dense>
@@ -65,7 +65,11 @@
         ? _documents
         : _documents.Where(x => x.Category == _categoryFilter).ToList();
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        return LoadAsync();
+    }
 
     private void OnCategoryFilterChanged(string value) => _categoryFilter = value;
 
@@ -146,4 +150,6 @@
         "FinancialStatement" => Icons.Material.Outlined.ReceiptLong,
         _ => Icons.Material.Outlined.InsertDriveFile
     };
+
+    public void Dispose() => PullToRefresh.Unregister(LoadAsync);
 }

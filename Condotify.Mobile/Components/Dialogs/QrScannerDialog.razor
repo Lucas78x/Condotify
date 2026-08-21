@@ -1,7 +1,7 @@
 @implements IAsyncDisposable
 @inject MobileOfflineOperationsService OfflineOperations
-@inject IJSRuntime JS
 @inject MobileDeviceActions DeviceActions
+@inject MobileQrScanner Scanner
 
 <MudDialog Class="mobile-dialog qr-scanner-dialog">
     <TitleContent>
@@ -12,12 +12,20 @@
     </TitleContent>
     <DialogContent>
         <div class="qr-camera-shell">
-            <video id="@_videoId" class="qr-camera-preview" playsinline muted></video>
             <div class="qr-scan-frame"><span></span><span></span><span></span><span></span></div>
-            @if (_starting)
-            {
-                <div class="qr-camera-state"><MudProgressCircular Indeterminate="true" Color="Color.Inherit" /><span>Preparando câmera...</span></div>
-            }
+            <div class="qr-camera-state">
+                @if (_starting)
+                {
+                    <MudProgressCircular Indeterminate="true" Color="Color.Inherit" />
+                    <span>Abrindo câmera segura...</span>
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Outlined.PhotoCamera" Size="Size.Large" />
+                    <span>Use a câmera nativa para ler o convite.</span>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.QrCodeScanner" OnClick="StartScannerAsync">Abrir câmera</MudButton>
+                }
+            </div>
         </div>
 
         @if (!string.IsNullOrWhiteSpace(_message))
@@ -45,9 +53,7 @@
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
 
-    private readonly string _videoId = $"condotify-qr-{Guid.NewGuid():N}";
-    private DotNetObjectReference<QrScannerDialog>? _reference;
-    private bool _starting = true;
+    private bool _starting;
     private bool _processing;
     private bool _error;
     private bool _disposed;
@@ -58,6 +64,17 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
+        await StartScannerAsync();
+    }
+
+    private async Task StartScannerAsync()
+    {
+        if (_disposed || _starting) return;
+        _starting = true;
+        _error = false;
+        _message = string.Empty;
+        await InvokeAsync(StateHasChanged);
+
         var permission = await DeviceActions.RequestCameraAsync();
         if (!permission)
         {
@@ -68,20 +85,21 @@
             return;
         }
 
-        try
+        var result = await Scanner.ScanAsync(_lifetimeCts.Token);
+        if (_disposed) return;
+        _starting = false;
+        if (result.Success && !string.IsNullOrWhiteSpace(result.Code))
         {
-            _reference = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("condotifyQrScanner.start", _videoId, _reference);
-            _starting = false;
+            _manualCode = result.Code;
+            await InvokeAsync(StateHasChanged);
+            await ValidateAsync(result.Code);
+            return;
         }
-        catch (Exception ex)
-        {
-            _starting = false;
-            _error = true;
-            _message = ex.Message.Contains("não", StringComparison.OrdinalIgnoreCase)
-                ? ex.Message
-                : "Não foi possível iniciar o leitor. Digite o código abaixo.";
-        }
+
+        _error = result.Message != "Leitura cancelada.";
+        _message = result.Message == "Leitura cancelada."
+            ? "Leitura cancelada. Abra a câmera novamente ou digite o código do convite."
+            : result.Message;
         await InvokeAsync(StateHasChanged);
     }
 
@@ -119,7 +137,6 @@
             _processing = false;
             _error = true;
             _message = result.Message;
-            await RestartScannerAsync();
             await InvokeAsync(StateHasChanged);
             return;
         }
@@ -130,7 +147,6 @@
         _error = false;
         await InvokeAsync(StateHasChanged);
         DeviceActions.Confirm();
-        await StopScannerAsync();
         if (result.WasOffline)
         {
             try { await Task.Delay(650, _lifetimeCts.Token); }
@@ -140,26 +156,10 @@
         Dialog.Close(DialogResult.Ok(result.Visit));
     }
 
-    private async Task RestartScannerAsync()
-    {
-        if (_disposed) return;
-        try
-        {
-            _reference ??= DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("condotifyQrScanner.start", _videoId, _reference);
-        }
-        catch { }
-    }
-
     private async Task CancelAsync()
     {
-        await StopScannerAsync();
+        await Task.CompletedTask;
         Dialog.Cancel();
-    }
-
-    private async Task StopScannerAsync()
-    {
-        try { await JS.InvokeVoidAsync("condotifyQrScanner.stop", _videoId); } catch { }
     }
 
     public async ValueTask DisposeAsync()
@@ -167,8 +167,7 @@
         if (_disposed) return;
         _disposed = true;
         _lifetimeCts.Cancel();
-        await StopScannerAsync();
-        _reference?.Dispose();
+        await Task.CompletedTask;
         _lifetimeCts.Dispose();
     }
 }

@@ -3,6 +3,7 @@
 @inject MobileSessionCoordinator Session
 @inject MobileAppState AppState
 @inject CondotifyApiClient Api
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Auditoria de acesso | F&amp;F Access</PageTitle>
 <PageHeader Eyebrow="RASTREABILIDADE" Title="Auditoria de acesso" Subtitle="Acompanhe tudo o que aconteceu nos acessos." />
@@ -14,9 +15,6 @@
             <strong>@CountLabel(_audits.Count, "registro recente", "registros recentes")</strong>
             <span>@CountLabel(SuccessCount, "concluído", "concluídos") · @AttentionLabel</span>
         </div>
-        <button type="button" class="audit-summary-refresh" @onclick="LoadAsync" aria-label="Atualizar auditoria" title="Atualizado @LastUpdateLabel">
-            <MudIcon Icon="@Icons.Material.Outlined.Refresh" Size="Size.Small" />
-        </button>
     </section>
 
     <div class="directory-toolbar elevated-search audit-toolbar">
@@ -103,7 +101,11 @@
     private string AttentionLabel => AttentionCount == 1 ? "1 precisa de atenção" : $"{AttentionCount} precisam de atenção";
     private string LastUpdateLabel => _lastUpdatedAt?.ToString("HH:mm") ?? "agora";
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        return LoadAsync();
+    }
     private async Task LoadAsync()
     {
         _loadCts?.Cancel();
@@ -149,5 +151,10 @@
     }
     private static string CountLabel(int count, string singular, string plural) => $"{count} {(count == 1 ? singular : plural)}";
     private static string Value(string value) => string.IsNullOrWhiteSpace(value) ? "Sistema" : value;
-    public void Dispose() { _loadCts?.Cancel(); _loadCts?.Dispose(); }
+    public void Dispose()
+    {
+        PullToRefresh.Unregister(LoadAsync);
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+    }
 }

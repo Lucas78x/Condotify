@@ -6,11 +6,10 @@
 @inject CondotifyApiClient Api
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Câmeras | F&amp;F Access</PageTitle>
-<PageHeader Eyebrow="MONITORAMENTO AO VIVO" Title="Câmeras" Subtitle="Visualização protegida sem expor credenciais dos equipamentos.">
-    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
-</PageHeader>
+<PageHeader Eyebrow="MONITORAMENTO AO VIVO" Title="Câmeras" Subtitle="Visualização protegida sem expor credenciais dos equipamentos." />
 
 @if (_session is not null)
 {
@@ -70,6 +69,7 @@
     private CancellationTokenSource _loadCts = new();
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly SemaphoreSlim _streamGate = new(1, 1);
+    protected override void OnInitialized() => PullToRefresh.Register(LoadAsync);
     protected override Task OnParametersSetAsync() => LoadAsync();
 
     private async Task LoadAsync()
@@ -242,6 +242,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        PullToRefresh.Unregister(LoadAsync);
         _loadCts.Cancel();
         await _loadGate.WaitAsync();
         _loadGate.Release();

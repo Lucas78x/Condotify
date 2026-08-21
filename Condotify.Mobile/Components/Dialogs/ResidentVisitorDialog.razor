@@ -45,7 +45,7 @@
         }
 
         <div class="mobile-form-grid visitor-form-fields">
-            <MudSelect T="Guid" Value="_form.UnitId" ValueChanged="ChangeUnitAsync" Label="Unidade" Variant="Variant.Outlined" Required="true">
+            <MudSelect T="Guid" Value="_form.UnitId" ValueChanged="ChangeUnitAsync" Label="@Profile.UnitLabelSingular" Variant="Variant.Outlined" Required="true">
                 @foreach (var unit in AvailableUnits)
                 {
                     <MudSelectItem T="Guid" Value="@unit.UnitId">@unit.BlockName / @unit.Number</MudSelectItem>
@@ -223,7 +223,7 @@
 
     private string Validate()
     {
-        if (_form.UnitId == Guid.Empty) return "Selecione a unidade que receberá a visita.";
+        if (_form.UnitId == Guid.Empty) return $"Selecione a {Profile.UnitLabelSingular.ToLowerInvariant()} que receberá a visita.";
         if (string.IsNullOrWhiteSpace(_form.VisitorName)) return "Informe o nome do visitante.";
         if (_facialInvite && !_options.FacialInviteAvailable) return "Nenhuma rota com reconhecimento facial está disponível.";
         if (EligibleRoutes.Count > 0 && _selectedRoutes.Count == 0) return "Selecione pelo menos uma rota permitida.";

@@ -4,9 +4,7 @@
 @inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Comunicados | F&amp;F Access</PageTitle>
-<PageHeader Eyebrow="CONDOMÍNIO" Title="Comunicados" Subtitle="Avisos publicados pela administração.">
-    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
-</PageHeader>
+<PageHeader Eyebrow="CONDOMÍNIO" Title="Comunicados" Subtitle="Avisos publicados pela administração." />
 
 <PageState Loading="_loading" Error="@_error" Empty="@(_announcements.Count == 0)" EmptyTitle="Nenhum comunicado" EmptyText="Quando a administração publicar um aviso, ele aparece aqui." Retry="LoadAsync">
     <section class="list-group">

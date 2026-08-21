@@ -1,14 +1,15 @@
 @page "/financeiro"
+@implements IDisposable
 @inject CondotifyApiClient Api
+@inject MobileAppState AppState
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Financeiro | F&amp;F Access</PageTitle>
-<PageHeader Eyebrow="FINANCEIRO" Title="Minha situação" Subtitle="Acompanhe os registros financeiros das suas unidades.">
-    <Actions><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Atualizar" /></Actions>
-</PageHeader>
+<PageHeader Eyebrow="FINANCEIRO" Title="Minha situação" Subtitle="@($"Acompanhe os registros financeiros das suas {UnitPluralLower}.")" />
 
-<PageState Loading="_loading" Error="@_error" Empty="@(_data is not null && _data.Charges.Count == 0)" EmptyTitle="Nenhuma cobrança registrada" EmptyText="Quando a administração registrar uma cobrança para sua unidade, ela aparecerá aqui." Retry="LoadAsync">
+<PageState Loading="_loading" Error="@_error" Empty="@(_data is not null && _data.Charges.Count == 0)" EmptyTitle="Nenhuma cobrança registrada" EmptyText="@($"Quando a administração registrar uma cobrança para sua {UnitSingularLower}, ela aparecerá aqui.")" Retry="LoadAsync">
     @if (_data is not null)
     {
         <section class="mobile-financial-hero">
@@ -90,12 +91,18 @@
 </PageState>
 
 @code {
+    private string UnitSingularLower => AppState.UnitLabelSingular.ToLowerInvariant();
+    private string UnitPluralLower => AppState.UnitLabelPlural.ToLowerInvariant();
     private ResidentFinancialOverviewViewModel? _data;
     private bool _loading = true;
     private string _error = string.Empty;
     private string _filter = "active";
     private IEnumerable<FinancialChargeViewModel> VisibleCharges => (_data?.Charges ?? []).Where(x => _filter == "all" || x.Status is not FinancialChargeStatus.Paid and not FinancialChargeStatus.Cancelled);
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        return LoadAsync();
+    }
     private async Task LoadAsync() { _loading = true; _error = string.Empty; var result = await Api.GetResidentFinancialOverviewAsync(); _loading = false; if (result.Success) _data = result.Value; else _error = result.Error ?? "Não foi possível carregar sua situação financeira."; }
     private void SetFilter(string value) => _filter = value;
     private string ActiveFilterCss => _filter == "active" ? "is-active" : string.Empty;
@@ -116,4 +123,5 @@
     private static string Money(decimal value) => value.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
     private static string UnitInitial(string value) => value.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.FirstOrDefault().ToString().ToUpperInvariant() ?? "U";
     private static string ChargeCss(FinancialChargeViewModel charge) => $"mobile-financial-charge {(charge.IsOverdue ? "is-overdue" : string.Empty)} status-{charge.Status.ToString().ToLowerInvariant()}";
+    public void Dispose() => PullToRefresh.Unregister(LoadAsync);
 }

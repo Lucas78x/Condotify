@@ -11,8 +11,9 @@ O aplicativo nunca armazena senha. Access token, refresh token e identidade da s
 1. Crie os aplicativos Android (`br.com.condotify.app`) e iOS no mesmo projeto Firebase.
 2. Coloque `google-services.json` em `Condotify.Mobile/Platforms/Android/`.
 3. Coloque `GoogleService-Info.plist` em `Condotify.Mobile/Platforms/iOS/`.
-4. Na API, defina `GOOGLE_APPLICATION_CREDENTIALS` com o caminho absoluto do JSON de service account e `CONDOTIFY_FCM_PROJECT_ID` com o ID do projeto.
-5. No Firebase, vincule uma chave APNs ao aplicativo iOS. O entitlement `aps-environment` deve ser alterado de `development` para `production` no perfil de distribuicao.
+4. Na VPS, salve o JSON de conta de servico como `secrets/condotify-firebase-service-account.json`. O Compose o monta em `/run/secrets/condotify-firebase-service-account.json` e configura `GOOGLE_APPLICATION_CREDENTIALS` na API. Se necessario, altere o caminho do host com `FIREBASE_SERVICE_ACCOUNT_PATH`.
+5. `CONDOTIFY_FCM_PROJECT_ID` e opcional; quando omitido, a API usa o `project_id` presente na conta de servico.
+6. No Firebase, vincule uma chave APNs ao aplicativo iOS. O entitlement `aps-environment` deve ser alterado de `development` para `production` no perfil de distribuicao.
 
 Os arquivos de credencial nao devem ser versionados. Sem eles, o aplicativo continua funcional, mas o transporte push permanece indisponivel e o worker aplica retry/dead-letter sem reverter a operacao principal.
 
@@ -36,8 +37,8 @@ O proxy do dominio deve encaminhar `/.well-known/*` para a API sem autenticacao 
 
 ```powershell
 dotnet test Condotify.Mobile.Tests\Condotify.Mobile.Tests.csproj
-dotnet build Condotify.Mobile\Condotify.Mobile.csproj -f net9.0-android
-dotnet build Condotify.Mobile\Condotify.Mobile.csproj -f net9.0-windows10.0.19041.0
+dotnet build Condotify.Mobile\Condotify.Mobile.csproj -f net10.0-android36.0
+dotnet build Condotify.Mobile\Condotify.Mobile.csproj -f net10.0-windows10.0.19041.0
 ```
 
 O build iOS/Mac Catalyst e a assinatura para App Store exigem um Mac com Xcode, conta Apple Developer, certificado e provisioning profile reais. O build Android de loja exige keystore de producao; esses artefatos ficam fora do repositorio.
@@ -45,7 +46,7 @@ O build iOS/Mac Catalyst e a assinatura para App Store exigem um Mac com Xcode, 
 Para gerar um APK de teste para um aparelho fisico, informe o endereco da API acessivel na rede local:
 
 ```powershell
-dotnet publish Condotify.Mobile\Condotify.Mobile.csproj -f net9.0-android -c Debug -p:AndroidPackageFormat=apk -p:CondotifyApiBaseUrl=http://192.168.0.10:5093
+dotnet publish Condotify.Mobile\Condotify.Mobile.csproj -f net10.0-android36.0 -c Debug -p:AndroidPackageFormat=apk -p:CondotifyApiBaseUrl=http://192.168.0.10:5093
 ```
 
 O endereco fica incorporado somente naquele artefato. Quando a propriedade nao e informada, o Android continua usando `http://10.0.2.2:5093` para o emulador.

@@ -25,7 +25,6 @@ public class MainActivity : MauiAppCompatActivity
     {
         base.OnCreate(savedInstanceState);
         ApplySafeAreaInsets();
-        ConfigureNotifications();
 #if FIREBASE_CONFIGURED
         FirebaseCloudMessagingImplementation.OnNewIntent(Intent);
 #endif
@@ -81,16 +80,5 @@ public class MainActivity : MauiAppCompatActivity
     {
         if (string.IsNullOrWhiteSpace(intent?.DataString)) return;
         IPlatformApplication.Current?.Services.GetService<MobileDeepLinkState>()?.Publish(intent.DataString);
-    }
-
-    private void ConfigureNotifications()
-    {
-        if (!OperatingSystem.IsAndroidVersionAtLeast(26)) return;
-        var channelId = $"{PackageName}.general";
-        var manager = (NotificationManager?)GetSystemService(NotificationService);
-        manager?.CreateNotificationChannel(new NotificationChannel(channelId, "Avisos da F&F Access", NotificationImportance.Default));
-#if FIREBASE_CONFIGURED
-        FirebaseCloudMessagingImplementation.ChannelId = channelId;
-#endif
     }
 }
