@@ -86,6 +86,48 @@ Configure `ci-gate` como status check obrigatorio na regra da branch de producao
 Ele so aprova quando testes, Compose e as tres imagens terminam com sucesso.
 Restrinja tambem force-push e exclusao da branch.
 
+## Protecao da branch de producao
+
+A branch implantada atualmente e `feature/ff-access-branding`. No GitHub, acesse
+`Settings > Rules > Rulesets`, crie um `New branch ruleset` e use estas opcoes:
+
+- nome: `Production protection`;
+- status: `Active`;
+- branch alvo por padrao: `feature/ff-access-branding`;
+- bypass list: vazia;
+- `Restrict deletions`: habilitado;
+- `Block force pushes`: habilitado;
+- `Require a pull request before merging`: habilitado;
+- aprovacoes obrigatorias: zero enquanto houver apenas um mantenedor;
+- `Require conversation resolution before merging`: habilitado, quando
+  disponivel;
+- `Require status checks to pass before merging`: habilitado;
+- status check obrigatorio: `ci-gate`, com origem `GitHub Actions`;
+- `Require branches to be up to date before merging`: habilitado.
+
+O nome do check e exatamente `ci-gate`, nao o nome do workflow `ci` nem os jobs
+individuais. Esse job agregador falha se qualquer teste, validacao do Compose ou
+construcao de imagem falhar.
+
+### Fluxo de alteracao e deploy
+
+Depois que o ruleset estiver ativo, nao envie commits diretamente para a branch
+de producao:
+
+1. Atualize a branch de producao local e crie uma branch para a alteracao.
+2. Desenvolva, teste, faça commit e publique essa nova branch.
+3. Abra um Pull Request para `feature/ff-access-branding`.
+4. Aguarde o `ci-gate` concluir com sucesso e resolva as conversas do PR.
+5. Faça o merge do Pull Request.
+6. Aguarde o workflow disparado pelo merge terminar com sucesso. A execucao do
+   Pull Request apenas valida as imagens; a execucao posterior ao merge publica
+   no GHCR as imagens `sha-COMMIT` usadas pela VPS.
+7. Na VPS, execute `./deploy/deploy-vps.sh` somente depois que as imagens do
+   commit resultante do merge tiverem sido publicadas.
+
+Se a branch de producao for alterada futuramente, atualize em conjunto o alvo do
+ruleset, os gatilhos de `.github/workflows/ci.yml` e `CONDOTIFY_DEPLOY_BRANCH`.
+
 Somente `caddy` publica TCP 80/443. O MediaMTX publica UDP 8189 para o ICE do
 WebRTC. Banco, portal, API, HLS e sinalizacao WebRTC nao publicam portas no host.
 
