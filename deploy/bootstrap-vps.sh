@@ -52,9 +52,9 @@ fi
 sed -i 's/fefacess\.grupoff\.com/fefaccess.grupoff.net.br/g' .env
 chmod 600 .env
 
-sudo install -d -m 0750 -o 1654 -g "$(id -g)" "$ROOT_DIR/backups"
+sudo install -d -m 0770 -o 1654 -g "$(id -g)" "$ROOT_DIR/backups"
 sudo chown 1654:"$(id -g)" "$ROOT_DIR/backups"
-sudo chmod 0750 "$ROOT_DIR/backups"
+sudo chmod 0770 "$ROOT_DIR/backups"
 
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ufw curl ca-certificates openssl
