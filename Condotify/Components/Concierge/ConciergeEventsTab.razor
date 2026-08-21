@@ -32,7 +32,7 @@
     {
         <div class="table-wrap">
             <MudTable Items="_events" Hover Dense Elevation="0">
-                <HeaderContent><MudTh>Data e hora</MudTh><MudTh>Resultado</MudTh><MudTh>Pessoa</MudTh><MudTh>Porta</MudTh><MudTh>Equipamento</MudTh></HeaderContent>
+                <HeaderContent><MudTh>Data e hora</MudTh><MudTh>Resultado</MudTh><MudTh>Pessoa</MudTh><MudTh>Unidade</MudTh><MudTh>Porta</MudTh><MudTh>Equipamento</MudTh><MudTh></MudTh></HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Data e hora">@context.OccurredAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm:ss")</MudTd>
                     <MudTd DataLabel="Resultado"><MudChip T="string" Size="Size.Small" Color="@(context.Authorized ? Color.Success : Color.Error)" Variant="Variant.Outlined" Icon="@(context.Authorized ? Icons.Material.Outlined.Check : Icons.Material.Outlined.Close)">@context.Event</MudChip></MudTd>
@@ -52,8 +52,10 @@
                             <span>@personName</span>
                         </div>
                     </MudTd>
+                    <MudTd DataLabel="Unidade">@(string.IsNullOrWhiteSpace(context.UnitNumber) ? "-" : $"{context.BlockName} / {context.UnitNumber}")</MudTd>
                     <MudTd DataLabel="Porta">@(!string.IsNullOrWhiteSpace(context.Portal) ? context.Portal : "-")</MudTd>
                     <MudTd DataLabel="Equipamento">@context.DeviceName</MudTd>
+                    <MudTd><MudTooltip Text="Ver contexto e ações"><MudIconButton Icon="@Icons.Material.Outlined.ChevronRight" Color="@(context.RequiresAttention ? Color.Error : Color.Primary)" OnClick="@(() => OnEventSelected.InvokeAsync(context))" /></MudTooltip></MudTd>
                 </RowTemplate>
             </MudTable>
         </div>
@@ -62,6 +64,7 @@
 
 @code {
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public EventCallback<ConciergeEventViewModel> OnEventSelected { get; set; }
     private List<ConciergeEventViewModel> _events = [];
     private bool _loading = true;
     private string? _error;
@@ -78,6 +81,12 @@
     protected override Task OnInitializedAsync() => LoadAsync();
     public Task ReloadAsync() => LoadAsync();
     public void PrependEvent(ConciergeEventViewModel newEvent) { _events.Insert(0, newEvent); StateHasChanged(); }
+    public void UpdateEvent(ConciergeEventViewModel updated)
+    {
+        var index = _events.FindIndex(x => x.Id == updated.Id);
+        if (index >= 0) _events[index] = updated; else _events.Insert(0, updated);
+        StateHasChanged();
+    }
 
     private async Task DebouncedReloadAsync()
     {

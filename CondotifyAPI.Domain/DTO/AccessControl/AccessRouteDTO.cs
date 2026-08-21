@@ -137,6 +137,9 @@ public class AccessEventRecordDTO : CondotifyAPI.Domain.Interfaces.ILicenseScope
     public string Credential { get; set; } = string.Empty;
     public string Portal { get; set; } = string.Empty;
     public string Details { get; set; } = string.Empty;
+    public DateTime? AttentionResolvedAt { get; set; }
+    public string AttentionResolvedBy { get; set; } = string.Empty;
+    public string AttentionResolutionNote { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
 
     public LicenseDTO License { get; set; } = null!;

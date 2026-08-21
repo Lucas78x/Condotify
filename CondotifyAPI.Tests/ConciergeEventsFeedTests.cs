@@ -89,6 +89,8 @@ public sealed class ConciergeEventsFeedTests : IAsyncLifetime
 
         Assert.Single(events);
         Assert.Equal("Maria Negada", events[0].PersonName);
+        Assert.True(events[0].RequiresAttention);
+        Assert.Null(events[0].AttentionResolvedAt);
     }
 
     [Fact]
@@ -156,5 +158,15 @@ public sealed class ConciergeEventsFeedTests : IAsyncLifetime
 
         var accessEvent = Assert.Single(events);
         Assert.Equal(photoUrl, accessEvent.PhotoUrl);
+        Assert.Equal(_deviceId, accessEvent.DeviceId);
+        Assert.Equal(_photoCredentialId, accessEvent.CredentialId);
+        Assert.Equal(_photoResidentId, accessEvent.ResidentId);
+        Assert.Equal(_photoUnitId, accessEvent.UnitId);
+        Assert.Equal("Bloco foto", accessEvent.BlockName);
+        Assert.Equal("101", accessEvent.UnitNumber);
+        Assert.Equal("Face", accessEvent.CredentialType);
+        Assert.True(accessEvent.CredentialActive);
+        Assert.InRange(accessEvent.CredentialValidTo!.Value, now.AddYears(1).AddMilliseconds(-1), now.AddYears(1).AddMilliseconds(1));
+        Assert.False(accessEvent.RequiresAttention);
     }
 }

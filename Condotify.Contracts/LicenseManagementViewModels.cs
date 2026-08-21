@@ -1076,13 +1076,33 @@ namespace Condotify.Models
     public class ConciergeEventViewModel
     {
         public Guid Id { get; set; }
+        public Guid DeviceId { get; set; }
+        public Guid? CredentialId { get; set; }
+        public Guid? ResidentId { get; set; }
+        public Guid? UnitId { get; set; }
+        public Guid? VisitId { get; set; }
         public string DeviceName { get; set; } = string.Empty;
         public string PersonName { get; set; } = string.Empty;
         public string PhotoUrl { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string BlockName { get; set; } = string.Empty;
+        public string UnitNumber { get; set; } = string.Empty;
+        public string CredentialType { get; set; } = string.Empty;
+        public string Credential { get; set; } = string.Empty;
+        public bool? CredentialActive { get; set; }
+        public DateTime? CredentialValidFrom { get; set; }
+        public DateTime? CredentialValidTo { get; set; }
+        public string Details { get; set; } = string.Empty;
+        public string HostName { get; set; } = string.Empty;
+        public string HostPhoneNumber { get; set; } = string.Empty;
         public string Event { get; set; } = string.Empty;
         public bool Authorized { get; set; }
         public string Portal { get; set; } = string.Empty;
         public DateTime OccurredAt { get; set; }
+        public bool RequiresAttention { get; set; }
+        public DateTime? AttentionResolvedAt { get; set; }
+        public string AttentionResolvedBy { get; set; } = string.Empty;
+        public string AttentionResolutionNote { get; set; } = string.Empty;
     }
 
     public class ConciergeDeviceViewModel

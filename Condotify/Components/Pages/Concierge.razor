@@ -64,6 +64,42 @@ else if (_dashboard is not null)
         <div class="concierge-kpi"><span class="kpi-icon red"><MudIcon Icon="@Icons.Material.Outlined.TimerOff" /></span><div><strong>@_dashboard.Overstays</strong><small>Permanência excedida</small></div></div>
     </div>
 
+    <MudPaper Class="content-panel concierge-attention-panel" Elevation="0">
+        <div class="panel-toolbar">
+            <div><MudText Typo="Typo.h6" Class="panel-title">Precisa de atenção</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Pendências operacionais que ainda exigem uma decisão da portaria</MudText></div>
+            <MudChip T="string" Size="Size.Small" Color="@(AttentionCount > 0 ? Color.Error : Color.Success)" Icon="@(AttentionCount > 0 ? Icons.Material.Outlined.NotificationImportant : Icons.Material.Outlined.TaskAlt)">@AttentionCount</MudChip>
+        </div>
+        @if (AttentionCount == 0)
+        {
+            <div class="concierge-attention-empty"><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" Color="Color.Success" /><span>Nenhuma pendência operacional no momento.</span></div>
+        }
+        else
+        {
+            <div class="concierge-attention-list">
+                @foreach (var accessEvent in AttentionEvents.Take(5))
+                {
+                    <button type="button" @onclick="@(() => OpenEventAsync(accessEvent))">
+                        <MudIcon Icon="@Icons.Material.Outlined.GppBad" Color="Color.Error" />
+                        <span><strong>@(string.IsNullOrWhiteSpace(accessEvent.PersonName) ? accessEvent.Event : accessEvent.PersonName)</strong><small>@AttentionReason(accessEvent) · @accessEvent.DeviceName @accessEvent.Portal</small></span>
+                        <time>@accessEvent.OccurredAt.ToCondotifyTime().ToString("HH:mm")</time><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+                    </button>
+                }
+                @foreach (var visit in AttentionVisits.Take(4))
+                {
+                    <button type="button" @onclick="@(() => OpenVisitDetailsAsync(visit))">
+                        <MudIcon Icon="@Icons.Material.Outlined.PersonPinCircle" Color="Color.Warning" />
+                        <span><strong>@visit.VisitorName</strong><small>@StatusLabel(visit.Status) · @visit.HostName — @visit.BlockName / @visit.UnitNumber</small></span>
+                        <time>@visit.ValidFrom.ToCondotifyTime().ToString("HH:mm")</time><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
+                    </button>
+                }
+                @foreach (var device in OfflineDevices.Take(3))
+                {
+                    <div class="concierge-attention-device"><MudIcon Icon="@Icons.Material.Outlined.Router" Color="Color.Warning" /><span><strong>@device.Name sem comunicação</strong><small>@(string.IsNullOrWhiteSpace(device.HealthMessage) ? "Verifique a conexão do equipamento." : device.HealthMessage)</small></span></div>
+                }
+            </div>
+        }
+    </MudPaper>
+
     <MudTabs Elevation="0" Rounded TabPanelsClass="pa-0" Class="concierge-tabs">
         <MudTabPanel Text="Agenda de acessos" Icon="@Icons.Material.Outlined.EventNote">
             <div class="concierge-workspace">
@@ -148,7 +184,7 @@ else if (_dashboard is not null)
                             @foreach (var accessEvent in _dashboard.Events.Take(12))
                             {
                                 var eventPersonName = string.IsNullOrWhiteSpace(accessEvent.PersonName) ? accessEvent.Event : accessEvent.PersonName;
-                                <div class="concierge-event-row">
+                                <button type="button" class="concierge-event-row" @onclick="@(() => OpenEventAsync(accessEvent))">
                                     <div class="concierge-event-avatar">
                                         @if (!string.IsNullOrWhiteSpace(accessEvent.PhotoUrl))
                                         {
@@ -162,7 +198,7 @@ else if (_dashboard is not null)
                                     </div>
                                     <div><strong>@eventPersonName</strong><small>@accessEvent.DeviceName @(!string.IsNullOrWhiteSpace(accessEvent.Portal) ? $"- {accessEvent.Portal}" : string.Empty)</small></div>
                                     <time>@accessEvent.OccurredAt.ToCondotifyTime().ToString("HH:mm")</time>
-                                </div>
+                                </button>
                             }
                         </div>
                     </MudPaper>
@@ -180,7 +216,7 @@ else if (_dashboard is not null)
             </MudTabPanel>
         }
         <MudTabPanel Text="Eventos" Icon="@Icons.Material.Outlined.FactCheck">
-            <ConciergeEventsTab @ref="_eventsTab" LicenseId="_licenseId!.Value" />
+            <ConciergeEventsTab @ref="_eventsTab" LicenseId="_licenseId!.Value" OnEventSelected="OpenEventAsync" />
         </MudTabPanel>
     </MudTabs>
 }
@@ -211,6 +247,10 @@ else if (_dashboard is not null)
         .Where(x => _visitFilter == "all" || (_visitFilter == "finished" ? x.Status is "CheckedOut" or "Canceled" or "Expired" or "Denied" : x.Status == _visitFilter))
         .Where(x => string.IsNullOrWhiteSpace(_visitSearch) || $"{x.VisitorName} {x.HostName} {x.BlockName} {x.UnitNumber} {x.Document} {x.VehiclePlate}".Contains(_visitSearch, StringComparison.OrdinalIgnoreCase))
         .OrderBy(x => x.Status == "CheckedIn" ? 0 : x.Status == "Scheduled" ? 1 : 2).ThenBy(x => x.ValidFrom);
+    private IEnumerable<ConciergeEventViewModel> AttentionEvents => (_dashboard?.Events ?? []).Where(x => x.RequiresAttention);
+    private IEnumerable<ConciergeVisitViewModel> AttentionVisits => (_dashboard?.Visits ?? []).Where(x => x.Status is "PendingApproval" or "PendingEnrollment");
+    private IEnumerable<ConciergeDeviceViewModel> OfflineDevices => (_dashboard?.Devices ?? []).Where(x => !x.Online);
+    private int AttentionCount => AttentionEvents.Count() + AttentionVisits.Count() + OfflineDevices.Count();
 
     protected override async Task OnInitializedAsync()
     {
@@ -275,7 +315,7 @@ else if (_dashboard is not null)
         // payload recebido diretamente no estado -- e uma simplificacao deliberada (evita bugs
         // sutis de merge de estado parcial) que ainda cumpre o resultado pedido pela spec
         // ("atualiza a linha e os KPIs"): a diferenca pratica e uma chamada HTTP extra e quase
-        // instantanea, nao mais um dashboard que so atualiza a cada 15-60s. So o
+        // instantanea, sem esperar o ciclo de polling. So o
         // AccessEventRecorded (abaixo) faz merge local de verdade, via ConciergeEventsTab.PrependEvent,
         // porque inserir uma linha no topo de uma lista e trivial e nao tem risco de
         // inconsistencia como mesclar uma visita/entrega inteira.
@@ -295,6 +335,14 @@ else if (_dashboard is not null)
                 return Task.CompletedTask;
             });
         });
+        _hubConnection.On<ConciergeEventViewModel>("AccessEventResolved", async accessEvent =>
+        {
+            await InvokeAsync(() =>
+            {
+                MergeEvent(accessEvent);
+                StateHasChanged();
+            });
+        });
 
         try
         {
@@ -303,7 +351,7 @@ else if (_dashboard is not null)
         }
         catch (Exception)
         {
-            // Falha ao conectar nao bloqueia a tela -- o polling de 60s (fallback) continua funcionando.
+            // Falha ao conectar nao bloqueia a tela -- o polling de 15s (fallback) continua funcionando.
         }
     }
 
@@ -392,6 +440,49 @@ else if (_dashboard is not null)
         await DialogService.ShowAsync<ConciergeVisitDetailDialog>("", parameters, options);
     }
 
+    private async Task OpenEventAsync(ConciergeEventViewModel accessEvent)
+    {
+        if (!_licenseId.HasValue || _dashboard is null) return;
+        var (device, portal) = FindEventPortal(accessEvent);
+        var visit = accessEvent.VisitId.HasValue ? _dashboard.Visits.FirstOrDefault(x => x.Id == accessEvent.VisitId.Value) : null;
+        var parameters = new DialogParameters<ConciergeEventDialog>
+        {
+            { x => x.LicenseId, _licenseId.Value }, { x => x.Event, accessEvent },
+            { x => x.Device, device }, { x => x.Channel, portal?.Number },
+            { x => x.PortalName, portal?.Name ?? accessEvent.Portal }, { x => x.Visit, visit },
+            { x => x.CanOperate, Has(LicensePermission.OperateDevices) },
+            { x => x.CanViewPeople, Has(LicensePermission.ViewPeople) },
+            { x => x.CanManagePeople, Has(LicensePermission.ManagePeople) },
+            { x => x.CanManageCredentials, Has(LicensePermission.ManageCredentials) }
+        };
+        var dialog = await DialogService.ShowAsync<ConciergeEventDialog>("", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result is not { Canceled: false }) return;
+        if (result.Data is ConciergeEventViewModel updated) MergeEvent(updated);
+        else if (result.Data is string action && action == "create-visit") await OpenVisitDialogAsync();
+    }
+
+    private (ConciergeDeviceViewModel? Device, DevicePortalCapabilityViewModel? Portal) FindEventPortal(ConciergeEventViewModel accessEvent)
+    {
+        var device = _dashboard?.Devices.FirstOrDefault(x => x.Id == accessEvent.DeviceId);
+        if (device is null) return (null, null);
+        var portals = DevicePortals(device).Where(x => x.Discovered).ToList();
+        if (portals.Count == 1) return (device, portals[0]);
+        var eventPortal = NormalizePortal(accessEvent.Portal);
+        var match = portals.FirstOrDefault(x => NormalizePortal(x.Name) == eventPortal);
+        if (match is null && int.TryParse(new string(accessEvent.Portal.Where(char.IsDigit).ToArray()), out var channel))
+            match = portals.FirstOrDefault(x => x.Number == channel);
+        return (device, match);
+    }
+
+    private void MergeEvent(ConciergeEventViewModel updated)
+    {
+        _eventsTab?.UpdateEvent(updated);
+        if (_dashboard is null) return;
+        var index = _dashboard.Events.FindIndex(x => x.Id == updated.Id);
+        if (index >= 0) _dashboard.Events[index] = updated; else _dashboard.Events.Insert(0, updated);
+    }
+
     private async Task OpenDoorAsync(ConciergeDeviceViewModel device, int channel, string portalName)
     {
         if (!_licenseId.HasValue) return;
@@ -405,7 +496,7 @@ else if (_dashboard is not null)
     private void StartRefreshLoop()
     {
         _refreshCancellation = new CancellationTokenSource();
-        _timer = new PeriodicTimer(TimeSpan.FromSeconds(60));
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
         _ = RefreshLoopAsync(_refreshCancellation.Token);
     }
     private async Task RefreshLoopAsync(CancellationToken cancellationToken)
@@ -422,6 +513,15 @@ else if (_dashboard is not null)
     private static string StatusDot(string status) => status is "Scheduled" or "CheckedIn" or "PendingApproval" or "PendingEnrollment" ? "active" : "inactive";
     private static string VisitWindow(ConciergeVisitViewModel visit) => visit.ValidFrom.ToCondotifyTime().Date == visit.ValidTo.ToCondotifyTime().Date ? $"{visit.ValidFrom.ToCondotifyTime():dd/MM, HH:mm} - {visit.ValidTo.ToCondotifyTime():HH:mm}" : $"{visit.ValidFrom.ToCondotifyTime():dd/MM HH:mm} - {visit.ValidTo.ToCondotifyTime():dd/MM HH:mm}";
     private static string CredentialLabel(ConciergeVisitViewModel visit) => visit.CredentialType == "Face" ? "Facial" : visit.MaxUses.HasValue ? $"QR - {visit.UseCount}/{visit.MaxUses}" : "QR Code";
+    private static string AttentionReason(ConciergeEventViewModel accessEvent)
+    {
+        var text = $"{accessEvent.Event} {accessEvent.Details}";
+        if (text.Contains("expir", StringComparison.OrdinalIgnoreCase)) return "Credencial expirada";
+        if (text.Contains("susp", StringComparison.OrdinalIgnoreCase) || text.Contains("inativ", StringComparison.OrdinalIgnoreCase)) return "Credencial suspensa ou inativa";
+        if (text.Contains("watch", StringComparison.OrdinalIgnoreCase) || text.Contains("restri", StringComparison.OrdinalIgnoreCase)) return "Possível correspondência com restrição";
+        return "Acesso negado aguardando verificação";
+    }
+    private static string NormalizePortal(string value) => new(value.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
     private static List<DevicePortalCapabilityViewModel> DevicePortals(
       ConciergeDeviceViewModel device)
     {
