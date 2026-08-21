@@ -22,9 +22,17 @@ cd /opt/condotify
 
 ```bash
 cd /opt/condotify
-docker compose config --quiet
-docker compose up -d --build --remove-orphans
-docker compose ps
+./deploy/deploy-vps.sh
+```
+
+O script interrompe a atualizacao se o checkout estiver em outro branch, se
+existirem alteracoes nao comitadas ou se o remoto exigir merge/rebase. Assim, o
+codigo executado na VPS sempre corresponde a um commit identificavel no Git.
+
+Para implantar outro branch de forma explicita:
+
+```bash
+CONDOTIFY_DEPLOY_BRANCH=main ./deploy/deploy-vps.sh
 ```
 
 Para validar ou recarregar apenas o proxy:
