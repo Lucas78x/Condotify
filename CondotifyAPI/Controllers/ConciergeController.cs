@@ -55,7 +55,17 @@ public sealed class ConciergeController(
             .OrderBy(x => x.ValidFrom).ToListAsync();
         var events = await context.AccessEventRecords.AsNoTracking().Where(x => x.LicenseId == licenseId)
             .OrderByDescending(x => x.OccurredAt).Take(80)
-            .Select(x => new ConciergeEventOut { Id = x.Id, DeviceName = x.Device.Name, PersonName = x.PersonName, Event = x.Event, Authorized = x.Authorized, Portal = x.Portal, OccurredAt = x.OccurredAt })
+            .Select(x => new ConciergeEventOut
+            {
+                Id = x.Id,
+                DeviceName = x.Device.Name,
+                PersonName = x.PersonName,
+                PhotoUrl = x.AccessCredential != null ? x.AccessCredential.Resident.ImgUrl : string.Empty,
+                Event = x.Event,
+                Authorized = x.Authorized,
+                Portal = x.Portal,
+                OccurredAt = x.OccurredAt
+            })
             .ToListAsync();
         var onlineThreshold = now.AddMinutes(-5);
         var devices = await context.Devices.AsNoTracking().Where(x => x.LicenseId == licenseId).OrderBy(x => x.Name)
@@ -101,7 +111,17 @@ public sealed class ConciergeController(
             query = query.Where(x => EF.Functions.ILike(x.PersonName, pattern) || EF.Functions.ILike(x.Portal, pattern) || EF.Functions.ILike(x.Device.Name, pattern));
         }
         return await query.OrderByDescending(x => x.OccurredAt).Take(Math.Clamp(take, 1, 500))
-            .Select(x => new ConciergeEventOut { Id = x.Id, DeviceName = x.Device.Name, PersonName = x.PersonName, Event = x.Event, Authorized = x.Authorized, Portal = x.Portal, OccurredAt = x.OccurredAt })
+            .Select(x => new ConciergeEventOut
+            {
+                Id = x.Id,
+                DeviceName = x.Device.Name,
+                PersonName = x.PersonName,
+                PhotoUrl = x.AccessCredential != null ? x.AccessCredential.Resident.ImgUrl : string.Empty,
+                Event = x.Event,
+                Authorized = x.Authorized,
+                Portal = x.Portal,
+                OccurredAt = x.OccurredAt
+            })
             .ToListAsync();
     }
 

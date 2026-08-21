@@ -36,7 +36,22 @@
                 <RowTemplate>
                     <MudTd DataLabel="Data e hora">@context.OccurredAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm:ss")</MudTd>
                     <MudTd DataLabel="Resultado"><MudChip T="string" Size="Size.Small" Color="@(context.Authorized ? Color.Success : Color.Error)" Variant="Variant.Outlined" Icon="@(context.Authorized ? Icons.Material.Outlined.Check : Icons.Material.Outlined.Close)">@context.Event</MudChip></MudTd>
-                    <MudTd DataLabel="Pessoa">@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : "-")</MudTd>
+                    <MudTd DataLabel="Pessoa">
+                        @{ var personName = string.IsNullOrWhiteSpace(context.PersonName) ? context.Event : context.PersonName; }
+                        <div class="access-event-person">
+                            <div class="access-event-person-photo">
+                                @if (!string.IsNullOrWhiteSpace(context.PhotoUrl))
+                                {
+                                    <img src="@context.PhotoUrl" alt="Foto de @personName" loading="lazy" />
+                                }
+                                else
+                                {
+                                    <span>@Initials(personName)</span>
+                                }
+                            </div>
+                            <span>@personName</span>
+                        </div>
+                    </MudTd>
                     <MudTd DataLabel="Porta">@(!string.IsNullOrWhiteSpace(context.Portal) ? context.Portal : "-")</MudTd>
                     <MudTd DataLabel="Equipamento">@context.DeviceName</MudTd>
                 </RowTemplate>
@@ -53,6 +68,12 @@
     private string _search = string.Empty;
     private string _resultFilter = "all";
     private CancellationTokenSource? _debounce;
+
+    private static string Initials(string name) => string.Join(
+        string.Empty,
+        name.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0])));
 
     protected override Task OnInitializedAsync() => LoadAsync();
     public Task ReloadAsync() => LoadAsync();

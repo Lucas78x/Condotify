@@ -147,7 +147,22 @@ else if (_dashboard is not null)
                         <div class="concierge-event-list">
                             @foreach (var accessEvent in _dashboard.Events.Take(12))
                             {
-                                <div class="concierge-event-row"><span class="event-result @(accessEvent.Authorized ? "allowed" : "denied")"><MudIcon Icon="@(accessEvent.Authorized ? Icons.Material.Outlined.Check : Icons.Material.Outlined.Close)" /></span><div><strong>@(string.IsNullOrWhiteSpace(accessEvent.PersonName) ? accessEvent.Event : accessEvent.PersonName)</strong><small>@accessEvent.DeviceName @(!string.IsNullOrWhiteSpace(accessEvent.Portal) ? $"- {accessEvent.Portal}" : string.Empty)</small></div><time>@accessEvent.OccurredAt.ToCondotifyTime().ToString("HH:mm")</time></div>
+                                var eventPersonName = string.IsNullOrWhiteSpace(accessEvent.PersonName) ? accessEvent.Event : accessEvent.PersonName;
+                                <div class="concierge-event-row">
+                                    <div class="concierge-event-avatar">
+                                        @if (!string.IsNullOrWhiteSpace(accessEvent.PhotoUrl))
+                                        {
+                                            <img src="@accessEvent.PhotoUrl" alt="Foto de @eventPersonName" loading="lazy" />
+                                        }
+                                        else
+                                        {
+                                            <span>@Initials(eventPersonName)</span>
+                                        }
+                                        <i class="event-result @(accessEvent.Authorized ? "allowed" : "denied")" aria-label="@(accessEvent.Authorized ? "Acesso autorizado" : "Acesso negado")"><MudIcon Icon="@(accessEvent.Authorized ? Icons.Material.Outlined.Check : Icons.Material.Outlined.Close)" /></i>
+                                    </div>
+                                    <div><strong>@eventPersonName</strong><small>@accessEvent.DeviceName @(!string.IsNullOrWhiteSpace(accessEvent.Portal) ? $"- {accessEvent.Portal}" : string.Empty)</small></div>
+                                    <time>@accessEvent.OccurredAt.ToCondotifyTime().ToString("HH:mm")</time>
+                                </div>
                             }
                         </div>
                     </MudPaper>
