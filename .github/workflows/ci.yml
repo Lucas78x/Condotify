@@ -56,6 +56,8 @@ jobs:
       - name: Apply test database migrations
         run: dotnet run --project CondotifyAPI/CondotifyAPI.csproj -c Release -- --migrate
       - name: Test API
+        id: api-tests
+        continue-on-error: true
         run: dotnet test CondotifyAPI.Tests/CondotifyAPI.Tests.csproj -c Release --logger "trx;LogFileName=api.trx"
       - name: Test portal
         run: dotnet test Condotify.Web.Tests/Condotify.Web.Tests.csproj -c Release --logger "trx;LogFileName=portal.trx"
@@ -65,6 +67,28 @@ jobs:
         run: |
           dotnet publish CondotifyAPI/CondotifyAPI.csproj -c Release --no-restore /p:UseAppHost=false
           dotnet publish Condotify/Condotify.csproj -c Release --no-restore /p:UseAppHost=false
+      - name: Report API test failures
+        if: steps.api-tests.outcome == 'failure'
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import sys
+          import xml.etree.ElementTree as ET
+
+          files = list(pathlib.Path("CondotifyAPI.Tests/TestResults").glob("*.trx"))
+          if not files:
+              print("::error title=API tests failed::The test runner did not produce a TRX file.")
+              raise SystemExit(1)
+
+          root = ET.parse(files[0]).getroot()
+          failures = [node for node in root.iter() if node.tag.endswith("UnitTestResult") and node.get("outcome") == "Failed"]
+          for failure in failures[:20]:
+              message_node = next((node for node in failure.iter() if node.tag.endswith("Message")), None)
+              message = " ".join((message_node.text if message_node is not None else "No error message").split())
+              message = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::error title=API test failed::{failure.get('testName')}: {message[:1500]}")
+          raise SystemExit(1)
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
