@@ -69,11 +69,15 @@ docker compose exec -T postgres pg_restore \
     --exit-on-error \
     --no-owner \
     --no-privileges < "$temporary" >/dev/null
-docker compose exec -T postgres psql \
+verified_database="$(docker compose exec -T postgres psql \
     --username postgres \
     --dbname "$verify_db" \
     --tuples-only \
-    --command 'SELECT current_database();' | grep -Fq "$verify_db"
+    --command 'SELECT current_database();')"
+if [[ "$verified_database" != *"$verify_db"* ]]; then
+    echo 'O restore de verificacao nao respondeu a partir do banco temporario esperado.' >&2
+    exit 4
+fi
 docker compose exec -T postgres dropdb --username postgres --if-exists --force "$verify_db" >/dev/null
 verify_created=false
 
