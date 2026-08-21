@@ -519,6 +519,15 @@ public class LicenseStructureController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId);
         if (deviceDto == null) return NotFound();
 
+        AccessEventRecordDTO? relatedEvent = null;
+        if (input.EventId.HasValue)
+        {
+            relatedEvent = await _context.AccessEventRecords.AsNoTracking().FirstOrDefaultAsync(x =>
+                x.Id == input.EventId.Value && x.LicenseId == licenseId && x.DeviceId == deviceId);
+            if (relatedEvent is null)
+                return BadRequest(new { Errors = "O evento informado nao pertence a este equipamento." });
+        }
+
         if (!deviceDto.IsActive)
             return Conflict(new { Result = "InactiveDevice", Errors = "Teste a conexao e ative o equipamento antes de abrir a porta." });
 
@@ -539,6 +548,23 @@ public class LicenseStructureController : ControllerBase
 
         var reason = string.IsNullOrWhiteSpace(input.Reason) ? "Acionamento manual pelo portal" : input.Reason.Trim();
         AddDeviceAudit(deviceDto.Id, ActionTypeEnum.OpenDoor, $"Canal {input.Channel} | {(success ? "Sucesso" : "Falha")} | {reason}");
+        _ = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var operatorId);
+        _context.AccessOperationAudits.Add(new AccessOperationAuditDTO
+        {
+            Id = Guid.NewGuid(), LicenseId = licenseId,
+            EntityType = relatedEvent is null ? "Device" : "AccessEvent",
+            EntityId = relatedEvent?.Id ?? deviceDto.Id,
+            Action = "ManualDoorOpen", Status = success ? "Success" : "Failed",
+            Summary = $"Abertura manual do canal {input.Channel} em {deviceDto.Name}: {(success ? "sucesso" : "falha")}.",
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                deviceId, deviceDto.Name, input.Channel, reason, RelatedEventId = relatedEvent?.Id,
+                RelatedEvent = relatedEvent?.Event, relatedEvent?.PersonName, relatedEvent?.Portal, operationError
+            }),
+            UserId = operatorId == Guid.Empty ? null : operatorId,
+            UserName = User.FindFirstValue("name") ?? User.Identity?.Name ?? "Usuario do portal",
+            CreatedAt = DateTime.UtcNow
+        });
         await _context.SaveChangesAsync();
 
         if (!success)

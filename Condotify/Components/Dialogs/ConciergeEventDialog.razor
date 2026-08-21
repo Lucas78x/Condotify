@@ -1,0 +1,198 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDialog Class="entity-dialog concierge-event-dialog">
+    <TitleContent>
+        <div class="dialog-title-block">
+            <MudIcon Icon="@(Event.Authorized ? Icons.Material.Outlined.VerifiedUser : Icons.Material.Outlined.ReportProblem)" />
+            <div><MudText Typo="Typo.h6">Ocorrência de acesso</MudText><MudText Typo="Typo.caption">Contexto e ações operacionais vinculadas ao evento.</MudText></div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <header class="concierge-event-detail-head">
+            <div class="concierge-event-detail-photo">
+                @if (!string.IsNullOrWhiteSpace(Event.PhotoUrl)) { <img src="@Event.PhotoUrl" alt="Foto de @PersonName" /> }
+                else { <span>@Initials(PersonName)</span> }
+            </div>
+            <div>
+                <MudText Typo="Typo.h6">@PersonName</MudText>
+                <MudChip T="string" Size="Size.Small" Color="@(Event.Authorized ? Color.Success : Color.Error)" Variant="Variant.Outlined" Icon="@(Event.Authorized ? Icons.Material.Outlined.Check : Icons.Material.Outlined.Close)">@ResultLabel</MudChip>
+            </div>
+            <time>@Event.OccurredAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm:ss")</time>
+        </header>
+
+        <div class="concierge-event-detail-grid">
+            <div><small>Unidade</small><strong>@UnitLabel</strong></div>
+            <div><small>Credencial</small><strong>@CredentialLabel</strong></div>
+            <div><small>Situação da credencial</small><strong>@CredentialStatusLabel</strong></div>
+            <div><small>Equipamento</small><strong>@Event.DeviceName</strong></div>
+            <div><small>Porta / portal</small><strong>@Fallback(Event.Portal)</strong></div>
+            <div class="full"><small>Motivo / detalhe do controlador</small><strong>@DetailsLabel</strong></div>
+            @if (!string.IsNullOrWhiteSpace(Event.HostName))
+            {
+                <div class="full"><small>Responsável pela visita</small><strong>@Event.HostName</strong></div>
+            }
+        </div>
+
+        <section class="concierge-event-quick-actions">
+            <strong>Ações rápidas</strong>
+            <div>
+                @if (Event.ResidentId.HasValue && CanViewPeople)
+                {
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Person" OnClick="@(() => OpenPersonAsync(0))">Ver cadastro</MudButton>
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Badge" OnClick="@(() => OpenPersonAsync(1))">Credenciais</MudButton>
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.PersonAddAlt1" OnClick="CreateVisit">Autorizar visita</MudButton>
+                }
+                @if (Visit is not null)
+                {
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.EventAvailable" OnClick="OpenVisitAsync">Ver autorização</MudButton>
+                    @if (Visit.Status == "Scheduled" && CanOperate)
+                    {
+                        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Login" OnClick="RegisterManualEntryAsync">Registrar entrada</MudButton>
+                    }
+                }
+                @if (!string.IsNullOrWhiteSpace(Event.PhoneNumber))
+                {
+                    <MudButton Href="@PhoneHref(Event.PhoneNumber)" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Call">Ligar para pessoa</MudButton>
+                }
+                @if (!string.IsNullOrWhiteSpace(Event.HostPhoneNumber))
+                {
+                    <MudButton Href="@PhoneHref(Event.HostPhoneNumber)" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.ContactPhone">Contatar unidade</MudButton>
+                }
+            </div>
+        </section>
+
+        @if (CanOperate)
+        {
+            <section class="concierge-event-operation">
+                <div><strong>Abertura contextual</strong><small>A ação será auditada com este evento, operador, porta, motivo e resultado.</small></div>
+                @if (Device is not null && Channel.HasValue && Device.Online)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.LockOpen" Disabled="_opening" OnClick="OpenDoorAsync">@(_opening ? "Acionando..." : $"Abrir {PortalName}")</MudButton>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense>Não foi possível identificar com segurança um canal online para este portal. Use o painel de acionamentos e selecione a porta.</MudAlert>
+                }
+            </section>
+        }
+
+        @if (!Event.Authorized)
+        {
+            <section class="concierge-event-resolution">
+                @if (Event.AttentionResolvedAt.HasValue)
+                {
+                    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.TaskAlt">
+                        Resolvido por @Event.AttentionResolvedBy em @Event.AttentionResolvedAt.Value.ToCondotifyTime().ToString("dd/MM HH:mm"). @Event.AttentionResolutionNote
+                    </MudAlert>
+                }
+                else if (CanOperate)
+                {
+                    <MudTextField T="string" @bind-Value="_resolutionNote" Label="Como a ocorrência foi tratada?" Placeholder="Ex.: identidade confirmada com a unidade" Lines="2" Counter="500" MaxLength="500" Variant="Variant.Outlined" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Outlined.TaskAlt" Disabled="_resolving" OnClick="ResolveAsync">@(_resolving ? "Registrando..." : "Marcar como resolvido")</MudButton>
+                }
+            </section>
+        }
+    </DialogContent>
+    <DialogActions><MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter, EditorRequired] public ConciergeEventViewModel Event { get; set; } = new();
+    [Parameter] public ConciergeDeviceViewModel? Device { get; set; }
+    [Parameter] public int? Channel { get; set; }
+    [Parameter] public string PortalName { get; set; } = string.Empty;
+    [Parameter] public ConciergeVisitViewModel? Visit { get; set; }
+    [Parameter] public bool CanOperate { get; set; }
+    [Parameter] public bool CanViewPeople { get; set; }
+    [Parameter] public bool CanManagePeople { get; set; }
+    [Parameter] public bool CanManageCredentials { get; set; }
+
+    private bool _opening;
+    private bool _resolving;
+    private string _resolutionNote = string.Empty;
+    private string PersonName => string.IsNullOrWhiteSpace(Event.PersonName) ? Event.Event : Event.PersonName;
+    private string ResultLabel => Event.Authorized ? $"Autorizado — {Event.Event}" : $"Negado — {Event.Event}";
+    private string UnitLabel => string.IsNullOrWhiteSpace(Event.UnitNumber) ? "Não identificada" : $"{Event.BlockName} / {Event.UnitNumber}".Trim(' ', '/');
+    private string CredentialLabel
+    {
+        get
+        {
+            var label = string.Join(" — ", new[] { CredentialTypeLabel(Event.CredentialType), Event.Credential }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            return string.IsNullOrWhiteSpace(label) ? "Não identificada" : label;
+        }
+    }
+    private string DetailsLabel => !string.IsNullOrWhiteSpace(Event.Details) ? Event.Details : Event.Event;
+
+    private async Task OpenDoorAsync()
+    {
+        if (Device is null || !Channel.HasValue) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync("Abrir porta deste evento", $"Abrir {PortalName} em {Device.Name} para {PersonName}?", yesText: "Abrir porta", cancelText: "Cancelar");
+        if (confirmed != true) return;
+        _opening = true;
+        var reason = $"Evento {Event.Id:N}: {PersonName}";
+        if (reason.Length > 200) reason = reason[..200];
+        var result = await Api.OpenDoorAsync(LicenseId, Device.Id, Channel.Value, reason, eventId: Event.Id);
+        _opening = false;
+        Snackbar.Add(result.Success ? $"{PortalName} acionada e registrada na auditoria." : result.Error ?? "Falha no acionamento.", result.Success ? Severity.Success : Severity.Error);
+    }
+
+    private async Task ResolveAsync()
+    {
+        _resolving = true;
+        var result = await Api.ResolveConciergeEventAsync(LicenseId, Event.Id, _resolutionNote);
+        _resolving = false;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível resolver a ocorrência.", Severity.Error); return; }
+        Event = result.Value!;
+        Snackbar.Add("Ocorrência resolvida e auditada.", Severity.Success);
+    }
+
+    private async Task RegisterManualEntryAsync()
+    {
+        if (Visit is null) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync("Registrar entrada", $"Confirmar a entrada manual de {Visit.VisitorName}?", yesText: "Registrar", cancelText: "Cancelar");
+        if (confirmed != true) return;
+        var result = await Api.UpdateConciergeVisitStatusAsync(LicenseId, Visit.Id, 1, $"Entrada manual vinculada ao evento {Event.Id}");
+        Snackbar.Add(result.Success ? "Entrada registrada." : result.Error ?? "Não foi possível registrar a entrada.", result.Success ? Severity.Success : Severity.Error);
+        if (result.Success) Visit = result.Value;
+    }
+
+    private async Task OpenPersonAsync(int tab)
+    {
+        if (!Event.ResidentId.HasValue) return;
+        var parameters = new DialogParameters<PersonProfileDialog>
+        {
+            { x => x.LicenseId, LicenseId }, { x => x.ResidentId, Event.ResidentId.Value },
+            { x => x.CanManagePeople, CanManagePeople }, { x => x.CanManageCredentials, CanManageCredentials },
+            { x => x.InitialTabIndex, tab }
+        };
+        await DialogService.ShowAsync<PersonProfileDialog>("", parameters, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true });
+    }
+
+    private async Task OpenVisitAsync()
+    {
+        if (Visit is null) return;
+        await DialogService.ShowAsync<ConciergeVisitDetailDialog>("", new DialogParameters<ConciergeVisitDetailDialog> { { x => x.Visit, Visit } }, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true });
+    }
+
+    private void CreateVisit() => Dialog.Close(DialogResult.Ok("create-visit"));
+    private void Close() => Dialog.Close(DialogResult.Ok(Event));
+    private static string Fallback(string? value) => string.IsNullOrWhiteSpace(value) ? "Não informado" : value;
+    private static string PhoneHref(string value) => $"tel:{new string(value.Where(x => char.IsDigit(x) || x == '+').ToArray())}";
+    private static string Initials(string name) => string.Join(string.Empty, name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+    private static string CredentialTypeLabel(string value) => value switch { "Face" => "Facial", "QrCode" => "QR Code", "Card" => "Cartão", "Tag" => "Tag", "VehicleTag" => "Tag veicular", "Password" => "Senha", _ => value };
+    private string CredentialStatusLabel
+    {
+        get
+        {
+            if (!Event.CredentialActive.HasValue) return "Não identificada";
+            if (!Event.CredentialActive.Value) return "Suspensa ou inativa";
+            if (Event.CredentialValidTo.HasValue && Event.CredentialValidTo.Value < DateTime.UtcNow) return $"Expirada em {Event.CredentialValidTo.Value.ToCondotifyTime():dd/MM/yyyy HH:mm}";
+            if (Event.CredentialValidFrom.HasValue && Event.CredentialValidFrom.Value > DateTime.UtcNow) return $"Válida a partir de {Event.CredentialValidFrom.Value.ToCondotifyTime():dd/MM/yyyy HH:mm}";
+            return Event.CredentialValidTo.HasValue ? $"Ativa até {Event.CredentialValidTo.Value.ToCondotifyTime():dd/MM/yyyy HH:mm}" : "Ativa";
+        }
+    }
+}

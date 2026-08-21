@@ -169,6 +169,8 @@ public sealed class AccessEventRecordConfiguration : IEntityTypeConfiguration<Ac
         builder.Property(x => x.Credential).HasMaxLength(200);
         builder.Property(x => x.Portal).HasMaxLength(120);
         builder.Property(x => x.Details).HasMaxLength(1000);
+        builder.Property(x => x.AttentionResolvedBy).HasMaxLength(150);
+        builder.Property(x => x.AttentionResolutionNote).HasMaxLength(500);
         builder.Property(x => x.OccurredAt).IsRequired();
         builder.Property(x => x.CreatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.HasOne(x => x.License).WithMany().HasForeignKey(x => x.LicenseId).OnDelete(DeleteBehavior.Cascade);
@@ -176,6 +178,7 @@ public sealed class AccessEventRecordConfiguration : IEntityTypeConfiguration<Ac
         builder.HasOne(x => x.AccessCredential).WithMany().HasForeignKey(x => x.CredentialId).OnDelete(DeleteBehavior.SetNull);
         builder.HasIndex(x => new { x.DeviceId, x.ExternalEventId }).IsUnique();
         builder.HasIndex(x => new { x.LicenseId, x.OccurredAt });
+        builder.HasIndex(x => new { x.LicenseId, x.Authorized, x.AttentionResolvedAt });
         builder.HasIndex(x => x.CredentialId);
     }
 }

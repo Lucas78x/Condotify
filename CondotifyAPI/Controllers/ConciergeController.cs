@@ -53,20 +53,8 @@ public sealed class ConciergeController(
 
         var visits = await VisitQuery(licenseId).Where(x => x.ValidTo >= now.AddDays(-1) && x.ValidFrom <= now.AddDays(7))
             .OrderBy(x => x.ValidFrom).ToListAsync();
-        var events = await context.AccessEventRecords.AsNoTracking().Where(x => x.LicenseId == licenseId)
-            .OrderByDescending(x => x.OccurredAt).Take(80)
-            .Select(x => new ConciergeEventOut
-            {
-                Id = x.Id,
-                DeviceName = x.Device.Name,
-                PersonName = x.PersonName,
-                PhotoUrl = x.AccessCredential != null ? x.AccessCredential.Resident.ImgUrl : string.Empty,
-                Event = x.Event,
-                Authorized = x.Authorized,
-                Portal = x.Portal,
-                OccurredAt = x.OccurredAt
-            })
-            .ToListAsync();
+        var events = await EventQuery(context, licenseId)
+            .OrderByDescending(x => x.OccurredAt).Take(80).ToListAsync();
         var onlineThreshold = now.AddMinutes(-5);
         var devices = await context.Devices.AsNoTracking().Where(x => x.LicenseId == licenseId).OrderBy(x => x.Name)
             .Select(x => new ConciergeDeviceOut
@@ -103,26 +91,90 @@ public sealed class ConciergeController(
 
     internal static async Task<List<ConciergeEventOut>> GetEventsFeedCore(DatabaseContext context, Guid licenseId, string? search, bool? authorized, int take)
     {
-        var query = context.AccessEventRecords.AsNoTracking().Where(x => x.LicenseId == licenseId);
-        if (authorized.HasValue) query = query.Where(x => x.Authorized == authorized.Value);
+        var records = context.AccessEventRecords.AsNoTracking().Where(x => x.LicenseId == licenseId);
+        if (authorized.HasValue) records = records.Where(x => x.Authorized == authorized.Value);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var pattern = $"%{search.Trim()}%";
-            query = query.Where(x => EF.Functions.ILike(x.PersonName, pattern) || EF.Functions.ILike(x.Portal, pattern) || EF.Functions.ILike(x.Device.Name, pattern));
+            records = records.Where(x => EF.Functions.ILike(x.PersonName, pattern) || EF.Functions.ILike(x.Portal, pattern) ||
+                EF.Functions.ILike(x.Device.Name, pattern) || EF.Functions.ILike(x.Details, pattern));
         }
-        return await query.OrderByDescending(x => x.OccurredAt).Take(Math.Clamp(take, 1, 500))
-            .Select(x => new ConciergeEventOut
+        return await EventQuery(context, licenseId, records)
+            .OrderByDescending(x => x.OccurredAt).Take(Math.Clamp(take, 1, 500)).ToListAsync();
+    }
+
+    private static IQueryable<ConciergeEventOut> EventQuery(
+        DatabaseContext context,
+        Guid licenseId,
+        IQueryable<AccessEventRecordDTO>? records = null)
+    {
+        records ??= context.AccessEventRecords.AsNoTracking().Where(x => x.LicenseId == licenseId);
+        return records.Select(x => new ConciergeEventOut
             {
                 Id = x.Id,
+                DeviceId = x.DeviceId,
+                CredentialId = x.CredentialId,
+                ResidentId = x.AccessCredential != null ? x.AccessCredential.ResidentId : null,
+                UnitId = x.AccessCredential != null ? x.AccessCredential.Resident.UnitId : null,
+                VisitId = context.AccessVisits.Where(v => v.CredentialId == x.CredentialId)
+                    .OrderByDescending(v => v.CreatedAt).Select(v => (Guid?)v.Id).FirstOrDefault(),
                 DeviceName = x.Device.Name,
                 PersonName = x.PersonName,
                 PhotoUrl = x.AccessCredential != null ? x.AccessCredential.Resident.ImgUrl : string.Empty,
+                PhoneNumber = x.AccessCredential != null ? x.AccessCredential.Resident.PhoneNumber : string.Empty,
+                BlockName = x.AccessCredential != null ? x.AccessCredential.Resident.Unit.Block.Name : string.Empty,
+                UnitNumber = x.AccessCredential != null ? x.AccessCredential.Resident.Unit.Number : string.Empty,
+                CredentialType = x.AccessCredential != null ? x.AccessCredential.CredentialType.ToString() : string.Empty,
+                Credential = x.Credential,
+                CredentialActive = x.AccessCredential != null ? x.AccessCredential.IsActive : null,
+                CredentialValidFrom = x.AccessCredential != null ? x.AccessCredential.ValidFrom : null,
+                CredentialValidTo = x.AccessCredential != null ? x.AccessCredential.ValidTo : null,
+                Details = x.Details,
+                HostName = context.AccessVisits.Where(v => v.CredentialId == x.CredentialId)
+                    .OrderByDescending(v => v.CreatedAt).Select(v => v.HostResident.Name).FirstOrDefault() ?? string.Empty,
+                HostPhoneNumber = context.AccessVisits.Where(v => v.CredentialId == x.CredentialId)
+                    .OrderByDescending(v => v.CreatedAt).Select(v => v.HostResident.PhoneNumber).FirstOrDefault() ?? string.Empty,
                 Event = x.Event,
                 Authorized = x.Authorized,
                 Portal = x.Portal,
-                OccurredAt = x.OccurredAt
-            })
-            .ToListAsync();
+                OccurredAt = x.OccurredAt,
+                RequiresAttention = !x.Authorized && !x.AttentionResolvedAt.HasValue,
+                AttentionResolvedAt = x.AttentionResolvedAt,
+                AttentionResolvedBy = x.AttentionResolvedBy,
+                AttentionResolutionNote = x.AttentionResolutionNote
+            });
+    }
+
+    [HttpPost("events/{eventId:guid}/resolve")]
+    [RequireLicensePermission(LicensePermissionEnum.OperateDevices)]
+    public async Task<IActionResult> ResolveEvent(Guid licenseId, Guid eventId, [FromBody] ResolveConciergeEventIn input)
+    {
+        if (!await HasAccessAsync(licenseId)) return NotFound();
+        var accessEvent = await context.AccessEventRecords
+            .FirstOrDefaultAsync(x => x.Id == eventId && x.LicenseId == licenseId);
+        if (accessEvent is null) return NotFound();
+        if (accessEvent.Authorized)
+            return Conflict(new { Errors = "Somente ocorrencias que exigem atencao precisam ser resolvidas." });
+
+        var note = string.IsNullOrWhiteSpace(input.Note) ? "Verificado pela portaria." : input.Note.Trim();
+        var now = DateTime.UtcNow;
+        accessEvent.AttentionResolvedAt = now;
+        accessEvent.AttentionResolvedBy = CurrentUser();
+        accessEvent.AttentionResolutionNote = note;
+        context.AccessOperationAudits.Add(new AccessOperationAuditDTO
+        {
+            Id = Guid.NewGuid(), LicenseId = licenseId, EntityType = "AccessEvent", EntityId = eventId,
+            Action = "ResolveAttention", Status = "Success",
+            Summary = $"Ocorrencia de {accessEvent.PersonName} resolvida pela portaria.",
+            DetailsJson = JsonSerializer.Serialize(new { note, accessEvent.DeviceId, accessEvent.Portal }),
+            UserName = accessEvent.AttentionResolvedBy, CreatedAt = now
+        });
+        await context.SaveChangesAsync();
+
+        var payload = await EventQuery(context, licenseId).FirstAsync(x => x.Id == eventId);
+        await hub.Clients.Group(CondotifyAPI.Hubs.ConciergeHub.GroupName(licenseId))
+            .SendAsync("AccessEventResolved", payload, HttpContext.RequestAborted);
+        return Ok(payload);
     }
 
     [HttpGet("visits")]

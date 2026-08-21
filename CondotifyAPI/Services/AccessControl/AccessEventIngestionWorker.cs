@@ -17,21 +17,26 @@ namespace CondotifyAPI.Services.AccessControl;
 
 public sealed class AccessEventIngestionWorker : BackgroundService
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(2);
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AccessEventIngestionWorker> _logger;
+    private readonly TimeSpan _interval;
+    private readonly Dictionary<Guid, DeviceRetryState> _retryByDevice = [];
 
-    public AccessEventIngestionWorker(IServiceScopeFactory scopeFactory, ILogger<AccessEventIngestionWorker> logger)
+    public AccessEventIngestionWorker(IServiceScopeFactory scopeFactory, ILogger<AccessEventIngestionWorker> logger, IConfiguration configuration)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        var seconds = Math.Clamp(configuration.GetValue("AccessEvents:PollIntervalSeconds", 15), 5, 300);
+        _interval = TimeSpan.FromSeconds(seconds);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(Interval);
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
+        {
             await IngestAsync(stoppingToken);
+            await Task.Delay(_interval, stoppingToken);
+        }
     }
 
     private async Task IngestAsync(CancellationToken cancellationToken)
@@ -50,18 +55,24 @@ public sealed class AccessEventIngestionWorker : BackgroundService
 
             foreach (var device in devices)
             {
+                if (_retryByDevice.TryGetValue(device.Id, out var retry) && retry.NextAttemptAt > DateTime.UtcNow)
+                    continue;
                 try
                 {
                     var events = await accessControl.GetAccessEventsAsync(mapper.Map<AccessControlDevice>(device), 200);
                     pendingPublish.AddRange(await PersistAsync(context, device.Id, device.LicenseId, device.Name, events, reconciliationByLicense, cancellationToken));
+                    _retryByDevice.Remove(device.Id);
                     device.LastHealthCheckAt = DateTime.UtcNow;
                     device.LastSeenAt = DateTime.UtcNow;
                     device.HealthMessage = "Online; eventos atualizados.";
                 }
                 catch (Exception exception)
                 {
+                    var failures = (_retryByDevice.TryGetValue(device.Id, out var previous) ? previous.Failures : 0) + 1;
+                    var retrySeconds = Math.Min(300, 15 * Math.Pow(2, Math.Min(failures, 5)));
+                    _retryByDevice[device.Id] = new DeviceRetryState(failures, DateTime.UtcNow.AddSeconds(retrySeconds));
                     device.LastHealthCheckAt = DateTime.UtcNow;
-                    device.HealthMessage = Short(exception.Message, 300);
+                    device.HealthMessage = Short($"{exception.Message} Nova tentativa em {retrySeconds:0}s.", 300);
                     _logger.LogDebug(exception, "Nao foi possivel coletar eventos do equipamento {DeviceId}", device.Id);
                 }
             }
@@ -105,9 +116,14 @@ public sealed class AccessEventIngestionWorker : BackgroundService
             .Where(x => x.DeviceId == deviceId && externalIds.Contains(x.ExternalEventId))
             .Select(x => x.ExternalEventId).ToHashSetAsync(cancellationToken);
         var bindings = await context.ResidentAccessDevices
-            .Include(x => x.Credential).ThenInclude(x => x.Resident)
+            .Include(x => x.Credential).ThenInclude(x => x.Resident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .Where(x => x.DeviceId == deviceId)
             .ToListAsync(cancellationToken);
+        var credentialIds = bindings.Select(x => x.ResidentAccessCredentialId).Distinct().ToList();
+        var visits = await context.AccessVisits.AsNoTracking().Include(x => x.HostResident)
+            .Where(x => credentialIds.Contains(x.CredentialId))
+            .OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
+        var visitByCredential = visits.GroupBy(x => x.CredentialId).ToDictionary(x => x.Key, x => x.First());
 
         foreach (var accessEvent in events.OrderBy(x => x.OccurredAt))
         {
@@ -115,6 +131,8 @@ public sealed class AccessEventIngestionWorker : BackgroundService
             if (!existingIds.Add(externalId)) continue;
             var binding = ResolveBinding(bindings, accessEvent);
             var credential = binding?.Credential;
+            var resident = credential?.Resident;
+            var visit = credential is null ? null : visitByCredential.GetValueOrDefault(credential.Id);
             var recordId = Guid.NewGuid();
             context.AccessEventRecords.Add(new AccessEventRecordDTO
             {
@@ -126,10 +144,17 @@ public sealed class AccessEventIngestionWorker : BackgroundService
             });
             published.Add((licenseId, new ConciergeEventOut
             {
-                Id = recordId, DeviceName = deviceName, PersonName = Short(accessEvent.PersonName, 200),
-                PhotoUrl = credential?.Resident.ImgUrl ?? string.Empty,
+                Id = recordId, DeviceId = deviceId, CredentialId = credential?.Id, ResidentId = resident?.Id,
+                UnitId = resident?.UnitId, VisitId = visit?.Id, DeviceName = deviceName,
+                PersonName = Short(accessEvent.PersonName, 200), PhotoUrl = resident?.ImgUrl ?? string.Empty,
+                PhoneNumber = resident?.PhoneNumber ?? string.Empty, BlockName = resident?.Unit?.Block?.Name ?? string.Empty,
+                UnitNumber = resident?.Unit?.Number ?? string.Empty, CredentialType = credential?.CredentialType.ToString() ?? string.Empty,
+                Credential = Short(accessEvent.Credential, 200), CredentialActive = credential?.IsActive,
+                CredentialValidFrom = credential?.ValidFrom, CredentialValidTo = credential?.ValidTo, Details = Short(accessEvent.Details, 1000),
+                HostName = visit?.HostResident?.Name ?? string.Empty, HostPhoneNumber = visit?.HostResident?.PhoneNumber ?? string.Empty,
                 Event = Short(accessEvent.Event, 120), Authorized = accessEvent.Authorized,
-                Portal = Short(accessEvent.Portal, 120), OccurredAt = Utc(accessEvent.OccurredAt)
+                Portal = Short(accessEvent.Portal, 120), OccurredAt = Utc(accessEvent.OccurredAt),
+                RequiresAttention = !accessEvent.Authorized
             }));
 
             if (!accessEvent.Authorized || credential is null || !credential.IsActive) continue;
@@ -179,4 +204,5 @@ public sealed class AccessEventIngestionWorker : BackgroundService
 
     private static DateTime Utc(DateTime value) => value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime();
     private static string Short(string? value, int length) => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Length <= length ? value : value[..length];
+    private sealed record DeviceRetryState(int Failures, DateTime NextAttemptAt);
 }

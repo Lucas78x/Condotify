@@ -797,6 +797,9 @@ public sealed class CondotifyApiClient
         return GetAsync<List<ConciergeEventViewModel>>($"api/access/licenses/{licenseId}/concierge/events?{query}", cancellationToken);
     }
 
+    public Task<ApiResult<ConciergeEventViewModel>> ResolveConciergeEventAsync(Guid licenseId, Guid eventId, string note, CancellationToken cancellationToken = default) =>
+        SendForAsync<ConciergeEventViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/concierge/events/{eventId}/resolve", new { Note = note }, cancellationToken);
+
     public Task<ApiResult<List<ConciergeVisitViewModel>>> GetConciergeVisitsAsync(
         Guid licenseId,
         DateTime from,
@@ -1277,8 +1280,8 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<bool>> TestDeviceConnectionAsync(Guid licenseId, Guid deviceId, CancellationToken cancellationToken = default) =>
         PostAsync($"api/access/licenses/{licenseId}/devices/{deviceId}/test-connection", new { }, false, cancellationToken);
 
-    public Task<ApiResult<bool>> OpenDoorAsync(Guid licenseId, Guid deviceId, int channel, string reason, CancellationToken cancellationToken = default) =>
-        PostAsync($"api/access/licenses/{licenseId}/devices/{deviceId}/open-door", new { Channel = channel, Reason = reason }, false, cancellationToken);
+    public Task<ApiResult<bool>> OpenDoorAsync(Guid licenseId, Guid deviceId, int channel, string reason, CancellationToken cancellationToken = default, Guid? eventId = null) =>
+        PostAsync($"api/access/licenses/{licenseId}/devices/{deviceId}/open-door", new { Channel = channel, Reason = reason, EventId = eventId }, false, cancellationToken);
 
     public Task<ApiResult<CredentialOperationViewModel>> CreateCredentialAsync(Guid licenseId, CredentialFormViewModel model, CancellationToken cancellationToken = default) =>
         SendForAsync<CredentialOperationViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/credentials", new

@@ -9,6 +9,8 @@ public sealed class OpenDoorIn
 
     [MaxLength(200)]
     public string Reason { get; set; } = string.Empty;
+
+    public Guid? EventId { get; set; }
 }
 
 public sealed class DeviceActionOut
