@@ -34,6 +34,33 @@ fi
 
 docker compose config --quiet
 docker compose up -d --build --remove-orphans --wait --wait-timeout 180
+
+health_services=(postgres api portal caddy)
+health_deadline=$((SECONDS + 180))
+while (( SECONDS < health_deadline )); do
+    all_healthy=true
+    for service in "${health_services[@]}"; do
+        container_id="$(docker compose ps -q "$service")"
+        health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$container_id")"
+        if [[ "$health" == unhealthy ]]; then
+            docker compose ps
+            docker compose logs --tail=100 "$service"
+            echo "Deploy recusado: o servico '$service' ficou unhealthy." >&2
+            exit 5
+        fi
+        [[ "$health" == healthy ]] || all_healthy=false
+    done
+
+    [[ "$all_healthy" == true ]] && break
+    sleep 3
+done
+
+if [[ "$all_healthy" != true ]]; then
+    docker compose ps
+    echo 'Deploy recusado: os servicos nao ficaram saudaveis dentro do prazo.' >&2
+    exit 6
+fi
+
 docker compose ps
 
 echo "deployment_commit=$(git rev-parse HEAD)"

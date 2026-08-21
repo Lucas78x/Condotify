@@ -28,7 +28,8 @@ cd /opt/condotify
 O script interrompe a atualizacao se o checkout estiver em outro branch, se
 existirem alteracoes nao comitadas ou se o remoto exigir merge/rebase. Assim, o
 codigo executado na VPS sempre corresponde a um commit identificavel no Git. O
-comando tambem aguarda os health checks da API, portal, banco e proxy; uma
+comando tambem aguarda e confirma explicitamente os health checks da API,
+portal, banco e proxy; uma
 atualizacao que nao ficar pronta retorna erro em vez de aparentar sucesso.
 
 Para implantar outro branch de forma explicita:

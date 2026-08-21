@@ -17,7 +17,10 @@ COPY ["Condotify.Contracts/Condotify.Contracts.csproj", "Condotify.Contracts/"]
 COPY ["Condotify.ApiClient/Condotify.ApiClient.csproj", "Condotify.ApiClient/"]
 COPY ["Condotify.UI/Condotify.UI.csproj", "Condotify.UI/"]
 RUN dotnet restore "./Condotify/Condotify.csproj"
-COPY . .
+COPY ["Condotify/", "Condotify/"]
+COPY ["Condotify.Contracts/", "Condotify.Contracts/"]
+COPY ["Condotify.ApiClient/", "Condotify.ApiClient/"]
+COPY ["Condotify.UI/", "Condotify.UI/"]
 WORKDIR "/src/Condotify"
 RUN dotnet publish "./Condotify.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false --no-restore
 

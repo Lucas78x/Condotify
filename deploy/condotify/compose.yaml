@@ -128,7 +128,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      AllowedHosts: ${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br}
+      AllowedHosts: "${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br};localhost"
       ReverseProxy__AllowedHost: ${CONDOTIFY_PUBLIC_HOST:-fefaccess.grupoff.net.br}
       CondotifyApi__BaseUrl: http://api:8080
       CondotifyApi__ApiKey: ${CONDOTIFY_API_KEY:?Defina CONDOTIFY_API_KEY no arquivo .env}
