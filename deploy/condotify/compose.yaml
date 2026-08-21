@@ -24,13 +24,14 @@ services:
       start_period: 10s
 
   api:
+    image: ${CONDOTIFY_API_IMAGE:-condotify-api:local}
     build:
       context: ../..
       dockerfile: CondotifyAPI/Dockerfile
     container_name: condotify-api
     restart: unless-stopped
     logging: *condotify-logging
-    environment:
+    environment: &api-environment
       ASPNETCORE_ENVIRONMENT: Production
       # 8080 e publicada na rede do proxy; 8081 serve somente api/internal/*.
       ASPNETCORE_URLS: http://+:8080;http://+:8081
@@ -86,6 +87,20 @@ services:
       - condotify-lpr
       - public-web
 
+  migration:
+    image: ${CONDOTIFY_API_IMAGE:-condotify-api:local}
+    profiles:
+      - ops
+    command: ["dotnet", "CondotifyAPI.dll", "--migrate"]
+    restart: "no"
+    logging: *condotify-logging
+    environment: *api-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+
   mediamtx:
     image: bluenviron/mediamtx:1.9.3-ffmpeg
     container_name: condotify-mediamtx
@@ -106,6 +121,7 @@ services:
       - public-media
 
   lpr-ocr:
+    image: ${CONDOTIFY_LPR_IMAGE:-condotify-lpr-ocr:local}
     build:
       context: ../../lpr-ocr
     container_name: condotify-lpr-ocr
@@ -119,6 +135,7 @@ services:
       - condotify-lpr
 
   portal:
+    image: ${CONDOTIFY_PORTAL_IMAGE:-condotify-portal:local}
     build:
       context: ../..
       dockerfile: Condotify/Dockerfile

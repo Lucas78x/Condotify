@@ -91,7 +91,10 @@ if systemctl list-unit-files snap.certbot.renew.timer >/dev/null 2>&1; then
     sudo systemctl disable --now snap.certbot.renew.timer || true
 fi
 
-docker compose up -d --build --remove-orphans
+docker compose build api portal lpr-ocr
+docker compose up -d postgres
+docker compose --profile ops run --rm --no-deps migration
+docker compose up -d --no-build --remove-orphans
 
 api_ready=false
 for _ in $(seq 1 60); do

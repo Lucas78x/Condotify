@@ -45,6 +45,47 @@ docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile
 docker compose exec -w /etc/caddy caddy caddy reload --config Caddyfile
 ```
 
+## Backup PostgreSQL
+
+O backup operacional usa `pg_dump` no formato custom, valida o arquivo e faz
+uma restauracao completa em um banco temporario antes de considera-lo valido:
+
+```bash
+./deploy/backup-postgres.sh
+./deploy/install-backup-cron.sh
+```
+
+Por padrao sao mantidos 7 dias, 5 semanas e 13 meses. Para copia externa,
+configure um remote do `rclone` e defina `CONDOTIFY_BACKUP_OFFSITE_REMOTE` no
+ambiente do cron. O restore exige confirmacao explicita e aceita somente dumps
+com checksum dentro do diretorio oficial:
+
+```bash
+CONDOTIFY_ALLOW_DATABASE_RESTORE=yes ./deploy/restore-postgres.sh backups/postgres/daily/ARQUIVO.dump
+```
+
+## Deploy de producao
+
+O CI testa API, portal, cliente compartilhado, nucleo mobile, OCR e Compose. So
+depois publica no GHCR as tres imagens com a tag `sha-COMMIT`. A VPS deve estar
+autenticada uma unica vez para leitura dos pacotes privados:
+
+```bash
+echo "$GHCR_READ_TOKEN" | docker login ghcr.io -u USUARIO --password-stdin
+./deploy/deploy-vps.sh
+```
+
+O script recusa arvore Git suja, baixa as imagens antes da janela de manutencao,
+confere o commit gravado em cada imagem e fixa os digests. Em seguida para novas
+escritas, cria e restaura um backup de verificacao, executa a migracao como tarefa
+unica e troca os containers. Falha de migracao ou health check restaura banco e
+imagens anteriores automaticamente. A API de producao nunca executa migracoes ao
+iniciar.
+
+Configure `ci-gate` como status check obrigatorio na regra da branch de producao.
+Ele so aprova quando testes, Compose e as tres imagens terminam com sucesso.
+Restrinja tambem force-push e exclusao da branch.
+
 Somente `caddy` publica TCP 80/443. O MediaMTX publica UDP 8189 para o ICE do
 WebRTC. Banco, portal, API, HLS e sinalizacao WebRTC nao publicam portas no host.
 

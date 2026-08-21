@@ -37,6 +37,8 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+var migrationOnly = args.Any(argument =>
+    string.Equals(argument, "--migrate", StringComparison.OrdinalIgnoreCase));
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -324,25 +326,18 @@ app.UseSerilogRequestLogging(options =>
     };
 });
 
-using (var scope = app.Services.CreateScope())
+if (migrationOnly || app.Environment.IsDevelopment())
 {
-    var db = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
-    scope.ServiceProvider.GetRequiredService<CondotifyAPI.Domain.Interfaces.ICurrentTenantAccessor>().MarkUnrestricted();
-    db.Database.Migrate();
+    await ApplyDatabaseMigrationsAsync(app.Services);
 
-    var legacyAccessDevices = await db.Devices
-        .FromSqlRaw("""SELECT * FROM "AccessControlDevices" WHERE "Password" NOT LIKE 'enc:v1:%'""")
-        .ToListAsync();
-    var legacyCftvDevices = await db.CFTVDevices
-        .FromSqlRaw("""SELECT * FROM "CFTVDevices" WHERE "Password" NOT LIKE 'enc:v1:%'""")
-        .ToListAsync();
-    foreach (var device in legacyAccessDevices)
-        db.Entry(device).Property(x => x.Password).IsModified = true;
-    foreach (var device in legacyCftvDevices)
-        db.Entry(device).Property(x => x.Password).IsModified = true;
-    if (legacyAccessDevices.Count + legacyCftvDevices.Count > 0)
-        await db.SaveChangesAsync();
+    if (migrationOnly)
+    {
+        Log.Information("Database migrations completed successfully");
+        await Log.CloseAndFlushAsync();
+        return;
+    }
 
+    using var scope = app.Services.CreateScope();
     if (app.Environment.IsDevelopment())
         await DevelopmentDataSeeder.SeedAsync(scope.ServiceProvider);
 }
@@ -384,3 +379,24 @@ app.MapGet("/health/ready", async (DatabaseContext db, CancellationToken cancell
         ? Results.Ok(new { status = "ready", database = "connected" })
         : Results.Json(new { status = "unavailable", database = "disconnected" }, statusCode: StatusCodes.Status503ServiceUnavailable)).AllowAnonymous();
 app.Run();
+
+static async Task ApplyDatabaseMigrationsAsync(IServiceProvider services)
+{
+    using var scope = services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+    scope.ServiceProvider.GetRequiredService<ICurrentTenantAccessor>().MarkUnrestricted();
+    await db.Database.MigrateAsync();
+
+    var legacyAccessDevices = await db.Devices
+        .FromSqlRaw("""SELECT * FROM "AccessControlDevices" WHERE "Password" NOT LIKE 'enc:v1:%'""")
+        .ToListAsync();
+    var legacyCftvDevices = await db.CFTVDevices
+        .FromSqlRaw("""SELECT * FROM "CFTVDevices" WHERE "Password" NOT LIKE 'enc:v1:%'""")
+        .ToListAsync();
+    foreach (var device in legacyAccessDevices)
+        db.Entry(device).Property(x => x.Password).IsModified = true;
+    foreach (var device in legacyCftvDevices)
+        db.Entry(device).Property(x => x.Password).IsModified = true;
+    if (legacyAccessDevices.Count + legacyCftvDevices.Count > 0)
+        await db.SaveChangesAsync();
+}
