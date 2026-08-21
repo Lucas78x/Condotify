@@ -93,7 +93,11 @@ public static class MobileDeepLinks
             return false;
 
         var candidate = value.Trim();
-        if (Uri.TryCreate(candidate, UriKind.Absolute, out var absolute))
+        // Em Unix, Uri.TryCreate("/home", Absolute) interpreta a rota como
+        // file:///home. Rotas iniciadas por barra sao caminhos web e so
+        // entradas sem barra inicial podem ser URLs/deep links absolutos.
+        if (!candidate.StartsWith('/')
+            && Uri.TryCreate(candidate, UriKind.Absolute, out var absolute))
         {
             if (absolute.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
             {

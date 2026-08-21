@@ -34,6 +34,7 @@ public sealed class MobileDeepLinksTests
 
     [Theory]
     [InlineData("javascript:alert(1)")]
+    [InlineData("file:///home")]
     [InlineData("https://evil.example/app/home")]
     [InlineData("https://app.condotify.com.br:8443/app/home")]
     [InlineData("https://user@app.condotify.com.br/app/home")]
