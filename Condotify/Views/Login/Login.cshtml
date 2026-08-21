@@ -715,6 +715,7 @@
 
             <form id="loginForm" method="post" action="/Login/Login">
                 @Html.AntiForgeryToken()
+                <input type="hidden" name="ReturnUrl" value="@Model?.ReturnUrl" />
                 @if (errors.Count > 0)
                 {
                     <div class="error" role="alert" aria-live="polite">@string.Join(" ", errors.Distinct())</div>

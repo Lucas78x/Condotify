@@ -17,6 +17,8 @@ namespace Condotify.Models
 
         public bool RememberMe { get; set; }
 
+        public string ReturnUrl { get; set; } = "/";
+
         public bool MfaRequired { get; set; }
         public string MfaChallengeToken { get; set; } = string.Empty;
 

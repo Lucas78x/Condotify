@@ -1,8 +1,11 @@
 (() => {
     "use strict";
 
-    if (!document.getElementById("condotify-authenticated-session"))
+    const marker = document.getElementById("condotify-authenticated-session");
+    if (!marker) {
+        window.condotifySessionReady = Promise.resolve(true);
         return;
+    }
 
     const endpoint = "/Login/KeepAlive";
     const minimumDelayMs = 60_000;
@@ -10,17 +13,19 @@
     const refreshLeadSeconds = 5 * 60;
     let timerId = 0;
     let requestInFlight = false;
+    let expiresAtMs = 0;
 
     function schedule(seconds) {
         window.clearTimeout(timerId);
         const delay = Math.max(minimumDelayMs, seconds * 1000);
-        timerId = window.setTimeout(maintainSession, delay);
+        timerId = window.setTimeout(() => void maintainSession(), delay);
     }
 
     async function maintainSession() {
-        if (requestInFlight || document.visibilityState === "hidden") {
+        if (requestInFlight) return true;
+        if (document.visibilityState === "hidden") {
             schedule(60);
-            return;
+            return true;
         }
 
         requestInFlight = true;
@@ -35,35 +40,48 @@
             if (response.status === 401) {
                 const returnUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
                 window.location.assign(`/Login?ReturnUrl=${encodeURIComponent(returnUrl)}`);
-                return;
+                return false;
             }
 
             if (!response.ok) {
                 schedule(retryDelayMs / 1000);
-                return;
+                return true;
             }
 
             const session = await response.json();
             if (session.refreshed) {
                 window.location.reload();
-                return;
+                return false;
             }
 
             const remaining = Number(session.expiresInSeconds);
+            if (Number.isFinite(remaining))
+                expiresAtMs = Date.now() + remaining * 1000;
+
             schedule(Number.isFinite(remaining)
                 ? Math.max(60, remaining - refreshLeadSeconds)
                 : retryDelayMs / 1000);
+            return true;
         } catch {
             schedule(retryDelayMs / 1000);
+            return true;
         } finally {
             requestInFlight = false;
         }
     }
 
     document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible")
-            void maintainSession();
+        if (document.visibilityState !== "visible") return;
+
+        // Depois de uma aba suspensa, um reload passa primeiro pela verificacao
+        // inicial e impede que o circuito Blazor use um access token vencido.
+        if (expiresAtMs > 0 && expiresAtMs - Date.now() <= refreshLeadSeconds * 1000) {
+            window.location.reload();
+            return;
+        }
+
+        void maintainSession();
     });
 
-    void maintainSession();
+    window.condotifySessionReady = maintainSession();
 })();

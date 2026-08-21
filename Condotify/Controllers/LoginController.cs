@@ -34,18 +34,19 @@ namespace Condotify.Controllers
 
 
         [HttpGet]
-        public async Task<IActionResult> Login()
+        public async Task<IActionResult> Login(string? returnUrl = null)
         {
+            var destination = ResolveLocalReturnUrl(returnUrl);
             if (User.Identity?.IsAuthenticated == true)
             {
                 try
                 {
                     var token = User.FindFirstValue(ClaimsSessionContextProvider.AccessTokenClaim);
                     if (!string.IsNullOrWhiteSpace(token) && await ValidateAccessTokenAsync(token, HttpContext.RequestAborted))
-                        return Redirect("/");
+                        return Redirect(destination);
 
                     if (await RefreshCookieSessionAsync(HttpContext.RequestAborted) is not null)
-                        return Redirect("/");
+                        return Redirect(destination);
                 }
                 catch (Exception ex)
                 {
@@ -55,7 +56,7 @@ namespace Condotify.Controllers
                 await SignOutLocalAsync();
             }
 
-            return View();
+            return View(new LoginViewModel { ReturnUrl = destination });
         }
 
         [HttpPost]
@@ -112,7 +113,7 @@ namespace Condotify.Controllers
                     Response.Cookies.Delete("AuthToken");
                     return principal.FindFirstValue("first_access") == "true"
                         ? Redirect("/seguranca?primeiroAcesso=1")
-                        : Redirect("/");
+                        : Redirect(ResolveLocalReturnUrl(model.ReturnUrl));
                 }
 
                 if (response.IsSuccessStatusCode && result?.MfaRequired == true && !string.IsNullOrWhiteSpace(result.ChallengeToken))
@@ -123,7 +124,8 @@ namespace Condotify.Controllers
                         MfaRequired = true,
                         MfaChallengeToken = result.ChallengeToken,
                         Email = model.Email,
-                        RememberMe = model.RememberMe
+                        RememberMe = model.RememberMe,
+                        ReturnUrl = ResolveLocalReturnUrl(model.ReturnUrl)
                     });
                 }
 
@@ -363,6 +365,16 @@ namespace Condotify.Controllers
             "InvalidMfaCode" => "O código informado é inválido ou expirou.",
             _ => "Não foi possível entrar. Tente novamente."
         };
+
+        public static string ResolveLocalReturnUrl(string? returnUrl)
+        {
+            if (string.IsNullOrWhiteSpace(returnUrl) || returnUrl[0] != '/')
+                return "/";
+
+            return returnUrl.Length == 1 || returnUrl[1] is not ('/' or '\\')
+                ? returnUrl
+                : "/";
+        }
 
         private static void AddClaim(JsonElement payload, ICollection<Claim> claims, string jsonName, string claimType)
         {

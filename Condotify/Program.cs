@@ -119,6 +119,8 @@ app.MapControllerRoute(
     pattern: "Login/{action=Login}/{id?}",
     defaults: new { controller = "Login" });
 
+app.MapGet("/health/live", () => Results.Ok(new { Status = "Healthy" }));
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
