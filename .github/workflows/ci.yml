@@ -60,33 +60,39 @@ jobs:
         continue-on-error: true
         run: dotnet test CondotifyAPI.Tests/CondotifyAPI.Tests.csproj -c Release --logger "trx;LogFileName=api.trx"
       - name: Test portal
+        id: portal-tests
+        continue-on-error: true
         run: dotnet test Condotify.Web.Tests/Condotify.Web.Tests.csproj -c Release --logger "trx;LogFileName=portal.trx"
       - name: Test API client
+        id: api-client-tests
+        continue-on-error: true
         run: dotnet test Condotify.ApiClient.Tests/Condotify.ApiClient.Tests.csproj -c Release --logger "trx;LogFileName=api-client.trx"
       - name: Publish server applications
         run: |
           dotnet publish CondotifyAPI/CondotifyAPI.csproj -c Release --no-restore /p:UseAppHost=false
           dotnet publish Condotify/Condotify.csproj -c Release --no-restore /p:UseAppHost=false
-      - name: Report API test failures
-        if: steps.api-tests.outcome == 'failure'
+      - name: Report server test failures
+        if: steps.api-tests.outcome == 'failure' || steps.portal-tests.outcome == 'failure' || steps.api-client-tests.outcome == 'failure'
         run: |
           python3 - <<'PY'
           import pathlib
           import sys
           import xml.etree.ElementTree as ET
 
-          files = list(pathlib.Path("CondotifyAPI.Tests/TestResults").glob("*.trx"))
+          files = list(pathlib.Path(".").glob("**/TestResults/*.trx"))
           if not files:
-              print("::error title=API tests failed::The test runner did not produce a TRX file.")
+              print("::error title=Server tests failed::The test runner did not produce a TRX file.")
               raise SystemExit(1)
 
-          root = ET.parse(files[0]).getroot()
-          failures = [node for node in root.iter() if node.tag.endswith("UnitTestResult") and node.get("outcome") == "Failed"]
+          failures = []
+          for file in files:
+              root = ET.parse(file).getroot()
+              failures.extend(node for node in root.iter() if node.tag.endswith("UnitTestResult") and node.get("outcome") == "Failed")
           for failure in failures[:20]:
               message_node = next((node for node in failure.iter() if node.tag.endswith("Message")), None)
               message = " ".join((message_node.text if message_node is not None else "No error message").split())
               message = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-              print(f"::error title=API test failed::{failure.get('testName')}: {message[:1500]}")
+              print(f"::error title=Server test failed::{failure.get('testName')}: {message[:1500]}")
           raise SystemExit(1)
           PY
       - uses: actions/upload-artifact@v4
