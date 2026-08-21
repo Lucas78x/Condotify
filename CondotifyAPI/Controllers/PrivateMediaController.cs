@@ -18,13 +18,27 @@ public sealed class PrivateMediaController(DatabaseContext context, IPrivateMedi
     {
         var reference = PrivateMediaStore.Reference(licenseId, mediaId);
         var incidentLinked = await context.IncidentAttachments.AsNoTracking().AnyAsync(x => x.LicenseId == licenseId && x.MediaReference == reference, cancellationToken);
+        var accessEventLinked = false;
         if (incidentLinked)
         {
             if (!await authorization.HasPermissionAsync(User, licenseId, LicensePermissionEnum.ViewIncidents, cancellationToken)) return Forbid();
             if (!await modules.IsEnabledAsync(licenseId, CondotifyAPI.Domain.Enums.License.LicenseModuleEnum.Incidents, cancellationToken)) return NotFound();
         }
-        else if (!await authorization.HasPermissionAsync(User, licenseId, LicensePermissionEnum.ViewPeople, cancellationToken)) return Forbid();
-        var linked = incidentLinked || await context.Residents.AsNoTracking().ForLicense(licenseId).AnyAsync(x => x.ImgUrl == reference, cancellationToken)
+        else
+        {
+            var canViewPeople = await authorization.HasPermissionAsync(User, licenseId, LicensePermissionEnum.ViewPeople, cancellationToken);
+            if (!canViewPeople)
+            {
+                accessEventLinked = await context.AccessEventRecords.AsNoTracking()
+                    .AnyAsync(x => x.LicenseId == licenseId
+                        && x.AccessCredential != null
+                        && x.AccessCredential.Resident.ImgUrl == reference, cancellationToken);
+                var canViewEventPhoto = accessEventLinked
+                    && await authorization.HasPermissionAsync(User, licenseId, LicensePermissionEnum.ViewEvents, cancellationToken);
+                if (!canViewEventPhoto) return Forbid();
+            }
+        }
+        var linked = incidentLinked || accessEventLinked || await context.Residents.AsNoTracking().ForLicense(licenseId).AnyAsync(x => x.ImgUrl == reference, cancellationToken)
             || await context.AccessVisits.AsNoTracking().AnyAsync(x => x.LicenseId == licenseId && x.PhotoUrl == reference, cancellationToken)
             || await context.VehicleAccessAudits.AsNoTracking().AnyAsync(x => x.Device.LicenseId == licenseId && x.SnapshotReference == reference, cancellationToken);
         if (!linked) return NotFound();

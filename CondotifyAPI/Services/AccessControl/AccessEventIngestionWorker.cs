@@ -127,6 +127,7 @@ public sealed class AccessEventIngestionWorker : BackgroundService
             published.Add((licenseId, new ConciergeEventOut
             {
                 Id = recordId, DeviceName = deviceName, PersonName = Short(accessEvent.PersonName, 200),
+                PhotoUrl = credential?.Resident.ImgUrl ?? string.Empty,
                 Event = Short(accessEvent.Event, 120), Authorized = accessEvent.Authorized,
                 Portal = Short(accessEvent.Portal, 120), OccurredAt = Utc(accessEvent.OccurredAt)
             }));

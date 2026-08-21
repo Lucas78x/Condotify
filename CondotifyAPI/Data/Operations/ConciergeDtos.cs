@@ -131,6 +131,7 @@ public sealed class ConciergeEventOut
     public Guid Id { get; set; }
     public string DeviceName { get; set; } = string.Empty;
     public string PersonName { get; set; } = string.Empty;
+    public string PhotoUrl { get; set; } = string.Empty;
     public string Event { get; set; } = string.Empty;
     public bool Authorized { get; set; }
     public string Portal { get; set; } = string.Empty;
