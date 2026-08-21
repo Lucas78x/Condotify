@@ -50,7 +50,7 @@
                         <span class="recycle-icon"><MudIcon Icon="@EntityIcon(item.EntityType)" /></span>
                         <div class="recycle-main">
                             <div><strong>@item.DisplayName</strong><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@EntityLabel(item.EntityType)</MudChip></div>
-                            <span>Excluído por @DisplayActor(item.DeletedBy) em @item.DeletedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                            <span>Excluído por @DisplayActor(item.DeletedBy) em @item.DeletedAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</span>
                         </div>
                         <div class="recycle-expiry @(item.DaysRemaining <= 7 ? "urgent" : null)">
                             <strong>@item.DaysRemaining</strong>

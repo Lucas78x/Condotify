@@ -28,7 +28,7 @@
         <MudTabs Elevation="0" Class="device-detail-tabs">
             <MudTabPanel Text="Visao geral" Icon="@Icons.Material.Outlined.Dashboard">
                 <div class="device-overview-grid">
-                    <section><span>Conectividade</span><strong>@(Device.IsActive ? "Disponível" : "Indisponível")</strong><small>@(Device.LastHealthCheckAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Ainda não verificado")</small></section>
+                    <section><span>Conectividade</span><strong>@(Device.IsActive ? "Disponível" : "Indisponível")</strong><small>@(Device.LastHealthCheckAt?.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm") ?? "Ainda não verificado")</small></section>
                     <section><span>Tempo de resposta</span><strong>@(Device.LastResponseTimeMs.HasValue ? $"{Device.LastResponseTimeMs} ms" : "-")</strong><small>Último diagnóstico</small></section>
                     <section><span>Firmware</span><strong>@(string.IsNullOrWhiteSpace(Device.FirmwareVersion) ? "Não informado" : Short(Device.FirmwareVersion, 36))</strong><small>@Device.Type</small></section>
                     <section><span>Portas detectadas</span><strong>@Portals.Count</strong><small>@string.Join(", ", Portals.Select(x => x.Name))</small></section>
@@ -82,7 +82,7 @@
                             <MudTd DataLabel="Tipo">@CredentialLabel(context.CredentialType)</MudTd>
                             <MudTd DataLabel="Identificador">@(!string.IsNullOrWhiteSpace(context.Identifier) ? context.Identifier : "-")</MudTd>
                             <MudTd DataLabel="Estado"><MudChip T="string" Size="Size.Small" Color="@InventoryColor(context.Status)" Variant="Variant.Outlined">@InventoryLabel(context.Status)</MudChip></MudTd>
-                            <MudTd DataLabel="Observado">@context.ObservedAt.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
+                            <MudTd DataLabel="Observado">@context.ObservedAt.ToCondotifyTime().ToString("dd/MM HH:mm")</MudTd>
                         </RowTemplate>
                     </MudTable>
                 }
@@ -99,7 +99,7 @@
                 {
                     <MudTable Items="_events" Hover Dense FixedHeader Elevation="0" Class="device-events-table">
                         <HeaderContent><MudTh>Horário</MudTh><MudTh>Resultado</MudTh><MudTh>Pessoa</MudTh><MudTh>Porta</MudTh></HeaderContent>
-                        <RowTemplate><MudTd>@context.OccurredAt.ToLocalTime().ToString("dd/MM HH:mm:ss")</MudTd><MudTd><MudChip T="string" Size="Size.Small" Color="@(context.Authorized ? Color.Success : Color.Error)" Variant="Variant.Outlined">@context.Event</MudChip></MudTd><MudTd>@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : context.ExternalUserId)</MudTd><MudTd>@context.Portal</MudTd></RowTemplate>
+                        <RowTemplate><MudTd>@context.OccurredAt.ToCondotifyTime().ToString("dd/MM HH:mm:ss")</MudTd><MudTd><MudChip T="string" Size="Size.Small" Color="@(context.Authorized ? Color.Success : Color.Error)" Variant="Variant.Outlined">@context.Event</MudChip></MudTd><MudTd>@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : context.ExternalUserId)</MudTd><MudTd>@context.Portal</MudTd></RowTemplate>
                     </MudTable>
                 }
                 </div>

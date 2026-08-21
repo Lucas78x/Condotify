@@ -125,7 +125,7 @@
         <MudTable Items="_actions" Hover Dense Elevation="0">
             <HeaderContent><MudTh>Horário</MudTh><MudTh>Equipamento</MudTh><MudTh>Operação</MudTh><MudTh>Detalhes</MudTh><MudTh>Usuário</MudTh></HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="Horário">@context.Timestamp.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
+                <MudTd DataLabel="Horário">@context.Timestamp.ToCondotifyTime().ToString("dd/MM HH:mm")</MudTd>
                 <MudTd DataLabel="Equipamento">@context.DeviceName</MudTd>
                 <MudTd DataLabel="Operação"><MudChip T="string" Size="Size.Small" Color="@ActionColor(context.Action)" Variant="Variant.Outlined">@ActionLabel(context.Action)</MudChip></MudTd>
                 <MudTd DataLabel="Detalhes">@context.Details</MudTd>

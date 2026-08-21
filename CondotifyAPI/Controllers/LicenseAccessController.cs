@@ -132,6 +132,18 @@ public class LicenseAccessController : ControllerBase
         if (licenses.Count == 0) return;
 
         var ids = licenses.Select(x => x.Id).ToArray();
+        var nomenclature = await _context.Licenses
+            .AsNoTracking()
+            .Where(license => ids.Contains(license.Id))
+            .Select(license => new
+            {
+                license.Id,
+                license.GroupLabelSingular,
+                license.GroupLabelPlural,
+                license.UnitLabelSingular,
+                license.UnitLabelPlural
+            })
+            .ToDictionaryAsync(license => license.Id);
         var residentCounts = await _context.Blocks
             .AsNoTracking()
             .Where(block => ids.Contains(block.LicenseId))
@@ -151,7 +163,14 @@ public class LicenseAccessController : ControllerBase
                 group => group.SelectMany(x => x.ResidentIds).Distinct().Count());
 
         foreach (var license in licenses)
+        {
             license.Moradores = byLicense.GetValueOrDefault(license.Id);
+            if (!nomenclature.TryGetValue(license.Id, out var labels)) continue;
+            license.GroupLabelSingular = labels.GroupLabelSingular;
+            license.GroupLabelPlural = labels.GroupLabelPlural;
+            license.UnitLabelSingular = labels.UnitLabelSingular;
+            license.UnitLabelPlural = labels.UnitLabelPlural;
+        }
     }
 
     private async Task EnrichLicenseSummaryAsync(LicenseSummaryViewModel license, Guid licenseId)

@@ -142,22 +142,6 @@ public sealed class OfflineAccessBundleService(DatabaseContext context) : IOffli
 
 internal static class OfflineOperationsTimeZone
 {
-    private static readonly TimeZoneInfo Zone = Resolve();
-
-    public static int OffsetMinutes(DateTime utc) => (int)Zone.GetUtcOffset(
-        utc.Kind == DateTimeKind.Utc ? utc : utc.ToUniversalTime()).TotalMinutes;
-
-    private static TimeZoneInfo Resolve()
-    {
-        var configured = Environment.GetEnvironmentVariable("CONDOTIFY_TIME_ZONE");
-        foreach (var id in new[] { configured, "America/Sao_Paulo", "E. South America Standard Time" })
-        {
-            if (string.IsNullOrWhiteSpace(id)) continue;
-            try { return TimeZoneInfo.FindSystemTimeZoneById(id); }
-            catch (TimeZoneNotFoundException) { }
-            catch (InvalidTimeZoneException) { }
-        }
-
-        return TimeZoneInfo.Utc;
-    }
+    public static int OffsetMinutes(DateTime utc) =>
+        AccessControlDeviceTimeZone.OffsetMinutes(utc);
 }

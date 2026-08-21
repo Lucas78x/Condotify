@@ -1,4 +1,5 @@
 using AutoMapper;
+using Condotify.Models;
 using CondotifyAPI.Data.AccessControl;
 using CondotifyAPI.Domain.DTO.Audit;
 using CondotifyAPI.Domain.DTO.Equipments;
@@ -553,7 +554,7 @@ public sealed class CredentialManagementController : ControllerBase
         {
             Success = true,
             Synced = credential.Devices.Count > 0 && successCount == credential.Devices.Count,
-            Message = $"QR Code renovado ate {credential.ValidTo.ToLocalTime():dd/MM/yyyy HH:mm}. Renovacao {credential.RenewalCount} de {credential.MaxRenewals}.",
+            Message = $"QR Code renovado ate {credential.ValidTo.ToCondotifyTime():dd/MM/yyyy HH:mm}. Renovacao {credential.RenewalCount} de {credential.MaxRenewals}.",
             Credential = ToOut(credential, devices)
         });
     }
@@ -844,5 +845,5 @@ public sealed class CredentialManagementController : ControllerBase
         throw new InvalidOperationException("Nao foi possivel gerar um QR Code unico. Tente novamente.");
     }
 
-    private static DateTime NormalizeUtc(DateTime value) => value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+    private static DateTime NormalizeUtc(DateTime value) => value.ToCondotifyUtc();
 }

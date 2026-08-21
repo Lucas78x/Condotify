@@ -48,7 +48,7 @@
                         {
                             <div class="operation-batch-row @batch.Status.ToLowerInvariant()">
                                 <span class="operation-status-icon @batch.Status.ToLowerInvariant()"><MudIcon Icon="@BatchIcon(batch.Status)" /></span>
-                                <div class="operation-batch-main"><strong>@BatchLabel(batch.Status)</strong><span>Solicitado por @batch.RequestedBy em @batch.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</span><small>@AttemptLabel(batch)</small></div>
+                                <div class="operation-batch-main"><strong>@BatchLabel(batch.Status)</strong><span>Solicitado por @batch.RequestedBy em @batch.CreatedAt.ToCondotifyTime().ToString("dd/MM HH:mm")</span><small>@AttemptLabel(batch)</small></div>
                                 <div class="operation-progress"><MudProgressLinear Value="@BatchProgress(batch)" Color="@BatchColor(batch.Status)" Rounded="false" /><small>@batch.ProcessedItems de @batch.TotalItems | @batch.FailedItems falha(s)</small></div>
                                 @if (batch.Status is "Queued" or "Running")
                                 {
@@ -110,7 +110,7 @@
                     <MudTable Items="FilteredAudits" Hover Dense Elevation="0">
                         <HeaderContent><MudTh>Quando</MudTh><MudTh>Entidade</MudTh><MudTh>Operação</MudTh><MudTh>Resultado</MudTh><MudTh>Responsável</MudTh></HeaderContent>
                         <RowTemplate>
-                            <MudTd DataLabel="Quando">@context.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
+                            <MudTd DataLabel="Quando">@context.CreatedAt.ToCondotifyTime().ToString("dd/MM HH:mm")</MudTd>
                             <MudTd DataLabel="Entidade">@EntityLabel(context.EntityType)</MudTd>
                             <MudTd DataLabel="Operação"><strong>@AuditActionLabel(context.Action)</strong><small class="audit-summary">@context.Summary</small>@if (AuditDetails(context) is { Length: > 0 } details) { <small class="audit-summary">@details</small> }</MudTd>
                             <MudTd DataLabel="Resultado"><MudChip T="string" Size="Size.Small" Color="@AuditColor(context.Status)" Variant="Variant.Outlined">@AuditLabel(context.Status)</MudChip></MudTd>
@@ -222,7 +222,7 @@
         _busy = false;
         if (!result.Success || result.Value is null) { _error = result.Error; return; }
         var json = System.Text.Json.JsonSerializer.Serialize(result.Value, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web) { WriteIndented = true });
-        await JS.InvokeVoidAsync("portalInterop.downloadText", $"condotify-credenciais-{DateTime.Now:yyyyMMdd-HHmm}.json", json, "application/json");
+        await JS.InvokeVoidAsync("portalInterop.downloadText", $"condotify-credenciais-{CondotifyTime.Now:yyyyMMdd-HHmm}.json", json, "application/json");
         Snackbar.Add("Backup exportado.", Severity.Success);
     }
 
@@ -248,7 +248,7 @@
     private static string BatchIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.CheckCircle, "CompletedWithErrors" => Icons.Material.Outlined.WarningAmber, "Failed" or "DeadLetter" => Icons.Material.Outlined.ReportProblem, "Running" => Icons.Material.Outlined.Sync, "Canceled" => Icons.Material.Outlined.Cancel, _ => Icons.Material.Outlined.Schedule };
     private static string BatchLabel(string status) => status switch { "Completed" => "Concluído", "CompletedWithErrors" => "Concluído com pendências", "Failed" => "Falhou", "DeadLetter" => "Requer intervenção", "Running" => "Em processamento", "Canceled" => "Cancelado", _ => "Na fila" };
     private static Color BatchColor(string status) => status switch { "Completed" => Color.Success, "CompletedWithErrors" => Color.Warning, "Failed" or "DeadLetter" => Color.Error, "Running" => Color.Info, _ => Color.Default };
-    private static string AttemptLabel(AccessBatchOperationViewModel batch) => batch.NextAttemptAt.HasValue ? $"Nova tentativa {batch.NextAttemptAt.Value.ToLocalTime():dd/MM HH:mm}" : $"Tentativa {batch.AttemptCount} de {batch.MaxAttempts}";
+    private static string AttemptLabel(AccessBatchOperationViewModel batch) => batch.NextAttemptAt.HasValue ? $"Nova tentativa {batch.NextAttemptAt.Value.ToCondotifyTime():dd/MM HH:mm}" : $"Tentativa {batch.AttemptCount} de {batch.MaxAttempts}";
     private static string AuditLabel(string status) => status switch { "Success" => "Sucesso", "Pending" or "Queued" => "Pendente", "Failed" or "Error" => "Falha", "Completed" => "Concluído", "NoRoute" => "Sem rota", _ => "Registrado" };
     private static Color AuditColor(string status) => status switch { "Success" => Color.Success, "Pending" or "Queued" => Color.Warning, "NoRoute" => Color.Error, _ => Color.Default };
     private static string AuditActionLabel(string action) => action switch

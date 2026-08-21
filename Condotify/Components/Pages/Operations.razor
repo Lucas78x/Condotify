@@ -163,7 +163,7 @@ else
                         </div>
                         @if (job.NextAttemptAt.HasValue && CanCancelJob(job.Status))
                         {
-                            <div class="operations-next-attempt"><MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" />Nova tentativa prevista para @job.NextAttemptAt.Value.ToLocalTime().ToString("dd/MM 'às' HH:mm")</div>
+                            <div class="operations-next-attempt"><MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" />Nova tentativa prevista para @job.NextAttemptAt.Value.ToCondotifyTime().ToString("dd/MM 'às' HH:mm")</div>
                         }
                         @if (!string.IsNullOrWhiteSpace(job.Error))
                         {
@@ -250,7 +250,7 @@ else
                                 <small>@ActivitySummary(activity)</small>
                                 <em>@activity.LicenseName · @(string.IsNullOrWhiteSpace(activity.UserName) ? "Sistema" : activity.UserName)</em>
                             </span>
-                            <time>@activity.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</time>
+                            <time>@activity.CreatedAt.ToCondotifyTime().ToString("dd/MM HH:mm")</time>
                         </a>
                     }
                 </div>
@@ -439,7 +439,7 @@ else
     private static string JobStatusLabel(string status) => status switch { "Completed" => "Concluída", "CompletedWithErrors" => "Concluída com pendências", "Failed" => "Falhou", "DeadLetter" => "Requer intervenção", "Running" => "Executando", "Canceled" => "Cancelada", _ => "Na fila" };
     private static string ItemStatusLabel(string status) => status switch { "Completed" => "Concluído", "Running" => "Executando", "WaitingDevice" => "Aguardando terminal", "Failed" => "Falhou", "DeadLetter" => "Intervenção", "Canceled" => "Cancelado", _ => "Na fila" };
     private static string OperationLabel(string operation) => operation switch { "Reconcile" => "Reconciliação de credenciais", "Restore" => "Restauração de credenciais", "Provision" => "Envio de credenciais", _ => "Operação de acesso" };
-    private static string ItemFeedback(AccessOperationItemViewModel item) => !string.IsNullOrWhiteSpace(item.Error) ? item.Error : item.NextAttemptAt.HasValue ? $"Nova tentativa {item.NextAttemptAt.Value.ToLocalTime():dd/MM HH:mm}" : $"{item.AttemptCount} tentativa(s)";
+    private static string ItemFeedback(AccessOperationItemViewModel item) => !string.IsNullOrWhiteSpace(item.Error) ? item.Error : item.NextAttemptAt.HasValue ? $"Nova tentativa {item.NextAttemptAt.Value.ToCondotifyTime():dd/MM HH:mm}" : $"{item.AttemptCount} tentativa(s)";
 
     private RenderFragment JobFilterButton(string filter, string label, int count) => @<button type="button" class="@(_jobFilter == filter ? "active" : null)" @onclick="@(() => SetJobFilter(filter))"><span>@label</span><strong>@count</strong></button>;
 
@@ -528,7 +528,7 @@ else
         if (elapsed.TotalMinutes < 1) return "agora";
         if (elapsed.TotalHours < 1) return $"há {(int)elapsed.TotalMinutes} min";
         if (elapsed.TotalDays < 1) return $"há {(int)elapsed.TotalHours} h";
-        return value.ToLocalTime().ToString("dd/MM");
+        return value.ToCondotifyTime().ToString("dd/MM");
     }
 
     private RenderFragment HealthMetric(string label, int value, int total, string icon, string tone) => @<div class="health-metric">

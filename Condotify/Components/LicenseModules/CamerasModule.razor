@@ -589,7 +589,7 @@ else
         if (!_incidentId.HasValue || _selectedDevice is null) return;
         var result = await Api.AddIncidentCommentAsync(_incidentId.Value, new IncidentCommentViewModel
         {
-            Message = $"Evidência CFTV registrada em {_selectedDevice.Name}, canal {_channel}, às {DateTime.Now:dd/MM/yyyy HH:mm:ss}.",
+            Message = $"Evidência CFTV registrada em {_selectedDevice.Name}, canal {_channel}, às {CondotifyTime.Now:dd/MM/yyyy HH:mm:ss}.",
             ReferenceType = "Camera",
             ReferenceId = _selectedDevice.Id
         });
@@ -606,7 +606,7 @@ else
     private string LastSeenLabel(Guid deviceId)
     {
         var lastSeen = _statuses.FirstOrDefault(x => x.DeviceId == deviceId)?.LastSeenAt;
-        return lastSeen.HasValue ? lastSeen.Value.ToLocalTime().ToString("dd/MM · HH:mm") : "Ainda não confirmada";
+        return lastSeen.HasValue ? lastSeen.Value.ToCondotifyTime().ToString("dd/MM · HH:mm") : "Ainda não confirmada";
     }
 
     private static bool IsCodecError(string? message) =>

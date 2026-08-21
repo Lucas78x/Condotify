@@ -50,7 +50,7 @@
 
 @code {
     private readonly CreateLicenseViewModel _model = new();
-    private DateTime? _expireDate = DateTime.Today.AddYears(1);
+    private DateTime? _expireDate = CondotifyTime.Today.AddYears(1);
     private bool _saving;
     private string? _error;
 
@@ -68,7 +68,7 @@
     {
         _saving = true;
         _error = null;
-        _model.ExpireDate = _expireDate ?? DateTime.Today.AddYears(1);
+        _model.ExpireDate = _expireDate ?? CondotifyTime.Today.AddYears(1);
         var result = await Api.CreateLicenseAsync(_model);
         _saving = false;
         if (!result.Success)

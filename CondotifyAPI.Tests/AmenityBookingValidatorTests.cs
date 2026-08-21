@@ -87,7 +87,7 @@ public class AmenityBookingValidatorTests
     public void CanCancel_ShouldReturnFalse_WhenInsideCutoffWindow()
     {
         var amenity = Amenity(cancellationCutoffHours: 24);
-        var now = new DateTime(2026, 7, 19, 10, 0, 0, DateTimeKind.Utc);
+        var now = new DateTime(2026, 7, 19, 13, 0, 0, DateTimeKind.Utc); // 10:00 in Bahia
         var date = new DateTime(2026, 7, 20, 0, 0, 0, DateTimeKind.Utc);
         var slotStart = new TimeSpan(8, 0, 0);
 
@@ -109,12 +109,24 @@ public class AmenityBookingValidatorTests
     public void ValidateWindow_ShouldUseSlotStartInsteadOfEndOfDay()
     {
         var amenity = Amenity(minAdvanceHours: 12);
-        var now = new DateTime(2026, 7, 18, 21, 0, 0, DateTimeKind.Utc);
+        var now = new DateTime(2026, 7, 19, 0, 0, 0, DateTimeKind.Utc); // 18/07 21:00 in Bahia
         var date = new DateTime(2026, 7, 19, 0, 0, 0, DateTimeKind.Utc);
 
         var error = AmenityBookingValidator.ValidateWindow(amenity, date, new TimeSpan(8, 0, 0), now);
 
         Assert.NotNull(error);
+    }
+
+    [Fact]
+    public void ValidateWindow_ShouldUseBahiaWallClockNearUtcMidnight()
+    {
+        var amenity = Amenity();
+        var now = new DateTime(2026, 8, 21, 1, 0, 0, DateTimeKind.Utc); // 20/08 22:00 in Bahia
+        var localDate = new DateTime(2026, 8, 20, 0, 0, 0, DateTimeKind.Utc);
+
+        var error = AmenityBookingValidator.ValidateWindow(amenity, localDate, new TimeSpan(23, 0, 0), now);
+
+        Assert.Null(error);
     }
 
     [Fact]

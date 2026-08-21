@@ -705,8 +705,8 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
             TimeSections = [255],
             SpecialDaysSchedule = [255],
             Password = request.Type == AccessCredentialTypeEnum.Password ? request.Identifier : null,
-            ValidFrom = request.ValidFrom.ToString("yyyy-MM-dd HH:mm:ss"),
-            ValidTo = request.ValidTo.ToString("yyyy-MM-dd HH:mm:ss")
+            ValidFrom = AccessControlDeviceTimeZone.FormatLocal(request.ValidFrom, "yyyy-MM-dd HH:mm:ss"),
+            ValidTo = AccessControlDeviceTimeZone.FormatLocal(request.ValidTo, "yyyy-MM-dd HH:mm:ss")
         };
 
         var userResult = await InsertUsersAsync(device, [user]);
@@ -754,8 +754,10 @@ public class IntelbrasUHFAccessControlDriver : IAccessControlDriver
                 UserID = request.ExternalUserId,
                 Doors = configuredDoors is { Length: > 0 } ? configuredDoors : [0],
                 TimeSections = [255],
-                ValidFrom = request.ValidFrom.ToString("yyyy-MM-dd HH:mm:ss"),
-                ValidTo = (isActive ? request.ValidTo : DateTime.UtcNow.AddSeconds(-1)).ToString("yyyy-MM-dd HH:mm:ss")
+                ValidFrom = AccessControlDeviceTimeZone.FormatLocal(request.ValidFrom, "yyyy-MM-dd HH:mm:ss"),
+                ValidTo = AccessControlDeviceTimeZone.FormatLocal(
+                    isActive ? request.ValidTo : DateTime.UtcNow.AddSeconds(-1),
+                    "yyyy-MM-dd HH:mm:ss")
             }
         ]);
         return !string.IsNullOrWhiteSpace(result)

@@ -10,6 +10,10 @@
         public string Cidade { get; set; } = null!;
         public string Estado { get; set; } = null!;
         public long EnabledModules { get; set; }
+        public string GroupLabelSingular { get; set; } = "Bloco";
+        public string GroupLabelPlural { get; set; } = "Blocos";
+        public string UnitLabelSingular { get; set; } = "Unidade";
+        public string UnitLabelPlural { get; set; } = "Unidades";
     }
 
 }

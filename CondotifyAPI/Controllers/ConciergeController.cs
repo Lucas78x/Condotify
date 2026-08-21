@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Condotify.Models;
 using CondotifyAPI.Data.Operations;
 using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.DTO.Invitation;
@@ -595,7 +596,7 @@ public sealed class ConciergeController(
         return raw.Trim().ToUpperInvariant();
     }
     private static AccessWatchlistEntryOut ToWatchlistOut(AccessWatchlistEntryDTO x) => new() { Id = x.Id, Name = x.Name, Document = x.Document, VehiclePlate = x.VehiclePlate, Reason = x.Reason, Severity = x.Severity, ExpiresAt = x.ExpiresAt };
-    private static DateTime Utc(DateTime value) => value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime();
+    private static DateTime Utc(DateTime value) => value.ToCondotifyUtc();
     private static bool IsValidTransition(AccessVisitStatusEnum current, AccessVisitStatusEnum next) =>
         (current, next) switch
         {

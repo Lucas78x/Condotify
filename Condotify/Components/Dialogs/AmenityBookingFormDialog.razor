@@ -117,10 +117,9 @@
             ? "Salvar alterações"
             : "Confirmar agendamento";
 
-    // These mirror AmenityBookingValidator.ValidateWindow on the API side (same day/hour math against
-    // UTC "now") so the picker never lets the user land on a day the server would reject outright.
-    // Blazor Server components execute on the host, so DateTime.UtcNow here is the same clock the API uses.
-    private DateTime LatestAllowedDate => DateTime.UtcNow.Date.AddDays(Amenity.MaxAdvanceDays);
+    // These mirror AmenityBookingValidator.ValidateWindow on the API side using
+    // the condominium's wall clock rather than the container's UTC calendar.
+    private DateTime LatestAllowedDate => CondotifyTime.Today.AddDays(Amenity.MaxAdvanceDays);
 
     private bool CanSave => _unit is not null
         && _form.SlotId != Guid.Empty
@@ -262,8 +261,8 @@
     {
         get
         {
-            var earliestInstant = DateTime.UtcNow.AddHours(Amenity.MinAdvanceNoticeHours);
-            var date = DateTime.UtcNow.Date;
+            var earliestInstant = CondotifyTime.Now.AddHours(Amenity.MinAdvanceNoticeHours);
+            var date = CondotifyTime.Today;
             while (date.AddDays(1) <= earliestInstant) date = date.AddDays(1);
             return date;
         }

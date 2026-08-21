@@ -10,6 +10,17 @@ namespace CondotifyAPI.Tests;
 
 public sealed class MaintenanceManagementTests
 {
+    [Fact]
+    public void WorkOrderDeadline_IsASelectedCalendarDate()
+    {
+        var selected = new DateTime(2026, 8, 21, 23, 45, 0, DateTimeKind.Local);
+
+        var stored = selected.AsCalendarDate();
+
+        Assert.Equal(new DateTime(2026, 8, 21), stored);
+        Assert.Equal(DateTimeKind.Unspecified, stored.Kind);
+    }
+
     [Theory]
     [InlineData(IncidentSeverityEnum.Low, 1440, 10080)]
     [InlineData(IncidentSeverityEnum.Medium, 480, 4320)]

@@ -52,7 +52,7 @@
                     <span class="reports-card-kicker">ÍNDICE DE QUALIDADE</span>
                     <strong>@QualityLabel</strong>
                     <p>@QualityMessage</p>
-                    <div class="reports-health-meta"><MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" /> Atualizado em @_data.GeneratedAt.ToLocalTime().ToString("dd/MM 'às' HH:mm")</div>
+                    <div class="reports-health-meta"><MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" /> Atualizado em @_data.GeneratedAt.ToCondotifyTime().ToString("dd/MM 'às' HH:mm")</div>
                 </div>
                 <div class="reports-score-ring" style="--report-score:@_data.QualityScore" role="img" aria-label="Índice de qualidade @_data.QualityScore de 100">
                     <div><strong>@_data.QualityScore</strong><span>de 100</span></div>

@@ -330,7 +330,9 @@ public sealed class MaintenanceController(
         if (input.DefaultProviderId.HasValue && !await context.MaintenanceProviders.AnyAsync(x => x.LicenseId == row.LicenseId && x.Id == input.DefaultProviderId && x.IsActive, token)) return "Prestador indisponível.";
         row.Name = Short(input.Name.Trim(), 180); row.Description = Short(input.Description.Trim(), 3000); row.LocationLabel = Short(input.LocationLabel.Trim(), 240);
         row.IntervalDays = Math.Clamp(input.IntervalDays, 1, 3650); row.LeadDays = Math.Clamp(input.LeadDays, 0, 365);
-        row.NextDueAt = input.NextDueAt.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(input.NextDueAt, DateTimeKind.Utc) : input.NextDueAt.ToUniversalTime();
+        // Preventive execution is a calendar date. Converting its midnight to UTC
+        // makes the portal render the previous day in UTC-03.
+        row.NextDueAt = input.NextDueAt.AsCalendarDate();
         row.DefaultProviderId = input.DefaultProviderId; row.DefaultAssignedToName = Short(input.DefaultAssignedToName.Trim(), 150);
         row.EstimatedCost = input.EstimatedCost; row.ChecklistTemplateJson = MaintenanceService.ChecklistJson(input.Checklist); row.IsActive = input.IsActive; row.UpdatedAt = DateTime.UtcNow; return null;
     }

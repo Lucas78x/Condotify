@@ -40,7 +40,10 @@ public sealed class MaintenanceService(DatabaseContext context) : IMaintenanceSe
             Description = Short(input.Description.Trim(), 4000), Status = WorkOrderStatusEnum.Planned,
             Priority = (IncidentSeverityEnum)input.Priority, LocationLabel = Short(input.LocationLabel.Trim(), 240),
             AssignedToName = Short(input.AssignedToName.Trim(), 150), ProviderId = input.ProviderId,
-            DueAt = input.DueAt?.ToUniversalTime(), EstimatedCost = input.EstimatedCost,
+            // DueAt comes from a date-only picker. Keep the selected calendar day
+            // instead of treating midnight as a UTC instant (which displays as the
+            // previous day in Bahia).
+            DueAt = input.DueAt?.AsCalendarDate(), EstimatedCost = input.EstimatedCost,
             CreatedByUserId = actorUserId, CreatedByName = Short(actorName, 150), CreatedAt = now, UpdatedAt = now
         };
         var index = 0;

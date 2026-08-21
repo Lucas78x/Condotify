@@ -1,4 +1,5 @@
-﻿using CondotifyAPI.Data.Equipments;
+using Condotify.Models;
+using CondotifyAPI.Data.Equipments;
 using CondotifyAPI.Domain.Enums.AccessControl;
 using CondotifyAPI.Domain.Enums.Resident;
 using CondotifyAPI.Domain.Models.Equipments;
@@ -839,14 +840,7 @@ public sealed class HikvisionAccessControlDriver : IAccessControlDriver
          * 2026-07-16T08:30:00-03:00
          * 2026-07-16T11:30:00+00:00
          */
-        var localValue = value.Kind switch
-        {
-            DateTimeKind.Utc => value.ToLocalTime(),
-            DateTimeKind.Local => value,
-            _ => DateTime.SpecifyKind(value, DateTimeKind.Local)
-        };
-
-        return localValue.ToString(
+        return AccessControlDeviceTimeZone.ToLocal(value).ToString(
             "yyyy-MM-dd'T'HH:mm:ss",
             CultureInfo.InvariantCulture);
     }
@@ -883,7 +877,7 @@ public sealed class HikvisionAccessControlDriver : IAccessControlDriver
     {
         var localValue = value.Kind switch
         {
-            DateTimeKind.Utc => value.ToLocalTime(),
+            DateTimeKind.Utc => value.ToCondotifyTime(),
             DateTimeKind.Local => value,
             _ => value
         };

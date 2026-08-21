@@ -1,3 +1,4 @@
+using Condotify.Models;
 using CondotifyAPI.Domain.DTO.Amenities;
 
 namespace CondotifyAPI.Services.Amenities;
@@ -6,13 +7,14 @@ public static class AmenityBookingValidator
 {
     public static string? ValidateWindow(AmenityDTO amenity, DateTime date, TimeSpan slotStartTime, DateTime nowUtc)
     {
-        var earliestAllowed = nowUtc.AddHours(amenity.MinAdvanceNoticeHours);
+        var now = nowUtc.ToCondotifyTime();
+        var earliestAllowed = now.AddHours(amenity.MinAdvanceNoticeHours);
         var requestedStart = date.Date.Add(slotStartTime);
 
         if (requestedStart < earliestAllowed)
             return $"Este local exige ao menos {amenity.MinAdvanceNoticeHours} hora(s) de antecedencia.";
 
-        var latestAllowed = nowUtc.Date.AddDays(amenity.MaxAdvanceDays);
+        var latestAllowed = now.Date.AddDays(amenity.MaxAdvanceDays);
         if (date.Date > latestAllowed)
             return $"Este local so pode ser agendado ate {amenity.MaxAdvanceDays} dia(s) no futuro.";
 
@@ -49,6 +51,6 @@ public static class AmenityBookingValidator
     public static bool CanCancel(AmenityDTO amenity, DateTime date, TimeSpan slotStartTime, DateTime nowUtc)
     {
         var slotStartsAt = date.Date.Add(slotStartTime);
-        return nowUtc <= slotStartsAt.AddHours(-amenity.CancellationCutoffHours);
+        return nowUtc.ToCondotifyTime() <= slotStartsAt.AddHours(-amenity.CancellationCutoffHours);
     }
 }

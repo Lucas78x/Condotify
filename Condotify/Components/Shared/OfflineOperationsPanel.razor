@@ -95,7 +95,7 @@
                 {
                     <article class="offline-operation-row @OperationClass(operation.Status)">
                         <span class="offline-operation-icon"><MudIcon Icon="@OperationIcon(operation.Status)" /></span>
-                        <div><strong>@(string.IsNullOrWhiteSpace(operation.VisitorName) ? "Operação não vinculada" : operation.VisitorName)</strong><span>@OperationKindLabel(operation.Kind) · @DeviceName(operation.DeviceId) · @operation.OccurredAt.ToLocalTime().ToString("dd/MM HH:mm:ss")</span><small>@operation.Message</small></div>
+                        <div><strong>@(string.IsNullOrWhiteSpace(operation.VisitorName) ? "Operação não vinculada" : operation.VisitorName)</strong><span>@OperationKindLabel(operation.Kind) · @DeviceName(operation.DeviceId) · @operation.OccurredAt.ToCondotifyTime().ToString("dd/MM HH:mm:ss")</span><small>@operation.Message</small></div>
                         <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@OperationColor(operation.Status)">@OperationLabel(operation.Status)</MudChip>
                     </article>
                 }
@@ -157,8 +157,8 @@
 
     private string DeviceName(Guid id) => _devices.FirstOrDefault(x => x.Id == id)?.DeviceName ?? "Aparelho removido";
     private static string Value(string value) => string.IsNullOrWhiteSpace(value) ? "não informada" : value;
-    private static string Date(DateTime? value) => value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "Nunca";
-    private static string BundleStatus(OfflineDeviceViewModel device) => !device.LastBundleExpiresAt.HasValue ? "Não emitida" : device.LastBundleExpiresAt > DateTime.UtcNow ? $"Até {device.LastBundleExpiresAt.Value.ToLocalTime():dd/MM HH:mm}" : "Vencida";
+    private static string Date(DateTime? value) => value.HasValue ? value.Value.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm") : "Nunca";
+    private static string BundleStatus(OfflineDeviceViewModel device) => !device.LastBundleExpiresAt.HasValue ? "Não emitida" : device.LastBundleExpiresAt > DateTime.UtcNow ? $"Até {device.LastBundleExpiresAt.Value.ToCondotifyTime():dd/MM HH:mm}" : "Vencida";
     private static string StatusClass(OfflineDeviceStatus status) => status.ToString().ToLowerInvariant();
     private static string StatusLabel(OfflineDeviceStatus status) => status switch { OfflineDeviceStatus.Approved => "Aprovado", OfflineDeviceStatus.Pending => "Pendente", OfflineDeviceStatus.Revoked => "Revogado", _ => status.ToString() };
     private static Color StatusColor(OfflineDeviceStatus status) => status switch { OfflineDeviceStatus.Approved => Color.Success, OfflineDeviceStatus.Pending => Color.Warning, _ => Color.Error };

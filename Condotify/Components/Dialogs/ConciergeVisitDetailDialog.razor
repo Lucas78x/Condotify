@@ -47,7 +47,7 @@
 
             <div class="visit-detail-grid">
                 <div><small>Destino</small><strong>@Visit.BlockName / @Visit.UnitNumber</strong></div>
-                <div><small>Validade</small><strong>@Visit.ValidFrom.ToLocalTime().ToString("dd/MM HH:mm") a @Visit.ValidTo.ToLocalTime().ToString("dd/MM HH:mm")</strong></div>
+                <div><small>Validade</small><strong>@Visit.ValidFrom.ToCondotifyTime().ToString("dd/MM HH:mm") a @Visit.ValidTo.ToCondotifyTime().ToString("dd/MM HH:mm")</strong></div>
                 <div><small>Documento</small><strong>@Fallback(Visit.Document)</strong></div>
                 <div><small>Telefone</small><strong>@Fallback(Visit.PhoneNumber)</strong></div>
                 <div><small>Motivo</small><strong>@Fallback(Visit.Purpose)</strong></div>
@@ -112,6 +112,6 @@
     private static string UsesLabel(ConciergeVisitViewModel visit) => visit.MaxUses.HasValue ? $"{visit.UseCount} de {visit.MaxUses}" : $"{visit.UseCount} sem limite";
     private static string Initials(string name) => string.Join(string.Empty, name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
     private static string StatusLabel(string status) => status switch { "Scheduled" => "Agendada", "CheckedIn" => "No local", "CheckedOut" => "Finalizada", "Canceled" => "Cancelada", "Expired" => "Expirada", "Denied" => "Negada", "PendingApproval" => "Aguardando aprovação", "PendingEnrollment" => "Aguardando cadastro facial", _ => "Em processamento" };
-    private static string ApprovalLabel(ConciergeVisitViewModel visit) => !visit.ApprovalRequired ? "Dispensada" : visit.ApprovedAt.HasValue ? $"{visit.ApprovedBy} em {visit.ApprovedAt.Value.ToLocalTime():dd/MM HH:mm}" : "Pendente";
+    private static string ApprovalLabel(ConciergeVisitViewModel visit) => !visit.ApprovalRequired ? "Dispensada" : visit.ApprovedAt.HasValue ? $"{visit.ApprovedBy} em {visit.ApprovedAt.Value.ToCondotifyTime():dd/MM HH:mm}" : "Pendente";
     private static string RecurrenceLabel(ConciergeVisitViewModel visit) => visit.RecurrenceCount > 1 ? $"Ocorrência {visit.RecurrenceSequence} de {visit.RecurrenceCount}" : "Visita única";
 }

@@ -158,7 +158,7 @@ public sealed class PreventiveMaintenancePlanFormViewModel
     [MaxLength(240)] public string LocationLabel { get; set; } = string.Empty;
     [Range(1, 3650)] public int IntervalDays { get; set; } = 30;
     [Range(0, 365)] public int LeadDays { get; set; } = 3;
-    public DateTime NextDueAt { get; set; } = DateTime.UtcNow.AddDays(30);
+    public DateTime NextDueAt { get; set; } = CondotifyTime.Today.AddDays(30);
     public Guid? DefaultProviderId { get; set; }
     [MaxLength(150)] public string DefaultAssignedToName { get; set; } = string.Empty;
     [Range(0, 999999999)] public decimal EstimatedCost { get; set; }

@@ -22,7 +22,7 @@
     [Parameter] public FinancialChargeAction Action { get; set; }
     private string _note = string.Empty;
     private string _paymentReference = string.Empty;
-    private DateTime? _paidAt = DateTime.Today;
+    private DateTime? _paidAt = CondotifyTime.Today;
     private string _error = string.Empty;
     private static readonly System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
     private bool NoteRequired => Action is not FinancialChargeAction.ConfirmPayment;

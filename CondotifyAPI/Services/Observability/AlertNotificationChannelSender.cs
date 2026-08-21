@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using Condotify.Models;
 using CondotifyAPI.Domain.DTO.Observability;
 
 namespace CondotifyAPI.Services.Observability;
@@ -230,7 +231,7 @@ public sealed class AlertNotificationChannelSender(
               <table style="font-size:14px;border-collapse:collapse">
                 <tr><td style="padding:4px 16px 4px 0;color:#657083">Condomínio</td><td>{encoder.Encode(message.LicenseName)}</td></tr>
                 <tr><td style="padding:4px 16px 4px 0;color:#657083">Severidade</td><td>{encoder.Encode(SeverityLabel(message.Severity))}</td></tr>
-                <tr><td style="padding:4px 16px 4px 0;color:#657083">Ocorrência</td><td>{message.OccurredAt.ToLocalTime():dd/MM/yyyy HH:mm}</td></tr>
+                <tr><td style="padding:4px 16px 4px 0;color:#657083">Ocorrência</td><td>{message.OccurredAt.ToCondotifyTime():dd/MM/yyyy HH:mm}</td></tr>
                 <tr><td style="padding:4px 16px 4px 0;color:#657083">Escalonamento</td><td>Nível {message.EscalationLevel}</td></tr>
               </table>
               <p style="margin-top:20px">Acesse a Central de Operações para reconhecer ou resolver este alerta.</p>

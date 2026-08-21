@@ -5,6 +5,7 @@ using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using Condotify.Models;
 using CondotifyAPI.Domain.DTO.Operations;
 
 namespace CondotifyAPI.Services.Operations;
@@ -51,8 +52,8 @@ public sealed class AppleWalletPassService(IWalletIntegrationStore integrationSt
                 },
                 ["auxiliaryFields"] = new object[]
                 {
-                    Field("validFrom", "VALIDO DE", visit.ValidFrom.ToLocalTime().ToString("dd/MM HH:mm")),
-                    Field("validTo", "VALIDO ATE", visit.ValidTo.ToLocalTime().ToString("dd/MM HH:mm"))
+                    Field("validFrom", "VALIDO DE", visit.ValidFrom.ToCondotifyTime().ToString("dd/MM HH:mm")),
+                    Field("validTo", "VALIDO ATE", visit.ValidTo.ToCondotifyTime().ToString("dd/MM HH:mm"))
                 },
                 ["backFields"] = new object[]
                 {

@@ -12,7 +12,7 @@ else if (Active is not null)
 {
     <MudPaper Class="emergency-active-panel" Elevation="0">
         <div class="emergency-pulse"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /></div>
-        <div class="emergency-active-copy"><span>@TypeLabel(Active.Type) · ATIVADO @Active.ActivatedAt.ToLocalTime().ToString("dd/MM HH:mm")</span><MudText Typo="Typo.h4">@Active.Title</MudText><p>@Active.Instructions</p><small>Ativado por @Active.ActivatedByName · Ocorrência vinculada</small><MudButton Href="@LicenseRoutes.Workspace(LicenseUrlKey, "ocorrencias")" Variant="Variant.Outlined" Color="Color.Inherit" StartIcon="@Icons.Material.Outlined.AssignmentLate">Abrir central de ocorrências</MudButton></div>
+        <div class="emergency-active-copy"><span>@TypeLabel(Active.Type) · ATIVADO @Active.ActivatedAt.ToCondotifyTime().ToString("dd/MM HH:mm")</span><MudText Typo="Typo.h4">@Active.Title</MudText><p>@Active.Instructions</p><small>Ativado por @Active.ActivatedByName · Ocorrência vinculada</small><MudButton Href="@LicenseRoutes.Workspace(LicenseUrlKey, "ocorrencias")" Variant="Variant.Outlined" Color="Color.Inherit" StartIcon="@Icons.Material.Outlined.AssignmentLate">Abrir central de ocorrências</MudButton></div>
     </MudPaper>
     @if (CanManage)
     {
@@ -47,7 +47,7 @@ else
 
 @if (_sessions.Any(x => x.Status != "Active"))
 {
-    <MudPaper Class="content-panel emergency-history" Elevation="0"><div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Histórico de protocolos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Emergências encerradas e seus desfechos</MudText></div></div><div class="emergency-history-list">@foreach (var item in _sessions.Where(x => x.Status != "Active").Take(10)) { <div><span class="protocol-icon compact"><MudIcon Icon="@Icons.Material.Outlined.HealthAndSafety" /></span><div><strong>@item.Title</strong><small>@TypeLabel(item.Type) · @item.ActivatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small><p>@item.Resolution</p></div><MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Encerrada</MudChip></div> }</div></MudPaper>
+    <MudPaper Class="content-panel emergency-history" Elevation="0"><div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Histórico de protocolos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Emergências encerradas e seus desfechos</MudText></div></div><div class="emergency-history-list">@foreach (var item in _sessions.Where(x => x.Status != "Active").Take(10)) { <div><span class="protocol-icon compact"><MudIcon Icon="@Icons.Material.Outlined.HealthAndSafety" /></span><div><strong>@item.Title</strong><small>@TypeLabel(item.Type) · @item.ActivatedAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</small><p>@item.Resolution</p></div><MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Encerrada</MudChip></div> }</div></MudPaper>
 }
 
 @code {

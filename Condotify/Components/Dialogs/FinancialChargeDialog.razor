@@ -45,7 +45,7 @@
     [Parameter] public FinancialChargeViewModel? Existing { get; set; }
     private readonly CreateFinancialChargesViewModel _create = new();
     private readonly UpdateFinancialChargeViewModel _edit = new();
-    private DateTime? _dueDate = DateTime.Today.AddDays(10);
+    private DateTime? _dueDate = CondotifyTime.Today.AddDays(10);
     private string _error = string.Empty;
     private static readonly System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
 
@@ -61,7 +61,7 @@
 
     protected override void OnInitialized()
     {
-        if (Existing is null) _create.Competence = DateTime.Today.ToString("yyyy-MM");
+        if (Existing is null) _create.Competence = CondotifyTime.Today.ToString("yyyy-MM");
         else
         {
             _dueDate = Existing.DueDate;

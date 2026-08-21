@@ -42,7 +42,7 @@
                                     <div class="recurring-rule-copy">
                                         <div><strong>@rule.Name</strong><span class="financial-status @(rule.IsActive ? "status-paid" : "status-cancelled")">@(rule.IsActive ? "Ativa" : "Pausada")</span></div>
                                         <p>@rule.ReferenceTemplate · @rule.UnitCount unidade(s)</p>
-                                        <small>Gera dia @rule.GenerationDay · vence dia @rule.DueDay · próxima verificação @rule.NextRunAt.ToLocalTime().ToString("dd/MM/yyyy")</small>
+                                        <small>Gera dia @rule.GenerationDay · vence dia @rule.DueDay · próxima verificação @rule.NextRunAt.ToCondotifyTime().ToString("dd/MM/yyyy")</small>
                                     </div>
                                     <div class="recurring-rule-value"><small>Por unidade</small><strong>@Money(FinancialChargeCalculator.Total(rule.BaseAmount, rule.FineAmount, rule.InterestAmount, rule.DiscountAmount))</strong><span>@(rule.LastRunAt.HasValue ? $"Última: {rule.LastGeneratedCount} lançamento(s)" : "Ainda não executada")</span></div>
                                     @if (CanManage) { <MudIconButton Icon="@Icons.Material.Outlined.Edit" Color="Color.Primary" OnClick="@(() => OpenRuleAsync(rule))" /> }
@@ -94,7 +94,7 @@
                     }
                     @if (_data.Imports.Count > 0)
                     {
-                        <div class="financial-import-history"><strong>Importações recentes</strong>@foreach (var item in _data.Imports) { <article><span><MudIcon Icon="@Icons.Material.Outlined.Description" /></span><div><strong>@item.FileName</strong><small>@item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @item.CreatedBy</small></div><div><strong>@item.ImportedRows</strong><small>lançamentos</small></div><span class="financial-status status-paid">Concluída</span></article> }</div>
+                        <div class="financial-import-history"><strong>Importações recentes</strong>@foreach (var item in _data.Imports) { <article><span><MudIcon Icon="@Icons.Material.Outlined.Description" /></span><div><strong>@item.FileName</strong><small>@item.CreatedAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm") · @item.CreatedBy</small></div><div><strong>@item.ImportedRows</strong><small>lançamentos</small></div><span class="financial-status status-paid">Concluída</span></article> }</div>
                     }
                 </MudTabPanel>
 
@@ -131,7 +131,7 @@
                             {
                                 <article>
                                     <span class="delivery-channel @item.Channel.ToString().ToLowerInvariant()"><MudIcon Icon="@(item.Channel == FinancialReminderChannel.Push ? Icons.Material.Outlined.PhoneAndroid : Icons.Material.Outlined.AlternateEmail)" /></span>
-                                    <div><strong>@item.StageLabel · @item.Reference</strong><small>@item.UnitLabel · @item.ResidentName</small><em>@item.DestinationLabel · @item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</em></div>
+                                    <div><strong>@item.StageLabel · @item.Reference</strong><small>@item.UnitLabel · @item.ResidentName</small><em>@item.DestinationLabel · @item.CreatedAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</em></div>
                                     <span class="@DeliveryStatusCss(item.Status)">@DeliveryStatusLabel(item.Status)</span>
                                     @if (!string.IsNullOrWhiteSpace(item.LastError))
                                     {

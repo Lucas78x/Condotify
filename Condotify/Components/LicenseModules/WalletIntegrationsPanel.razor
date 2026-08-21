@@ -241,6 +241,6 @@
         builder.OpenElement(2, "span"); builder.AddContent(3, status.IsValidated ? "✓" : "!"); builder.CloseElement();
         builder.OpenElement(4, "p"); builder.AddContent(5, status.LastValidationMessage); builder.CloseElement(); builder.CloseElement();
     };
-    private static string DateLabel(DateTime? value, bool dateOnly = false) => value.HasValue ? value.Value.ToLocalTime().ToString(dateOnly ? "dd/MM/yyyy" : "dd/MM/yyyy HH:mm") : "Ainda não realizada";
+    private static string DateLabel(DateTime? value, bool dateOnly = false) => value.HasValue ? value.Value.ToCondotifyTime().ToString(dateOnly ? "dd/MM/yyyy" : "dd/MM/yyyy HH:mm") : "Ainda não realizada";
     private static string VersionLabel(WalletIntegrationStatusViewModel status) => status.Version > 0 ? $"v{status.Version}" : "—";
 }

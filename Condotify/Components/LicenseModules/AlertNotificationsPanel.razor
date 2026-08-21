@@ -191,7 +191,7 @@ else
                                 <span>@delivery.AttemptCount tentativa(s)</span>
                             </div>
                             <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@DeliveryColor(delivery.Status)">@DeliveryLabel(delivery.Status)</MudChip>
-                            <time>@delivery.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</time>
+                            <time>@delivery.CreatedAt.ToCondotifyTime().ToString("dd/MM HH:mm")</time>
                         </div>
                     }
                 </div>

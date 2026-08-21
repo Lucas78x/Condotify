@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Linq.Expressions;
+using Condotify.Models;
 using CondotifyAPI.Data.Login;
 using CondotifyAPI.Data.Amenities;
 using CondotifyAPI.Data.Operations;
@@ -113,9 +114,16 @@ public sealed class ResidentProfileController : ControllerBase
                 .FirstOrDefaultAsync(cancellationToken)
             ?? string.Empty;
 
-        var enabledModules = await _context.Licenses.AsNoTracking()
+        var licenseSettings = await _context.Licenses.AsNoTracking()
             .Where(x => x.Id == grant.LicenseId)
-            .Select(x => (long)x.EnabledModules)
+            .Select(x => new
+            {
+                EnabledModules = (long)x.EnabledModules,
+                x.GroupLabelSingular,
+                x.GroupLabelPlural,
+                x.UnitLabelSingular,
+                x.UnitLabelPlural
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         return Ok(new ResidentMeOut
@@ -123,7 +131,11 @@ public sealed class ResidentProfileController : ControllerBase
             ResidentId = resident.Id,
             LicenseId = grant.LicenseId,
             LicenseName = licenseName,
-            EnabledModules = enabledModules,
+            EnabledModules = licenseSettings?.EnabledModules ?? 0,
+            GroupLabelSingular = licenseSettings?.GroupLabelSingular ?? "Bloco",
+            GroupLabelPlural = licenseSettings?.GroupLabelPlural ?? "Blocos",
+            UnitLabelSingular = licenseSettings?.UnitLabelSingular ?? "Unidade",
+            UnitLabelPlural = licenseSettings?.UnitLabelPlural ?? "Unidades",
             AllowResidentDigitalPass = await ResidentDigitalPassAllowedAsync(grant.LicenseId, cancellationToken),
             Name = resident.Name,
             Email = resident.Email,
@@ -838,6 +850,6 @@ public sealed class ResidentProfileController : ControllerBase
     };
 
     private static DateTime AsUtcDate(DateTime value) => DateTime.SpecifyKind(value.Date, DateTimeKind.Utc);
-    private static DateTime AsUtcInstant(DateTime value) => value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime();
+    private static DateTime AsUtcInstant(DateTime value) => value.ToCondotifyUtc();
     private static string Normalize(string value) => new(value.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
 }

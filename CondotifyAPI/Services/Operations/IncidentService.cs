@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Condotify.Models;
 using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.DTO.Operations;
 using CondotifyAPI.Infrastructure;
@@ -54,7 +55,8 @@ public sealed class IncidentService(DatabaseContext context, IMaintenanceService
             ReportedByResidentId = request.ActorResidentId,
             ReportedByName = Short(request.ActorName.Trim(), 150),
             LocationLabel = Short(request.LocationLabel.Trim(), 240),
-            DueAt = request.DueAt?.ToUniversalTime(),
+            // This deadline is selected in a date-only picker and is not an instant.
+            DueAt = request.DueAt?.AsCalendarDate(),
             SlaResponseDueAt = sla.ResponseDueAt,
             SlaResolutionDueAt = sla.ResolutionDueAt,
             CreatedAt = now,

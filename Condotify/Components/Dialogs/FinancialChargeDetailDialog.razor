@@ -21,7 +21,7 @@
             <div class="financial-timeline">
                 @foreach (var item in _detail.Events)
                 {
-                    <article><span><MudIcon Icon="@Icons.Material.Outlined.History" Size="Size.Small" /></span><div><strong>@EventLabel(item.EventType)</strong><small>@item.ActorName · @item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>@if (!string.IsNullOrWhiteSpace(item.Note)) { <p>@item.Note</p> }</div></article>
+                    <article><span><MudIcon Icon="@Icons.Material.Outlined.History" Size="Size.Small" /></span><div><strong>@EventLabel(item.EventType)</strong><small>@item.ActorName · @item.CreatedAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</small>@if (!string.IsNullOrWhiteSpace(item.Note)) { <p>@item.Note</p> }</div></article>
                 }
             </div>
         }

@@ -32,7 +32,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (Incident is not null) { _form.IncidentId = Incident.Id; _form.Title = Incident.Title; _form.Description = Incident.Description; _form.LocationLabel = Incident.LocationLabel; _form.Priority = Incident.Severity switch { "Critical" => 3, "High" => 2, "Low" => 0, _ => 1 }; _form.DueAt = Incident.SlaResolutionDueAt; }
+        if (Incident is not null) { _form.IncidentId = Incident.Id; _form.Title = Incident.Title; _form.Description = Incident.Description; _form.LocationLabel = Incident.LocationLabel; _form.Priority = Incident.Severity switch { "Critical" => 3, "High" => 2, "Low" => 0, _ => 1 }; _form.DueAt = Incident.SlaResolutionDueAt?.ToCondotifyTime().Date; }
         var providers = await Api.GetMaintenanceProvidersAsync(LicenseId); if (providers.Success) _providers = providers.Value ?? [];
     }
     private async Task SaveAsync()

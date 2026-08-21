@@ -142,7 +142,7 @@
 
     protected override void OnInitialized()
     {
-        var now = DateTime.Now;
+        var now = CondotifyTime.Now;
         var suggestedEnd = now.AddHours(4);
         _fromDate = now.Date;
         _fromTime = now.TimeOfDay;

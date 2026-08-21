@@ -20,7 +20,7 @@
             <span class="facial-result-eyebrow">CADASTRO CONCLUÍDO</span>
             <MudText Typo="Typo.h4">Tudo pronto, @_invite.VisitorName!</MudText>
             <MudText Typo="Typo.body1" Color="Color.Secondary">Seu acesso facial foi preparado para @_invite.LicenseName. Agora é só chegar no período autorizado.</MudText>
-            <div class="facial-result-validity"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" /><span><small>PERÍODO DA VISITA</small><strong>@_invite.ValidFrom.ToLocalTime().ToString("dd/MM HH:mm") até @_invite.ValidTo.ToLocalTime().ToString("dd/MM HH:mm")</strong></span></div>
+            <div class="facial-result-validity"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" /><span><small>PERÍODO DA VISITA</small><strong>@_invite.ValidFrom.ToCondotifyTime().ToString("dd/MM HH:mm") até @_invite.ValidTo.ToCondotifyTime().ToString("dd/MM HH:mm")</strong></span></div>
             <div class="facial-result-safe"><MudIcon Icon="@Icons.Material.Outlined.Shield" /> A credencial expira automaticamente ao fim da visita.</div>
         </div>
     }
@@ -54,7 +54,7 @@
                     <li><span>3</span><div><strong>Envie com segurança</strong><small>A foto será usada somente para este acesso.</small></div></li>
                 </ol>
 
-                <div class="invite-guide-expiry"><MudIcon Icon="@Icons.Material.Outlined.Schedule" /><span><small>Este convite é pessoal</small><strong>Válido até @_invite.ExpiresAt.ToLocalTime().ToString("dd/MM 'às' HH:mm")</strong></span></div>
+                <div class="invite-guide-expiry"><MudIcon Icon="@Icons.Material.Outlined.Schedule" /><span><small>Este convite é pessoal</small><strong>Válido até @_invite.ExpiresAt.ToCondotifyTime().ToString("dd/MM 'às' HH:mm")</strong></span></div>
             </aside>
 
             <section class="invite-form-panel facial-form-panel">
@@ -64,8 +64,8 @@
                 </header>
 
                 <div class="facial-visit-summary">
-                    <span><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /><small>ENTRADA</small><strong>@_invite.ValidFrom.ToLocalTime().ToString("dd/MM · HH:mm")</strong></span>
-                    <span><MudIcon Icon="@Icons.Material.Outlined.EventBusy" /><small>EXPIRA</small><strong>@_invite.ValidTo.ToLocalTime().ToString("dd/MM · HH:mm")</strong></span>
+                    <span><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /><small>ENTRADA</small><strong>@_invite.ValidFrom.ToCondotifyTime().ToString("dd/MM · HH:mm")</strong></span>
+                    <span><MudIcon Icon="@Icons.Material.Outlined.EventBusy" /><small>EXPIRA</small><strong>@_invite.ValidTo.ToCondotifyTime().ToString("dd/MM · HH:mm")</strong></span>
                     <span><MudIcon Icon="@Icons.Material.Outlined.Pin" /><small>UTILIZAÇÕES</small><strong>@(_invite.MaxUses.HasValue ? $"Até {_invite.MaxUses}" : "Sem limite")</strong></span>
                 </div>
 

@@ -23,7 +23,7 @@ public static class ReportExportService
         CsvRow(csv, "Condomínio", licenseName);
         CsvRow(csv, "Código", licenseCode);
         CsvRow(csv, "Período", $"{report.PeriodStart:dd/MM/yyyy} a {report.PeriodEnd:dd/MM/yyyy}");
-        CsvRow(csv, "Gerado em", report.GeneratedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm"));
+        CsvRow(csv, "Gerado em", report.GeneratedAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm"));
         csv.AppendLine();
         CsvRow(csv, "Categoria", "Indicador", "Valor", "Detalhe");
         CsvRow(csv, "Resumo", "Índice de qualidade", report.QualityScore.ToString(PtBr), "Escala de 0 a 100");
@@ -69,7 +69,7 @@ public static class ReportExportService
         page.Text(50, 128, 10, "Período analisado", Navy, bold: true);
         page.Text(50, 145, 11, $"{report.PeriodStart:dd/MM/yyyy} a {report.PeriodEnd:dd/MM/yyyy} - {report.PeriodDays} dias", "52637A");
         page.Text(390, 128, 10, "Gerado em", Navy, bold: true);
-        page.Text(390, 145, 11, report.GeneratedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm"), "52637A");
+        page.Text(390, 145, 11, report.GeneratedAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm"), "52637A");
 
         DrawKpi(page, 50, 180, 118, 92, "QUALIDADE", report.QualityScore.ToString(PtBr), "de 100", Blue);
         DrawKpi(page, 177, 180, 118, 92, "MORADORES", report.Residents.Active.ToString(PtBr), "ativos", Green);
@@ -181,7 +181,7 @@ public static class ReportExportService
         {
             Row(1, Cell("A1", "CONDOTIFY - RELATÓRIO EXECUTIVO", 1)),
             Row(3, Cell("A3", name, 2), Cell("G3", code, 2)),
-            Row(4, Cell("A4", $"Período: {r.PeriodStart:dd/MM/yyyy} a {r.PeriodEnd:dd/MM/yyyy}", 13), Cell("G4", $"Gerado em {r.GeneratedAt.ToLocalTime():dd/MM/yyyy HH:mm}", 13)),
+            Row(4, Cell("A4", $"Período: {r.PeriodStart:dd/MM/yyyy} a {r.PeriodEnd:dd/MM/yyyy}", 13), Cell("G4", $"Gerado em {r.GeneratedAt.ToCondotifyTime():dd/MM/yyyy HH:mm}", 13)),
             Row(6, Cell("A6", "ÍNDICE DE QUALIDADE", 11), Cell("C6", "MORADORES ATIVOS", 11), Cell("E6", "CONTAS NO APP", 11), Cell("G6", "ACESSOS NO PERÍODO", 11)),
             Row(7, NumberCell("A7", r.QualityScore, 12), NumberCell("C7", r.Residents.Active, 12), NumberCell("E7", r.Residents.AccountsCreated, 12), NumberCell("G7", r.Operation.AccessEvents, 12)),
             Row(8, Cell("A8", "de 100", 13), Cell("C8", $"{r.Residents.Registered} cadastrados", 13), PercentCell("E8", r.Residents.AccountActivationRate, 7), PercentCell("G8", r.Operation.AuthorizationRate, 7)),

@@ -96,7 +96,7 @@
                         <div class="backup-version-main">
                             <div><strong>@item.Name</strong>@if (item.Version == _items.Max(x => x.Version)) { <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">Atual</MudChip> }</div>
                             <span>@(string.IsNullOrWhiteSpace(item.Description) ? "Sem observação" : item.Description)</span>
-                            <small>Criado por @item.CreatedBy em @item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                            <small>Criado por @item.CreatedBy em @item.CreatedAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</small>
                         </div>
                         <div class="backup-version-counts">
                             <span><MudIcon Icon="@Icons.Material.Outlined.Sensors" />@item.DeviceCount</span>
@@ -107,7 +107,7 @@
                             @if (item.LastRestoredAt.HasValue)
                             {
                                 <strong>Restaurado</strong>
-                                <span>@item.LastRestoredAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                                <span>@item.LastRestoredAt.Value.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</span>
                             }
                             else
                             {
@@ -145,12 +145,12 @@
     private string? _error;
     private string LastRestoreLabel => _items.Where(x => x.LastRestoredAt.HasValue)
         .OrderByDescending(x => x.LastRestoredAt)
-        .Select(x => x.LastRestoredAt!.Value.ToLocalTime().ToString("dd/MM/yy"))
+        .Select(x => x.LastRestoredAt!.Value.ToCondotifyTime().ToString("dd/MM/yy"))
         .FirstOrDefault() ?? "Nunca";
     private string NextRunLabel => _policy?.NextRunAt is { } next
-        ? $"Próxima execução em {next.ToLocalTime():dd/MM/yyyy HH:mm}"
+        ? $"Próxima execução em {next.ToCondotifyTime():dd/MM/yyyy HH:mm}"
         : _policy?.LastSuccessAt is { } success
-            ? $"Último sucesso em {success.ToLocalTime():dd/MM/yyyy HH:mm}"
+            ? $"Último sucesso em {success.ToCondotifyTime():dd/MM/yyyy HH:mm}"
             : "Sem execução registrada";
 
     protected override Task OnInitializedAsync() => LoadAsync();

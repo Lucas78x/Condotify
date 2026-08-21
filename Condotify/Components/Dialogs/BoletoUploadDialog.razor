@@ -48,7 +48,7 @@
 
     private const long MaxFileSize = 20_000_000;
     private string _reference = string.Empty;
-    private DateTime? _dueDate = DateTime.Today.AddDays(10);
+    private DateTime? _dueDate = CondotifyTime.Today.AddDays(10);
     private string _fileName = string.Empty;
     private byte[]? _fileBytes;
     private bool _loading;

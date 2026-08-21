@@ -65,7 +65,7 @@ else
                                 @if (announcement.IsUrgent) { <span class="category-chip category-amber">Urgente</span> }
                             </div>
                             <div class="document-row-desc">@announcement.Body</div>
-                            <div class="document-row-meta">Publicado em @announcement.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @announcement.CreatedBy</div>
+                            <div class="document-row-meta">Publicado em @announcement.CreatedAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm") · @announcement.CreatedBy</div>
                         </div>
                         <div class="document-row-actions">
                             <MudTooltip Text="Editar"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" Disabled="!CanManage" OnClick="() => OpenEditAsync(announcement)" /></MudTooltip>

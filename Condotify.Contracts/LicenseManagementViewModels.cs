@@ -26,7 +26,7 @@ namespace Condotify.Models
         public int Type { get; set; } = 1;
 
         [DataType(DataType.Date)]
-        public DateTime ExpireDate { get; set; } = DateTime.Today.AddYears(1);
+        public DateTime ExpireDate { get; set; } = CondotifyTime.Today.AddYears(1);
 
         public float LocationX { get; set; }
         public float LocationY { get; set; }
@@ -294,8 +294,8 @@ namespace Condotify.Models
         public int Type { get; set; } = 1;
         public string Identifier { get; set; } = string.Empty;
         public string? ImageBase64 { get; set; }
-        public DateTime? ValidFrom { get; set; } = DateTime.Today;
-        public DateTime? ValidTo { get; set; } = DateTime.Today.AddYears(1);
+        public DateTime? ValidFrom { get; set; } = CondotifyTime.Today;
+        public DateTime? ValidTo { get; set; } = CondotifyTime.Today.AddYears(1);
         public bool IsTemporary { get; set; }
         public int? MaxRenewals { get; set; }
         public int? MaxUses { get; set; }
@@ -1106,8 +1106,8 @@ namespace Condotify.Models
         public string ImageBase64 { get; set; } = string.Empty;
         public int CredentialType { get; set; } = 2;
         public bool CreateFacialInvite { get; set; }
-        public DateTime ValidFrom { get; set; } = DateTime.Now;
-        public DateTime ValidTo { get; set; } = DateTime.Now.AddHours(4);
+        public DateTime ValidFrom { get; set; } = CondotifyTime.Now;
+        public DateTime ValidTo { get; set; } = CondotifyTime.Now.AddHours(4);
         [Range(1, 100, ErrorMessage = "O limite de acessos deve estar entre 1 e 100.")] public int? MaxUses { get; set; } = 1;
         public List<Guid> RouteIds { get; set; } = [];
         public bool RequireApproval { get; set; }

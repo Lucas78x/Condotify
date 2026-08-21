@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Condotify.Models;
 using CondotifyAPI.Data.Amenities;
 using CondotifyAPI.Domain.DTO.Amenities;
 using CondotifyAPI.Domain.Enums.Amenities;
@@ -33,7 +34,7 @@ public sealed class AmenityBookingsController : ControllerBase
         if (!await HasLicenseAccessAsync(licenseId))
             return NotFound();
 
-        var rangeStart = AsUtcDate(from ?? DateTime.UtcNow);
+        var rangeStart = AsUtcDate(from ?? CondotifyTime.Today);
         var rangeEnd = AsUtcDate(to ?? rangeStart.AddDays(30));
 
         var bookings = await BookingQuery(licenseId, amenityId)
@@ -57,8 +58,8 @@ public sealed class AmenityBookingsController : ControllerBase
         if (!await HasLicenseAccessAsync(licenseId))
             return NotFound();
 
-        var rangeStart = AsUtcDate(from ?? DateTime.UtcNow.AddMonths(-1));
-        var rangeEnd = AsUtcDate(to ?? DateTime.UtcNow.AddMonths(2));
+        var rangeStart = AsUtcDate(from ?? CondotifyTime.Today.AddMonths(-1));
+        var rangeEnd = AsUtcDate(to ?? CondotifyTime.Today.AddMonths(2));
         if (rangeEnd < rangeStart || rangeEnd > rangeStart.AddYears(1))
             return BadRequest(new { Result = "InvalidPeriod", Errors = "Informe um periodo valido de ate 12 meses." });
 

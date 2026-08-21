@@ -34,7 +34,7 @@
             <MudTable Items="_events" Hover Dense Elevation="0">
                 <HeaderContent><MudTh>Data e hora</MudTh><MudTh>Resultado</MudTh><MudTh>Pessoa</MudTh><MudTh>Porta</MudTh><MudTh>Equipamento</MudTh></HeaderContent>
                 <RowTemplate>
-                    <MudTd DataLabel="Data e hora">@context.OccurredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</MudTd>
+                    <MudTd DataLabel="Data e hora">@context.OccurredAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm:ss")</MudTd>
                     <MudTd DataLabel="Resultado"><MudChip T="string" Size="Size.Small" Color="@(context.Authorized ? Color.Success : Color.Error)" Variant="Variant.Outlined" Icon="@(context.Authorized ? Icons.Material.Outlined.Check : Icons.Material.Outlined.Close)">@context.Event</MudChip></MudTd>
                     <MudTd DataLabel="Pessoa">@(!string.IsNullOrWhiteSpace(context.PersonName) ? context.PersonName : "-")</MudTd>
                     <MudTd DataLabel="Porta">@(!string.IsNullOrWhiteSpace(context.Portal) ? context.Portal : "-")</MudTd>

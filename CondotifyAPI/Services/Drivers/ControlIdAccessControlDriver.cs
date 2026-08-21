@@ -512,6 +512,11 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
         if (session is null)
             return CredentialOperationResult.Fail("O equipamento Control iD recusou a autenticacao.");
 
+        var clockResult = await EnsureDeviceClockAsync(address, session);
+        if (!clockResult.Success)
+            return CredentialOperationResult.Fail(
+                $"O equipamento Control iD nao confirmou o fuso horario/NTP. {clockResult.ErrorMessage}".Trim());
+
         var userId = request.ExternalUserId;
         if (string.IsNullOrWhiteSpace(userId))
         {
@@ -534,6 +539,25 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
 
         if (!long.TryParse(userId, out var numericUserId))
             return CredentialOperationResult.Fail("O identificador externo do usuario Control iD e invalido.");
+
+        // A reconciliacao tambem precisa atualizar usuarios ja existentes.
+        // Sem isso, mudancas de validade/fuso ficavam restritas a novos cadastros,
+        // embora o vinculo fosse marcado como sincronizado.
+        var userUpdated = await ModifyObjectsAsync(
+            address,
+            session,
+            ControlIdObjects.Users,
+            new
+            {
+                registration = request.Registration,
+                name = request.ResidentName,
+                begin_time = ToUnix(request.ValidFrom),
+                end_time = request.IsActive ? ToUnix(request.ValidTo) : ToUnix(DateTime.UtcNow.AddSeconds(-1))
+            },
+            new { users = new { id = numericUserId } });
+
+        if (!userUpdated)
+            return CredentialOperationResult.Fail("O equipamento nao confirmou a atualizacao do usuario e da validade.");
 
         if (request.Portals is { Count: > 0 })
         {
@@ -558,13 +582,28 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
             if (string.IsNullOrWhiteSpace(request.ImageBase64))
                 return new CredentialOperationResult(false, userId, "face", "Usuario vinculado; a captura facial ainda esta pendente.");
 
-            var photoResult = await PostCommandAsync(address, session, "user_set_image_list.fcgi", new
+            var photoResult = await PostCommandDetailedAsync(address, session, "user_set_image_list.fcgi", new
             {
-                user_images = new[] { new { user_id = numericUserId, image = NormalizeBase64(request.ImageBase64), timestamp = 0 } }
-            });
-            return photoResult
+                match = false,
+                user_images = new[]
+                {
+                    new
+                    {
+                        user_id = numericUserId,
+                        image = NormalizeBase64(request.ImageBase64),
+                        timestamp = ToUnix(DateTime.UtcNow)
+                    }
+                }
+            }, allowEmpty: true);
+
+            if (!photoResult.Success || photoResult.Json is null)
+                return CredentialOperationResult.Fail(
+                    $"A foto facial foi recusada pelo equipamento. {photoResult.ErrorMessage}".Trim());
+
+            var enrollmentError = ReadFaceEnrollmentError(photoResult.Json.Value, numericUserId);
+            return enrollmentError is null
                 ? CredentialOperationResult.Ok(userId, "face", "Foto facial enviada ao equipamento.")
-                : CredentialOperationResult.Fail("O usuario foi criado, mas a foto facial foi recusada pelo equipamento.");
+                : CredentialOperationResult.Fail($"O equipamento nao cadastrou o template facial. {enrollmentError}");
         }
 
         var objectName = CredentialObjectName(request.Type);
@@ -593,6 +632,11 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
         var session = await LoginAsync(address, device.Username, device.Password);
         if (session is null)
             return CredentialOperationResult.Fail("O equipamento Control iD recusou a autenticacao.");
+
+        var clockResult = await EnsureDeviceClockAsync(address, session);
+        if (!clockResult.Success)
+            return CredentialOperationResult.Fail(
+                $"O equipamento Control iD nao confirmou o fuso horario/NTP. {clockResult.ErrorMessage}".Trim());
 
         var changed = await ModifyObjectsAsync(address, session, ControlIdObjects.Users,
             new { begin_time = ToUnix(request.ValidFrom), end_time = isActive ? ToUnix(request.ValidTo) : ToUnix(DateTime.UtcNow.AddSeconds(-1)) },
@@ -690,7 +734,7 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
                 GetInt64(item, "id")?.ToString() ?? Guid.NewGuid().ToString("N"),
                 AccessEventName(eventCode),
                 eventCode == 7,
-                timestamp is > 0 ? DateTimeOffset.FromUnixTimeSeconds(timestamp.Value).UtcDateTime : DateTime.UtcNow,
+                timestamp is > 0 ? AccessControlDeviceTimeZone.FromControlIdUnix(timestamp.Value) : DateTime.UtcNow,
                 userId?.ToString(),
                 Credential: credential,
                 Portal: GetInt64(item, "portal_id")?.ToString(),
@@ -764,6 +808,7 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
         }
 
         var desiredAccessRuleIds = new HashSet<long>();
+        var desiredGroupIds = new HashSet<long>();
 
         var routes = validAssignments.GroupBy(
             x => string.IsNullOrWhiteSpace(x.RouteName) ? "Rota principal" : x.RouteName.Trim(),
@@ -799,6 +844,19 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
             var accessRuleId = accessRuleResult.Id!.Value;
             desiredAccessRuleIds.Add(accessRuleId);
 
+            var groupResult = await EnsureNamedObjectAsync(
+                address,
+                session,
+                ControlIdObjects.Groups,
+                nativeName,
+                () => new { name = nativeName });
+
+            if (!groupResult.Success)
+                return NativePolicyResult.Fail($"Falha ao criar/localizar o departamento '{nativeName}': {groupResult.ErrorMessage}");
+
+            var groupId = groupResult.Id!.Value;
+            desiredGroupIds.Add(groupId);
+
             var timeResult = await EnsureTimeSpanAsync(
                 address,
                 session,
@@ -818,6 +876,17 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
 
             if (!timeZoneRelation.Success)
                 return NativePolicyResult.Fail($"Falha ao vincular a regra ao horario: {timeZoneRelation.ErrorMessage}");
+
+            var groupRuleRelation = await EnsureRelationAsync(
+                address,
+                session,
+                ControlIdObjects.GroupAccessRules,
+                new { group_id = groupId, access_rule_id = accessRuleId },
+                item => GetInt64(item, "group_id") == groupId &&
+                        GetInt64(item, "access_rule_id") == accessRuleId);
+
+            if (!groupRuleRelation.Success)
+                return NativePolicyResult.Fail($"Falha ao vincular o departamento a regra: {groupRuleRelation.ErrorMessage}");
 
             foreach (var portalId in routeAssignments.Select(x => (long)x.PortalNumber).Distinct())
             {
@@ -848,6 +917,17 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
 
             if (!userRelation.Success)
                 return NativePolicyResult.Fail($"Falha ao vincular o usuario a regra: {userRelation.ErrorMessage}");
+
+            var userGroupRelation = await EnsureRelationAsync(
+                address,
+                session,
+                ControlIdObjects.UserGroups,
+                new { user_id = userId, group_id = groupId },
+                item => GetInt64(item, "user_id") == userId &&
+                        GetInt64(item, "group_id") == groupId);
+
+            if (!userGroupRelation.Success)
+                return NativePolicyResult.Fail($"Falha ao vincular o usuario ao departamento: {userGroupRelation.ErrorMessage}");
         }
 
         // Remove apenas vinculos diretos antigos gerenciados pelo Condotify.
@@ -893,7 +973,74 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
             }
         }
 
+        var groups = await LoadObjectsAsync(address, session, ControlIdObjects.Groups);
+        var userGroups = await LoadObjectsAsync(address, session, ControlIdObjects.UserGroups);
+        if (groups is { ValueKind: JsonValueKind.Array } &&
+            userGroups is { ValueKind: JsonValueKind.Array })
+        {
+            var managedGroupIds = groups.Value
+                .EnumerateArray()
+                .Where(x => (GetString(x, "name") ?? string.Empty)
+                    .StartsWith("Condotify - ", StringComparison.OrdinalIgnoreCase))
+                .Select(x => GetInt64(x, "id"))
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .ToHashSet();
+
+            var staleGroupIds = userGroups.Value
+                .EnumerateArray()
+                .Where(x => GetInt64(x, "user_id") == userId)
+                .Select(x => GetInt64(x, "group_id"))
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .Where(x => managedGroupIds.Contains(x) && !desiredGroupIds.Contains(x))
+                .Distinct()
+                .ToArray();
+
+            foreach (var staleGroupId in staleGroupIds)
+            {
+                await DestroyObjectsAsync(
+                    address,
+                    session,
+                    ControlIdObjects.UserGroups,
+                    new { user_groups = new { user_id = userId, group_id = staleGroupId } });
+            }
+        }
+
         return NativePolicyResult.Ok();
+    }
+
+    private async Task<NativePolicyResult> EnsureDeviceClockAsync(string address, string session)
+    {
+        var expectedTimeZone = AccessControlDeviceTimeZone.ControlIdNtpTimeZone();
+        var current = await PostCommandDetailedAsync(
+            address,
+            session,
+            "get_configuration.fcgi",
+            new { ntp = new[] { "enabled", "timezone" } },
+            allowEmpty: false);
+
+        if (current.Success &&
+            current.Json is { } root &&
+            TryGetPropertyIgnoreCase(root, "ntp", out var ntp))
+        {
+            var enabled = GetString(ntp, "enabled");
+            var timeZone = GetString(ntp, "timezone");
+            if (enabled == "1" &&
+                string.Equals(timeZone, expectedTimeZone, StringComparison.OrdinalIgnoreCase))
+                return NativePolicyResult.Ok();
+        }
+
+        var updated = await PostCommandDetailedAsync(
+            address,
+            session,
+            "set_configuration.fcgi",
+            new { ntp = new { enabled = "1", timezone = expectedTimeZone } },
+            allowEmpty: true);
+
+        return updated.Success
+            ? NativePolicyResult.Ok()
+            : NativePolicyResult.Fail(updated.ErrorMessage ?? "Falha ao atualizar o relogio do equipamento.");
     }
 
     private async Task<NamedObjectResult> EnsureNamedObjectAsync(
@@ -1310,6 +1457,38 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
         return error.ToString();
     }
 
+    private static string? ReadFaceEnrollmentError(JsonElement root, long userId)
+    {
+        if (!TryGetPropertyIgnoreCase(root, "results", out var results) ||
+            results.ValueKind != JsonValueKind.Array)
+        {
+            // Firmwares antigos podem responder vazio ou apenas success.
+            return HasApiError(root) ? ReadApiError(root) : null;
+        }
+
+        var result = results.EnumerateArray()
+            .FirstOrDefault(x => GetInt64(x, "user_id") == userId);
+        if (result.ValueKind == JsonValueKind.Undefined)
+            return "O retorno nao incluiu o usuario enviado.";
+
+        if (TryGetPropertyIgnoreCase(result, "success", out var success) &&
+            success.ValueKind == JsonValueKind.True)
+            return null;
+
+        if (TryGetPropertyIgnoreCase(result, "errors", out var errors) &&
+            errors.ValueKind == JsonValueKind.Array)
+        {
+            var messages = errors.EnumerateArray()
+                .Select(x => GetString(x, "message") ?? x.ToString())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToArray();
+            if (messages.Length > 0)
+                return string.Join(" | ", messages);
+        }
+
+        return "Falha de cadastro facial sem detalhes.";
+    }
+
     private static string TrimErrorBody(string? body)
     {
         if (string.IsNullOrWhiteSpace(body))
@@ -1338,7 +1517,8 @@ public class ControlIdAccessControlDriver : IAccessControlDriver
 
     private static string NormalizeBase64(string value) => value.Contains(',') ? value[(value.IndexOf(',') + 1)..] : value;
     private static string Address(string ip, int port) => port is <= 0 or 80 ? ip : $"{ip}:{port}";
-    private static long ToUnix(DateTime value) => new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc)).ToUnixTimeSeconds();
+    private static long ToUnix(DateTime value) =>
+        AccessControlDeviceTimeZone.ToControlIdUnix(value);
     private static bool TryGetPropertyIgnoreCase(
         JsonElement item,
         string name,

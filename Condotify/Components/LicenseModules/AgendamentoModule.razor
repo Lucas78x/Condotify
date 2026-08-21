@@ -275,10 +275,10 @@ else
     private string _search = string.Empty;
     private string _statusFilter = "All";
     private Guid _amenityFilter;
-    private DateTime _calendarMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime _calendarMonth = new(CondotifyTime.Today.Year, CondotifyTime.Today.Month, 1);
     private DateTime? _selectedDate;
-    private DateTime? _rangeStart = DateTime.Today.AddMonths(-1);
-    private DateTime? _rangeEnd = DateTime.Today.AddMonths(2);
+    private DateTime? _rangeStart = CondotifyTime.Today.AddMonths(-1);
+    private DateTime? _rangeEnd = CondotifyTime.Today.AddMonths(2);
     private List<AmenityViewModel> _amenities = [];
     private List<AmenityBookingViewModel> _bookings = [];
 
@@ -291,8 +291,8 @@ else
     private IReadOnlyList<AmenityBookingViewModel> SelectedDayBookings => _selectedDate.HasValue
         ? FilteredBookings.Where(x => x.Date.Date == _selectedDate.Value.Date).OrderBy(x => x.SlotStartTime).ToList()
         : [];
-    private int TodayCount => ActiveBookings.Count(x => x.Date.Date == DateTime.Today);
-    private int NextWeekCount => ActiveBookings.Count(x => x.Date.Date >= DateTime.Today && x.Date.Date <= DateTime.Today.AddDays(7));
+    private int TodayCount => ActiveBookings.Count(x => x.Date.Date == CondotifyTime.Today);
+    private int NextWeekCount => ActiveBookings.Count(x => x.Date.Date >= CondotifyTime.Today && x.Date.Date <= CondotifyTime.Today.AddDays(7));
     private int PendingCount => _bookings.Count(x => x.Status == "Pending");
     private IEnumerable<AmenityBookingViewModel> ActiveBookings => _bookings.Where(x => x.Status is "Pending" or "Confirmed");
     private string MonthLabel => CultureInfo.GetCultureInfo("pt-BR").TextInfo.ToTitleCase(_calendarMonth.ToString("MMMM 'de' yyyy", CultureInfo.GetCultureInfo("pt-BR")));
@@ -327,8 +327,8 @@ else
         var amenitiesTask = Api.GetAmenitiesAsync(LicenseId);
         var bookingsTask = Api.GetLicenseAmenityBookingsAsync(
             LicenseId,
-            _rangeStart ?? DateTime.Today.AddMonths(-1),
-            _rangeEnd ?? DateTime.Today.AddMonths(2));
+            _rangeStart ?? CondotifyTime.Today.AddMonths(-1),
+            _rangeEnd ?? CondotifyTime.Today.AddMonths(2));
         await Task.WhenAll(amenitiesTask, bookingsTask);
 
         var amenitiesResult = await amenitiesTask;
@@ -350,8 +350,8 @@ else
     {
         var result = await Api.GetLicenseAmenityBookingsAsync(
             LicenseId,
-            _rangeStart ?? DateTime.Today.AddMonths(-1),
-            _rangeEnd ?? DateTime.Today.AddMonths(2));
+            _rangeStart ?? CondotifyTime.Today.AddMonths(-1),
+            _rangeEnd ?? CondotifyTime.Today.AddMonths(2));
         if (result.Success)
             _bookings = result.Value ?? [];
         else
@@ -491,8 +491,8 @@ else
 
     private async Task GoToTodayAsync()
     {
-        _calendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
-        _selectedDate = DateTime.Today;
+        _calendarMonth = new DateTime(CondotifyTime.Today.Year, CondotifyTime.Today.Month, 1);
+        _selectedDate = CondotifyTime.Today;
         await EnsureCalendarRangeAsync();
     }
 
@@ -531,7 +531,7 @@ else
     {
         "booking-calendar-day",
         day.Month != _calendarMonth.Month ? "outside" : string.Empty,
-        day.Date == DateTime.Today ? "today" : string.Empty,
+        day.Date == CondotifyTime.Today ? "today" : string.Empty,
         _selectedDate?.Date == day.Date ? "selected" : string.Empty
     }.Where(x => x.Length > 0));
 

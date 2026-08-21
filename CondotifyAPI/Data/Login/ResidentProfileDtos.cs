@@ -15,6 +15,10 @@ public sealed class ResidentMeOut
     public bool IsResponsible { get; set; }
     public bool AllowResidentDigitalPass { get; set; } = true;
     public long EnabledModules { get; set; }
+    public string GroupLabelSingular { get; set; } = "Bloco";
+    public string GroupLabelPlural { get; set; } = "Blocos";
+    public string UnitLabelSingular { get; set; } = "Unidade";
+    public string UnitLabelPlural { get; set; } = "Unidades";
     public IReadOnlyCollection<ResidentUnitOut> Units { get; set; } = [];
 }
 

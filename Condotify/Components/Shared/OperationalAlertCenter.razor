@@ -78,7 +78,7 @@ else
                         }
                         @if (IsSuppressed(alert))
                         {
-                            <span class="alert-suppressed"><MudIcon Icon="@Icons.Material.Outlined.NotificationsPaused" Size="Size.Small" />Silenciado até @alert.SuppressedUntil!.Value.ToLocalTime().ToString("dd/MM HH:mm")</span>
+                            <span class="alert-suppressed"><MudIcon Icon="@Icons.Material.Outlined.NotificationsPaused" Size="Size.Small" />Silenciado até @alert.SuppressedUntil!.Value.ToCondotifyTime().ToString("dd/MM HH:mm")</span>
                         }
                     </div>
                 </div>
@@ -287,6 +287,6 @@ else
         if (elapsed.TotalMinutes < 1) return "agora";
         if (elapsed.TotalHours < 1) return $"há {(int)elapsed.TotalMinutes} min";
         if (elapsed.TotalDays < 1) return $"há {(int)elapsed.TotalHours} h";
-        return value.ToLocalTime().ToString("dd/MM HH:mm");
+        return value.ToCondotifyTime().ToString("dd/MM HH:mm");
     }
 }

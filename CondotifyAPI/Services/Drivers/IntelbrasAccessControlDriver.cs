@@ -137,8 +137,8 @@ public class IntelbrasAccessControlDriver : IAccessControlDriver
                     UserName = request.ResidentName,
                     UserType = 0,
                     IsValid = request.IsActive,
-                    ValidFrom = request.ValidFrom.ToString("yyyy-MM-dd HH:mm:ss"),
-                    ValidTo = request.ValidTo.ToString("yyyy-MM-dd HH:mm:ss"),
+                    ValidFrom = AccessControlDeviceTimeZone.FormatLocal(request.ValidFrom, "yyyy-MM-dd HH:mm:ss"),
+                    ValidTo = AccessControlDeviceTimeZone.FormatLocal(request.ValidTo, "yyyy-MM-dd HH:mm:ss"),
                     Doors = configuredDoors is { Length: > 0 } ? configuredDoors : new[] { 0 },
                     TimeSections = new[] { 255 }
                 }
@@ -208,8 +208,10 @@ public class IntelbrasAccessControlDriver : IAccessControlDriver
                 {
                     UserID = request.ExternalUserId,
                     IsValid = isActive,
-                    ValidFrom = request.ValidFrom.ToString("yyyy-MM-dd HH:mm:ss"),
-                    ValidTo = (isActive ? request.ValidTo : DateTime.UtcNow.AddSeconds(-1)).ToString("yyyy-MM-dd HH:mm:ss")
+                    ValidFrom = AccessControlDeviceTimeZone.FormatLocal(request.ValidFrom, "yyyy-MM-dd HH:mm:ss"),
+                    ValidTo = AccessControlDeviceTimeZone.FormatLocal(
+                        isActive ? request.ValidTo : DateTime.UtcNow.AddSeconds(-1),
+                        "yyyy-MM-dd HH:mm:ss")
                 }
             }
         };

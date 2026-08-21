@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Mail;
 using System.Text.Encodings.Web;
+using Condotify.Models;
 using CondotifyAPI.Domain.DTO.Observability;
 
 namespace CondotifyAPI.Services.Finance;
@@ -58,7 +59,7 @@ public sealed class FinancialReminderEmailSender(
                   <h2 style="font-size:21px;margin:10px 0">{encoder.Encode(stageLabel)}</h2>
                   <p>Olá, {encoder.Encode(residentName)}.</p>
                   <p>Há uma atualização referente a <strong>{encoder.Encode(reference)}</strong> da sua unidade em {encoder.Encode(licenseName)}.</p>
-                  <p>Vencimento informado: <strong>{dueDate.ToLocalTime():dd/MM/yyyy}</strong>.</p>
+                  <p>Vencimento informado: <strong>{dueDate.ToCondotifyTime():dd/MM/yyyy}</strong>.</p>
                   <div style="margin:22px 0;padding:14px 16px;border-radius:12px;background:#f1f5ff;color:#34435a">
                     Por segurança, valores e demais detalhes ficam disponíveis somente dentro do aplicativo Condotify.
                   </div>

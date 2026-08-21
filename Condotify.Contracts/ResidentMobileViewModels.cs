@@ -22,6 +22,10 @@ public sealed class ResidentProfileViewModel
     public bool IsResponsible { get; set; }
     public bool AllowResidentDigitalPass { get; set; } = true;
     public long EnabledModules { get; set; }
+    public string GroupLabelSingular { get; set; } = "Bloco";
+    public string GroupLabelPlural { get; set; } = "Blocos";
+    public string UnitLabelSingular { get; set; } = "Unidade";
+    public string UnitLabelPlural { get; set; } = "Unidades";
     public List<ResidentUnitViewModel> Units { get; set; } = [];
 }
 
@@ -76,8 +80,8 @@ public sealed class ResidentVisitFormViewModel
     public string Company { get; set; } = string.Empty;
     public string Purpose { get; set; } = string.Empty;
     public string VehiclePlate { get; set; } = string.Empty;
-    public DateTime ValidFrom { get; set; } = DateTime.Now;
-    public DateTime ValidTo { get; set; } = DateTime.Now.AddHours(4);
+    public DateTime ValidFrom { get; set; } = CondotifyTime.Now;
+    public DateTime ValidTo { get; set; } = CondotifyTime.Now.AddHours(4);
     public int? MaxUses { get; set; } = 1;
     public int CredentialType { get; set; } = 2;
     public bool CreateFacialInvite { get; set; }

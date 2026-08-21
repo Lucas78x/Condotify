@@ -12,7 +12,7 @@
             <div class="safe-restore-hero-copy">
                 <span class="eyebrow">RESTAURAÇÃO SEGURA</span>
                 <strong>Voltar para @Backup.Name</strong>
-                <p>Snapshot v@(Backup.Version), preservado em @Backup.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy 'às' HH:mm"). Nenhuma alteração será aplicada antes da sua confirmação.</p>
+                <p>Snapshot v@(Backup.Version), preservado em @Backup.CreatedAt.ToCondotifyTime().ToString("dd/MM/yyyy 'às' HH:mm"). Nenhuma alteração será aplicada antes da sua confirmação.</p>
             </div>
             <div class="safe-restore-version">
                 <small>VERSÃO</small>
@@ -136,7 +136,7 @@
         {
             <section class="safe-restore-results">
                 <div class="safe-restore-section-head">
-                    <div><span class="section-number success">03</span><div><strong>Resultado da simulação</strong><small>Comparado em @_preview.ComparedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss").</small></div></div>
+                    <div><span class="section-number success">03</span><div><strong>Resultado da simulação</strong><small>Comparado em @_preview.ComparedAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm:ss").</small></div></div>
                     <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Download" OnClick="DownloadReportAsync">Baixar relatório</MudButton>
                 </div>
 
@@ -364,7 +364,7 @@
         {
             await JS.InvokeVoidAsync(
                 "portalInterop.downloadBase64",
-                $"condotify-restauracao-v{Backup.Version}-{DateTime.Now:yyyyMMdd-HHmm}.json",
+                $"condotify-restauracao-v{Backup.Version}-{CondotifyTime.Now:yyyyMMdd-HHmm}.json",
                 Convert.ToBase64String(bytes),
                 "application/json");
         }

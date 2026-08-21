@@ -70,8 +70,8 @@ public class AmenityScheduleSlotFormViewModel
 public class AmenityBlackoutFormViewModel
 {
     public Guid? Id { get; set; }
-    public DateTime StartDate { get; set; } = DateTime.Today;
-    public DateTime EndDate { get; set; } = DateTime.Today;
+    public DateTime StartDate { get; set; } = CondotifyTime.Today;
+    public DateTime EndDate { get; set; } = CondotifyTime.Today;
     public string Reason { get; set; } = string.Empty;
 }
 
@@ -112,7 +112,7 @@ public class AmenityBookingFormViewModel
 {
     public Guid UnitId { get; set; }
     public Guid? ResidentId { get; set; }
-    public DateTime Date { get; set; } = DateTime.Today;
+    public DateTime Date { get; set; } = CondotifyTime.Today;
     public Guid SlotId { get; set; }
     public bool TermsAccepted { get; set; }
     public string Notes { get; set; } = string.Empty;
