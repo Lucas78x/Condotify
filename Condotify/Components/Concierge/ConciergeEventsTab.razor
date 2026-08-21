@@ -31,7 +31,7 @@
     else
     {
         <div class="table-wrap">
-            <MudTable Items="_events" Hover Dense Elevation="0">
+            <MudTable Items="_events" Hover Dense Elevation="0" RowsPerPage="15">
                 <HeaderContent><MudTh>Data e hora</MudTh><MudTh>Resultado</MudTh><MudTh>Pessoa</MudTh><MudTh>Unidade</MudTh><MudTh>Porta</MudTh><MudTh>Equipamento</MudTh><MudTh></MudTh></HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Data e hora">@context.OccurredAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm:ss")</MudTd>
@@ -57,6 +57,7 @@
                     <MudTd DataLabel="Equipamento">@context.DeviceName</MudTd>
                     <MudTd><MudTooltip Text="Ver contexto e ações"><MudIconButton Icon="@Icons.Material.Outlined.ChevronRight" Color="@(context.RequiresAttention ? Color.Error : Color.Primary)" OnClick="@(() => OnEventSelected.InvokeAsync(context))" /></MudTooltip></MudTd>
                 </RowTemplate>
+                <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 15, 30, 50 })" RowsPerPageString="Eventos por página" InfoFormat="{first_item}-{last_item} de {all_items}" /></PagerContent>
             </MudTable>
         </div>
     }

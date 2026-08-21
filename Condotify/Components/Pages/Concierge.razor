@@ -105,10 +105,11 @@ else if (_dashboard is not null)
             <div class="concierge-workspace">
                 <MudPaper Class="content-panel concierge-visits-panel" Elevation="0">
                     <div class="panel-toolbar">
-                        <div><MudText Typo="Typo.h6" Class="panel-title">Agenda de acessos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Visitas de hoje e dos próximos dias</MudText></div>
+                        <div><MudText Typo="Typo.h6" Class="panel-title">Agenda de acessos</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Visão operacional; autorizações futuras ficam separadas por período</MudText></div>
                         <div class="concierge-filters">
-                            <MudTextField T="string" @bind-Value="_visitSearch" Immediate Placeholder="Buscar visitante, morador ou unidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
-                            <MudSelect T="string" @bind-Value="_visitFilter" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem T="string" Value="@("all")">Todas</MudSelectItem><MudSelectItem T="string" Value="@("Scheduled")">Agendadas</MudSelectItem><MudSelectItem T="string" Value="@("CheckedIn")">No local</MudSelectItem><MudSelectItem T="string" Value="@("finished")">Finalizadas</MudSelectItem></MudSelect>
+                            <MudTextField T="string" Value="_visitSearch" ValueChanged="ChangeVisitSearch" Immediate Placeholder="Buscar visitante, morador ou unidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
+                            <MudSelect T="string" Value="_visitPeriod" ValueChanged="ChangeVisitPeriod" Label="Período" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem T="string" Value="@("today")">Hoje (@TodayVisitCount)</MudSelectItem><MudSelectItem T="string" Value="@("tomorrow")">Amanhã (@TomorrowVisitCount)</MudSelectItem><MudSelectItem T="string" Value="@("week")">Próximos 7 dias (@WeekVisitCount)</MudSelectItem><MudSelectItem T="string" Value="@("all")">Todo o período</MudSelectItem></MudSelect>
+                            <MudSelect T="string" Value="_visitFilter" ValueChanged="ChangeVisitFilter" Label="Situação" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem T="string" Value="@("active")">Em andamento</MudSelectItem><MudSelectItem T="string" Value="@("all")">Todas</MudSelectItem><MudSelectItem T="string" Value="@("Scheduled")">Agendadas</MudSelectItem><MudSelectItem T="string" Value="@("CheckedIn")">No local</MudSelectItem><MudSelectItem T="string" Value="@("finished")">Finalizadas</MudSelectItem></MudSelect>
                         </div>
                     </div>
                     @if (!FilteredVisits.Any())
@@ -118,7 +119,7 @@ else if (_dashboard is not null)
                     else
                     {
                         <div class="concierge-visit-list">
-                            @foreach (var visit in FilteredVisits)
+                            @foreach (var visit in DisplayedVisits)
                             {
                                 <article class="concierge-visit-row">
                                     <div class="visit-avatar">
@@ -155,6 +156,10 @@ else if (_dashboard is not null)
                                 </article>
                             }
                         </div>
+                        @if (HasMoreVisits)
+                        {
+                            <div class="concierge-list-more"><MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ExpandMore" OnClick="ShowMoreVisits">Mostrar mais @Math.Min(12, FilteredVisitCount - _visibleVisitCount) autorizações</MudButton><small>@_visibleVisitCount de @FilteredVisitCount exibidas</small></div>
+                        }
                     }
                 </MudPaper>
 
@@ -181,7 +186,7 @@ else if (_dashboard is not null)
                     <MudPaper Class="content-panel concierge-events-panel" Elevation="0">
                         <div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Eventos recentes</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Leitura dos controladores</MudText></div></div>
                         <div class="concierge-event-list">
-                            @foreach (var accessEvent in _dashboard.Events.Take(12))
+                            @foreach (var accessEvent in _dashboard.Events.Take(8))
                             {
                                 var eventPersonName = string.IsNullOrWhiteSpace(accessEvent.PersonName) ? accessEvent.Event : accessEvent.PersonName;
                                 <button type="button" class="concierge-event-row" @onclick="@(() => OpenEventAsync(accessEvent))">
@@ -227,7 +232,9 @@ else if (_dashboard is not null)
     private ConciergeDashboardViewModel? _dashboard;
     private Guid? _licenseId;
     private string _visitSearch = string.Empty;
-    private string _visitFilter = "all";
+    private string _visitFilter = "active";
+    private string _visitPeriod = "today";
+    private int _visibleVisitCount = 12;
     private string? _error;
     private bool _loading = true;
     private PeriodicTimer? _timer;
@@ -243,14 +250,43 @@ else if (_dashboard is not null)
 
     private bool Has(LicensePermission permission) => _administration?.CurrentAccess.Has(permission) == true;
 
-    private IEnumerable<ConciergeVisitViewModel> FilteredVisits => (_dashboard?.Visits ?? [])
-        .Where(x => _visitFilter == "all" || (_visitFilter == "finished" ? x.Status is "CheckedOut" or "Canceled" or "Expired" or "Denied" : x.Status == _visitFilter))
+    private IEnumerable<ConciergeVisitViewModel> PeriodVisits => (_dashboard?.Visits ?? []).Where(IsInSelectedPeriod);
+    private IEnumerable<ConciergeVisitViewModel> FilteredVisits => PeriodVisits
+        .Where(x => _visitFilter == "all" || (_visitFilter == "active" ? x.Status is "Scheduled" or "CheckedIn" or "PendingApproval" or "PendingEnrollment" : _visitFilter == "finished" ? x.Status is "CheckedOut" or "Canceled" or "Expired" or "Denied" : x.Status == _visitFilter))
         .Where(x => string.IsNullOrWhiteSpace(_visitSearch) || $"{x.VisitorName} {x.HostName} {x.BlockName} {x.UnitNumber} {x.Document} {x.VehiclePlate}".Contains(_visitSearch, StringComparison.OrdinalIgnoreCase))
         .OrderBy(x => x.Status == "CheckedIn" ? 0 : x.Status == "Scheduled" ? 1 : 2).ThenBy(x => x.ValidFrom);
+    private IEnumerable<ConciergeVisitViewModel> DisplayedVisits => FilteredVisits.Take(_visibleVisitCount);
+    private int FilteredVisitCount => FilteredVisits.Count();
+    private bool HasMoreVisits => FilteredVisitCount > _visibleVisitCount;
+    private int TodayVisitCount => CountVisitsInPeriod("today");
+    private int TomorrowVisitCount => CountVisitsInPeriod("tomorrow");
+    private int WeekVisitCount => CountVisitsInPeriod("week");
     private IEnumerable<ConciergeEventViewModel> AttentionEvents => (_dashboard?.Events ?? []).Where(x => x.RequiresAttention);
-    private IEnumerable<ConciergeVisitViewModel> AttentionVisits => (_dashboard?.Visits ?? []).Where(x => x.Status is "PendingApproval" or "PendingEnrollment");
+    private IEnumerable<ConciergeVisitViewModel> AttentionVisits => (_dashboard?.Visits ?? [])
+        .Where(x => x.Status == "PendingApproval" || (x.Status == "PendingEnrollment" && x.ValidFrom.ToCondotifyTime() <= CondotifyTime.Now.AddHours(24)))
+        .OrderBy(x => x.Status == "PendingApproval" ? 0 : 1).ThenBy(x => x.ValidFrom);
     private IEnumerable<ConciergeDeviceViewModel> OfflineDevices => (_dashboard?.Devices ?? []).Where(x => !x.Online);
     private int AttentionCount => AttentionEvents.Count() + AttentionVisits.Count() + OfflineDevices.Count();
+
+    private bool IsInSelectedPeriod(ConciergeVisitViewModel visit) => IsInPeriod(visit, _visitPeriod);
+    private int CountVisitsInPeriod(string period) => (_dashboard?.Visits ?? []).Count(x => IsInPeriod(x, period));
+    private static bool IsInPeriod(ConciergeVisitViewModel visit, string period)
+    {
+        var start = visit.ValidFrom.ToCondotifyTime();
+        var end = visit.ValidTo.ToCondotifyTime();
+        var today = CondotifyTime.Today;
+        return period switch
+        {
+            "today" => start < today.AddDays(1) && end >= today,
+            "tomorrow" => start < today.AddDays(2) && end >= today.AddDays(1),
+            "week" => start < today.AddDays(8) && end >= today,
+            _ => true
+        };
+    }
+    private void ShowMoreVisits() => _visibleVisitCount += 12;
+    private void ChangeVisitSearch(string value) { _visitSearch = value; _visibleVisitCount = 12; }
+    private void ChangeVisitPeriod(string value) { _visitPeriod = value; _visibleVisitCount = 12; }
+    private void ChangeVisitFilter(string value) { _visitFilter = value; _visibleVisitCount = 12; }
 
     protected override async Task OnInitializedAsync()
     {
