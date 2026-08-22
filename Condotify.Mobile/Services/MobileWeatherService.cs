@@ -15,11 +15,13 @@ public sealed record WeatherSnapshot(double TemperatureC, string Description, st
 /// </summary>
 public sealed class MobileWeatherService(IHttpClientFactory clients)
 {
-    public async Task<WeatherSnapshot?> GetCurrentWeatherAsync(CancellationToken cancellationToken = default)
+    public async Task<WeatherSnapshot?> GetCurrentWeatherAsync(
+        bool requestPermission = false,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            var location = await ResolveLocationAsync(cancellationToken);
+            var location = await ResolveLocationAsync(requestPermission, cancellationToken);
             if (location is null) return null;
 
             var client = clients.CreateClient("OpenMeteo");
@@ -53,10 +55,16 @@ public sealed class MobileWeatherService(IHttpClientFactory clients)
         _ => Icons.Material.Outlined.CloudQueue
     };
 
-    private static async Task<Location?> ResolveLocationAsync(CancellationToken cancellationToken)
+    private static async Task<Location?> ResolveLocationAsync(bool requestPermission, CancellationToken cancellationToken)
     {
-        var status = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
-        if (status != PermissionStatus.Granted) return null;
+        var status = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
+        var hasLocationAccess = status == PermissionStatus.Granted || HasApproximateLocationAccess();
+        if (!hasLocationAccess && requestPermission)
+        {
+            status = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
+            hasLocationAccess = status == PermissionStatus.Granted || HasApproximateLocationAccess();
+        }
+        if (!hasLocationAccess) return null;
 
         var lastKnown = await Geolocation.Default.GetLastKnownLocationAsync();
         if (lastKnown is not null) return lastKnown;
@@ -65,6 +73,17 @@ public sealed class MobileWeatherService(IHttpClientFactory clients)
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(6));
         var request = new GeolocationRequest(GeolocationAccuracy.Low, TimeSpan.FromSeconds(6));
         return await Geolocation.Default.GetLocationAsync(request, timeoutCts.Token);
+    }
+
+    private static bool HasApproximateLocationAccess()
+    {
+#if ANDROID
+        return AndroidX.Core.Content.ContextCompat.CheckSelfPermission(
+            Android.App.Application.Context,
+            Android.Manifest.Permission.AccessCoarseLocation) == Android.Content.PM.Permission.Granted;
+#else
+        return false;
+#endif
     }
 
     private sealed class OpenMeteoResponse

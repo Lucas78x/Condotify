@@ -1,6 +1,6 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
-    <application android:allowBackup="false" android:usesCleartextTraffic="false" android:networkSecurityConfig="@xml/network_security_config" android:icon="@mipmap/ff_access_launcher_icon" android:roundIcon="@mipmap/ff_access_launcher_icon_round" android:supportsRtl="true">
+    <application android:allowBackup="false" android:usesCleartextTraffic="true" android:icon="@mipmap/ff_access_launcher_icon" android:roundIcon="@mipmap/ff_access_launcher_icon_round" android:supportsRtl="true">
         <service android:name="crc64d2dcc2805d51c0a8.MyFirebaseMessagingService" android:exported="false" tools:replace="android:exported">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />

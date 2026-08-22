@@ -9,7 +9,7 @@ public sealed class MobileDeepLinksTests
     [Theory]
     [InlineData("/home", "/home")]
     [InlineData("profile", "/profile")]
-    [InlineData("https://app.condotify.com.br/app/home", "/home")]
+    [InlineData("https://fefaccess.grupoff.net.br/app/home", "/home")]
     [InlineData("condotify://app/profile", "/profile")]
     public void TryNormalize_AcceptsKnownStaticRoutes(string input, string expected)
     {
@@ -28,7 +28,7 @@ public sealed class MobileDeepLinksTests
     public void ToCanonicalUrl_ProducesVerifiedHttpsHost()
     {
         Assert.Equal(
-            $"https://app.condotify.com.br/app/deliveries/{Id:D}",
+            $"https://fefaccess.grupoff.net.br/app/deliveries/{Id:D}",
             MobileDeepLinks.ToCanonicalUrl($"/deliveries/{Id}"));
     }
 
@@ -36,8 +36,9 @@ public sealed class MobileDeepLinksTests
     [InlineData("javascript:alert(1)")]
     [InlineData("file:///home")]
     [InlineData("https://evil.example/app/home")]
-    [InlineData("https://app.condotify.com.br:8443/app/home")]
-    [InlineData("https://user@app.condotify.com.br/app/home")]
+    [InlineData("https://app.condotify.com.br/app/home")]
+    [InlineData("https://fefaccess.grupoff.net.br:8443/app/home")]
+    [InlineData("https://user@fefaccess.grupoff.net.br/app/home")]
     [InlineData("/../../seguranca")]
     [InlineData("/visitors/not-a-guid")]
     [InlineData("/unknown")]

@@ -91,6 +91,12 @@
                         {
                             <MudIconButton Icon="@Icons.Material.Outlined.Share" Color="Color.Primary" OnClick="() => ShareFacialInviteAsync(visit)" aria-label="Gerar e compartilhar novo link facial" />
                         }
+                        @if (CanCancel(visit))
+                        {
+                            <MudIconButton Icon="@Icons.Material.Outlined.EventBusy" Color="Color.Error"
+                                           Disabled="@(_changingVisit == visit.Id)" OnClick="() => CancelVisitAsync(visit)"
+                                           aria-label="Cancelar autorização" />
+                        }
                         @if (!IsStaff)
                         {
                             <MudIconButton Icon="@Icons.Material.Outlined.Replay" Color="Color.Secondary" OnClick="() => RepeatVisitAsync(visit)" aria-label="Repetir esta visita" />
@@ -109,6 +115,7 @@
     private ResidentProfileViewModel? _profile;
     private CancellationTokenSource? _loadCts;
     private bool _loading;
+    private Guid? _changingVisit;
     private string _error = string.Empty;
     private string _search = string.Empty;
     private MobileVisitorView _view = MobileVisitorView.Today;
@@ -260,6 +267,38 @@
         };
         await Dialogs.ShowAsync<VisitorPassDialog>(string.Empty, parameters,
             new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.ExtraSmall, CloseOnEscapeKey = true });
+    }
+
+    private bool CanCancel(ConciergeVisitViewModel visit) =>
+        IsStaff && visit.Status is "Scheduled" or "PendingEnrollment";
+
+    private async Task CancelVisitAsync(ConciergeVisitViewModel visit)
+    {
+        if (!AppState.SelectedLicenseId.HasValue || _changingVisit.HasValue) return;
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Cancelar autorização",
+            $"Cancelar o acesso de {visit.VisitorName}? O QR Code ou convite facial deixará de funcionar.",
+            yesText: "Cancelar autorização",
+            cancelText: "Manter");
+        if (confirmed != true) return;
+
+        _changingVisit = visit.Id;
+        try
+        {
+            var result = await Api.UpdateConciergeVisitStatusAsync(
+                AppState.SelectedLicenseId.Value,
+                visit.Id,
+                3,
+                "Autorização cancelada pelo aplicativo mobile");
+            Snackbar.Add(
+                result.Success ? "Autorização cancelada." : result.Error ?? "Não foi possível cancelar a autorização.",
+                result.Success ? Severity.Success : Severity.Error);
+            if (result.Success) await LoadAsync();
+        }
+        finally
+        {
+            _changingVisit = null;
+        }
     }
 
     private async Task ShareFacialInviteAsync(ConciergeVisitViewModel visit)

@@ -31,7 +31,7 @@
                     <span class="status-dot @(device.IsActive ? "online" : "")"></span>
                     <div class="list-main">
                         <div class="list-title">@device.Name</div>
-                        <div class="list-meta">@device.Model · @device.IPAddress:@device.Port</div>
+                        <div class="list-meta">@device.Model</div>
                         <span class="row-status @(device.IsActive ? "success" : "neutral")">@(device.IsActive ? "Disponível" : "Indisponível")</span>
                         @if (!device.IsActive && !string.IsNullOrWhiteSpace(device.HealthMessage))
                         {

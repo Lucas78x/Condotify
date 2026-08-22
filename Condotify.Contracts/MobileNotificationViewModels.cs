@@ -78,7 +78,7 @@ public sealed class MobileNotificationPageViewModel
 
 public static class MobileDeepLinks
 {
-    public const string CanonicalHost = "app.condotify.com.br";
+    public const string CanonicalHost = "fefaccess.grupoff.net.br";
 
     private static readonly string[] StaticRoutes = ["/home", "/profile", "/boletos", "/documentos", "/comunicados"];
     private static readonly HashSet<string> EntityRoutes = new(StringComparer.OrdinalIgnoreCase)

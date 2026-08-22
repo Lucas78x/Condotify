@@ -13,6 +13,39 @@ namespace CondotifyAPI.Tests;
 public sealed class ResidentProfileControllerTests
 {
     [Fact]
+    public void CreateVisitInput_NormalizesOptionalNulls()
+    {
+        var input = new CondotifyAPI.Data.Login.CreateResidentVisitIn
+        {
+            VisitorName = "  Visitante  ",
+            Document = null!,
+            PhoneNumber = null!,
+            Company = null!,
+            Purpose = null!,
+            VehiclePlate = null!,
+            IdempotencyKey = null!,
+            RouteIds = null!
+        };
+
+        Assert.Null(ResidentProfileController.NormalizeAndValidateCreateVisitInput(input));
+        Assert.Equal("Visitante", input.VisitorName);
+        Assert.Empty(input.Document);
+        Assert.Empty(input.RouteIds);
+    }
+
+    [Theory]
+    [InlineData(151, "nome")]
+    [InlineData(201, "motivo")]
+    public void CreateVisitInput_RejectsOversizedValues(int length, string field)
+    {
+        var input = new CondotifyAPI.Data.Login.CreateResidentVisitIn { VisitorName = "Visitante" };
+        if (field == "nome") input.VisitorName = new string('a', length);
+        else input.Purpose = new string('a', length);
+
+        Assert.NotNull(ResidentProfileController.NormalizeAndValidateCreateVisitInput(input));
+    }
+
+    [Fact]
     public void Controller_RequiresTheResidentPolicy()
     {
         var authorize = Assert.Single(typeof(ResidentProfileController)

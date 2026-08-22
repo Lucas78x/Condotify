@@ -66,18 +66,20 @@
     private MobilePrincipalKind _activePrincipal;
     private Guid? _openedEntityId;
     private string _error = string.Empty;
-    private CancellationTokenSource _loadCts = new();
+    // A camera request may finish after the user leaves this page. Cancelling several
+    // Android HTTP requests while Blazor is replacing the component can stall WebView
+    // link handling, so the request is instead bounded by the configured HttpClient
+    // timeout and its result is ignored by the disposed component.
+    private readonly CancellationTokenSource _loadCts = new();
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly SemaphoreSlim _streamGate = new(1, 1);
+    private bool _disposed;
     protected override void OnInitialized() => PullToRefresh.Register(LoadAsync);
-    protected override Task OnParametersSetAsync() => LoadAsync();
+    protected override void OnParametersSet() => _ = LoadAsync();
 
     private async Task LoadAsync()
     {
         if (!await _loadGate.WaitAsync(0)) return;
-        _loadCts.Cancel();
-        _loadCts.Dispose();
-        _loadCts = new CancellationTokenSource();
         var cancellationToken = _loadCts.Token;
         _loading = true; _error = string.Empty;
         var principal = Session.Current?.Principal ?? MobilePrincipalKind.None;
@@ -124,6 +126,11 @@
         {
             if (!cancellationToken.IsCancellationRequested) _loading = false;
             _loadGate.Release();
+            if (!_disposed)
+            {
+                try { await InvokeAsync(StateHasChanged); }
+                catch (InvalidOperationException) when (_disposed) { }
+            }
         }
     }
 
@@ -240,16 +247,22 @@
         _activeCamera = null; _session = null; _activeLicenseId = null; _activePrincipal = MobilePrincipalKind.None;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
+        _disposed = true;
         PullToRefresh.Unregister(LoadAsync);
-        _loadCts.Cancel();
-        await _loadGate.WaitAsync();
-        _loadGate.Release();
-        await CloseStreamAsync();
-        _loadCts.Dispose();
-        _loadGate.Dispose();
-        _streamGate.Dispose();
+        if (_activeCamera is not null) _ = CloseStreamAfterDisposeAsync();
+        // Do not synchronously cancel an Android HTTP request here. The shared client's
+        // 20-second timeout bounds it, and the component is reclaimed once it completes.
+        // Semaphores also remain owned by any in-flight operation to avoid a late Release race.
+        return ValueTask.CompletedTask;
+    }
+
+    private async Task CloseStreamAfterDisposeAsync()
+    {
+        try { await CloseStreamAsync().WaitAsync(TimeSpan.FromSeconds(3)); }
+        catch (TimeoutException) { }
+        catch (ObjectDisposedException) { }
     }
     private sealed record CameraItem(Guid Id, string Name, string DeviceType, int MaxChannels, bool Online, string HealthMessage, string SnapshotUrl = "");
 }

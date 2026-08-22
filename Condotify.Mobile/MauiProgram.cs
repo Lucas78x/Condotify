@@ -32,10 +32,17 @@ public static class MauiProgram
             ?? typeof(MauiProgram).Assembly
                 .GetCustomAttributes<AssemblyMetadataAttribute>()
                 .FirstOrDefault(x => x.Key == "CondotifyApiBaseUrl")?.Value;
-#if ANDROID
+#if ANDROID && DEBUG
         var baseUrl = configuredBaseUrl ?? "http://10.0.2.2:5093";
+#elif ANDROID
+        var baseUrl = configuredBaseUrl ?? string.Empty;
 #else
         var baseUrl = configuredBaseUrl ?? "https://localhost:7118";
+#endif
+#if !DEBUG
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var releaseApiUri)
+            || !string.Equals(releaseApiUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Release builds require an explicit HTTPS API endpoint.");
 #endif
         ConfigureMediaTransport(baseUrl);
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
@@ -106,7 +113,7 @@ public static class MauiProgram
                 "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
                 string.Join(' ', new[] { currentArguments.Trim(), allowInsecureMedia }.Where(x => x.Length > 0)));
         }
-#elif ANDROID
+#elif ANDROID && DEBUG
         if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var apiUri)
             || !string.Equals(apiUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
             return;

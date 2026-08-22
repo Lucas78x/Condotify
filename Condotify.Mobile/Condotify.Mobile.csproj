@@ -36,6 +36,8 @@
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
+        <PlatformTarget Condition="'$(TargetFramework)' == 'net10.0-android36.0'">AnyCPU</PlatformTarget>
+        <RuntimeIdentifier Condition="'$(TargetFramework)' == 'net10.0-android36.0' And '$(Configuration)' == 'Release'">android-arm64</RuntimeIdentifier>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
         <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
         <CodesignEntitlements Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">Platforms\iOS\Entitlements.plist</CodesignEntitlements>
@@ -87,5 +89,16 @@
         <GoogleServicesJson Include="Platforms\Android\google-services.json" Condition="Exists('Platforms\Android\google-services.json')" />
         <BundleResource Include="Platforms\iOS\GoogleService-Info.plist" Condition="Exists('Platforms\iOS\GoogleService-Info.plist')" Link="GoogleService-Info.plist" />
     </ItemGroup>
+
+    <Target Name="ValidateAndroidReleaseConfiguration"
+            BeforeTargets="PrepareForBuild"
+            Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' And '$(Configuration)' == 'Release'">
+        <Error Condition="'$(CondotifyApiBaseUrl)' == ''"
+               Text="CondotifyApiBaseUrl must be provided for Android Release builds." />
+        <Error Condition="'$(CondotifyApiBaseUrl)' != '' And !$([System.Text.RegularExpressions.Regex]::IsMatch('$(CondotifyApiBaseUrl)', '(?i)^https://'))"
+               Text="CondotifyApiBaseUrl must use HTTPS for Android Release builds." />
+        <Error Condition="'$(AndroidKeyStore)' != 'true' And '$(CondotifyAllowNonStoreSigning)' != 'true'"
+               Text="Android Release builds require the Play upload keystore. For device-only homologation, explicitly set CondotifyAllowNonStoreSigning=true and never upload that artifact." />
+    </Target>
 
 </Project>
