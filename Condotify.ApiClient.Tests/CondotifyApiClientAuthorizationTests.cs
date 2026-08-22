@@ -35,6 +35,19 @@ public class CondotifyApiClientAuthorizationTests
         Assert.Null(request!.Headers.Authorization);
     }
 
+    [Fact]
+    public async Task GetLicensesAsync_NotifiesSessionHost_WhenApiReturnsUnauthorized()
+    {
+        var handler = new CapturingHandler("{}", HttpStatusCode.Unauthorized);
+        var session = new StubSessionContextProvider("expired-jwt");
+        var client = CreateClient(handler, session);
+
+        var result = await client.GetLicensesAsync();
+
+        Assert.False(result.Success);
+        Assert.Equal(1, session.UnauthorizedNotifications);
+    }
+
     private static CondotifyApiClient CreateClient(HttpMessageHandler handler, ISessionContextProvider sessionContext)
     {
         var httpClient = new HttpClient(handler);
@@ -60,21 +73,29 @@ public class CondotifyApiClientAuthorizationTests
 
     private sealed class StubSessionContextProvider(string? accessToken) : ISessionContextProvider
     {
+        public int UnauthorizedNotifications { get; private set; }
+
         public ValueTask<string?> GetAccessTokenAsync(CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(accessToken);
 
         public ValueTask<string?> GetEnterpriseIdAsync(CancellationToken cancellationToken = default) =>
             ValueTask.FromResult<string?>(null);
+
+        public ValueTask HandleUnauthorizedAsync(CancellationToken cancellationToken = default)
+        {
+            UnauthorizedNotifications++;
+            return ValueTask.CompletedTask;
+        }
     }
 
-    private sealed class CapturingHandler(string jsonResponse) : HttpMessageHandler
+    private sealed class CapturingHandler(string jsonResponse, HttpStatusCode statusCode = HttpStatusCode.OK) : HttpMessageHandler
     {
         public HttpRequestMessage? LastRequest { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             LastRequest = request;
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            var response = new HttpResponseMessage(statusCode)
             {
                 Content = new StringContent(jsonResponse, System.Text.Encoding.UTF8, "application/json")
             };

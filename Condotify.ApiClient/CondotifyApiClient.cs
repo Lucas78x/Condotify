@@ -2040,8 +2040,11 @@ public sealed class CondotifyApiClient
             ?? Environment.GetEnvironmentVariable("MY_API_KEY");
     }
 
-    private static async Task<string> ReadErrorAsync(HttpResponseMessage response, string fallback)
+    private async Task<string> ReadErrorAsync(HttpResponseMessage response, string fallback)
     {
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            await _sessionContext.HandleUnauthorizedAsync();
+
         var body = await response.Content.ReadAsStringAsync();
         if (string.IsNullOrWhiteSpace(body))
             return ErrorFallback(response.StatusCode, fallback);

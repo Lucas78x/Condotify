@@ -151,10 +151,10 @@ namespace Condotify.Controllers
         [HttpGet]
         [Authorize]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-        public async Task<IActionResult> KeepAlive(CancellationToken cancellationToken)
+        public async Task<IActionResult> KeepAlive([FromQuery] bool force = false, CancellationToken cancellationToken = default)
         {
             var remaining = GetRemainingAccessTokenLifetime(User, DateTimeOffset.UtcNow);
-            if (remaining is { } current && current > TimeSpan.FromMinutes(5))
+            if (!force && remaining is { } current && current > TimeSpan.FromMinutes(5))
                 return Ok(new { Refreshed = false, ExpiresInSeconds = Math.Max(1, (long)current.TotalSeconds) });
 
             var refreshed = await RefreshCookieSessionAsync(cancellationToken);
