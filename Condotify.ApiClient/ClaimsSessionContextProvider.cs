@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.JSInterop;
 
 namespace Condotify.Services;
 
@@ -30,15 +31,34 @@ public sealed class ClaimsSessionContextProvider : ISessionContextProvider
     public const string EnterpriseIdClaim = "enterprise_id";
 
     private readonly AuthenticationStateProvider _authenticationStateProvider;
+    private readonly IJSRuntime? _jsRuntime;
 
-    public ClaimsSessionContextProvider(AuthenticationStateProvider authenticationStateProvider) =>
+    public ClaimsSessionContextProvider(AuthenticationStateProvider authenticationStateProvider, IJSRuntime? jsRuntime = null)
+    {
         _authenticationStateProvider = authenticationStateProvider;
+        _jsRuntime = jsRuntime;
+    }
 
     public ValueTask<string?> GetAccessTokenAsync(CancellationToken cancellationToken = default) =>
         ReadClaimAsync(AccessTokenClaim);
 
     public ValueTask<string?> GetEnterpriseIdAsync(CancellationToken cancellationToken = default) =>
         ReadClaimAsync(EnterpriseIdClaim);
+
+    public async ValueTask HandleUnauthorizedAsync(CancellationToken cancellationToken = default)
+    {
+        if (_jsRuntime is null) return;
+
+        try
+        {
+            await _jsRuntime.InvokeVoidAsync("condotifySession.handleUnauthorized", cancellationToken);
+        }
+        catch (Exception exception) when (exception is JSException or InvalidOperationException or TaskCanceledException)
+        {
+            // O reload encerra o circuito enquanto a chamada JS ainda pode estar
+            // em voo. Durante prerenderizacao tambem nao existe runtime interativo.
+        }
+    }
 
     private async ValueTask<string?> ReadClaimAsync(string claimType)
     {

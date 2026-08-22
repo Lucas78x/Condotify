@@ -12,4 +12,12 @@ public interface ISessionContextProvider
 
     /// <summary>Empresa da sessao, exigida ao criar uma licenca. Null quando ausente.</summary>
     ValueTask<string?> GetEnterpriseIdAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Notifica o host de que a API recusou o token atual. A web tenta renovar o
+    /// cookie e recria o circuito Blazor; hosts que gerenciam a sessao por conta
+    /// propria podem manter a implementacao padrao.
+    /// </summary>
+    ValueTask HandleUnauthorizedAsync(CancellationToken cancellationToken = default) =>
+        ValueTask.CompletedTask;
 }
