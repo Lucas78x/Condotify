@@ -1215,7 +1215,7 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<bool>> SetVehicleStatusAsync(Guid licenseId, Guid residentId, Guid vehicleId, bool isActive, CancellationToken cancellationToken = default) =>
         PatchAsync($"api/access/licenses/{licenseId}/residents/{residentId}/vehicles/{vehicleId}/status", new { IsActive = isActive }, cancellationToken);
 
-    public Task<ApiResult<RegistrationInviteViewModel>> CreateRegistrationInviteAsync(Guid licenseId, Guid residentId, string contact, int channel = 3, int validDays = 7, CancellationToken cancellationToken = default) =>
+    public Task<ApiResult<RegistrationInviteViewModel>> CreateRegistrationInviteAsync(Guid licenseId, Guid residentId, string contact, int channel = 4, int validDays = 7, CancellationToken cancellationToken = default) =>
         SendForAsync<RegistrationInviteViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/residents/{residentId}/registration-invites", new
         {
             Contact = contact.Trim(),

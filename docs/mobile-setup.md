@@ -6,6 +6,8 @@ Defina `CONDOTIFY_API_BASE_URL` antes de iniciar ou publicar o aplicativo. O And
 
 O aplicativo nunca armazena senha. Access token, refresh token e identidade da sessao ficam no `SecureStorage` da plataforma.
 
+Builds Android `Release` exigem `CondotifyApiBaseUrl` explicita e com HTTPS, alem da chave de upload da Play (`AndroidKeyStore=true`). O manifesto padrao bloqueia todo trafego em texto claro. Para desenvolvimento local via HTTP, o comando deve selecionar explicitamente `Platforms\Android\AndroidManifest.Debug.xml`; esse manifesto nunca e selecionado pelo build padrao.
+
 ## Firebase Cloud Messaging
 
 1. Crie os aplicativos Android (`br.com.condotify.app`) e iOS no mesmo projeto Firebase.
@@ -21,17 +23,17 @@ Os arquivos de credencial nao devem ser versionados. Sem eles, o aplicativo cont
 
 A API publica os documentos abaixo somente quando os valores reais forem configurados:
 
-- `https://app.condotify.com.br/.well-known/assetlinks.json`
-- `https://app.condotify.com.br/.well-known/apple-app-site-association`
+- `https://fefaccess.grupoff.net.br/.well-known/assetlinks.json`
+- `https://fefaccess.grupoff.net.br/.well-known/apple-app-site-association`
 
 Configure:
 
-- `MobileLinks__AndroidPackageName=br.com.condotify.app`
-- `MobileLinks__AndroidSha256Fingerprints__0=<SHA-256 do certificado de assinatura>`
-- `MobileLinks__AppleTeamId=<Apple Team ID>`
-- `MobileLinks__AppleBundleId=br.com.condotify.app`
+- `MOBILE_LINKS_ANDROID_PACKAGE_NAME=br.com.condotify.app`
+- `MOBILE_LINKS_ANDROID_SHA256_FINGERPRINT_0=<SHA-256 do certificado de assinatura do app na Play Console>`
+- `MOBILE_LINKS_APPLE_TEAM_ID=<Apple Team ID>`
+- `MOBILE_LINKS_APPLE_BUNDLE_ID=br.com.condotify.app`
 
-O proxy do dominio deve encaminhar `/.well-known/*` para a API sem autenticacao e preservar `Content-Type: application/json`. Links aceitos usam `https://app.condotify.com.br/app/*`; qualquer host, porta, query, fragmento ou rota fora da allowlist e recusado pelo app.
+O proxy do dominio deve encaminhar `/.well-known/*` para a API sem autenticacao e preservar `Content-Type: application/json`. Links aceitos usam `https://fefaccess.grupoff.net.br/app/*`; qualquer host, porta, query, fragmento ou rota fora da allowlist e recusado pelo app. No Android com Play App Signing, use o SHA-256 do certificado de assinatura do app, e nao o certificado da chave de upload.
 
 ## Builds
 
@@ -43,10 +45,12 @@ dotnet build Condotify.Mobile\Condotify.Mobile.csproj -f net10.0-windows10.0.190
 
 O build iOS/Mac Catalyst e a assinatura para App Store exigem um Mac com Xcode, conta Apple Developer, certificado e provisioning profile reais. O build Android de loja exige keystore de producao; esses artefatos ficam fora do repositorio.
 
+Um Release destinado somente a homologacao fisica pode dispensar temporariamente a chave de upload com `-p:CondotifyAllowNonStoreSigning=true`. Esse artefato recebe assinatura de desenvolvimento e nunca deve ser enviado ao Play Console.
+
 Para gerar um APK de teste para um aparelho fisico, informe o endereco da API acessivel na rede local:
 
 ```powershell
-dotnet publish Condotify.Mobile\Condotify.Mobile.csproj -f net10.0-android36.0 -c Debug -p:AndroidPackageFormat=apk -p:CondotifyApiBaseUrl=http://192.168.0.10:5093
+dotnet publish Condotify.Mobile\Condotify.Mobile.csproj -f net10.0-android36.0 -c Debug -p:AndroidPackageFormat=apk -p:EmbedAssembliesIntoApk=true -p:AndroidManifest=Platforms\Android\AndroidManifest.Debug.xml -p:CondotifyApiBaseUrl=http://192.168.0.10:5093
 ```
 
 O endereco fica incorporado somente naquele artefato. Quando a propriedade nao e informada, o Android continua usando `http://10.0.2.2:5093` para o emulador.

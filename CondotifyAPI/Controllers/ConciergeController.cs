@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Linq.Expressions;
 using Condotify.Models;
 using CondotifyAPI.Data.Operations;
 using CondotifyAPI.Domain.DTO.AccessControl;
@@ -51,7 +52,7 @@ public sealed class ConciergeController(
         }
         if (expired.Count > 0) await context.SaveChangesAsync();
 
-        var visits = await VisitQuery(licenseId).Where(x => x.ValidTo >= now.AddDays(-1) && x.ValidFrom <= now.AddDays(7))
+        var visits = await VisitQuery(licenseId).Where(OperationalVisitFilter(now))
             .OrderBy(x => x.ValidFrom).ToListAsync();
         var events = await EventQuery(context, licenseId)
             .OrderByDescending(x => x.OccurredAt).Take(80).ToListAsync();
@@ -101,6 +102,16 @@ public sealed class ConciergeController(
         }
         return await EventQuery(context, licenseId, records)
             .OrderByDescending(x => x.OccurredAt).Take(Math.Clamp(take, 1, 500)).ToListAsync();
+    }
+
+    internal static Expression<Func<AccessVisitDTO, bool>> OperationalVisitFilter(DateTime now)
+    {
+        var horizon = now.AddDays(7);
+        return visit => visit.Status == AccessVisitStatusEnum.CheckedIn ||
+            ((visit.Status == AccessVisitStatusEnum.Scheduled ||
+              visit.Status == AccessVisitStatusEnum.PendingApproval ||
+              visit.Status == AccessVisitStatusEnum.PendingEnrollment) &&
+             visit.ValidTo >= now && visit.ValidFrom <= horizon);
     }
 
     private static IQueryable<ConciergeEventOut> EventQuery(

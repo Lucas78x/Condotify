@@ -17,7 +17,7 @@
     </Actions>
 </PageHeader>
 
-<PageState Loading="_loading" Error="@_error" Empty="@(_dashboard?.Visits.Count == 0)" EmptyTitle="Nenhuma visita prevista" EmptyText="Novas autorizações aparecerão aqui." Retry="() => LoadAsync(true)">
+<PageState Loading="_loading" Error="@_error" Empty="false" Retry="() => LoadAsync(true)">
     @if (_usingOffline || OfflineOperations.DeviceStatus is OfflineDeviceStatus.Pending or OfflineDeviceStatus.Revoked)
     {
         <div class="offline-operations-card @(_usingOffline ? "active" : "attention")" role="status">
@@ -57,6 +57,13 @@
 
     <section class="content-panel card-list-panel">
         <div class="panel-heading"><div><MudText Typo="Typo.h5">Movimentação prevista</MudText><span class="panel-subtitle">@(_dashboard?.Visits.Count ?? 0) registro(s)</span></div></div>
+        @if (_dashboard?.Visits.Count == 0)
+        {
+            <div class="compact-state concierge-empty-state">
+                <MudIcon Icon="@Icons.Material.Outlined.EventBusy" Color="Color.Secondary" />
+                <div><strong>Nenhuma visita prevista</strong><span>Novas autorizações aparecerão aqui.</span></div>
+            </div>
+        }
         @foreach (var visit in _dashboard?.Visits ?? [])
         {
             <div class="list-row concierge-visit-row">

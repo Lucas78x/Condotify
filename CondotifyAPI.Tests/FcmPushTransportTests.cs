@@ -57,7 +57,7 @@ public sealed class FcmPushTransportTests
             "Visitante aguardando",
             "Há uma nova solicitação.",
             "/visitors/11111111-2222-3333-4444-555555555555",
-            "https://app.condotify.com.br/app/visitors/11111111-2222-3333-4444-555555555555",
+            "https://fefaccess.grupoff.net.br/app/visitors/11111111-2222-3333-4444-555555555555",
             "Visitor",
             new Dictionary<string, string> { ["notificationId"] = "abc" }));
 

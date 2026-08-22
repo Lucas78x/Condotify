@@ -151,7 +151,7 @@ public sealed class AnnouncementsControllerTests : IAsyncLifetime
         Assert.Equal(MobileNotificationCategory.Announcement, notification!.Category);
         Assert.Equal(PrincipalTypes.Resident, notification.SubjectType);
         Assert.Equal("/comunicados", notification.Route);
-        Assert.Equal("https://app.condotify.com.br/app/comunicados", notification.DeepLink);
+        Assert.Equal("https://fefaccess.grupoff.net.br/app/comunicados", notification.DeepLink);
         Assert.Equal("Novo comunicado: Assembleia geral", notification.Title);
     }
 

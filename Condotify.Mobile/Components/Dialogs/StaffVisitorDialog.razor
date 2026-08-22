@@ -48,11 +48,11 @@
                         <MudSelectItem T="Guid" Value="@host.Id">@host.Name · @host.Location</MudSelectItem>
                     }
                 </MudSelect>
-                <MudTextField T="string" @bind-Value="_form.VisitorName" Label="Nome do visitante" Variant="Variant.Outlined" Required="true" />
-                <MudTextField T="string" @bind-Value="_form.Document" Label="CPF, RG ou documento" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Telefone" Variant="Variant.Outlined" InputType="InputType.Telephone" />
-                <MudTextField T="string" @bind-Value="_form.VehiclePlate" Label="Placa do veículo" Variant="Variant.Outlined" />
-                <MudTextField T="string" @bind-Value="_form.Purpose" Label="Motivo da visita" Variant="Variant.Outlined" />
+                <MudTextField T="string" @bind-Value="_form.VisitorName" Label="Nome do visitante" Variant="Variant.Outlined" Required="true" MaxLength="150" />
+                <MudTextField T="string" @bind-Value="_form.Document" Label="CPF, RG ou documento" Variant="Variant.Outlined" MaxLength="20" />
+                <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Telefone" Variant="Variant.Outlined" InputType="InputType.Telephone" MaxLength="20" />
+                <MudTextField T="string" @bind-Value="_form.VehiclePlate" Label="Placa do veículo" Variant="Variant.Outlined" MaxLength="20" />
+                <MudTextField T="string" @bind-Value="_form.Purpose" Label="Motivo da visita" Variant="Variant.Outlined" MaxLength="200" />
             </div>
 
             <MudText Typo="Typo.subtitle2" Class="mobile-section-label">Validade do acesso</MudText>

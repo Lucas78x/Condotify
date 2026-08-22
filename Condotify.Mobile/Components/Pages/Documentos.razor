@@ -1,6 +1,7 @@
 @page "/documentos"
 @implements IDisposable
 @inject CondotifyApiClient Api
+@inject MobileDeviceActions DeviceActions
 @inject ISnackbar Snackbar
 @inject MobilePullToRefreshState PullToRefresh
 
@@ -103,13 +104,11 @@
 
         try
         {
-            var path = Path.Combine(FileSystem.CacheDirectory, $"{SanitizeFileName(document.Title)}.pdf");
-            await File.WriteAllBytesAsync(path, Convert.FromBase64String(base64));
-            await Share.Default.RequestAsync(new ShareFileRequest
-            {
-                Title = document.Title,
-                File = new ShareFile(path)
-            });
+            await DeviceActions.ShareTemporaryFileAsync(
+                document.Title,
+                $"{SanitizeFileName(document.Title)}.pdf",
+                "application/pdf",
+                Convert.FromBase64String(base64));
         }
         catch (Exception)
         {

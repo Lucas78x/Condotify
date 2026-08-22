@@ -7,6 +7,7 @@
 @inject MobileWeatherService Weather
 @inject MobileOfflineCache OfflineCache
 @inject MobilePullToRefreshState PullToRefresh
+@inject IDialogService Dialogs
 
 <PageTitle>Início | F&amp;F Access</PageTitle>
 
@@ -19,10 +20,18 @@
         </div>
     </div>
     <div class="home-conditions">
-        <MudIcon Icon="@(_weather?.IconKey ?? Icons.Material.Outlined.Schedule)" Size="Size.Small" />
         @if (_weather is not null)
         {
+            <MudIcon Icon="@_weather.IconKey" Size="Size.Small" />
             <span>@Math.Round(_weather.TemperatureC)°C · @_weather.Description</span>
+            <span class="home-conditions-sep">·</span>
+        }
+        else
+        {
+            <button type="button" class="home-weather-action" disabled="@_weatherLoading" @onclick="EnableWeatherAsync">
+                <MudIcon Icon="@Icons.Material.Outlined.LocationOn" Size="Size.Small" />
+                <span>@(_weatherLoading ? "Carregando clima..." : "Ativar clima local")</span>
+            </button>
             <span class="home-conditions-sep">·</span>
         }
         <span>@CurrentDateLabel</span>
@@ -109,6 +118,7 @@
     private MobileNotificationPageViewModel? _notifications;
     private CancellationTokenSource _loadCts = new();
     private WeatherSnapshot? _weather;
+    private bool _weatherLoading;
     private DateTimeOffset? _cachedAt;
     private string Greeting => $"Olá, {FirstName}";
     private string FirstName => (Session.Current?.Name ?? "Usuário").Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "Usuário";
@@ -141,12 +151,32 @@
         await LoadAsync();
     }
 
-    private async Task LoadWeatherAsync(CancellationToken cancellationToken)
+    private async Task LoadWeatherAsync(bool requestPermission, CancellationToken cancellationToken)
     {
-        var snapshot = await Weather.GetCurrentWeatherAsync(cancellationToken);
-        if (cancellationToken.IsCancellationRequested) return;
-        _weather = snapshot;
-        await InvokeAsync(StateHasChanged);
+        if (requestPermission) _weatherLoading = true;
+        try
+        {
+            var snapshot = await Weather.GetCurrentWeatherAsync(requestPermission, cancellationToken);
+            if (cancellationToken.IsCancellationRequested) return;
+            _weather = snapshot;
+        }
+        finally
+        {
+            if (requestPermission) _weatherLoading = false;
+            if (!cancellationToken.IsCancellationRequested) await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task EnableWeatherAsync()
+    {
+        if (_weatherLoading) return;
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Clima local",
+            "Para mostrar o clima, o F&F Access enviará sua localização aproximada ao serviço Open-Meteo. A localização não é salva pelo aplicativo.",
+            yesText: "Continuar",
+            cancelText: "Agora não");
+        if (confirmed == true)
+            await LoadWeatherAsync(true, _loadCts.Token);
     }
 
     private async Task LoadAsync()
@@ -157,7 +187,7 @@
         var cancellationToken = _loadCts.Token;
         _loading = true; _error = string.Empty;
         _cachedAt = null;
-        _ = LoadWeatherAsync(cancellationToken);
+        _ = LoadWeatherAsync(false, cancellationToken);
         if (Session.Current?.Principal == MobilePrincipalKind.Resident)
         {
             var profileTask = Api.GetResidentProfileAsync(cancellationToken);

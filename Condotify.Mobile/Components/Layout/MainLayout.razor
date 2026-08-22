@@ -24,7 +24,19 @@
 }
 else
 {
-    <MudLayout Class="@($"mobile-shell {(Appearance.IsDarkMode ? "dark-mode" : "light-mode")}")">
+    @if (!NetworkState.IsOnline)
+    {
+        <div class="connectivity-banner @(OfflineOperations.CanOperateOffline ? "offline-ready" : "offline-blocked") @(Appearance.IsDarkMode ? "dark-mode" : "light-mode")" role="status">
+            <MudIcon Icon="@(OfflineOperations.CanOperateOffline ? Icons.Material.Outlined.OfflineBolt : Icons.Material.Outlined.WifiOff)" Size="Size.Small" />
+            <span>
+                <strong>@(OfflineOperations.CanOperateOffline ? "Modo offline protegido" : "Sem conexão")</strong>
+                @(OfflineOperations.CanOperateOffline
+                    ? $" · {OfflineOperations.BundleExpiresAt?.ToLocalTime():dd/MM HH:mm} · {OfflineOperations.PendingCount} pend."
+                    : $" · {OfflineOperations.AvailabilityMessage}")
+            </span>
+        </div>
+    }
+    <MudLayout Class="@($"mobile-shell {(Appearance.IsDarkMode ? "dark-mode" : "light-mode")} {(!NetworkState.IsOnline ? "network-offline" : null)}")">
         <MudAppBar Class="mobile-appbar" Elevation="0" Dense="true">
             <BrandMark Class="appbar-mobile-brand" Inverted="true" />
             <div class="appbar-context">
@@ -64,18 +76,6 @@ else
             </button>
         </MudDrawer>
 
-        @if (!NetworkState.IsOnline)
-        {
-            <div class="connectivity-banner @(OfflineOperations.CanOperateOffline ? "offline-ready" : "offline-blocked")" role="status">
-                <MudIcon Icon="@(OfflineOperations.CanOperateOffline ? Icons.Material.Outlined.OfflineBolt : Icons.Material.Outlined.WifiOff)" Size="Size.Small" />
-                <span>
-                    <strong>@(OfflineOperations.CanOperateOffline ? "Modo offline protegido" : "Sem conexão")</strong>
-                    @(OfflineOperations.CanOperateOffline
-                        ? $" · base válida até {OfflineOperations.BundleExpiresAt?.ToLocalTime():dd/MM HH:mm} · {OfflineOperations.PendingCount} pendente(s)"
-                        : $" · {OfflineOperations.AvailabilityMessage}")
-                </span>
-            </div>
-        }
         <div id="ptr-indicator" class="ptr-indicator" aria-hidden="true"><span class="ptr-icon">&#8635;</span></div>
 
         <MudMainContent Class="app-content">

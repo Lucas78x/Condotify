@@ -74,11 +74,17 @@ public sealed class ResidentCameraViewModel
 public sealed class ResidentVisitFormViewModel
 {
     public Guid UnitId { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(150)]
     public string VisitorName { get; set; } = string.Empty;
+    [System.ComponentModel.DataAnnotations.MaxLength(20)]
     public string Document { get; set; } = string.Empty;
+    [System.ComponentModel.DataAnnotations.MaxLength(20)]
     public string PhoneNumber { get; set; } = string.Empty;
+    [System.ComponentModel.DataAnnotations.MaxLength(150)]
     public string Company { get; set; } = string.Empty;
+    [System.ComponentModel.DataAnnotations.MaxLength(200)]
     public string Purpose { get; set; } = string.Empty;
+    [System.ComponentModel.DataAnnotations.MaxLength(20)]
     public string VehiclePlate { get; set; } = string.Empty;
     public DateTime ValidFrom { get; set; } = CondotifyTime.Now;
     public DateTime ValidTo { get; set; } = CondotifyTime.Now.AddHours(4);

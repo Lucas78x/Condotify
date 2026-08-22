@@ -190,6 +190,9 @@ button.list-row:last-child { border-bottom: 0; }
 .home-conditions { display: flex; align-items: center; gap: 6px; margin: -10px 0 20px; color: var(--mud-palette-text-secondary); font-size: .8rem; }
 .home-conditions .mud-icon-root { width: 16px; height: 16px; font-size: 16px; }
 .home-conditions-sep { color: var(--mud-palette-lines-default); }
+.home-weather-action { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; color: var(--mud-palette-primary); font: inherit; font-weight: 650; cursor: pointer; }
+.home-conditions .home-weather-action { color: inherit; }
+.home-weather-action:disabled { cursor: wait; opacity: .7; }
 .dashboard-section-title { margin: 4px 0 12px; }
 .dashboard-section-title .mud-typography-h5 { font-size: 1rem; font-weight: 750; }
 .action-grid { display: flex; gap: 16px; overflow-x: auto; padding: 2px 2px 10px; margin-bottom: 14px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
@@ -621,6 +624,11 @@ body { color: var(--app-ink); background: var(--app-soft); }
 .concierge-overview > .mud-icon-root:last-child { color: var(--brand-primary); }
 .concierge-visit-row { position: relative; }
 .concierge-visit-row::before { content: ""; position: absolute; top: 20px; bottom: 20px; left: 0; width: 3px; border-radius: 0 3px 3px 0; background: #dce3ef; }
+.concierge-empty-state { min-height: 118px; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 22px 16px; text-align: left; }
+.concierge-empty-state > .mud-icon-root { flex: 0 0 auto; }
+.concierge-empty-state > div { display: grid; gap: 3px; }
+.concierge-empty-state strong { font-size: .88rem; }
+.concierge-empty-state span { color: var(--text-muted); font-size: .72rem; }
 .offline-operations-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-bottom: 16px; padding: 14px 16px; border: 1px solid #bfe4d7; border-radius: 18px; background: linear-gradient(135deg, #f5fcf9, #eaf8f3); color: #0d6f58; box-shadow: 0 8px 24px rgba(21, 121, 91, .07); }
 .offline-operations-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 14px; background: #d8f2e8; }
 .offline-operations-card > div { min-width: 0; display: grid; gap: 2px; }
@@ -705,6 +713,9 @@ body { color: var(--app-ink); background: var(--app-soft); }
 .person-profile-hero { overflow: hidden; }
 
 @media (max-width: 900px) {
+    .connectivity-banner { right: auto; left: 0; width: 100vw; max-width: 100vw; min-height: 44px; padding-inline: 12px; }
+    .connectivity-banner > span { min-width: 0; overflow-wrap: anywhere; }
+    .network-offline .page-frame { padding-top: 78px; }
     .page-header-eyebrow { margin-bottom: 4px; font-size: .62rem; }
     .screen-overview { min-height: 106px; gap: 12px; margin-bottom: 18px; padding: 16px; border-radius: 19px; }
     .screen-overview-icon { width: 46px; height: 46px; flex-basis: 46px; border-radius: 15px; }
@@ -1094,10 +1105,10 @@ body { color: var(--app-ink); background: var(--app-soft); }
 .dark-mode .metric { background: color-mix(in srgb, var(--metric-color, var(--mud-palette-primary)) 13%, var(--mud-palette-surface)); }
 .dark-mode .directory-block .panel-heading, .dark-mode .directory-unit:hover, .dark-mode .person-row:hover,
 .dark-mode .section-tabs, .dark-mode .skeleton-panel { background: color-mix(in srgb, var(--mud-palette-surface) 88%, #000); }
-.dark-mode .connectivity-banner { border-color: #6f5521; background: #322813; color: #ffd889; }
-.dark-mode .connectivity-banner.offline-ready, .dark-mode .offline-operations-card { border-color: #285e50; background: #173b32; color: #9be3cf; }
-.dark-mode .connectivity-banner.offline-blocked { background: #44252a; color: #f3a9b3; }
-.dark-mode .connectivity-banner.sync-pending { background: #202f55; color: var(--brand-primary-border); }
+.dark-mode .connectivity-banner, .connectivity-banner.dark-mode { border-color: #6f5521; background: #322813; color: #ffd889; }
+.dark-mode .connectivity-banner.offline-ready, .connectivity-banner.dark-mode.offline-ready, .dark-mode .offline-operations-card { border-color: #285e50; background: #173b32; color: #9be3cf; }
+.dark-mode .connectivity-banner.offline-blocked, .connectivity-banner.dark-mode.offline-blocked { background: #44252a; color: #f3a9b3; }
+.dark-mode .connectivity-banner.sync-pending, .connectivity-banner.dark-mode.sync-pending { background: #202f55; color: var(--brand-primary-border); }
 .dark-mode .offline-operations-icon { background: #245346; }
 .dark-mode .offline-operations-card small { color: #86bdad; }
 .dark-mode .row-status.success { border-color: #176b58; background: #123c35; color: #8fe2c8; }

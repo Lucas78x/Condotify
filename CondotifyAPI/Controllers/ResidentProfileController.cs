@@ -272,8 +272,9 @@ public sealed class ResidentProfileController : ControllerBase
         var grant = await _authorization.GetGrantAsync(User, cancellationToken);
         if (grant is null) return Forbid();
         if (!grant.UnitIds.Contains(input.UnitId)) return NotFound();
-        if (string.IsNullOrWhiteSpace(input.VisitorName))
-            return BadRequest(new { Result = "VisitorNameRequired", Errors = "Informe o nome do visitante." });
+        var inputError = NormalizeAndValidateCreateVisitInput(input);
+        if (inputError is not null)
+            return BadRequest(new { Result = "InvalidInput", Errors = inputError });
 
         var validFrom = AsUtcInstant(input.ValidFrom);
         var validTo = AsUtcInstant(input.ValidTo);
@@ -447,6 +448,29 @@ public sealed class ResidentProfileController : ControllerBase
             inviteUrl = issued.Url;
         }
         return Created(string.Empty, ToVisitOut(visit, host.Name, unit.Block.Name, unit.Number, credential, inviteUrl));
+    }
+
+    internal static string? NormalizeAndValidateCreateVisitInput(CreateResidentVisitIn input)
+    {
+        input.VisitorName = input.VisitorName?.Trim() ?? string.Empty;
+        input.Document = input.Document?.Trim() ?? string.Empty;
+        input.PhoneNumber = input.PhoneNumber?.Trim() ?? string.Empty;
+        input.Company = input.Company?.Trim() ?? string.Empty;
+        input.Purpose = input.Purpose?.Trim() ?? string.Empty;
+        input.VehiclePlate = input.VehiclePlate?.Trim() ?? string.Empty;
+        input.IdempotencyKey = input.IdempotencyKey?.Trim() ?? string.Empty;
+        input.RouteIds ??= [];
+
+        if (input.VisitorName.Length == 0) return "Informe o nome do visitante.";
+        if (input.VisitorName.Length > 150) return "O nome do visitante deve ter no máximo 150 caracteres.";
+        if (Normalize(input.Document).Length > 14) return "O documento deve ter no máximo 14 caracteres alfanuméricos.";
+        if (input.PhoneNumber.Length > 20) return "O telefone deve ter no máximo 20 caracteres.";
+        if (input.Company.Length > 150) return "A empresa deve ter no máximo 150 caracteres.";
+        if (input.Purpose.Length > 200) return "O motivo da visita deve ter no máximo 200 caracteres.";
+        if (Normalize(input.VehiclePlate).Length > 20) return "A placa deve ter no máximo 20 caracteres alfanuméricos.";
+        if (input.IdempotencyKey.Length > 100) return "A chave da operação é inválida.";
+        if (input.RouteIds.Count > 100) return "Selecione no máximo 100 rotas.";
+        return null;
     }
 
     [HttpPost("visits/{visitId:guid}/facial-invite")]

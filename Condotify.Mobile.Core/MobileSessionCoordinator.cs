@@ -150,6 +150,12 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
     public ValueTask<string?> GetEnterpriseIdAsync(CancellationToken cancellationToken = default) =>
         ValueTask.FromResult(_session?.EnterpriseId?.ToString());
 
+    public async ValueTask HandleUnauthorizedAsync(CancellationToken cancellationToken = default)
+    {
+        if (_session is null) return;
+        await ClearAsync(CancellationToken.None);
+    }
+
     internal async Task<bool> EnsureFreshAsync(CancellationToken cancellationToken = default)
     {
         if (_session is null) return false;

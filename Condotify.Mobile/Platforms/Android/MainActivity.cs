@@ -16,7 +16,7 @@ namespace Condotify.Mobile;
     [Intent.ActionView],
     Categories = [Intent.CategoryDefault, Intent.CategoryBrowsable],
     DataScheme = "https",
-    DataHost = "app.condotify.com.br",
+    DataHost = "fefaccess.grupoff.net.br",
     DataPathPrefix = "/app",
     AutoVerify = true)]
 public class MainActivity : MauiAppCompatActivity

@@ -324,6 +324,31 @@ public sealed class MobileSessionCoordinatorTests
         Assert.True(vault.Cleared);
     }
 
+    [Fact]
+    public async Task UnauthorizedResponse_ClearsMobileSessionAndNotifiesTheShell()
+    {
+        var vault = new MemoryVault();
+        var handler = new RecordingHandler(_ => Json(new
+        {
+            result = "Success",
+            accessToken = Jwt(DateTimeOffset.UtcNow.AddHours(1)),
+            refreshToken = "refresh",
+            expiresIn = 3600
+        }));
+        var service = Create(handler, vault);
+        Assert.True((await service.LoginStaffAsync("a@b.com", "secret", "test")).Success);
+        var changeCount = 0;
+        service.Changed += () => changeCount++;
+
+        await service.HandleUnauthorizedAsync();
+
+        Assert.False(service.IsAuthenticated);
+        Assert.Null(service.Current);
+        Assert.Null(vault.Value);
+        Assert.True(vault.Cleared);
+        Assert.Equal(1, changeCount);
+    }
+
     [Theory]
     [InlineData("https://evil.example/app/home")]
     [InlineData("/admin")]

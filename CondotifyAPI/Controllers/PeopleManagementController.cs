@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Net.Mail;
 using System.Text.Json;
 using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Data.People;
@@ -18,6 +19,7 @@ using CondotifyAPI.Services.AccessControl;
 using CondotifyAPI.Services.Auditing;
 using CondotifyAPI.Services.Security;
 using CondotifyAPI.Services.RecycleBin;
+using CondotifyAPI.Services.Invitation;
 
 namespace CondotifyAPI.Controllers;
 
@@ -29,12 +31,21 @@ public class PeopleManagementController : ControllerBase
     private readonly DatabaseContext _context;
     private readonly IPrivateMediaStore _media;
     private readonly IRecycleBinService _recycleBin;
+    private readonly IRegistrationInviteEmailSender _inviteEmail;
+    private readonly IConfiguration _configuration;
 
-    public PeopleManagementController(DatabaseContext context, IPrivateMediaStore media, IRecycleBinService recycleBin)
+    public PeopleManagementController(
+        DatabaseContext context,
+        IPrivateMediaStore media,
+        IRecycleBinService recycleBin,
+        IRegistrationInviteEmailSender inviteEmail,
+        IConfiguration configuration)
     {
         _context = context;
         _media = media;
         _recycleBin = recycleBin;
+        _inviteEmail = inviteEmail;
+        _configuration = configuration;
     }
 
     [HttpGet("units/{unitId:guid}/details")]
@@ -341,35 +352,133 @@ public class PeopleManagementController : ControllerBase
 
     [HttpPost("residents/{residentId:guid}/registration-invites")]
     [RequireLicensePermission(LicensePermissionEnum.ManagePeople)]
-    public async Task<IActionResult> CreateInvite(Guid licenseId, Guid residentId, [FromBody] CreateRegistrationInviteIn input)
+    public async Task<IActionResult> CreateInvite(
+        Guid licenseId,
+        Guid residentId,
+        [FromBody] CreateRegistrationInviteIn input,
+        CancellationToken cancellationToken)
     {
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        if (!Enum.IsDefined(input.Channel))
+            return BadRequest(new { Errors = "Selecione um canal de convite válido." });
+        if (input.Channel is RegistrationInviteChannelEnum.Sms or RegistrationInviteChannelEnum.WhatsApp)
+            return BadRequest(new { Errors = "Este canal ainda não possui envio automático. Use E-mail ou Link." });
+
         var resident = await _context.Residents
             .Include(x => x.Unit).ThenInclude(x => x.Block)
             .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .ForLicense(licenseId)
-            .FirstOrDefaultAsync(x => x.Id == residentId);
+            .FirstOrDefaultAsync(x => x.Id == residentId, cancellationToken);
         if (resident == null) return NotFound();
         var contact = input.Contact?.Trim();
-        if (string.IsNullOrWhiteSpace(contact)) contact = !string.IsNullOrWhiteSpace(resident.PhoneNumber) ? resident.PhoneNumber : resident.Email;
+        if (string.IsNullOrWhiteSpace(contact))
+            contact = input.Channel == RegistrationInviteChannelEnum.Email
+                ? resident.Email
+                : !string.IsNullOrWhiteSpace(resident.PhoneNumber) ? resident.PhoneNumber : resident.Email;
         if (string.IsNullOrWhiteSpace(contact)) return BadRequest(new { Errors = "Informe um celular ou e-mail para o convite." });
+        if (contact.Length > 160) return BadRequest(new { Errors = "O contato deve ter no máximo 160 caracteres." });
+        if (input.Channel == RegistrationInviteChannelEnum.Email && !IsValidEmail(contact))
+            return BadRequest(new { Errors = "Informe um e-mail válido para enviar o convite." });
+
+        var licenseName = await _context.Licenses.AsNoTracking()
+            .Where(x => x.Id == licenseId)
+            .Select(x => x.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? "seu condomínio";
+        var smtpPolicy = input.Channel == RegistrationInviteChannelEnum.Email
+            ? await _context.AlertNotificationPolicies.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.LicenseId == licenseId, cancellationToken)
+            : null;
+        if (input.Channel == RegistrationInviteChannelEnum.Email && !_inviteEmail.IsReady(smtpPolicy))
+            return Conflict(new { Errors = "Configure o SMTP do condomínio antes de enviar convites por e-mail." });
 
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
         var now = DateTime.UtcNow;
+        var inviteUrl = BuildPublicInviteUrl(token);
+        if (input.Channel == RegistrationInviteChannelEnum.Email && !IsAbsoluteHttps(inviteUrl))
+            return Conflict(new { Errors = "Configure o endereço público HTTPS do portal antes de enviar convites." });
         var invite = new RegistrationInviteDTO
         {
             Id = Guid.NewGuid(), LicenseId = licenseId, ResidentId = resident.Id, Contact = contact,
             Channel = input.Channel, Status = RegistrationInviteStatusEnum.Pending,
             TokenHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token))),
             CreatedBy = User.FindFirstValue("name") ?? User.Identity?.Name ?? "Usuario do portal",
-            SendCount = 1, SentAt = now, ExpiresAt = now.AddDays(Math.Clamp(input.ValidDays, 1, 30)),
+            SendCount = 0, SentAt = now, ExpiresAt = now.AddDays(Math.Clamp(input.ValidDays, 1, 30)),
             CreatedAt = now, UpdatedAt = now
         };
         _context.RegistrationInvites.Add(invite);
-        AddManagementAudit(licenseId, "RegistrationInvite", invite.Id, "Created", $"Convite de cadastro gerado para {resident.Name}.", new { ResidentId = resident.Id, input.Channel, invite.ExpiresAt });
-        await _context.SaveChangesAsync();
-        return Created(string.Empty, ToInvite(invite, resident.Name, $"/cadastro/convite/{token}"));
+        await _context.SaveChangesAsync(cancellationToken);
+
+        if (input.Channel == RegistrationInviteChannelEnum.Email)
+        {
+            RegistrationInviteEmailResult delivery;
+            try
+            {
+                delivery = await _inviteEmail.SendAsync(
+                    smtpPolicy,
+                    contact,
+                    resident.Name,
+                    licenseName,
+                    inviteUrl,
+                    invite.ExpiresAt,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                _context.RegistrationInvites.Remove(invite);
+                await _context.SaveChangesAsync(CancellationToken.None);
+                throw;
+            }
+
+            if (!delivery.Success)
+            {
+                _context.RegistrationInvites.Remove(invite);
+                await _context.SaveChangesAsync(cancellationToken);
+                return StatusCode(StatusCodes.Status502BadGateway, new { Errors = delivery.Error });
+            }
+
+            invite.SendCount = 1;
+            invite.SentAt = DateTime.UtcNow;
+            invite.UpdatedAt = invite.SentAt;
+        }
+
+        AddManagementAudit(
+            licenseId,
+            "RegistrationInvite",
+            invite.Id,
+            input.Channel == RegistrationInviteChannelEnum.Email ? "EmailDelivered" : "Created",
+            input.Channel == RegistrationInviteChannelEnum.Email
+                ? $"Convite de cadastro enviado por e-mail para {resident.Name}."
+                : $"Link de cadastro gerado para {resident.Name}.",
+            new { ResidentId = resident.Id, input.Channel, invite.ExpiresAt });
+        await _context.SaveChangesAsync(cancellationToken);
+        return Created(string.Empty, ToInvite(invite, resident.Name, inviteUrl));
     }
+
+    internal string BuildPublicInviteUrl(string token)
+    {
+        var path = $"/cadastro/convite/{token}";
+        var baseUrl = Environment.GetEnvironmentVariable("CONDOTIFY_PUBLIC_PORTAL_URL")
+            ?? _configuration["PublicPortal:BaseUrl"];
+        return string.IsNullOrWhiteSpace(baseUrl) ? path : $"{baseUrl.TrimEnd('/')}{path}";
+    }
+
+    internal static bool IsValidEmail(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Trim().Length > 160) return false;
+        try
+        {
+            var address = new MailAddress(value);
+            return string.Equals(address.Address, value.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is FormatException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsAbsoluteHttps(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+        string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
 
     [HttpGet("registration-invites")]
     [RequireLicensePermission(LicensePermissionEnum.ViewPeople)]
