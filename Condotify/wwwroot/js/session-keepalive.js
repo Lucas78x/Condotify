@@ -14,6 +14,52 @@
     let timerId = 0;
     let requestInFlight = false;
     let expiresAtMs = 0;
+    let unauthorizedRecovery = null;
+
+    function currentReturnUrl() {
+        return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    }
+
+    function goToLogin() {
+        window.location.replace(`/Login?ReturnUrl=${encodeURIComponent(currentReturnUrl())}`);
+    }
+
+    async function recoverUnauthorizedSession() {
+        let navigating = false;
+        try {
+            const response = await fetch(`${endpoint}?force=true`, {
+                method: "GET",
+                credentials: "same-origin",
+                cache: "no-store",
+                headers: { "X-Requested-With": "XMLHttpRequest" }
+            });
+
+            if (response.status === 401) {
+                navigating = true;
+                goToLogin();
+                return false;
+            }
+
+            if (!response.ok) return false;
+
+            // Mesmo quando outra aba realizou a rotacao, o cookie desta resposta
+            // contem o principal atual. Um reload e obrigatorio para o circuito
+            // Blazor deixar de usar os claims capturados na conexao anterior.
+            navigating = true;
+            window.location.reload();
+            return true;
+        } catch {
+            return false;
+        } finally {
+            if (!navigating) unauthorizedRecovery = null;
+        }
+    }
+
+    window.condotifySession = window.condotifySession || {};
+    window.condotifySession.handleUnauthorized = function () {
+        unauthorizedRecovery ??= recoverUnauthorizedSession();
+        return unauthorizedRecovery;
+    };
 
     function schedule(seconds) {
         window.clearTimeout(timerId);
@@ -38,8 +84,7 @@
             });
 
             if (response.status === 401) {
-                const returnUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-                window.location.assign(`/Login?ReturnUrl=${encodeURIComponent(returnUrl)}`);
+                goToLogin();
                 return false;
             }
 
