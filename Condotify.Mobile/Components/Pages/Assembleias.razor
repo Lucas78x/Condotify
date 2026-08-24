@@ -1,0 +1,144 @@
+@page "/assembleias"
+@page "/assembleias/{AssemblyId:guid}"
+@implements IDisposable
+@inject CondotifyApiClient Api
+@inject MobilePullToRefreshState PullToRefresh
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Assembleias | F&amp;F Access</PageTitle>
+<PageHeader Eyebrow="PARTICIPAÇÃO" Title="Assembleias" Subtitle="Vote com segurança nas pautas da sua unidade." />
+
+@if (AssemblyId.HasValue)
+{
+    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.ArrowBack" OnClick="BackToList">Todas as assembleias</MudButton>
+}
+
+<PageState Loading="_loading" Error="@_error" Empty="@(!AssemblyId.HasValue && _assemblies.Count == 0)" EmptyTitle="Nenhuma assembleia disponível" EmptyText="Quando uma assembleia for publicada, ela aparece aqui." Retry="LoadAsync">
+    @if (AssemblyId.HasValue && _detail is not null)
+    {
+        <section class="settings-panel">
+            <MudPaper Outlined Class="pa-4 mb-4">
+                <div class="d-flex justify-space-between align-start gap-3">
+                    <div><MudText Typo="Typo.h5">@_detail.Title</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_detail.Description</MudText></div>
+                    <MudChip T="string" Color="@StatusColor(_detail.Status)">@_detail.Status</MudChip>
+                </div>
+                <MudDivider Class="my-3" />
+                <MudText Typo="Typo.body2"><MudIcon Icon="@Icons.Material.Outlined.Event" Size="Size.Small" /> @_detail.StartsAt.ToLocalTime().ToString("dd/MM/yyyy 'às' HH:mm")</MudText>
+                @if (!string.IsNullOrWhiteSpace(_detail.Location)) { <MudText Typo="Typo.body2"><MudIcon Icon="@Icons.Material.Outlined.Place" Size="Size.Small" /> @_detail.Location</MudText> }
+                @if (!string.IsNullOrWhiteSpace(_detail.MeetingUrl)) { <MudButton Href="@_detail.MeetingUrl" Target="_blank" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Videocam" Class="mt-3">Entrar na reunião</MudButton> }
+                <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense Class="mt-3">Voto @_detail.VoteVisibility.ToLowerInvariant(). A administração visualiza a apuração conforme a regra, nunca uma lista pública de escolhas individuais.</MudAlert>
+            </MudPaper>
+
+            @if (_detail.AvailableUnits.Count > 0)
+            {
+                <MudPaper Outlined Class="pa-4 mb-4">
+                    <MudSelect T="Guid" @bind-Value="_selectedUnitId" Label="Unidade representada" Variant="Variant.Outlined" FullWidth>
+                        @foreach (var unit in _detail.AvailableUnits) { <MudSelectItem Value="@unit.UnitId" Disabled="@(!unit.CanVote)">@unit.Label @(!unit.CanVote ? $"— {unit.Reason}" : string.Empty)</MudSelectItem> }
+                    </MudSelect>
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.HowToReg" Disabled="@(_selectedUnitId == Guid.Empty || _saving)" OnClick="RegisterAttendanceAsync" Class="mt-2">Registrar presença</MudButton>
+                </MudPaper>
+            }
+
+            @foreach (var agenda in _detail.AgendaItems.OrderBy(x => x.Order))
+            {
+                <MudPaper Outlined Class="pa-4 mb-4">
+                    <MudText Typo="Typo.overline">PAUTA @agenda.Order</MudText>
+                    <MudText Typo="Typo.h6">@agenda.Title</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">@agenda.Description</MudText>
+                    <MudText Typo="Typo.caption">Quórum mínimo: @agenda.QuorumPercentage.ToString("0.#")% · Aprovação: @agenda.ApprovalPercentage.ToString("0.#")%</MudText>
+                    <div class="d-flex flex-column gap-2 mt-3">
+                        @foreach (var option in agenda.Options.OrderBy(x => x.Order))
+                        {
+                            var selected = SelectedVote(agenda)?.OptionId == option.Id;
+                            <MudButton Variant="@(selected ? Variant.Filled : Variant.Outlined)" Color="@(selected ? Color.Primary : Color.Default)" FullWidth Disabled="@(!CanVote || _selectedUnitId == Guid.Empty || _saving)" OnClick="() => ConfirmVoteAsync(agenda, option)">
+                                @(selected ? "✓ " : string.Empty)@option.Label
+                            </MudButton>
+                            @if (_detail.ResultsVisible) { <MudProgressLinear Value="@(Convert.ToDouble(option.Percentage))" Color="Color.Primary" /><MudText Typo="Typo.caption">@option.Percentage.ToString("0.#")% dos votos apurados</MudText> }
+                        }
+                    </div>
+                    @if (SelectedVote(agenda) is { } vote) { <MudAlert Severity="Severity.Success" Variant="Variant.Text" Dense Class="mt-2">Voto confirmado@(vote.Revision > 1 ? $" · revisão {vote.Revision}" : string.Empty).</MudAlert> }
+                    @if (_detail.ResultsVisible) { <MudText Typo="Typo.body2" Class="mt-3"><strong>Participação:</strong> @agenda.ParticipationPercentage.ToString("0.#")% · <strong>Quórum:</strong> @(agenda.QuorumMet ? "atingido" : "não atingido")</MudText> }
+                    @foreach (var namedVote in agenda.NamedVotes) { <MudText Typo="Typo.caption">@namedVote.UnitLabel · @namedVote.ResidentName · <strong>@namedVote.OptionLabel</strong></MudText> }
+                </MudPaper>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="list-group">
+            @foreach (var item in _assemblies)
+            {
+                <a class="list-row" href="@($"/assembleias/{item.Id}")">
+                    <span class="settings-icon primary"><MudIcon Icon="@Icons.Material.Outlined.HowToVote" /></span>
+                    <div class="list-main"><div class="list-title">@item.Title</div><div class="list-meta">@item.Type · @item.StartsAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @item.AgendaItemCount pauta(s)</div></div>
+                    @if (item.HasResidentVoted) { <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Color="Color.Success" /> } else { <MudChip T="string" Size="Size.Small" Color="@StatusColor(item.Status)">@item.Status</MudChip> }
+                </a>
+            }
+        </section>
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid? AssemblyId { get; set; }
+    private List<AssemblySummaryViewModel> _assemblies = [];
+    private AssemblyDetailViewModel? _detail;
+    private Guid _selectedUnitId;
+    private bool _loading;
+    private bool _saving;
+    private string _error = string.Empty;
+    private bool CanVote => _detail?.Status == "Aberta" && DateTime.UtcNow >= _detail.VotingStartsAt && DateTime.UtcNow < _detail.VotingEndsAt;
+
+    protected override Task OnInitializedAsync() { PullToRefresh.Register(LoadAsync); return Task.CompletedTask; }
+    protected override Task OnParametersSetAsync() => LoadAsync();
+    public void Dispose() => PullToRefresh.Unregister(LoadAsync);
+    private void BackToList() => Navigation.NavigateTo("/assembleias");
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = string.Empty;
+        if (AssemblyId.HasValue)
+        {
+            var result = await Api.GetResidentAssemblyAsync(AssemblyId.Value);
+            if (result.Success)
+            {
+                _detail = result.Value;
+                var selected = _detail?.AgendaItems.FirstOrDefault(x => x.SelectedUnitId.HasValue)?.SelectedUnitId;
+                _selectedUnitId = selected ?? _detail?.AvailableUnits.FirstOrDefault(x => x.CanVote)?.UnitId ?? Guid.Empty;
+            }
+            else _error = result.Error ?? "Não foi possível abrir a assembleia.";
+        }
+        else
+        {
+            var result = await Api.GetResidentAssembliesAsync();
+            if (result.Success) _assemblies = result.Value ?? []; else _error = result.Error ?? "Não foi possível carregar as assembleias.";
+        }
+        _loading = false;
+    }
+
+    private async Task RegisterAttendanceAsync()
+    {
+        if (!AssemblyId.HasValue || _selectedUnitId == Guid.Empty) return;
+        _saving = true; var result = await Api.RegisterAssemblyAttendanceAsync(AssemblyId.Value, _selectedUnitId); _saving = false;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível registrar a presença.", Severity.Error); return; }
+        _detail = result.Value; Snackbar.Add("Presença registrada.", Severity.Success);
+    }
+
+    private async Task ConfirmVoteAsync(AssemblyAgendaItemViewModel agenda, AssemblyVoteOptionViewModel option)
+    {
+        if (!AssemblyId.HasValue || _selectedUnitId == Guid.Empty) return;
+        var currentVote = SelectedVote(agenda);
+        var changing = currentVote is not null && currentVote.OptionId != option.Id;
+        var text = changing ? $"Alterar seu voto para “{option.Label}”?" : $"Confirmar o voto “{option.Label}” para esta unidade?";
+        if (await DialogService.ShowMessageBoxAsync("Confirmar voto", text, yesText: "Confirmar", cancelText: "Voltar") != true) return;
+        _saving = true;
+        var result = await Api.CastAssemblyVoteAsync(AssemblyId.Value, agenda.Id, _selectedUnitId, option.Id);
+        _saving = false;
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível registrar o voto.", Severity.Error); return; }
+        _detail = result.Value; Snackbar.Add("Voto registrado com segurança.", Severity.Success);
+    }
+    private AssemblyResidentVoteViewModel? SelectedVote(AssemblyAgendaItemViewModel agenda) =>
+        agenda.ResidentVotes.FirstOrDefault(x => x.UnitId == _selectedUnitId);
+    private static Color StatusColor(string status) => status switch { "Aberta" => Color.Success, "Encerrada" => Color.Info, "Cancelada" => Color.Error, "Publicada" => Color.Primary, _ => Color.Default };
+}

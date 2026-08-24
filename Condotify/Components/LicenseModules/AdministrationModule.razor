@@ -118,6 +118,7 @@ else
         (Condotify.Models.LicenseModuleEnum.Finance, "Boletos"),
         (Condotify.Models.LicenseModuleEnum.Documents, "Documentos"),
         (Condotify.Models.LicenseModuleEnum.Announcements, "Comunicados"),
+        (Condotify.Models.LicenseModuleEnum.Assemblies, "Assembleias e votações"),
     ];
 
     private bool IsModuleOn(Condotify.Models.LicenseModuleEnum module) => (EnabledModules & (long)module) != 0;

@@ -41,7 +41,7 @@ public sealed class RegistrationInviteEmailTests
             inviteUrl,
             expiresAt);
 
-        Assert.Contains("Completar meu cadastro", html);
+        Assert.Contains("Acesse seu convite", html);
         Assert.Contains("https://fefaccess.grupoff.net.br/cadastro/convite/abc123?source=email&amp;safe=true", html);
         Assert.Contains("A &amp; B", html);
         Assert.DoesNotContain("<script>alert(1)</script>", html, StringComparison.Ordinal);

@@ -1,0 +1,158 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<div class="module-page-heading">
+    <div class="module-page-heading-copy">
+        <span class="module-heading-icon violet"><MudIcon Icon="@Icons.Material.Outlined.HowToVote" /></span>
+        <div><MudText Typo="Typo.h5" HtmlTag="h2">Assembleias e votações</MudText><MudText Typo="Typo.body2">Deliberações por unidade, com quórum, sigilo e histórico auditável.</MudText></div>
+    </div>
+    <div class="module-page-heading-actions"><MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" Disabled="@(!CanManage)" OnClick="OpenCreateAsync">Nova assembleia</MudButton></div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
+@if (_loading) { <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div> }
+else if (_assemblies.Count == 0)
+{
+    <MudPaper Outlined Class="pa-6 text-center"><MudIcon Icon="@Icons.Material.Outlined.Ballot" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.h6" Class="mt-2">Nenhuma assembleia criada</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Crie um rascunho, revise as pautas e publique quando estiver pronto.</MudText></MudPaper>
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="5">
+            <MudPaper Outlined Class="pa-3">
+                @foreach (var item in _assemblies)
+                {
+                    <button type="button" class="list-row w-100 text-left" @onclick="() => SelectAsync(item.Id)">
+                        <span class="settings-icon info"><MudIcon Icon="@Icons.Material.Outlined.HowToVote" /></span>
+                        <div class="list-main"><div class="list-title">@item.Title</div><div class="list-meta">@item.Type · @item.StartsAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div></div>
+                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(item.Status)">@item.Status</MudChip>
+                    </button>
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="7">
+            @if (_detailLoading) { <div class="loading-state"><MudProgressCircular Indeterminate /></div> }
+            else if (_selected is not null)
+            {
+                <MudPaper Outlined Class="pa-5">
+                    <div class="panel-heading">
+                        <div><MudText Typo="Typo.h5">@_selected.Title</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_selected.Description</MudText></div>
+                        <MudChip T="string" Color="@StatusColor(_selected.Status)">@_selected.Status</MudChip>
+                    </div>
+                    <MudText Typo="Typo.body2"><strong>Reunião:</strong> @_selected.StartsAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @_selected.Format</MudText>
+                    <MudText Typo="Typo.body2"><strong>Votação:</strong> @_selected.VotingStartsAt.ToLocalTime().ToString("dd/MM HH:mm") a @_selected.VotingEndsAt.ToLocalTime().ToString("dd/MM HH:mm")</MudText>
+                    <MudText Typo="Typo.body2"><strong>Participação:</strong> @_selected.VoteCount voto(s) · @_selected.AttendanceCount presença(s) · @_selected.EligibleUnitCount unidade(s) apta(s)</MudText>
+                    <div class="d-flex flex-wrap gap-2 my-4">
+                        @if (_selected.Status == "Rascunho") { <MudButton Variant="Variant.Outlined" Disabled="@(!CanManage)" StartIcon="@Icons.Material.Outlined.Edit" OnClick="OpenEditAsync">Editar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!CanManage)" OnClick="PublishAsync">Publicar</MudButton><MudButton Variant="Variant.Text" Color="Color.Error" Disabled="@(!CanManage)" OnClick="DeleteAsync">Excluir</MudButton> }
+                        @if (_selected.Status == "Publicada") { <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="@(!CanManage)" OnClick="OpenVotingAsync">Abrir votação</MudButton><MudButton Variant="Variant.Text" Color="Color.Error" Disabled="@(!CanManage)" OnClick="CancelAssemblyAsync">Cancelar</MudButton> }
+                        @if (_selected.Status == "Aberta") { <MudButton Variant="Variant.Filled" Color="Color.Warning" Disabled="@(!CanManage)" OnClick="CloseVotingAsync">Encerrar e apurar</MudButton><MudButton Variant="Variant.Text" Color="Color.Error" Disabled="@(!CanManage)" OnClick="CancelAssemblyAsync">Cancelar</MudButton> }
+                    </div>
+                    @foreach (var agenda in _selected.AgendaItems.OrderBy(x => x.Order))
+                    {
+                        <MudPaper Outlined Class="pa-4 mb-3">
+                            <MudText Typo="Typo.subtitle1">@agenda.Order. @agenda.Title</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">@agenda.Description</MudText>
+                            <MudText Typo="Typo.caption">Quórum @agenda.QuorumPercentage% · Aprovação @agenda.ApprovalPercentage%</MudText>
+                            @if (_selected.ResultsVisible)
+                            {
+                                <MudProgressLinear Value="@(Convert.ToDouble(agenda.ParticipationPercentage))" Color="@(agenda.QuorumMet ? Color.Success : Color.Warning)" Class="my-2" />
+                                @foreach (var option in agenda.Options.OrderBy(x => x.Order)) { <MudText Typo="Typo.body2">@option.Label: <strong>@option.Percentage.ToString("0.#")%</strong> (@option.VoteCount)</MudText> }
+                                @foreach (var vote in agenda.NamedVotes) { <MudText Typo="Typo.caption">@vote.UnitLabel · @vote.ResidentName · <strong>@vote.OptionLabel</strong></MudText> }
+                            }
+                        </MudPaper>
+                    }
+                    @if (_audit.Count > 0)
+                    {
+                        <MudText Typo="Typo.h6" Class="mt-5 mb-2">Histórico auditável</MudText>
+                        @foreach (var entry in _audit.Take(8))
+                        {
+                            <div class="list-row"><span class="settings-icon neutral"><MudIcon Icon="@Icons.Material.Outlined.History" /></span><div class="list-main"><div class="list-title">@AuditLabel(entry.EventType)</div><div class="list-meta">@entry.ActorName · @entry.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div></div></div>
+                        }
+                    }
+                </MudPaper>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    private List<AssemblySummaryViewModel> _assemblies = [];
+    private AssemblyDetailViewModel? _selected;
+    private List<AssemblyAuditViewModel> _audit = [];
+    private bool _loading;
+    private bool _detailLoading;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+    private async Task LoadAsync(Guid? select = null)
+    {
+        _loading = true; _error = null;
+        var result = await Api.GetAssembliesAsync(LicenseId);
+        _loading = false;
+        if (!result.Success) { _error = result.Error; return; }
+        _assemblies = result.Value ?? [];
+        var id = select ?? _selected?.Id ?? _assemblies.FirstOrDefault()?.Id;
+        if (id.HasValue) await SelectAsync(id.Value); else _selected = null;
+    }
+    private async Task SelectAsync(Guid id)
+    {
+        _detailLoading = true;
+        var result = await Api.GetAssemblyAsync(LicenseId, id);
+        _detailLoading = false;
+        if (result.Success)
+        {
+            _selected = result.Value;
+            var audit = await Api.GetAssemblyAuditAsync(LicenseId, id);
+            _audit = audit.Success ? audit.Value ?? [] : [];
+        }
+        else Snackbar.Add(result.Error ?? "Não foi possível abrir a assembleia.", Severity.Error);
+    }
+    private async Task OpenCreateAsync()
+    {
+        var parameters = new DialogParameters { [nameof(AssemblyFormDialog.LicenseId)] = LicenseId };
+        var dialog = await DialogService.ShowAsync<AssemblyFormDialog>("", parameters, new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Large });
+        if (await dialog.Result is { Canceled: false }) { Snackbar.Add("Rascunho criado.", Severity.Success); await LoadAsync(); }
+    }
+    private async Task OpenEditAsync()
+    {
+        if (_selected is null) return;
+        var form = ToForm(_selected);
+        var parameters = new DialogParameters { [nameof(AssemblyFormDialog.LicenseId)] = LicenseId, [nameof(AssemblyFormDialog.AssemblyId)] = _selected.Id, [nameof(AssemblyFormDialog.Existing)] = form };
+        var dialog = await DialogService.ShowAsync<AssemblyFormDialog>("", parameters, new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Large });
+        if (await dialog.Result is { Canceled: false }) { Snackbar.Add("Rascunho atualizado.", Severity.Success); await LoadAsync(_selected.Id); }
+    }
+    private async Task TransitionAsync(string action)
+    {
+        if (_selected is null) return;
+        var confirmation = action switch { "publish" => "Publicar congela a lista de unidades aptas e avisa os moradores. Continuar?", "open" => "Abrir a votação agora?", "close" => "Encerrar a votação e liberar a apuração?", _ => "Cancelar esta assembleia?" };
+        if (await DialogService.ShowMessageBoxAsync("Confirmar ação", confirmation, yesText: "Confirmar", cancelText: "Voltar") != true) return;
+        var result = action switch { "publish" => await Api.PublishAssemblyAsync(LicenseId, _selected.Id), "open" => await Api.OpenAssemblyAsync(LicenseId, _selected.Id), "close" => await Api.CloseAssemblyAsync(LicenseId, _selected.Id), _ => await Api.CancelAssemblyAsync(LicenseId, _selected.Id) };
+        if (!result.Success) { Snackbar.Add(result.Error ?? "A operação falhou.", Severity.Error); return; }
+        Snackbar.Add("Assembleia atualizada.", Severity.Success); await LoadAsync(_selected.Id);
+    }
+    private Task PublishAsync() => TransitionAsync("publish");
+    private Task OpenVotingAsync() => TransitionAsync("open");
+    private Task CloseVotingAsync() => TransitionAsync("close");
+    private Task CancelAssemblyAsync() => TransitionAsync("cancel");
+    private async Task DeleteAsync()
+    {
+        if (_selected is null || await DialogService.ShowMessageBoxAsync("Excluir rascunho", "Esta ação exclui definitivamente o rascunho. Continuar?", yesText: "Excluir", cancelText: "Voltar") != true) return;
+        var result = await Api.DeleteAssemblyAsync(LicenseId, _selected.Id);
+        if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível excluir.", Severity.Error); return; }
+        _selected = null; await LoadAsync();
+    }
+    private static Color StatusColor(string status) => status switch { "Aberta" => Color.Success, "Encerrada" => Color.Info, "Cancelada" => Color.Error, "Publicada" => Color.Primary, _ => Color.Default };
+    private static string AuditLabel(string value) => value switch { "Created" => "Rascunho criado", "Updated" => "Rascunho atualizado", "Published" => "Publicado para os moradores", "Opened" => "Votação aberta", "Closed" => "Votação encerrada", "Cancelled" => "Assembleia cancelada", "AttendanceRegistered" => "Presença registrada", "VoteChanged" => "Voto revisado", "VoteCast" => "Voto registrado", _ => value };
+    private static AssemblyFormViewModel ToForm(AssemblyDetailViewModel value) => new()
+    {
+        Title = value.Title, Description = value.Description, Type = TypeValue(value.Type), Format = FormatValue(value.Format), VoteVisibility = value.VoteVisibility == "Aberto" ? 2 : 1,
+        Location = value.Location, MeetingUrl = value.MeetingUrl, StartsAt = value.StartsAt, VotingStartsAt = value.VotingStartsAt, VotingEndsAt = value.VotingEndsAt,
+        AllowVoteChange = value.AllowVoteChange, ShowResultsBeforeClose = value.ShowResultsBeforeClose, RequireResponsibleResident = value.RequireResponsibleResident,
+        AgendaItems = value.AgendaItems.OrderBy(x => x.Order).Select(x => new AssemblyAgendaItemFormViewModel { Title = x.Title, Description = x.Description, QuorumPercentage = x.QuorumPercentage, ApprovalPercentage = x.ApprovalPercentage, AbstentionCountsForQuorum = x.AbstentionCountsForQuorum, Options = x.Options.OrderBy(o => o.Order).Select(o => new AssemblyVoteOptionFormViewModel { Label = o.Label, IsApproval = o.IsApproval, IsAbstention = o.IsAbstention }).ToList() }).ToList()
+    };
+    private static int TypeValue(string value) => value switch { "Ordinária" => 2, "Extraordinária" => 3, _ => 1 };
+    private static int FormatValue(string value) => value switch { "Presencial" => 1, "Híbrida" => 3, _ => 2 };
+}

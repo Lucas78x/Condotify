@@ -470,7 +470,9 @@ namespace Condotify.Models
         ViewDocuments = 1L << 33,
         ManageDocuments = 1L << 34,
         ManageAnnouncements = 1L << 35,
-        All = (1L << 36) - 1
+        ViewAssemblies = 1L << 36,
+        ManageAssemblies = 1L << 37,
+        All = (1L << 38) - 1
     }
 
     public class LicenseAdministrationViewModel

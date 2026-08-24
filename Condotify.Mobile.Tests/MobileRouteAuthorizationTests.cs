@@ -17,6 +17,8 @@ public sealed class MobileRouteAuthorizationTests
     [InlineData("/financeiro")]
     [InlineData("/documentos")]
     [InlineData("/comunicados")]
+    [InlineData("/assembleias")]
+    [InlineData("/assembleias/149328be-3fe6-4510-a5f4-0df1ca947106")]
     public void Staff_CannotOpenResidentRoutes(string route) =>
         Assert.False(MobileRouteAuthorization.IsAllowed(MobilePrincipalKind.Staff, route));
 
@@ -41,6 +43,7 @@ public sealed class MobileRouteAuthorizationTests
     [InlineData("/ocorrencias", LicenseModuleEnum.Incidents)]
     [InlineData("/financeiro", LicenseModuleEnum.Finance)]
     [InlineData("/boletos", LicenseModuleEnum.Finance)]
+    [InlineData("/assembleias", LicenseModuleEnum.Assemblies)]
     public void DisabledModule_CannotBeOpenedDirectly(string route, LicenseModuleEnum module)
     {
         var allExceptModule = (long)LicenseModuleEnum.All & ~(long)module;
