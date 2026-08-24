@@ -18,6 +18,15 @@ public sealed class UpdateCftvDeviceIn
     public CFTVDeviceTypeEnum DeviceType { get; set; } = CFTVDeviceTypeEnum.Camera;
     public int MaxChannels { get; set; } = 1;
     public bool ResidentVisible { get; set; }
+    public List<UpdateCftvChannelIn> Channels { get; set; } = [];
+}
+
+public sealed class UpdateCftvChannelIn
+{
+    public int ChannelNumber { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public bool IsEnabled { get; set; } = true;
+    public bool ResidentVisible { get; set; }
 }
 
 public sealed class UpdateCftvDeviceInValidator : AbstractValidator<UpdateCftvDeviceIn>
@@ -53,6 +62,23 @@ public sealed class UpdateCftvDeviceInValidator : AbstractValidator<UpdateCftvDe
         RuleFor(x => x.DeviceType).IsInEnum().WithMessage("O tipo informado é inválido.");
         RuleFor(x => x.MaxChannels).InclusiveBetween(1, 128)
             .WithMessage("Informe entre 1 e 128 canais.");
+
+        RuleFor(x => x.Channels)
+            .Must((input, channels) => channels.Count <= input.MaxChannels)
+            .WithMessage("A quantidade de configurações de canal excede o limite do equipamento.")
+            .Must((input, channels) => channels.All(channel => channel.ChannelNumber <= input.MaxChannels))
+            .WithMessage("Um dos canais informados não existe neste equipamento.")
+            .Must(channels => channels.Select(x => x.ChannelNumber).Distinct().Count() == channels.Count)
+            .WithMessage("Não repita o número de um canal.");
+
+        RuleForEach(x => x.Channels).ChildRules(channel =>
+        {
+            channel.RuleFor(x => x.ChannelNumber)
+                .GreaterThan(0).WithMessage("O número do canal deve ser maior que zero.");
+            channel.RuleFor(x => x.Name)
+                .NotEmpty().WithMessage("Informe o nome do canal.")
+                .MaximumLength(100);
+        });
     }
 
     private static bool BeAValidPort(string? value) =>

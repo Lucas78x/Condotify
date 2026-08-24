@@ -110,5 +110,11 @@ window.condotifyCftv = (() => {
         sessions.delete(elementId);
     }
 
-    return { start, stop };
+    function focus(elementId) {
+        const video = document.getElementById(elementId);
+        const panel = video?.closest(".camera-stream-panel");
+        panel?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    return { start, stop, focus };
 })();

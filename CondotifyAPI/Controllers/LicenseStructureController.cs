@@ -629,7 +629,17 @@ public class LicenseStructureController : ControllerBase
                 DeviceTypeValue = (int)x.DeviceType,
                 DeviceType = x.DeviceType.ToString(),
                 MaxChannels = x.MaxChannels,
-                ResidentVisible = x.ResidentVisible
+                ResidentVisible = x.ResidentVisible,
+                Channels = x.Channels
+                    .OrderBy(channel => channel.ChannelNumber)
+                    .Select(channel => new CftvChannelOut
+                    {
+                        ChannelNumber = channel.ChannelNumber,
+                        Name = channel.Name,
+                        IsEnabled = channel.IsEnabled,
+                        ResidentVisible = channel.ResidentVisible
+                    })
+                    .ToList()
             })
             .ToListAsync();
 
@@ -670,10 +680,14 @@ public class LicenseStructureController : ControllerBase
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
 
         var device = await _context.CFTVDevices
+            .Include(x => x.Channels)
             .FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId);
         if (device is null) return NotFound();
 
         device.ResidentVisible = input.ResidentVisible;
+        foreach (var channel in device.Channels)
+            channel.ResidentVisible = input.ResidentVisible && channel.IsEnabled;
+        device.ResidentVisible = device.Channels.Any(channel => channel.IsEnabled && channel.ResidentVisible);
         await _context.SaveChangesAsync();
         return NoContent();
     }

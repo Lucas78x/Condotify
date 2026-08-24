@@ -140,7 +140,16 @@ namespace CondotifyAPI.Data.Structure
         public string DeviceType { get; set; } = string.Empty;
         public int MaxChannels { get; set; }
         public bool ResidentVisible { get; set; }
+        public List<CftvChannelOut> Channels { get; set; } = [];
         public List<CftvAccessActionOut> AccessActions { get; set; } = [];
+    }
+
+    public class CftvChannelOut
+    {
+        public int ChannelNumber { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public bool IsEnabled { get; set; }
+        public bool ResidentVisible { get; set; }
     }
 
     public class CftvAccessActionOut

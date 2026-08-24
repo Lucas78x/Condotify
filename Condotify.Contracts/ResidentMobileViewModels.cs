@@ -89,6 +89,13 @@ public sealed class ResidentCameraViewModel
     public bool Online { get; set; }
     public DateTime? LastSeenAt { get; set; }
     public string HealthMessage { get; set; } = string.Empty;
+    public List<ResidentCameraChannelViewModel> Channels { get; set; } = [];
+}
+
+public sealed class ResidentCameraChannelViewModel
+{
+    public int ChannelNumber { get; set; }
+    public string Name { get; set; } = string.Empty;
 }
 
 public sealed class ResidentVisitFormViewModel

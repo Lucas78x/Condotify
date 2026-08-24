@@ -100,6 +100,16 @@ namespace Condotify.Models
         public int DeviceType { get; set; } = 1;
         public int MaxChannels { get; set; } = 1;
         public bool ResidentVisible { get; set; }
+        public List<CftvChannelViewModel> Channels { get; set; } = [];
+    }
+
+    public class CftvChannelViewModel
+    {
+        public int ChannelNumber { get; set; }
+        [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+        public bool IsEnabled { get; set; } = true;
+        public bool ResidentVisible { get; set; }
     }
 
     public class BlocksPageViewModel : LicenseModuleViewModel
@@ -594,6 +604,7 @@ namespace Condotify.Models
         public string DeviceType { get; set; } = string.Empty;
         public int MaxChannels { get; set; }
         public bool ResidentVisible { get; set; }
+        public List<CftvChannelViewModel> Channels { get; set; } = [];
         public List<CftvAccessActionViewModel> AccessActions { get; set; } = [];
     }
 

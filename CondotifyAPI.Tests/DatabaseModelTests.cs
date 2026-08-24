@@ -75,6 +75,19 @@ namespace CondotifyAPI.Tests
         }
 
         [Fact]
+        public void CftvChannels_ShouldPersistIndividualResidentVisibility()
+        {
+            using var context = CreateContext();
+            var channel = context.Model.FindEntityType(typeof(CFTVChannelDTO));
+
+            Assert.NotNull(channel);
+            var visibility = channel!.FindProperty(nameof(CFTVChannelDTO.ResidentVisible));
+            Assert.NotNull(visibility);
+            Assert.False(visibility!.IsNullable);
+            Assert.True(HasUniqueIndex(channel, nameof(CFTVChannelDTO.CFTVDeviceId), nameof(CFTVChannelDTO.ChannelNumber)));
+        }
+
+        [Fact]
         public void CondominiumStructure_ShouldHaveScopedUniqueIndexes()
         {
             using var context = CreateContext();
