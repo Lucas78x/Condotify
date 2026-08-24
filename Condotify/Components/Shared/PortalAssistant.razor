@@ -1,0 +1,316 @@
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject PortalAssistantKnowledge Knowledge
+@inject IJSRuntime Js
+
+<div class="portal-assistant-host @(Open ? "is-open" : null)">
+    @if (Open)
+    {
+        <button type="button" class="assistant-dismiss-layer" aria-label="Fechar assistente" @onclick="Close"></button>
+
+        <section id="portal-assistant-dialog"
+                 class="assistant-window"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-labelledby="portal-assistant-title"
+                 @onkeydown="OnDialogKeyDown"
+                 @onclick:stopPropagation="true">
+            <header class="assistant-header">
+                <div class="assistant-identity">
+                    <span class="assistant-avatar" aria-hidden="true">
+                        <MudIcon Icon="@Icons.Material.Outlined.AutoAwesome" />
+                    </span>
+                    <div>
+                        <div class="assistant-title-line">
+                            <strong id="portal-assistant-title">Assistente F&amp;F</strong>
+                            <span>BETA</span>
+                        </div>
+                        <small><i aria-hidden="true"></i>Orientações e atalhos do portal</small>
+                    </div>
+                </div>
+                <div class="assistant-header-actions">
+                    <button type="button" title="Reiniciar conversa" aria-label="Reiniciar conversa" @onclick="Reset">
+                        <MudIcon Icon="@Icons.Material.Outlined.Refresh" />
+                    </button>
+                    <button type="button" title="Fechar assistente" aria-label="Fechar assistente" @onclick="Close">
+                        <MudIcon Icon="@Icons.Material.Outlined.Close" />
+                    </button>
+                </div>
+            </header>
+
+            <div class="assistant-context-strip">
+                <MudIcon Icon="@Icons.Material.Outlined.Explore" />
+                <span>Ajuda contextual para <strong>@CurrentPageLabel</strong></span>
+            </div>
+
+            <div class="assistant-messages" aria-live="polite" aria-relevant="additions" @ref="_messagesElement">
+                <div class="assistant-day-label">Agora</div>
+                @foreach (var message in _messages)
+                {
+                    <article class="assistant-message @(message.FromUser ? "is-user" : "is-assistant")">
+                        @if (!message.FromUser)
+                        {
+                            <span class="assistant-message-mark" aria-hidden="true">
+                                <MudIcon Icon="@Icons.Material.Outlined.AutoAwesome" />
+                            </span>
+                        }
+                        <div class="assistant-message-content">
+                            <p>@message.Text</p>
+                            @if (message.Actions.Count > 0)
+                            {
+                                <div class="assistant-message-actions" aria-label="Atalhos relacionados">
+                                    @foreach (var action in message.Actions)
+                                    {
+                                        <button type="button" @onclick="@(() => Navigate(action.Url))">
+                                            <MudIcon Icon="@ActionIcon(action.Icon)" />
+                                            <span>@action.Label</span>
+                                            <MudIcon Icon="@Icons.Material.Outlined.ArrowForward" />
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </article>
+                }
+
+                @if (_showSuggestions)
+                {
+                    <div class="assistant-suggestions" aria-label="Perguntas sugeridas">
+                        <small>Talvez você queira saber</small>
+                        <div>
+                            @foreach (var suggestion in Suggestions)
+                            {
+                                <button type="button" @onclick="@(() => Ask(suggestion.Question))">@suggestion.Label</button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <footer class="assistant-composer">
+                <div class="assistant-input-shell">
+                    <input @ref="_inputElement"
+                           value="@_draft"
+                           @oninput="OnInput"
+                           @onkeydown="OnKeyDown"
+                           maxlength="500"
+                           autocomplete="off"
+                           aria-label="Digite sua dúvida sobre o portal"
+                           placeholder="Como posso ajudar?" />
+                    <button type="button" class="assistant-send" disabled="@string.IsNullOrWhiteSpace(_draft)" aria-label="Enviar pergunta" @onclick="Send">
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowUpward" />
+                    </button>
+                </div>
+                <small>Respostas sobre o uso do portal. Nenhum texto é enviado a serviços externos.</small>
+            </footer>
+        </section>
+    }
+
+    <button type="button"
+            class="assistant-launcher"
+            aria-label="@(Open ? "Fechar assistente" : "Abrir assistente de ajuda")"
+            aria-expanded="@Open.ToString().ToLowerInvariant()"
+            aria-controls="portal-assistant-dialog"
+            @onclick="Toggle">
+        <span class="assistant-launcher-icon" aria-hidden="true">
+            <MudIcon Icon="@(Open ? Icons.Material.Outlined.Close : Icons.Material.Outlined.AutoAwesome)" />
+        </span>
+        @if (!Open)
+        {
+            <span class="assistant-launcher-copy">
+                <strong>Precisa de ajuda?</strong>
+                <small>Pergunte ao assistente</small>
+            </span>
+        }
+    </button>
+</div>
+
+@code {
+    private sealed record AssistantMessage(
+        bool FromUser,
+        string Text,
+        IReadOnlyList<PortalAssistantAction> Actions);
+
+    private readonly List<AssistantMessage> _messages = [];
+    private ElementReference _inputElement;
+    private ElementReference _messagesElement;
+    private string _draft = string.Empty;
+    private bool _focusInput;
+    private bool _scrollMessages;
+    private bool _showSuggestions = true;
+
+    private bool Open { get; set; }
+    private IReadOnlyList<PortalAssistantSuggestion> Suggestions => Knowledge.Suggestions(Navigation.Uri);
+    private string CurrentPageLabel => PageLabel(PortalAssistantPageContext.FromUri(Navigation.Uri));
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        AddAssistant(Knowledge.Welcome(Navigation.Uri));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_scrollMessages)
+        {
+            _scrollMessages = false;
+            await Js.InvokeVoidAsync("portalInterop.scrollToBottom", _messagesElement);
+        }
+
+        if (_focusInput)
+        {
+            _focusInput = false;
+            await Js.InvokeVoidAsync("portalInterop.focusElement", _inputElement);
+        }
+    }
+
+    private void Toggle()
+    {
+        Open = !Open;
+        if (Open)
+        {
+            _focusInput = true;
+            _scrollMessages = true;
+        }
+    }
+
+    private void Close() => Open = false;
+
+    private void Reset()
+    {
+        _messages.Clear();
+        _draft = string.Empty;
+        _showSuggestions = true;
+        AddAssistant(Knowledge.Welcome(Navigation.Uri));
+        _focusInput = true;
+    }
+
+    private void OnInput(ChangeEventArgs args) => _draft = args.Value?.ToString() ?? string.Empty;
+
+    private void OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter" && !args.ShiftKey)
+            Send();
+    }
+
+    private void OnDialogKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape") Close();
+    }
+
+    private void Send()
+    {
+        var question = _draft.Trim();
+        if (string.IsNullOrWhiteSpace(question)) return;
+
+        Ask(question);
+    }
+
+    private void Ask(string question)
+    {
+        _messages.Add(new(true, question, []));
+        AddAssistant(Knowledge.Answer(question, Navigation.Uri));
+        _draft = string.Empty;
+        _showSuggestions = false;
+        _focusInput = true;
+    }
+
+    private void AddAssistant(PortalAssistantReply reply)
+    {
+        _messages.Add(new(false, reply.Text, reply.Actions));
+        if (_messages.Count > 30)
+            _messages.RemoveRange(0, _messages.Count - 30);
+        _scrollMessages = true;
+    }
+
+    private void Navigate(string url)
+    {
+        Open = false;
+        Navigation.NavigateTo(url);
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
+    {
+        _ = InvokeAsync(() =>
+        {
+            _messages.Clear();
+            _showSuggestions = true;
+            AddAssistant(Knowledge.Welcome(args.Location));
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+    private static string ActionIcon(string icon) => icon switch
+    {
+        "meeting_room" => Icons.Material.Outlined.MeetingRoom,
+        "person_search" => Icons.Material.Outlined.PersonSearch,
+        "badge" => Icons.Material.Outlined.Badge,
+        "account_tree" => Icons.Material.Outlined.AccountTree,
+        "apartment" => Icons.Material.Outlined.Apartment,
+        "sensors" => Icons.Material.Outlined.Sensors,
+        "videocam" => Icons.Material.Outlined.Videocam,
+        "alt_route" => Icons.Material.Outlined.AltRoute,
+        "home_repair_service" => Icons.Material.Outlined.HomeRepairService,
+        "assignment_late" => Icons.Material.Outlined.AssignmentLate,
+        "event_available" => Icons.Material.Outlined.EventAvailable,
+        "campaign" => Icons.Material.Outlined.Campaign,
+        "how_to_vote" => Icons.Material.Outlined.HowToVote,
+        "account_balance_wallet" => Icons.Material.Outlined.AccountBalanceWallet,
+        "receipt_long" => Icons.Material.Outlined.ReceiptLong,
+        "description" => Icons.Material.Outlined.Description,
+        "admin_panel_settings" => Icons.Material.Outlined.AdminPanelSettings,
+        "security" => Icons.Material.Outlined.Security,
+        "logout" => Icons.Material.Outlined.Logout,
+        "dashboard" => Icons.Material.Outlined.Dashboard,
+        "apps" => Icons.Material.Outlined.Apps,
+        "monitor_heart" => Icons.Material.Outlined.MonitorHeart,
+        "insights" => Icons.Material.Outlined.Insights,
+        "auto_awesome" => Icons.Material.Outlined.AutoAwesome,
+        "health_and_safety" => Icons.Material.Outlined.HealthAndSafety,
+        "new_releases" => Icons.Material.Outlined.NewReleases,
+        _ => Icons.Material.Outlined.Search
+    };
+
+    private static string PageLabel(PortalAssistantPageContext context)
+    {
+        if (context.IsWorkspace)
+        {
+            return context.Section switch
+            {
+                "visao-geral" => "Visão geral do condomínio",
+                "relatorios" => "Relatórios",
+                "estrutura" => "Estrutura e moradores",
+                "credenciais" => "Credenciais",
+                "equipamentos" => "Equipamentos",
+                "rotas" => "Rotas de acesso",
+                "cameras" => "Câmeras",
+                "ocorrencias" => "Manutenção",
+                "automacoes" => "Automações",
+                "emergencia" => "Emergência",
+                "agendamento" => "Agendamento",
+                "comunicados" => "Comunicados",
+                "assembleias" => "Assembleias",
+                "financeiro" => "Gestão financeira",
+                "boletos" => "Boletos",
+                "documentos" => "Documentos",
+                "administracao" => "Administração",
+                _ => "este condomínio"
+            };
+        }
+
+        return context.Path.ToLowerInvariant() switch
+        {
+            "/" or "/home/index" => "Visão geral",
+            "/portaria" => "Portaria",
+            "/pesquisa" => "Pesquisa",
+            "/operacoes" => "Operações",
+            "/licencas" => "Condomínios",
+            "/ocorrencias" => "Ocorrências",
+            "/seguranca" => "Segurança",
+            "/atualizacoes" => "Atualizações",
+            _ => "esta página"
+        };
+    }
+}
