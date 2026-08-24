@@ -461,6 +461,22 @@ namespace CondotifyAPI.Tests
             Assert.Equal("fcm-sensitive-token", converter.ConvertFromProvider(encrypted));
         }
 
+        [Fact]
+        public void ResidentAccessCredential_ShouldSupportArchivingWithoutDeletingVisitHistory()
+        {
+            using var context = CreateContext();
+            var credential = context.Model.FindEntityType(typeof(ResidentAccessCredentialDTO));
+            var visit = context.Model.FindEntityType(typeof(AccessVisitDTO));
+
+            Assert.NotNull(credential);
+            Assert.NotNull(visit);
+            Assert.True(HasIndex(credential!, nameof(ResidentAccessCredentialDTO.ArchivedAt)));
+
+            var credentialForeignKey = visit!.GetForeignKeys()
+                .Single(x => x.PrincipalEntityType.ClrType == typeof(ResidentAccessCredentialDTO));
+            Assert.Equal(DeleteBehavior.Restrict, credentialForeignKey.DeleteBehavior);
+        }
+
         private static DatabaseContext CreateContext()
         {
             var options = new DbContextOptionsBuilder<DatabaseContext>()
