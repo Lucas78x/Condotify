@@ -49,6 +49,9 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             builder.Property(x => x.UpdatedAt);
+            builder.Property(x => x.ArchivedAt);
+
+            builder.HasIndex(x => x.ArchivedAt);
         }
     }
 }

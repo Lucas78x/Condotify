@@ -71,7 +71,8 @@ public sealed class CredentialManagementController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == residentId);
         if (resident is null) return NotFound();
 
-        var credential = resident.AccessCredentials.FirstOrDefault(x => x.CredentialType == AccessCredentialTypeEnum.Face);
+        var credential = resident.AccessCredentials.FirstOrDefault(x =>
+            x.CredentialType == AccessCredentialTypeEnum.Face && x.ArchivedAt == null);
         var resolution = await _routeResolver.ResolveAsync(licenseId, resident, AccessCredentialTypeEnum.Face);
         if (resolution.Targets.Count == 0)
         {
@@ -276,7 +277,7 @@ public sealed class CredentialManagementController : ControllerBase
             _ => input.Identifier.Trim()
         };
         var duplicate = await _context.ResidentAccessCredentials.AnyAsync(x =>
-            x.ResidentId == resident.Id && x.CredentialType == input.Type && x.Identifier == identifier);
+            x.ResidentId == resident.Id && x.CredentialType == input.Type && x.Identifier == identifier && x.ArchivedAt == null);
         if (duplicate)
             return Conflict(new { Result = "Duplicate", Errors = "Este morador ja possui esta credencial cadastrada." });
 
@@ -508,13 +509,26 @@ public sealed class CredentialManagementController : ControllerBase
             });
         }
 
-        _context.ResidentAccessCredentials.Remove(credential);
+        var isVisitCredential = await _context.AccessVisits.AsNoTracking()
+            .AnyAsync(x => x.CredentialId == credential.Id);
+        if (isVisitCredential)
+        {
+            credential.IsActive = false;
+            credential.ArchivedAt = DateTime.UtcNow;
+            credential.UpdatedAt = credential.ArchivedAt;
+        }
+        else
+        {
+            _context.ResidentAccessCredentials.Remove(credential);
+        }
         await _context.SaveChangesAsync();
         return Ok(new CredentialOperationOut
         {
             Success = true,
             Synced = true,
-            Message = "Credencial removida da F&F Access e dos equipamentos vinculados."
+            Message = isVisitCredential
+                ? "Credencial removida da F&F Access. O historico da visita foi preservado para auditoria."
+                : "Credencial removida da F&F Access e dos equipamentos vinculados."
         });
     }
 
@@ -622,6 +636,7 @@ public sealed class CredentialManagementController : ControllerBase
             .Include(x => x.Resident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .Include(x => x.Resident).ThenInclude(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .Include(x => x.Devices)
+            .Where(x => x.ArchivedAt == null)
             .ForLicense(licenseId);
 
     private async Task<Dictionary<Guid, AccessControlDeviceDTO>> DeviceLookupAsync(Guid licenseId) =>

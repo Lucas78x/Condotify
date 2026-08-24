@@ -1,12 +1,13 @@
 @page "/atualizacoes"
 @attribute [Authorize]
+@using System.Reflection
 
 <PageTitle>Atualizações | F&amp;F Access</PageTitle>
 
 <div class="updates-page">
     <section class="updates-hero" aria-labelledby="updates-title">
         <div class="updates-hero-copy">
-            <span class="updates-live-badge"><i aria-hidden="true"></i> F&amp;F Access em evolução</span>
+            <span class="updates-live-badge"><i aria-hidden="true"></i> F&amp;F Access @PlatformVersion</span>
             <MudText Typo="Typo.h1" HtmlTag="h1" id="updates-title" Class="updates-title">
                 Novidades que deixam a rotina <span>mais simples.</span>
             </MudText>
@@ -18,7 +19,8 @@
                     <MudIcon Icon="@Icons.Material.Outlined.AutoAwesome" Size="Size.Small" />
                     Explorar novidades
                 </a>
-                <span class="updates-release-meta"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Size="Size.Small" /> Atualizado em 10/08/2026</span>
+                <span class="updates-version-badge"><MudIcon Icon="@Icons.Material.Outlined.Verified" Size="Size.Small" /> Versão @PlatformVersion</span>
+                <span class="updates-release-meta"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Size="Size.Small" /> Atualizado em 24/08/2026</span>
             </div>
         </div>
 
@@ -110,31 +112,50 @@
 
     private static readonly ReleaseUpdate[] Releases =
     [
-        new("10 AGO", "2026", "Novidade", "Novo ambiente do condomínio",
-            "A navegação foi reorganizada para mostrar cada área com mais clareza e reduzir o tempo gasto procurando uma função.",
-            Icons.Material.Outlined.DashboardCustomize, "primary",
-            ["Menu compacto e responsivo", "Contexto visual em todas as páginas", "Acesso mais rápido aos módulos"]),
-        new("09 AGO", "2026", "Melhoria", "Portaria preparada para o ritmo real",
-            "A central da portaria ganhou uma leitura mais direta para receber visitantes, acompanhar movimentações e agir com segurança.",
+        new("24 AGO", "2026", "Novidade", "Uma conta para todos os condomínios e imóveis",
+            "O morador agora usa uma única conta para acessar diferentes condomínios, apartamentos e perfis, sem precisar entrar novamente a cada troca.",
+            Icons.Material.Outlined.SwitchAccount, "primary",
+            ["Troca de condomínio e unidade sem novo login", "Convites vinculados a contas já existentes", "Morador pode convidar outros moradores pelo aplicativo"]),
+        new("24 AGO", "2026", "Correção", "Credenciais expiradas com histórico preservado",
+            "A remoção de uma credencial de visitante agora mantém o histórico necessário para auditoria e retira a credencial da operação sem gerar erro.",
+            Icons.Material.Outlined.History, "neutral",
+            ["Exclusão segura de credenciais expiradas", "Histórico de visitas preservado", "Credenciais removidas deixam de aparecer na gestão"]),
+        new("23 AGO", "2026", "Novidade", "Assembleias e votações seguras",
+            "Síndicos podem organizar assembleias e enquetes por pauta, enquanto moradores participam pelo aplicativo usando as unidades em que possuem direito a voto.",
+            Icons.Material.Outlined.HowToVote, "violet",
+            ["Quórum e aprovação configuráveis por pauta", "Voto aberto ou secreto com trilha auditável", "Participação, quórum e apuração acompanhados pela gestão"]),
+        new("22 AGO", "2026", "Melhoria", "Aplicativo preparado para o uso diário",
+            "Os fluxos essenciais do aplicativo foram reforçados para funcionar com mais previsibilidade no aparelho, inclusive em redes instáveis.",
+            Icons.Material.Outlined.PhoneAndroid, "amber",
+            ["Notificações e links internos mais confiáveis", "Leitura de QR Code revisada", "Convites, documentos, câmeras e boletos aprimorados"]),
+        new("21 AGO", "2026", "Novidade", "Portaria como central operacional",
+            "A equipe da portaria ganhou ferramentas para entender rapidamente cada evento e agir sem perder o contexto do atendimento.",
             Icons.Material.Outlined.AssistantDirection, "teal",
-            ["Atalhos operacionais mais claros", "Informações prioritárias em destaque", "Uso confortável em telas menores"]),
-        new("08 AGO", "2026", "Novidade", "Documentos e comunicados renovados",
-            "Arquivos e avisos agora têm identidade por categoria, estados vazios orientativos e ações de publicação mais simples.",
-            Icons.Material.Outlined.FolderCopy, "violet",
-            ["Categorias identificadas por cor", "Leitura em cards", "Publicação com menos etapas"]),
-        new("06 AGO", "2026", "Melhoria", "Convites e passe digital mais intuitivos",
-            "O fluxo recebido pelo morador ficou mais explicativo e conduz cada etapa com uma apresentação visual amigável.",
-            Icons.Material.Outlined.QrCode2, "amber",
-            ["Orientação animada", "Melhor experiência no celular", "Acesso rápido ao convite"]),
-        new("05 AGO", "2026", "Novidade", "Reconhecimento de placas integrado",
-            "Veículos podem ser organizados com mais contexto para agilizar a identificação e apoiar a rotina de acesso.",
-            Icons.Material.Outlined.DirectionsCar, "teal",
-            ["Cadastro de veículos", "Consulta rápida de placas", "Integração com credenciais"]),
-        new("04 AGO", "2026", "Correção", "Mais consistência em toda a plataforma",
-            "Textos, rolagens e pequenos comportamentos foram revisados para tornar a experiência mais previsível.",
-            Icons.Material.Outlined.BuildCircle, "neutral",
-            ["Textos padronizados em português", "Rolagem responsiva", "Ajustes de estabilidade visual"]),
+            ["Foto da pessoa vinculada ao evento", "Filtros, resolução e histórico de ocorrências", "Agenda enxuta com ações operacionais prioritárias"]),
+        new("21 AGO", "2026", "Correção", "Sessões web recuperadas com segurança",
+            "Quando a sessão expira, o portal agora tenta renová-la de forma segura e encerra o acesso corretamente quando a recuperação não é possível.",
+            Icons.Material.Outlined.Security, "neutral",
+            ["Renovação antes da abertura do portal", "Logout consistente após expiração", "Menos estados divergentes entre tela e API"]),
+        new("18 AGO", "2026", "Melhoria", "F&F Access pronta para produção",
+            "A identidade visual foi consolidada e a publicação passou a contar com verificações automáticas, HTTPS e entregas versionadas.",
+            Icons.Material.Outlined.VerifiedUser, "primary",
+            ["Branding F&F Access em portal e aplicativo", "Deploy com backup e verificação de saúde", "Imagens imutáveis e ambiente protegido na VPS"]),
+        new("17 AGO", "2026", "Novidade", "Relatórios, carteiras e gestão ampliados",
+            "A administração recebeu novas opções para analisar a operação, configurar integrações e organizar a rotina financeira e de manutenção.",
+            Icons.Material.Outlined.Insights, "violet",
+            ["Relatórios exportáveis com novos filtros", "Integrações com Google e Apple Wallet", "Gestão financeira e manutenção centralizadas"]),
+        new("10 AGO", "2026", "Novidade", "Comunicados e operação offline segura",
+            "Avisos oficiais passaram a chegar ao morador no aplicativo, enquanto a portaria ganhou uma base local protegida para contingências de conexão.",
+            Icons.Material.Outlined.Campaign, "amber",
+            ["Publicação de comunicados com notificações", "Consulta offline com dados protegidos", "Sincronização auditável após o retorno da conexão"]),
     ];
+
+    private static readonly string PlatformVersion =
+        Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion.Split('+', 2)[0]
+        ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)
+        ?? "indisponível";
 
     private string _activeFilter = "Todas";
 

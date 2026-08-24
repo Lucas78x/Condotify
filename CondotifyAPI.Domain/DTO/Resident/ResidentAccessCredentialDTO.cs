@@ -32,6 +32,7 @@ namespace CondotifyAPI.Domain.DTO.Resident
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        public DateTime? ArchivedAt { get; set; }
 
         public ICollection<ResidentAccessDeviceDTO> Devices { get; set; } = [];
     }
