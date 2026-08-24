@@ -219,7 +219,7 @@
                 <MudTabPanel Text="Convites" Icon="@Icons.Material.Outlined.Send">
                     <div class="invite-composer">
                         <MudTextField T="string" @bind-Value="_inviteContact" Label="@InviteContactLabel" Placeholder="@InviteContactPlaceholder" Variant="Variant.Outlined" InputType="@(_inviteChannel == InviteChannelEmail ? InputType.Email : InputType.Text)" MaxLength="160" />
-                        <MudSelect T="int" Value="_inviteChannel" ValueChanged="OnInviteChannelChanged" Label="Canal" Variant="Variant.Outlined"><MudSelectItem Value="@InviteChannelLink">Link para copiar</MudSelectItem><MudSelectItem Value="@InviteChannelEmail">E-mail</MudSelectItem></MudSelect>
+                        <MudSelect T="int" Value="_inviteChannel" ValueChanged="OnInviteChannelChanged" Label="Canal" Variant="Variant.Outlined"><MudSelectItem Value="@InviteChannelLink">Link para copiar</MudSelectItem><MudSelectItem Value="@InviteChannelEmail">E-mail</MudSelectItem><MudSelectItem Value="@InviteChannelSms">SMS</MudSelectItem></MudSelect>
                         @if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Send" Disabled="_sendingInvite" OnClick="CreateInviteAsync">@InviteActionLabel</MudButton> }
                     </div>
                     @if (!string.IsNullOrWhiteSpace(_latestInviteUrl))
@@ -265,6 +265,7 @@
     private string? _error;
     private string _inviteContact = string.Empty;
     private const int InviteChannelEmail = 1;
+    private const int InviteChannelSms = 2;
     private const int InviteChannelLink = 4;
     private int _inviteChannel = InviteChannelLink;
     private string? _latestInviteUrl;
@@ -545,7 +546,12 @@
         if (!result.Success || result.Value is null) { Snackbar.Add(result.Error ?? "Falha ao processar convite.", Severity.Error); return; }
         _latestInviteUrl = string.IsNullOrWhiteSpace(result.Value.InviteUrl) ? null : Navigation.ToAbsoluteUri(result.Value.InviteUrl).ToString();
         await LoadAsync();
-        Snackbar.Add(_inviteChannel == InviteChannelEmail ? "Convite enviado por e-mail." : "Link de convite gerado.", Severity.Success);
+        Snackbar.Add(_inviteChannel switch
+        {
+            InviteChannelEmail => "Convite enviado por e-mail.",
+            InviteChannelSms => "Convite aceito para envio por SMS.",
+            _ => "Link de convite gerado."
+        }, Severity.Success);
     }
 
     private void OnInviteChannelChanged(int channel)
@@ -557,11 +563,21 @@
             : !string.IsNullOrWhiteSpace(_profile.PhoneNumber) ? _profile.PhoneNumber : _profile.Email;
     }
 
-    private string InviteContactLabel => _inviteChannel == InviteChannelEmail ? "E-mail do morador" : "Contato de referência";
-    private string InviteContactPlaceholder => _inviteChannel == InviteChannelEmail ? "nome@exemplo.com" : "Use o contato do cadastro";
+    private string InviteContactLabel => _inviteChannel switch
+    {
+        InviteChannelEmail => "E-mail do morador",
+        InviteChannelSms => "Celular do morador",
+        _ => "Contato de referência"
+    };
+    private string InviteContactPlaceholder => _inviteChannel switch
+    {
+        InviteChannelEmail => "nome@exemplo.com",
+        InviteChannelSms => "(77) 99999-9999",
+        _ => "Use o contato do cadastro"
+    };
     private string InviteActionLabel => _sendingInvite
-        ? (_inviteChannel == InviteChannelEmail ? "Enviando..." : "Gerando...")
-        : (_inviteChannel == InviteChannelEmail ? "Enviar convite" : "Gerar link");
+        ? (_inviteChannel == InviteChannelLink ? "Gerando..." : "Enviando...")
+        : (_inviteChannel == InviteChannelLink ? "Gerar link" : "Enviar convite");
 
     private async Task CopyInviteLinkAsync()
     {

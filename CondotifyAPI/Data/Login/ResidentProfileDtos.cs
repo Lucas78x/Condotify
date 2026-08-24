@@ -1,4 +1,5 @@
 using CondotifyAPI.Domain.Enums.Resident;
+using CondotifyAPI.Domain.Enums.Invitation;
 
 namespace CondotifyAPI.Data.Login;
 
@@ -45,6 +46,7 @@ public sealed class CreateResidentRegistrationInviteIn
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+    public RegistrationInviteChannelEnum Channel { get; set; } = RegistrationInviteChannelEnum.Email;
     public ResidentUnitRelationshipEnum Relationship { get; set; } = ResidentUnitRelationshipEnum.Resident;
 }
 
@@ -53,6 +55,8 @@ public sealed class ResidentRegistrationInviteOut
     public Guid InviteId { get; set; }
     public Guid UnitId { get; set; }
     public string Email { get; set; } = string.Empty;
+    public string Contact { get; set; } = string.Empty;
+    public int Channel { get; set; }
     public DateTime ExpiresAt { get; set; }
 }
 

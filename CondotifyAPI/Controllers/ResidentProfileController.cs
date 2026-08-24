@@ -43,6 +43,7 @@ public sealed class ResidentProfileController : ControllerBase
     private readonly IVisitFacialInviteService _facialInvites;
     private readonly IPrivateMediaStore _media;
     private readonly IRegistrationInviteEmailSender _inviteEmail;
+    private readonly IRegistrationInviteSmsSender _inviteSms;
     private readonly IConfiguration _configuration;
 
     public ResidentProfileController(
@@ -52,6 +53,7 @@ public sealed class ResidentProfileController : ControllerBase
         IVisitFacialInviteService facialInvites,
         IPrivateMediaStore media,
         IRegistrationInviteEmailSender inviteEmail,
+        IRegistrationInviteSmsSender inviteSms,
         IConfiguration configuration)
     {
         _context = context;
@@ -60,6 +62,7 @@ public sealed class ResidentProfileController : ControllerBase
         _facialInvites = facialInvites;
         _media = media;
         _inviteEmail = inviteEmail;
+        _inviteSms = inviteSms;
         _configuration = configuration;
     }
 
@@ -189,12 +192,16 @@ public sealed class ResidentProfileController : ControllerBase
         var name = input.Name?.Trim() ?? string.Empty;
         var email = input.Email?.Trim() ?? string.Empty;
         var phone = input.PhoneNumber?.Trim() ?? string.Empty;
+        if (input.Channel is not RegistrationInviteChannelEnum.Email and not RegistrationInviteChannelEnum.Sms)
+            return BadRequest(new { Errors = "Selecione E-mail ou SMS para enviar o convite." });
         if (string.IsNullOrWhiteSpace(name) || name.Length > 150)
             return BadRequest(new { Errors = "Informe o nome completo com até 150 caracteres." });
         if (!IsValidEmail(email))
             return BadRequest(new { Errors = "Informe um e-mail válido para o convite." });
         if (phone.Length > 20)
             return BadRequest(new { Errors = "O celular deve ter no máximo 20 caracteres." });
+        if (input.Channel == RegistrationInviteChannelEnum.Sms && !_inviteSms.IsValidRecipient(phone))
+            return BadRequest(new { Errors = "Informe um celular válido com DDD para enviar o convite por SMS." });
         if (input.Relationship is not ResidentUnitRelationshipEnum.Resident and not ResidentUnitRelationshipEnum.Dependent)
             return BadRequest(new { Errors = "O convite pelo aplicativo permite os vínculos Morador ou Dependente." });
 
@@ -215,10 +222,14 @@ public sealed class ResidentProfileController : ControllerBase
         if (alreadyLinked)
             return Conflict(new { Errors = "Esta pessoa já possui vínculo ativo com a unidade selecionada." });
 
-        var smtpPolicy = await _context.AlertNotificationPolicies.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.LicenseId == grant.LicenseId, cancellationToken);
-        if (!_inviteEmail.IsReady(smtpPolicy))
+        var smtpPolicy = input.Channel == RegistrationInviteChannelEnum.Email
+            ? await _context.AlertNotificationPolicies.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.LicenseId == grant.LicenseId, cancellationToken)
+            : null;
+        if (input.Channel == RegistrationInviteChannelEnum.Email && !_inviteEmail.IsReady(smtpPolicy))
             return Conflict(new { Errors = "O envio de convites por e-mail ainda não está configurado neste condomínio." });
+        if (input.Channel == RegistrationInviteChannelEnum.Sms && !_inviteSms.IsReady())
+            return Conflict(new { Errors = "O envio de convites por SMS ainda não está configurado." });
 
         var licenseName = await _context.Licenses.AsNoTracking()
             .Where(x => x.Id == grant.LicenseId).Select(x => x.Name)
@@ -244,7 +255,8 @@ public sealed class ResidentProfileController : ControllerBase
         var invite = new RegistrationInviteDTO
         {
             Id = Guid.NewGuid(), LicenseId = grant.LicenseId, ResidentId = resident.Id, Resident = resident,
-            Contact = email, Channel = RegistrationInviteChannelEnum.Email,
+            Contact = input.Channel == RegistrationInviteChannelEnum.Sms ? phone : email,
+            Channel = input.Channel,
             Status = RegistrationInviteStatusEnum.Pending,
             TokenHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token))),
             CreatedBy = ResidentActor(grant), SentAt = now, ExpiresAt = now.AddDays(7),
@@ -256,11 +268,16 @@ public sealed class ResidentProfileController : ControllerBase
         _context.RegistrationInvites.Add(invite);
         await _context.SaveChangesAsync(cancellationToken);
 
-        RegistrationInviteEmailResult delivery;
+        RegistrationInviteSmsResult? smsDelivery = null;
+        RegistrationInviteEmailResult? emailDelivery = null;
         try
         {
-            delivery = await _inviteEmail.SendAsync(
-                smtpPolicy, email, name, licenseName, inviteUrl, invite.ExpiresAt, cancellationToken);
+            if (input.Channel == RegistrationInviteChannelEnum.Sms)
+                smsDelivery = await _inviteSms.SendAsync(
+                    phone, name, licenseName, inviteUrl, invite.ExpiresAt, cancellationToken);
+            else
+                emailDelivery = await _inviteEmail.SendAsync(
+                    smtpPolicy, email, name, licenseName, inviteUrl, invite.ExpiresAt, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -268,11 +285,15 @@ public sealed class ResidentProfileController : ControllerBase
             await _context.SaveChangesAsync(CancellationToken.None);
             throw;
         }
-        if (!delivery.Success)
+        var deliverySucceeded = smsDelivery?.Success ?? emailDelivery?.Success ?? false;
+        if (!deliverySucceeded)
         {
             _context.Residents.Remove(resident);
             await _context.SaveChangesAsync(cancellationToken);
-            return StatusCode(StatusCodes.Status502BadGateway, new { Errors = delivery.Error });
+            return StatusCode(StatusCodes.Status502BadGateway, new
+            {
+                Errors = smsDelivery?.Error ?? emailDelivery?.Error ?? "Não foi possível enviar o convite."
+            });
         }
 
         invite.SendCount = 1;
@@ -281,16 +302,30 @@ public sealed class ResidentProfileController : ControllerBase
         _context.AccessOperationAudits.Add(new AccessOperationAuditDTO
         {
             Id = Guid.NewGuid(), LicenseId = grant.LicenseId, EntityType = "RegistrationInvite",
-            EntityId = invite.Id, Action = "ResidentRegistrationInviteCreated", Status = "EmailDelivered",
+            EntityId = invite.Id, Action = "ResidentRegistrationInviteCreated",
+            Status = input.Channel == RegistrationInviteChannelEnum.Sms ? "SmsQueued" : "EmailDelivered",
             Summary = $"Convite de morador enviado por {host.Name} para {name}.",
-            DetailsJson = JsonSerializer.Serialize(new { input.UnitId, input.Relationship, Destination = MaskEmail(email) }),
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                input.UnitId,
+                input.Relationship,
+                input.Channel,
+                Destination = input.Channel == RegistrationInviteChannelEnum.Sms
+                    ? RegistrationInviteSmsSender.Mask(phone)
+                    : MaskEmail(email)
+            }),
             UserName = ResidentActor(grant), CreatedAt = DateTime.UtcNow
         });
         await _context.SaveChangesAsync(cancellationToken);
 
         return Created(string.Empty, new ResidentRegistrationInviteOut
         {
-            InviteId = invite.Id, UnitId = unit.Id, Email = email, ExpiresAt = invite.ExpiresAt
+            InviteId = invite.Id,
+            UnitId = unit.Id,
+            Email = email,
+            Contact = invite.Contact,
+            Channel = (int)invite.Channel,
+            ExpiresAt = invite.ExpiresAt
         });
     }
 

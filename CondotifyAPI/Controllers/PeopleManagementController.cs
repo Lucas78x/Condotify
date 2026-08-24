@@ -14,6 +14,7 @@ using CondotifyAPI.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
 using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.AccessControl;
 using CondotifyAPI.Services.Auditing;
@@ -32,6 +33,7 @@ public class PeopleManagementController : ControllerBase
     private readonly IPrivateMediaStore _media;
     private readonly IRecycleBinService _recycleBin;
     private readonly IRegistrationInviteEmailSender _inviteEmail;
+    private readonly IRegistrationInviteSmsSender _inviteSms;
     private readonly IConfiguration _configuration;
 
     public PeopleManagementController(
@@ -39,12 +41,14 @@ public class PeopleManagementController : ControllerBase
         IPrivateMediaStore media,
         IRecycleBinService recycleBin,
         IRegistrationInviteEmailSender inviteEmail,
+        IRegistrationInviteSmsSender inviteSms,
         IConfiguration configuration)
     {
         _context = context;
         _media = media;
         _recycleBin = recycleBin;
         _inviteEmail = inviteEmail;
+        _inviteSms = inviteSms;
         _configuration = configuration;
     }
 
@@ -352,6 +356,7 @@ public class PeopleManagementController : ControllerBase
 
     [HttpPost("residents/{residentId:guid}/registration-invites")]
     [RequireLicensePermission(LicensePermissionEnum.ManagePeople)]
+    [EnableRateLimiting("staff-registration-invite")]
     public async Task<IActionResult> CreateInvite(
         Guid licenseId,
         Guid residentId,
@@ -361,8 +366,8 @@ public class PeopleManagementController : ControllerBase
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
         if (!Enum.IsDefined(input.Channel))
             return BadRequest(new { Errors = "Selecione um canal de convite válido." });
-        if (input.Channel is RegistrationInviteChannelEnum.Sms or RegistrationInviteChannelEnum.WhatsApp)
-            return BadRequest(new { Errors = "Este canal ainda não possui envio automático. Use E-mail ou Link." });
+        if (input.Channel == RegistrationInviteChannelEnum.WhatsApp)
+            return BadRequest(new { Errors = "O envio automático por WhatsApp ainda não está disponível." });
 
         var resident = await _context.Residents
             .Include(x => x.Unit).ThenInclude(x => x.Block)
@@ -379,6 +384,8 @@ public class PeopleManagementController : ControllerBase
         if (contact.Length > 160) return BadRequest(new { Errors = "O contato deve ter no máximo 160 caracteres." });
         if (input.Channel == RegistrationInviteChannelEnum.Email && !IsValidEmail(contact))
             return BadRequest(new { Errors = "Informe um e-mail válido para enviar o convite." });
+        if (input.Channel == RegistrationInviteChannelEnum.Sms && !_inviteSms.IsValidRecipient(contact))
+            return BadRequest(new { Errors = "Informe um celular válido com DDD para enviar o convite." });
 
         var licenseName = await _context.Licenses.AsNoTracking()
             .Where(x => x.Id == licenseId)
@@ -390,11 +397,14 @@ public class PeopleManagementController : ControllerBase
             : null;
         if (input.Channel == RegistrationInviteChannelEnum.Email && !_inviteEmail.IsReady(smtpPolicy))
             return Conflict(new { Errors = "Configure o SMTP do condomínio antes de enviar convites por e-mail." });
+        if (input.Channel == RegistrationInviteChannelEnum.Sms && !_inviteSms.IsReady())
+            return Conflict(new { Errors = "Configure o provedor de SMS antes de enviar convites por celular." });
 
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
         var now = DateTime.UtcNow;
         var inviteUrl = BuildPublicInviteUrl(token);
-        if (input.Channel == RegistrationInviteChannelEnum.Email && !IsAbsoluteHttps(inviteUrl))
+        if (input.Channel is RegistrationInviteChannelEnum.Email or RegistrationInviteChannelEnum.Sms &&
+            !IsAbsoluteHttps(inviteUrl))
             return Conflict(new { Errors = "Configure o endereço público HTTPS do portal antes de enviar convites." });
         var invite = new RegistrationInviteDTO
         {
@@ -440,15 +450,56 @@ public class PeopleManagementController : ControllerBase
             invite.SentAt = DateTime.UtcNow;
             invite.UpdatedAt = invite.SentAt;
         }
+        else if (input.Channel == RegistrationInviteChannelEnum.Sms)
+        {
+            RegistrationInviteSmsResult delivery;
+            try
+            {
+                delivery = await _inviteSms.SendAsync(
+                    contact,
+                    resident.Name,
+                    licenseName,
+                    inviteUrl,
+                    invite.ExpiresAt,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                _context.RegistrationInvites.Remove(invite);
+                await _context.SaveChangesAsync(CancellationToken.None);
+                throw;
+            }
 
+            if (!delivery.Success)
+            {
+                _context.RegistrationInvites.Remove(invite);
+                await _context.SaveChangesAsync(cancellationToken);
+                return StatusCode(StatusCodes.Status502BadGateway, new { Errors = delivery.Error });
+            }
+
+            invite.SendCount = 1;
+            invite.SentAt = DateTime.UtcNow;
+            invite.UpdatedAt = invite.SentAt;
+        }
+
+        var deliveryStatus = input.Channel switch
+        {
+            RegistrationInviteChannelEnum.Email => "EmailDelivered",
+            RegistrationInviteChannelEnum.Sms => "SmsQueued",
+            _ => "Created"
+        };
+        var auditSummary = input.Channel switch
+        {
+            RegistrationInviteChannelEnum.Email => $"Convite de cadastro enviado por e-mail para {resident.Name}.",
+            RegistrationInviteChannelEnum.Sms => $"Convite de cadastro aceito para envio por SMS para {resident.Name}.",
+            _ => $"Link de cadastro gerado para {resident.Name}."
+        };
         AddManagementAudit(
             licenseId,
             "RegistrationInvite",
             invite.Id,
-            input.Channel == RegistrationInviteChannelEnum.Email ? "EmailDelivered" : "Created",
-            input.Channel == RegistrationInviteChannelEnum.Email
-                ? $"Convite de cadastro enviado por e-mail para {resident.Name}."
-                : $"Link de cadastro gerado para {resident.Name}.",
+            deliveryStatus,
+            auditSummary,
             new { ResidentId = resident.Id, input.Channel, invite.ExpiresAt });
         await _context.SaveChangesAsync(cancellationToken);
         return Created(string.Empty, ToInvite(invite, resident.Name, inviteUrl));

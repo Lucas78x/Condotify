@@ -115,6 +115,7 @@ public sealed class CondotifyApiClient
             model.Name,
             model.Email,
             model.PhoneNumber,
+            model.Channel,
             model.Relationship
         }, cancellationToken);
 

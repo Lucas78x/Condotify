@@ -209,6 +209,18 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
             AutoReplenishment = true
         }));
+    options.AddPolicy("staff-registration-invite", httpContext => RateLimitPartition.GetSlidingWindowLimiter(
+        httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "unknown",
+        _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 60,
+            Window = TimeSpan.FromHours(1),
+            SegmentsPerWindow = 6,
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
 });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -239,6 +251,12 @@ builder.Services.AddHttpClient("FcmPush", client =>
     client.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddHttpClient("FcmOAuth", client => client.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient<IRegistrationInviteSmsSender, RegistrationInviteSmsSender>(client =>
+{
+    client.BaseAddress = new Uri("https://api.twilio.com/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("Condotify-SMS/1.0");
+});
 builder.Services.AddHttpClient<IMediaGatewayClient, MediaGatewayClient>(client =>
 {
     client.BaseAddress = new Uri(
