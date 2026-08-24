@@ -11,9 +11,9 @@
     {
         <section class="content-panel">
             <div class="page-state success-state">
-                <MudIcon Icon="@(_sent.Channel == InviteChannelSms ? Icons.Material.Outlined.Sms : Icons.Material.Outlined.MarkEmailRead)" Color="Color.Success" Size="Size.Large" />
+                <MudIcon Icon="@Icons.Material.Outlined.MarkEmailRead" Color="Color.Success" Size="Size.Large" />
                 <MudText Typo="Typo.h5">Convite enviado</MudText>
-                <MudText Color="Color.Secondary">Enviamos as instruções por @(_sent.Channel == InviteChannelSms ? "SMS" : "e-mail") para <strong>@_sent.Contact</strong>.</MudText>
+                <MudText Color="Color.Secondary">Enviamos as instruções para <strong>@_sent.Email</strong>.</MudText>
                 <MudText Typo="Typo.caption" Color="Color.Secondary">O link é válido até @_sent.ExpiresAt.ToLocalTime().ToString("dd/MM 'às' HH:mm").</MudText>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="NewInvite">Enviar outro convite</MudButton>
                 <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="GoBack">Voltar</MudButton>
@@ -34,7 +34,7 @@
             <div class="screen-overview-main">
                 <span>Convite de cadastro</span>
                 <strong>@_profile.LicenseName</strong>
-                <small>A pessoa receberá o link pelo canal escolhido e criará o próprio acesso.</small>
+                <small>A pessoa receberá o link por e-mail e criará o próprio acesso.</small>
             </div>
         </section>
 
@@ -53,11 +53,7 @@
                     </MudSelect>
                     <MudTextField T="string" @bind-Value="_model.Name" Label="Nome completo" Required RequiredError="Informe o nome." Variant="Variant.Outlined" Class="full" />
                     <MudTextField T="string" @bind-Value="_model.Email" Label="E-mail" Required RequiredError="Informe o e-mail." InputType="InputType.Email" Variant="Variant.Outlined" Class="full" />
-                    <MudTextField T="string" @bind-Value="_model.PhoneNumber" Label="@PhoneLabel" Required="@(_model.Channel == InviteChannelSms)" RequiredError="Informe o celular para enviar por SMS." Variant="Variant.Outlined" />
-                    <MudSelect T="int" @bind-Value="_model.Channel" Label="Enviar por" Variant="Variant.Outlined">
-                        <MudSelectItem T="int" Value="@InviteChannelEmail">E-mail</MudSelectItem>
-                        <MudSelectItem T="int" Value="@InviteChannelSms">SMS</MudSelectItem>
-                    </MudSelect>
+                    <MudTextField T="string" @bind-Value="_model.PhoneNumber" Label="Celular (opcional)" Variant="Variant.Outlined" />
                     <MudSelect T="int" @bind-Value="_model.Relationship" Label="Vínculo" Variant="Variant.Outlined">
                         <MudSelectItem T="int" Value="0">Morador</MudSelectItem>
                         <MudSelectItem T="int" Value="4">Dependente</MudSelectItem>
@@ -68,7 +64,7 @@
                 </MudAlert>
                 <MudButton FullWidth Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
                            StartIcon="@Icons.Material.Outlined.Send" Disabled="_sending" OnClick="SendAsync">
-                    @(_sending ? "Enviando..." : $"Enviar convite por {(_model.Channel == InviteChannelSms ? "SMS" : "e-mail")}")
+                    @(_sending ? "Enviando..." : "Enviar convite por e-mail")
                 </MudButton>
             </MudForm>
         </section>
@@ -77,8 +73,6 @@
 
 @code {
     private MudForm? _form;
-    private const int InviteChannelEmail = ResidentRegistrationInviteFormViewModel.EmailChannel;
-    private const int InviteChannelSms = ResidentRegistrationInviteFormViewModel.SmsChannel;
     private ResidentProfileViewModel? _profile;
     private ResidentRegistrationInviteFormViewModel _model = new();
     private ResidentRegistrationInviteViewModel? _sent;
@@ -86,7 +80,6 @@
     private bool _sending;
     private string _error = string.Empty;
     private string _submitError = string.Empty;
-    private string PhoneLabel => _model.Channel == InviteChannelSms ? "Celular" : "Celular (opcional)";
 
     protected override Task OnInitializedAsync() => LoadAsync();
 

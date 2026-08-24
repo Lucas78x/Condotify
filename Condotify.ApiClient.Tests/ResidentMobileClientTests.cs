@@ -43,8 +43,6 @@ public sealed class ResidentMobileClientTests
             UnitId = unitId,
             Name = "Maria",
             Email = "maria@example.com",
-            PhoneNumber = "(77) 99999-9999",
-            Channel = ResidentRegistrationInviteFormViewModel.SmsChannel,
             Relationship = 4
         });
 
@@ -52,8 +50,6 @@ public sealed class ResidentMobileClientTests
         Assert.Equal("/api/resident/registration-invites", handler.Uri?.AbsolutePath);
         using var json = JsonDocument.Parse(handler.Body!);
         Assert.Equal(unitId, json.RootElement.GetProperty("unitId").GetGuid());
-        Assert.Equal(2, json.RootElement.GetProperty("channel").GetInt32());
-        Assert.Equal("(77) 99999-9999", json.RootElement.GetProperty("phoneNumber").GetString());
         Assert.Equal(4, json.RootElement.GetProperty("relationship").GetInt32());
     }
 

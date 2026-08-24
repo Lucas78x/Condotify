@@ -86,23 +86,6 @@ Configure `ci-gate` como status check obrigatorio na regra da branch de producao
 Ele so aprova quando testes, Compose e as tres imagens terminam com sucesso.
 Restrinja tambem force-push e exclusao da branch.
 
-## Convites por SMS (Twilio)
-
-Configure as credenciais somente no `.env` da VPS. Use uma API Key restrita
-(`SK...`) e seu segredo, sem reutilizar o Auth Token principal da conta:
-
-```dotenv
-CONDOTIFY_TWILIO_ACCOUNT_SID=AC...
-CONDOTIFY_TWILIO_API_KEY_SID=SK...
-CONDOTIFY_TWILIO_API_KEY_SECRET=...
-CONDOTIFY_SMS_DEFAULT_COUNTRY_CODE=55
-```
-
-Defina também exatamente um remetente: `CONDOTIFY_TWILIO_FROM_NUMBER` com um
-número Twilio no formato E.164 (`+...`) ou
-`CONDOTIFY_TWILIO_MESSAGING_SERVICE_SID` com um serviço (`MG...`). Depois,
-recrie a API com `docker compose up -d --force-recreate api`.
-
 ## Protecao da branch de producao
 
 A branch implantada atualmente e `feature/ff-access-branding`. No GitHub, acesse

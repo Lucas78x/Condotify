@@ -43,9 +43,6 @@ public sealed class ResidentUnitViewModel
 
 public sealed class ResidentRegistrationInviteFormViewModel
 {
-    public const int EmailChannel = 1;
-    public const int SmsChannel = 2;
-
     public Guid UnitId { get; set; }
     [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(150)]
     public string Name { get; set; } = string.Empty;
@@ -53,7 +50,6 @@ public sealed class ResidentRegistrationInviteFormViewModel
     public string Email { get; set; } = string.Empty;
     [System.ComponentModel.DataAnnotations.MaxLength(20)]
     public string PhoneNumber { get; set; } = string.Empty;
-    public int Channel { get; set; } = EmailChannel;
     public int Relationship { get; set; }
 }
 
@@ -62,8 +58,6 @@ public sealed class ResidentRegistrationInviteViewModel
     public Guid InviteId { get; set; }
     public Guid UnitId { get; set; }
     public string Email { get; set; } = string.Empty;
-    public string Contact { get; set; } = string.Empty;
-    public int Channel { get; set; }
     public DateTime ExpiresAt { get; set; }
 }
 
