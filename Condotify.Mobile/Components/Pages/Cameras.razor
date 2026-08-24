@@ -1,5 +1,6 @@
 @page "/cameras"
 @page "/cameras/{EntityId:guid}"
+@using System.Text.Json
 @implements IAsyncDisposable
 @inject MobileAppState AppState
 @inject MobileSessionCoordinator Session
@@ -9,71 +10,148 @@
 @inject MobilePullToRefreshState PullToRefresh
 
 <PageTitle>Câmeras | F&amp;F Access</PageTitle>
-<PageHeader Eyebrow="MONITORAMENTO AO VIVO" Title="Câmeras" Subtitle="Visualização protegida sem expor credenciais dos equipamentos." />
+<PageHeader Eyebrow="MONITORAMENTO AO VIVO" Title="Câmeras" Subtitle="Encontre rapidamente uma câmera por gravador, canal ou localização." />
 
 @if (_session is not null)
 {
     <section class="content-panel camera-stream-panel mb-4">
-        <div class="panel-heading"><div><MudText Typo="Typo.h5">@_activeCamera?.Name</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Sessão protegida até @_session.ExpiresAt.ToLocalTime().ToString("HH:mm")</MudText></div><MudIconButton Icon="@Icons.Material.Outlined.Close" OnClick="CloseStreamAsync" aria-label="Fechar vídeo" /></div>
+        <div class="panel-heading">
+            <div>
+                <MudText Typo="Typo.h5">@_activeCamera?.Name</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@_activeCamera?.DeviceName · Canal @_activeCamera?.Channel · sessão protegida até @_session.ExpiresAt.ToLocalTime().ToString("HH:mm")</MudText>
+            </div>
+            <MudIconButton Icon="@Icons.Material.Outlined.Close" OnClick="CloseStreamAsync" aria-label="Fechar vídeo" />
+        </div>
         <div class="video-stage"><video id="condotify-live-video" autoplay playsinline controls></video></div>
     </section>
 }
 
-<PageState Loading="_loading" Error="@_error" Empty="@(_cameras.Count == 0)" EmptyTitle="Nenhuma câmera" EmptyText="As câmeras configuradas no portal aparecerão aqui." Retry="LoadAsync">
+<PageState Loading="_loading" Error="@_error" Empty="@(_groups.Count == 0)" EmptyTitle="Nenhuma câmera" EmptyText="As câmeras compartilhadas pelo condomínio aparecerão aqui." Retry="LoadAsync">
     <section class="screen-overview camera-overview">
         <span class="screen-overview-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Videocam" /></span>
         <div class="screen-overview-main">
             <span>Circuito compartilhado</span>
-            <strong>@_cameras.Count(x => x.Online) de @_cameras.Count câmera(s) disponíveis</strong>
-            <small>Toque em reproduzir para iniciar uma sessão segura</small>
+            <strong>@OnlineCameraCount de @CameraCount câmera(s) disponíveis</strong>
+            <small>@_groups.Count equipamento(s) organizado(s) por canais</small>
         </div>
         <span class="live-indicator"><span></span>Ao vivo</span>
     </section>
-    <section class="camera-grid camera-showcase">
-        @for (var index = 0; index < _cameras.Count; index++)
-        {
-            var camera = _cameras[index];
-            <article class="camera-card @(index == 0 ? "camera-featured" : "")">
-                <div class="camera-preview">
-                    @if (!string.IsNullOrWhiteSpace(camera.SnapshotUrl))
-                    {
-                        <img src="@camera.SnapshotUrl" alt="Miniatura de @camera.Name" />
-                    }
-                    else
-                    {
-                        <div class="camera-preview-placeholder"><MudIcon Icon="@Icons.Material.Outlined.VideocamOff" /><span>Imagem indisponível</span></div>
-                    }
-                    <span class="camera-live-status @(camera.Online ? "online" : "offline")"><span></span>@(camera.Online ? "Online" : "Offline")</span>
-                    <MudIconButton Class="camera-play" Icon="@Icons.Material.Outlined.PlayArrow" Disabled="@(!camera.Online || _opening.HasValue)" OnClick="() => OpenStreamAsync(camera)" aria-label="@($"Assistir {camera.Name}")" />
-                </div>
-                <div class="camera-card-body">
-                    <div class="list-main"><div class="list-title">@camera.Name</div><div class="list-meta">@camera.DeviceType · @camera.MaxChannels canal(is)</div></div>
-                    <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Color="Color.Secondary" />
-                </div>
-            </article>
-        }
+
+    <section class="camera-browser-toolbar">
+        <MudTextField T="string" Value="_search" ValueChanged="OnSearchChangedAsync" DebounceInterval="350" Immediate
+                      Placeholder="Buscar entrada, garagem, bloco..." Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Outlined.Search" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        <div class="camera-browser-filters" role="group" aria-label="Filtrar câmeras">
+            @foreach (var filter in Enum.GetValues<CameraFilter>())
+            {
+                <button type="button" class="@(_filter == filter ? "active" : null)" @onclick="@(() => SetFilterAsync(filter))">
+                    <MudIcon Icon="@FilterIcon(filter)" /> @FilterLabel(filter)
+                </button>
+            }
+        </div>
     </section>
+
+    @if (!FilteredGroups.Any())
+    {
+        <section class="content-panel camera-filter-empty">
+            <MudIcon Icon="@Icons.Material.Outlined.SearchOff" />
+            <strong>Nenhuma câmera encontrada</strong>
+            <span>Altere a busca ou selecione outro filtro.</span>
+        </section>
+    }
+    else
+    {
+        <section class="camera-device-groups">
+            @foreach (var group in FilteredGroups)
+            {
+                var matching = MatchingCameras(group).ToList();
+                var expanded = IsExpanded(group.Id);
+                <article class="camera-device-group @(expanded ? "expanded" : null)">
+                    <button type="button" class="camera-device-group-heading" @onclick="@(() => ToggleGroupAsync(group.Id))" aria-expanded="@expanded">
+                        <span class="camera-device-group-icon"><MudIcon Icon="@DeviceIcon(group.DeviceType)" /></span>
+                        <span class="camera-device-group-copy">
+                            <strong>@group.Name</strong>
+                            <small>@matching.Count câmera(s) · @matching.Count(camera => camera.Online) online</small>
+                        </span>
+                        <span class="camera-device-health @(group.Online ? "online" : "offline")"><i></i>@(group.Online ? "Online" : "Offline")</span>
+                        <MudIcon Icon="@(expanded ? Icons.Material.Outlined.ExpandLess : Icons.Material.Outlined.ExpandMore)" />
+                    </button>
+
+                    @if (expanded)
+                    {
+                        @if (!group.Online && !string.IsNullOrWhiteSpace(group.HealthMessage))
+                        {
+                            <div class="camera-device-warning"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" /> @group.HealthMessage</div>
+                        }
+                        <div class="camera-channel-grid">
+                            @foreach (var camera in matching.Take(VisibleCount(group.Id)))
+                            {
+                                <article class="camera-channel-card @(_activeCamera?.Key == camera.Key ? "active" : null)">
+                                    <div class="camera-preview">
+                                        @if (!string.IsNullOrWhiteSpace(camera.SnapshotUrl))
+                                        {
+                                            <img src="@camera.SnapshotUrl" alt="Miniatura de @camera.Name" />
+                                        }
+                                        else
+                                        {
+                                            <div class="camera-preview-placeholder"><MudIcon Icon="@Icons.Material.Outlined.VideocamOff" /><span>@(camera.Online ? "Sem miniatura" : "Offline")</span></div>
+                                        }
+                                        <span class="camera-channel-number-badge">CH @camera.Channel</span>
+                                        <MudIconButton Class="camera-favorite" Icon="@(IsFavorite(camera) ? Icons.Material.Filled.Star : Icons.Material.Outlined.StarBorder)"
+                                                       Color="@(IsFavorite(camera) ? Color.Warning : Color.Default)" OnClick="@(() => ToggleFavoriteAsync(camera))" aria-label="@($"Favoritar {camera.Name}")" />
+                                        <MudIconButton Class="camera-play" Icon="@(_opening == camera.Key ? Icons.Material.Outlined.HourglassTop : Icons.Material.Outlined.PlayArrow)"
+                                                       Disabled="@(!camera.Online || _opening is not null)" OnClick="@(() => OpenStreamAsync(camera))" aria-label="@($"Assistir {camera.Name}")" />
+                                    </div>
+                                    <div class="camera-channel-card-body">
+                                        <strong>@camera.Name</strong>
+                                        <span>@(camera.Online ? "Disponível agora" : "Imagem indisponível")</span>
+                                    </div>
+                                </article>
+                            }
+                        </div>
+                        @if (matching.Count > VisibleCount(group.Id))
+                        {
+                            <button type="button" class="camera-show-more" @onclick="@(() => ShowMoreAsync(group.Id))">
+                                Mostrar mais @(Math.Min(ChannelPageSize, matching.Count - VisibleCount(group.Id))) câmera(s)
+                                <MudIcon Icon="@Icons.Material.Outlined.ExpandMore" />
+                            </button>
+                        }
+                    }
+                </article>
+            }
+        </section>
+    }
 </PageState>
 
 @code {
     [Parameter] public Guid? EntityId { get; set; }
-    private List<CameraItem> _cameras = [];
+    private const int ChannelPageSize = 6;
+    private const string FavoritesStorageKey = "condotify.camera-favorites";
+    private readonly List<CameraGroup> _groups = [];
+    private readonly HashSet<Guid> _expandedGroups = [];
+    private readonly Dictionary<Guid, int> _visibleCounts = [];
+    private readonly HashSet<Guid> _snapshotLoads = [];
+    private readonly HashSet<string> _favoriteKeys = new(StringComparer.Ordinal);
     private CameraItem? _activeCamera;
     private CftvStreamSessionViewModel? _session;
+    private CameraFilter _filter;
+    private string _search = string.Empty;
     private bool _loading;
-    private Guid? _opening;
+    private string? _opening;
     private Guid? _activeLicenseId;
     private MobilePrincipalKind _activePrincipal;
     private Guid? _openedEntityId;
     private string _error = string.Empty;
-    // A camera request may finish after the user leaves this page. Cancelling several
-    // Android HTTP requests while Blazor is replacing the component can stall WebView
-    // link handling, so the request is instead bounded by the configured HttpClient
-    // timeout and its result is ignored by the disposed component.
     private readonly CancellationTokenSource _loadCts = new();
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly SemaphoreSlim _streamGate = new(1, 1);
     private bool _disposed;
+    private bool _favoritesLoaded;
+
+    private int CameraCount => _groups.Sum(group => group.Cameras.Count);
+    private int OnlineCameraCount => _groups.Sum(group => group.Cameras.Count(camera => camera.Online));
+    private IEnumerable<CameraGroup> FilteredGroups => _groups.Where(group => MatchingCameras(group).Any());
+
     protected override void OnInitialized() => PullToRefresh.Register(LoadAsync);
     protected override void OnParametersSet() => _ = LoadAsync();
 
@@ -81,16 +159,28 @@
     {
         if (!await _loadGate.WaitAsync(0)) return;
         var cancellationToken = _loadCts.Token;
-        _loading = true; _error = string.Empty;
+        _loading = true;
+        _error = string.Empty;
         var principal = Session.Current?.Principal ?? MobilePrincipalKind.None;
         var licenseId = AppState.SelectedLicenseId;
         try
         {
+            await LoadFavoritesAsync();
+            _groups.Clear();
             if (principal == MobilePrincipalKind.Resident)
             {
                 var result = await Api.GetResidentCamerasAsync(cancellationToken);
                 if (cancellationToken.IsCancellationRequested) return;
-                _cameras = (result.Value ?? []).Select(x => new CameraItem(x.Id, x.Name, x.DeviceType, x.MaxChannels, x.Online, x.HealthMessage)).ToList();
+                _groups.AddRange((result.Value ?? []).Select(device => new CameraGroup(
+                    device.Id,
+                    device.Name,
+                    device.DeviceType,
+                    device.Online,
+                    device.HealthMessage,
+                    device.Channels.OrderBy(channel => channel.ChannelNumber)
+                        .Select(channel => new CameraItem(device.Id, device.Name, device.DeviceType, channel.ChannelNumber,
+                            DisplayChannelName(device.Name, device.DeviceType, channel.Name, channel.ChannelNumber), device.Online, device.HealthMessage))
+                        .ToList())));
                 if (!result.Success) _error = result.Error ?? "Não foi possível carregar as câmeras.";
             }
             else
@@ -102,18 +192,45 @@
                 if (cancellationToken.IsCancellationRequested) return;
                 var cameras = await camerasTask;
                 var status = await statusTask;
-                _cameras = (cameras.Value ?? []).Select(camera =>
+                _groups.AddRange((cameras.Value ?? []).Select(device =>
                 {
-                    var state = status.Value?.FirstOrDefault(x => x.DeviceId == camera.Id);
-                    return new CameraItem(camera.Id, camera.Name, camera.DeviceType, camera.MaxChannels, state?.Online == true, state?.HealthMessage ?? string.Empty);
-                }).ToList();
+                    var state = status.Value?.FirstOrDefault(item => item.DeviceId == device.Id);
+                    var online = state?.Online == true;
+                    var channels = device.Channels.Count > 0
+                        ? device.Channels.Where(channel => channel.IsEnabled).OrderBy(channel => channel.ChannelNumber).ToList()
+                        : Enumerable.Range(1, Math.Max(1, device.MaxChannels)).Select(number => new CftvChannelViewModel
+                        {
+                            ChannelNumber = number,
+                            Name = $"Canal {number}",
+                            IsEnabled = true
+                        }).ToList();
+                    return new CameraGroup(
+                        device.Id,
+                        device.Name,
+                        device.DeviceType,
+                        online,
+                        state?.HealthMessage ?? string.Empty,
+                        channels.Select(channel => new CameraItem(device.Id, device.Name, device.DeviceType, channel.ChannelNumber,
+                            DisplayChannelName(device.Name, device.DeviceType, channel.Name, channel.ChannelNumber), online, state?.HealthMessage ?? string.Empty))
+                            .ToList());
+                }));
                 if (!cameras.Success) _error = cameras.Error ?? "Não foi possível carregar as câmeras.";
                 else if (!status.Success) _error = status.Error ?? "Não foi possível consultar o estado das câmeras.";
             }
-            await LoadSnapshotsAsync(principal, licenseId, cancellationToken);
-            if (!cancellationToken.IsCancellationRequested && EntityId.HasValue && _openedEntityId != EntityId)
+
+            _groups.RemoveAll(group => group.Cameras.Count == 0);
+            foreach (var group in _groups) _visibleCounts.TryAdd(group.Id, ChannelPageSize);
+            var requestedGroup = EntityId.HasValue ? _groups.FirstOrDefault(group => group.Id == EntityId) : null;
+            var initialGroup = requestedGroup ?? _groups.FirstOrDefault();
+            if (initialGroup is not null)
             {
-                var requested = _cameras.FirstOrDefault(x => x.Id == EntityId && x.Online);
+                _expandedGroups.Add(initialGroup.Id);
+                await LoadSnapshotsForGroupAsync(initialGroup.Id, principal, licenseId, cancellationToken);
+            }
+
+            if (requestedGroup is not null && _openedEntityId != EntityId)
+            {
+                var requested = requestedGroup.Cameras.FirstOrDefault(camera => camera.Online);
                 if (requested is not null)
                 {
                     _openedEntityId = EntityId;
@@ -134,36 +251,101 @@
         }
     }
 
-    private async Task LoadSnapshotsAsync(MobilePrincipalKind principal, Guid? licenseId, CancellationToken cancellationToken)
+    private IEnumerable<CameraItem> MatchingCameras(CameraGroup group)
     {
-        if (_cameras.Count == 0) return;
-        using var concurrency = new SemaphoreSlim(3);
-        var requests = _cameras.Select(async camera =>
+        var search = _search.Trim();
+        return group.Cameras.Where(camera =>
+            (_filter switch
+            {
+                CameraFilter.Favorites => IsFavorite(camera),
+                CameraFilter.Online => camera.Online,
+                CameraFilter.Offline => !camera.Online,
+                _ => true
+            }) &&
+            (search.Length == 0 || camera.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+             camera.DeviceName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+             $"canal {camera.Channel}".Contains(search, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private bool IsExpanded(Guid groupId) => _expandedGroups.Contains(groupId);
+    private int VisibleCount(Guid groupId) => _visibleCounts.GetValueOrDefault(groupId, ChannelPageSize);
+
+    private async Task ToggleGroupAsync(Guid groupId)
+    {
+        if (!_expandedGroups.Add(groupId))
         {
-            if (!camera.Online) return camera;
-            await concurrency.WaitAsync(cancellationToken);
-            try
-            {
-                var result = principal == MobilePrincipalKind.Resident
-                    ? await Api.GetResidentCftvSnapshotAsync(camera.Id, cancellationToken: cancellationToken)
-                    : licenseId.HasValue
-                        ? await Api.GetCftvSnapshotAsync(licenseId.Value, camera.Id, cancellationToken: cancellationToken)
-                        : ApiResult<string>.Fail("Selecione um condomínio.");
-                return result.Success && !string.IsNullOrWhiteSpace(result.Value)
-                    ? camera with { SnapshotUrl = result.Value }
-                    : camera;
-            }
-            finally
-            {
-                concurrency.Release();
-            }
-        });
+            _expandedGroups.Remove(groupId);
+            return;
+        }
+        await LoadSnapshotsForGroupAsync(groupId);
+    }
+
+    private async Task ShowMoreAsync(Guid groupId)
+    {
+        _visibleCounts[groupId] = VisibleCount(groupId) + ChannelPageSize;
+        await LoadSnapshotsForGroupAsync(groupId);
+    }
+
+    private async Task OnSearchChangedAsync(string value)
+    {
+        _search = value ?? string.Empty;
+        if (_search.Trim().Length == 0) return;
+        foreach (var group in FilteredGroups)
+        {
+            _expandedGroups.Add(group.Id);
+            await LoadSnapshotsForGroupAsync(group.Id);
+        }
+    }
+
+    private async Task SetFilterAsync(CameraFilter filter)
+    {
+        _filter = filter;
+        foreach (var group in FilteredGroups.Where(group => _expandedGroups.Contains(group.Id)))
+            await LoadSnapshotsForGroupAsync(group.Id);
+    }
+
+    private async Task LoadSnapshotsForGroupAsync(
+        Guid groupId,
+        MobilePrincipalKind? principalOverride = null,
+        Guid? licenseOverride = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_snapshotLoads.Add(groupId)) return;
         try
         {
-            _cameras = (await Task.WhenAll(requests)).ToList();
+            var group = _groups.FirstOrDefault(item => item.Id == groupId);
+            if (group is null) return;
+            var principal = principalOverride ?? Session.Current?.Principal ?? MobilePrincipalKind.None;
+            var licenseId = licenseOverride ?? AppState.SelectedLicenseId;
+            var targets = MatchingCameras(group)
+                .Take(VisibleCount(groupId))
+                .Where(camera => camera.Online && string.IsNullOrWhiteSpace(camera.SnapshotUrl))
+                .ToList();
+            using var concurrency = new SemaphoreSlim(3);
+            var requests = targets.Select(async camera =>
+            {
+                await concurrency.WaitAsync(cancellationToken);
+                try
+                {
+                    var result = principal == MobilePrincipalKind.Resident
+                        ? await Api.GetResidentCftvSnapshotAsync(camera.DeviceId, camera.Channel, cancellationToken)
+                        : licenseId.HasValue
+                            ? await Api.GetCftvSnapshotAsync(licenseId.Value, camera.DeviceId, camera.Channel, cancellationToken)
+                            : ApiResult<string>.Fail("Selecione um condomínio.");
+                    if (result.Success && !string.IsNullOrWhiteSpace(result.Value)) camera.SnapshotUrl = result.Value;
+                }
+                finally
+                {
+                    concurrency.Release();
+                }
+            });
+            await Task.WhenAll(requests);
+            if (!_disposed) await InvokeAsync(StateHasChanged);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        finally
         {
+            _snapshotLoads.Remove(groupId);
         }
     }
 
@@ -181,10 +363,10 @@
                 return;
             }
 
-            _opening = camera.Id;
+            _opening = camera.Key;
             var result = principal == MobilePrincipalKind.Resident
-                ? await Api.OpenResidentCftvStreamAsync(camera.Id, 1, "main", "webrtc")
-                : await Api.OpenCftvStreamAsync(licenseId!.Value, camera.Id, 1, "main", "webrtc");
+                ? await Api.OpenResidentCftvStreamAsync(camera.DeviceId, camera.Channel, "main", "webrtc")
+                : await Api.OpenCftvStreamAsync(licenseId!.Value, camera.DeviceId, camera.Channel, "main", "webrtc");
             if (!result.Success || result.Value is null) { Snackbar.Add(result.Error ?? "Vídeo indisponível.", Severity.Error); return; }
             _activeCamera = camera;
             _activePrincipal = principal;
@@ -193,6 +375,7 @@
             await InvokeAsync(StateHasChanged);
             try
             {
+                await JS.InvokeVoidAsync("condotifyCftv.focus", "condotify-live-video");
                 var audioStarted = await JS.InvokeAsync<bool>("condotifyCftv.start", "condotify-live-video", _session.PlaybackUrl);
                 if (!audioStarted)
                     Snackbar.Add("O vídeo iniciou sem som. Use o controle de áudio do player para ativá-lo.", Severity.Info);
@@ -216,14 +399,11 @@
             technicalMessage.Contains("NetworkError", StringComparison.OrdinalIgnoreCase) ||
             technicalMessage.Contains("insecure", StringComparison.OrdinalIgnoreCase))
             return "Não foi possível alcançar o gateway de vídeo nesta rede.";
-
         if (technicalMessage.Contains("Tempo limite", StringComparison.OrdinalIgnoreCase) ||
             technicalMessage.Contains("demorou", StringComparison.OrdinalIgnoreCase))
             return "A câmera demorou para iniciar. Verifique a rede do equipamento.";
-
         if (technicalMessage.Contains("HTTP", StringComparison.OrdinalIgnoreCase))
             return "O gateway recusou a reprodução deste vídeo.";
-
         return "Não foi possível reproduzir o vídeo desta câmera.";
     }
 
@@ -240,21 +420,74 @@
         if (_activeCamera is not null)
         {
             if (_activePrincipal == MobilePrincipalKind.Resident)
-                await Api.CloseResidentCftvStreamAsync(_activeCamera.Id);
+                await Api.CloseResidentCftvStreamAsync(_activeCamera.DeviceId, _activeCamera.Channel);
             else if (_activeLicenseId.HasValue)
-                await Api.CloseCftvStreamAsync(_activeLicenseId.Value, _activeCamera.Id);
+                await Api.CloseCftvStreamAsync(_activeLicenseId.Value, _activeCamera.DeviceId, _activeCamera.Channel);
         }
-        _activeCamera = null; _session = null; _activeLicenseId = null; _activePrincipal = MobilePrincipalKind.None;
+        _activeCamera = null;
+        _session = null;
+        _activeLicenseId = null;
+        _activePrincipal = MobilePrincipalKind.None;
     }
+
+    private bool IsFavorite(CameraItem camera) => _favoriteKeys.Contains(camera.Key);
+
+    private async Task ToggleFavoriteAsync(CameraItem camera)
+    {
+        if (!_favoriteKeys.Add(camera.Key)) _favoriteKeys.Remove(camera.Key);
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", FavoritesStorageKey, JsonSerializer.Serialize(_favoriteKeys));
+        }
+        catch (JSException) { }
+    }
+
+    private async Task LoadFavoritesAsync()
+    {
+        if (_favoritesLoaded) return;
+        _favoritesLoaded = true;
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", FavoritesStorageKey);
+            foreach (var key in JsonSerializer.Deserialize<List<string>>(json ?? "[]") ?? []) _favoriteKeys.Add(key);
+        }
+        catch (Exception exception) when (exception is JSException or JsonException) { }
+    }
+
+    private static string DisplayChannelName(string deviceName, string deviceType, string channelName, int channel) =>
+        string.Equals(deviceType, "Camera", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(deviceType, "Câmera", StringComparison.OrdinalIgnoreCase)
+            ? deviceName
+            : string.IsNullOrWhiteSpace(channelName) ? $"Canal {channel}" : channelName.Trim();
+
+    private static string DeviceIcon(string deviceType) => deviceType.ToUpperInvariant() switch
+    {
+        "DVR" => Icons.Material.Outlined.Dns,
+        "NVR" => Icons.Material.Outlined.Storage,
+        _ => Icons.Material.Outlined.Videocam
+    };
+
+    private static string FilterLabel(CameraFilter filter) => filter switch
+    {
+        CameraFilter.Favorites => "Favoritas",
+        CameraFilter.Online => "Online",
+        CameraFilter.Offline => "Offline",
+        _ => "Todas"
+    };
+
+    private static string FilterIcon(CameraFilter filter) => filter switch
+    {
+        CameraFilter.Favorites => Icons.Material.Outlined.StarBorder,
+        CameraFilter.Online => Icons.Material.Outlined.CheckCircleOutline,
+        CameraFilter.Offline => Icons.Material.Outlined.CloudOff,
+        _ => Icons.Material.Outlined.GridView
+    };
 
     public ValueTask DisposeAsync()
     {
         _disposed = true;
         PullToRefresh.Unregister(LoadAsync);
         if (_activeCamera is not null) _ = CloseStreamAfterDisposeAsync();
-        // Do not synchronously cancel an Android HTTP request here. The shared client's
-        // 20-second timeout bounds it, and the component is reclaimed once it completes.
-        // Semaphores also remain owned by any in-flight operation to avoid a late Release race.
         return ValueTask.CompletedTask;
     }
 
@@ -264,5 +497,34 @@
         catch (TimeoutException) { }
         catch (ObjectDisposedException) { }
     }
-    private sealed record CameraItem(Guid Id, string Name, string DeviceType, int MaxChannels, bool Online, string HealthMessage, string SnapshotUrl = "");
+
+    private enum CameraFilter { All, Favorites, Online, Offline }
+
+    private sealed record CameraGroup(
+        Guid Id,
+        string Name,
+        string DeviceType,
+        bool Online,
+        string HealthMessage,
+        List<CameraItem> Cameras);
+
+    private sealed class CameraItem(
+        Guid deviceId,
+        string deviceName,
+        string deviceType,
+        int channel,
+        string name,
+        bool online,
+        string healthMessage)
+    {
+        public Guid DeviceId { get; } = deviceId;
+        public string DeviceName { get; } = deviceName;
+        public string DeviceType { get; } = deviceType;
+        public int Channel { get; } = channel;
+        public string Name { get; } = name;
+        public bool Online { get; } = online;
+        public string HealthMessage { get; } = healthMessage;
+        public string SnapshotUrl { get; set; } = string.Empty;
+        public string Key => $"{DeviceId:N}:{Channel}";
+    }
 }

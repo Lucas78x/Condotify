@@ -32,7 +32,8 @@ public sealed class ResidentCftvController(
         if (grant is null) return Forbid();
 
         var cameras = await context.CFTVDevices.AsNoTracking()
-            .Where(x => x.LicenseId == grant.LicenseId && x.ResidentVisible)
+            .Where(x => x.LicenseId == grant.LicenseId && x.ResidentVisible &&
+                        x.Channels.Any(channel => channel.IsEnabled && channel.ResidentVisible))
             .OrderBy(x => x.Name)
             .Select(x => new
             {
@@ -42,7 +43,16 @@ public sealed class ResidentCftvController(
                 x.MaxChannels,
                 Online = x.IsActive,
                 x.LastSeenAt,
-                x.HealthMessage
+                x.HealthMessage,
+                Channels = x.Channels
+                    .Where(channel => channel.IsEnabled && channel.ResidentVisible)
+                    .OrderBy(channel => channel.ChannelNumber)
+                    .Select(channel => new
+                    {
+                        channel.ChannelNumber,
+                        channel.Name
+                    })
+                    .ToList()
             })
             .ToListAsync(cancellationToken);
 
@@ -72,6 +82,7 @@ public sealed class ResidentCftvController(
         var channel = CftvStreamingController.ResolveChannel(device.DeviceType, input.Channel);
         if (device.DeviceType != CFTVDeviceTypeEnum.Camera && channel > device.MaxChannels)
             return BadRequest(new { Result = "InvalidChannel", Errors = "O canal informado nao existe neste equipamento." });
+        if (!IsResidentChannelVisible(device.Channels, channel)) return NotFound();
 
         var quality = string.Equals(input.Quality, "secondary", StringComparison.OrdinalIgnoreCase)
             ? StreamQuality.Secondary
@@ -116,8 +127,14 @@ public sealed class ResidentCftvController(
         if (grant is null) return Forbid();
 
         var device = await context.CFTVDevices.AsNoTracking()
+            .Include(x => x.Channels)
             .FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == grant.LicenseId && x.ResidentVisible, cancellationToken);
         if (device is null) return NotFound();
+
+        channel = CftvStreamingController.ResolveChannel(device.DeviceType, channel);
+        if (device.DeviceType != CFTVDeviceTypeEnum.Camera && channel > device.MaxChannels)
+            return NotFound();
+        if (!IsResidentChannelVisible(device.Channels, channel)) return NotFound();
 
         var snapshot = await snapshots.FetchAsync(device, channel, cancellationToken);
         return snapshot is null
@@ -132,10 +149,12 @@ public sealed class ResidentCftvController(
         if (grant is null) return Forbid();
 
         var device = await context.CFTVDevices.AsNoTracking()
+            .Include(x => x.Channels)
             .FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == grant.LicenseId && x.ResidentVisible, cancellationToken);
         if (device is null) return NotFound();
 
         channel = CftvStreamingController.ResolveChannel(device.DeviceType, channel);
+        if (!IsResidentChannelVisible(device.Channels, channel)) return NotFound();
         await gateway.RemovePathAsync(MediaAccessTokenService.PathFor(grant.LicenseId, deviceId, channel, StreamQuality.Main), cancellationToken);
         await gateway.RemovePathAsync(MediaAccessTokenService.PathFor(grant.LicenseId, deviceId, channel, StreamQuality.Secondary), cancellationToken);
         return NoContent();
@@ -145,4 +164,9 @@ public sealed class ResidentCftvController(
         int.TryParse(Environment.GetEnvironmentVariable("CONDOTIFY_MEDIA_MAX_VIEWERS_PER_LICENSE"), out var configured) && configured > 0
             ? configured
             : DefaultMaxViewersPerLicense;
+
+    internal static bool IsResidentChannelVisible(
+        IEnumerable<CondotifyAPI.Domain.DTO.Equipments.CFTVChannelDTO> channels,
+        int channel) =>
+        channels.Any(item => item.ChannelNumber == channel && item.IsEnabled && item.ResidentVisible);
 }
