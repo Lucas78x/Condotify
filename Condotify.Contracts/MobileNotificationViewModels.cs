@@ -83,7 +83,7 @@ public static class MobileDeepLinks
     private static readonly string[] StaticRoutes = ["/home", "/profile", "/boletos", "/documentos", "/comunicados"];
     private static readonly HashSet<string> EntityRoutes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "visitors", "deliveries", "bookings", "alerts", "cameras"
+        "visitors", "deliveries", "bookings", "alerts", "cameras", "assembleias"
     };
 
     public static bool TryNormalize(string? value, out string route)

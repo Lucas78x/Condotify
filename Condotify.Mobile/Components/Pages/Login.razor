@@ -31,7 +31,7 @@
             {
                 <div class="login-unified-note">
                     <MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" />
-                    <span><strong>Um único acesso</strong><small>Após entrar, a F&amp;F Access abre automaticamente o ambiente correto para seu perfil.</small></span>
+                    <span><strong>Um único acesso</strong><small>Escolha o perfil quando o mesmo e-mail for usado como morador e na administração.</small></span>
                 </div>
 
                 <MudForm @ref="_form" class="login-form">
@@ -60,6 +60,11 @@
                                   AdornmentIcon="@(_showPassword ? Icons.Material.Outlined.VisibilityOff : Icons.Material.Outlined.Visibility)"
                                   AdornmentAriaLabel="Exibir ou ocultar senha"
                                   OnAdornmentClick="TogglePassword" />
+                    <MudSelect T="int" @bind-Value="_accessProfile" Label="Entrar como" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.SwitchAccount">
+                        <MudSelectItem Value="@(0)">Detectar automaticamente</MudSelectItem>
+                        <MudSelectItem Value="@(1)">Morador</MudSelectItem>
+                        <MudSelectItem Value="@(2)">Equipe / administração</MudSelectItem>
+                    </MudSelect>
                     <button type="button" class="login-fp" @onclick="OpenForgotPassword">Esqueci minha senha</button>
                     <MudButton FullWidth="true"
                                Size="Size.Large"
@@ -225,6 +230,7 @@
     private string _recoveryToken = string.Empty;
     private string _newPassword = string.Empty;
     private string _confirmPassword = string.Empty;
+    private int _accessProfile = Preferences.Default.Get("condotify.login-profile", 0);
 
     private enum LoginStep { Credentials, Mfa, ForgotEmail, ForgotReset, ForgotDone }
 
@@ -264,7 +270,15 @@
             if (_step == LoginStep.Mfa)
                 result = await Session.VerifyStaffMfaAsync(_challenge, _mfaCode, Device.DeviceLabel);
             else
-                result = await Session.LoginUnifiedAsync(_email, _password, Device.DeviceLabel);
+            {
+                Preferences.Default.Set("condotify.login-profile", _accessProfile);
+                result = _accessProfile switch
+                {
+                    1 => await Session.LoginResidentAsync(_email, _password, Device.DeviceLabel),
+                    2 => await Session.LoginStaffAsync(_email, _password, Device.DeviceLabel),
+                    _ => await Session.LoginUnifiedAsync(_email, _password, Device.DeviceLabel)
+                };
+            }
 
             if (result.MfaRequired)
             {

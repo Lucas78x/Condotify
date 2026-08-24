@@ -17,7 +17,7 @@ public static class MobileRouteAuthorization
 
     private static readonly HashSet<string> ResidentRoutes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "financeiro", "boletos", "documentos", "comunicados"
+        "financeiro", "boletos", "documentos", "comunicados", "assembleias"
     };
 
     public static bool IsAllowed(MobilePrincipalKind principal, string? path)
@@ -51,6 +51,7 @@ public static class MobileRouteAuthorization
         "boletos" => LicenseModuleEnum.Finance,
         "documentos" => LicenseModuleEnum.Documents,
         "comunicados" => LicenseModuleEnum.Announcements,
+        "assembleias" => LicenseModuleEnum.Assemblies,
         _ => null
     };
 }

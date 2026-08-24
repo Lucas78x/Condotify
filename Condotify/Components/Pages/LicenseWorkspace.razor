@@ -118,6 +118,9 @@ else
             case "comunicados":
                 <AnnouncementsModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageAnnouncements)" />
                 break;
+            case "assembleias":
+                <AssembliesModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageAssemblies)" />
+                break;
             case "boletos":
                 <BoletosModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageFinance)" />
                 break;
@@ -181,6 +184,7 @@ else
         new("Comunidade", Icons.Material.Outlined.Forum, [
             new("agendamento", "Agendamento", Icons.Material.Outlined.Deck, LicensePermission.ViewBookings, Condotify.Models.LicenseModuleEnum.Bookings),
             new("comunicados", "Comunicados", Icons.Material.Outlined.Campaign, LicensePermission.ManageAnnouncements, Condotify.Models.LicenseModuleEnum.Announcements),
+            new("assembleias", "Assembleias", Icons.Material.Outlined.HowToVote, LicensePermission.ViewAssemblies, Condotify.Models.LicenseModuleEnum.Assemblies),
         ]),
         new("Financeiro", Icons.Material.Outlined.AccountBalanceWallet, [
             new("financeiro", "Gestão", Icons.Material.Outlined.AccountBalanceWallet, LicensePermission.ViewFinance, Condotify.Models.LicenseModuleEnum.Finance),
@@ -209,6 +213,7 @@ else
         : Has(LicensePermission.ViewFinance) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Finance) ? "financeiro"
         : Has(LicensePermission.ViewDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents) ? "documentos"
         : Has(LicensePermission.ManageAnnouncements) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Announcements) ? "comunicados"
+        : Has(LicensePermission.ViewAssemblies) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Assemblies) ? "assembleias"
         : Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups) ? "administracao"
         : "sem-acesso";
 
@@ -288,6 +293,7 @@ else
         "financeiro" or "boletos" => Has(LicensePermission.ViewFinance),
         "documentos" => Has(LicensePermission.ViewDocuments),
         "comunicados" => Has(LicensePermission.ManageAnnouncements),
+        "assembleias" => Has(LicensePermission.ViewAssemblies),
         "administracao" => Has(LicensePermission.ViewUsers) || Has(LicensePermission.ViewSettings) || Has(LicensePermission.ViewBackups),
         _ => false
     };
@@ -304,6 +310,7 @@ else
         "financeiro" or "boletos" => Condotify.Models.LicenseModuleEnum.Finance,
         "documentos" => Condotify.Models.LicenseModuleEnum.Documents,
         "comunicados" => Condotify.Models.LicenseModuleEnum.Announcements,
+        "assembleias" => Condotify.Models.LicenseModuleEnum.Assemblies,
         _ => null
     };
 }

@@ -87,6 +87,7 @@ public partial class DatabaseContext : DbContext
         FinancialEntityConfiguration(modelBuilder);
         ResourceDocumentEntityConfiguration(modelBuilder);
         AnnouncementEntityConfiguration(modelBuilder);
+        GovernanceEntityConfiguration(modelBuilder);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {

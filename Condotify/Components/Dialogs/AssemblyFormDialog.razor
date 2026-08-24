@@ -1,0 +1,124 @@
+@inject CondotifyApiClient Api
+
+<MudDialog Class="entity-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.HowToVote" />
+            <div><strong>@(AssemblyId.HasValue ? "Editar assembleia" : "Nova assembleia")</strong><span>Configure a reunião e as pautas antes de publicar para os moradores.</span></div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <div class="form-grid">
+                <MudTextField T="string" @bind-Value="_form.Title" Label="Título" Required Variant="Variant.Outlined" MaxLength="180" Class="full" />
+                <MudTextField T="string" @bind-Value="_form.Description" Label="Descrição e instruções" Variant="Variant.Outlined" Lines="3" MaxLength="8000" Class="full" />
+                <MudSelect T="int" @bind-Value="_form.Type" Label="Tipo" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@(1)">Enquete</MudSelectItem><MudSelectItem Value="@(2)">Ordinária</MudSelectItem><MudSelectItem Value="@(3)">Extraordinária</MudSelectItem>
+                </MudSelect>
+                <MudSelect T="int" @bind-Value="_form.Format" Label="Formato" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@(1)">Presencial</MudSelectItem><MudSelectItem Value="@(2)">Virtual</MudSelectItem><MudSelectItem Value="@(3)">Híbrida</MudSelectItem>
+                </MudSelect>
+                @if (_form.Format is 1 or 3)
+                {
+                    <MudTextField T="string" @bind-Value="_form.Location" Label="Local" Variant="Variant.Outlined" MaxLength="300" />
+                }
+                @if (_form.Format is 2 or 3)
+                {
+                    <MudTextField T="string" @bind-Value="_form.MeetingUrl" Label="Link seguro da reunião (HTTPS)" Variant="Variant.Outlined" MaxLength="1000" />
+                }
+                <label class="full">Início da reunião<input class="mud-input-root mud-input-root-outlined" type="datetime-local" value="@LocalValue(_form.StartsAt)" @onchange="e => SetDate(e, value => _form.StartsAt = value)" /></label>
+                <label>Início da votação<input class="mud-input-root mud-input-root-outlined" type="datetime-local" value="@LocalValue(_form.VotingStartsAt)" @onchange="e => SetDate(e, value => _form.VotingStartsAt = value)" /></label>
+                <label>Fim da votação<input class="mud-input-root mud-input-root-outlined" type="datetime-local" value="@LocalValue(_form.VotingEndsAt)" @onchange="e => SetDate(e, value => _form.VotingEndsAt = value)" /></label>
+                <MudSelect T="int" @bind-Value="_form.VoteVisibility" Label="Identificação do voto" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@(1)">Secreto</MudSelectItem><MudSelectItem Value="@(2)">Aberto</MudSelectItem>
+                </MudSelect>
+                <MudSwitch T="bool" @bind-Value="_form.AllowVoteChange" Label="Permitir alterar o voto enquanto estiver aberta" Color="Color.Primary" />
+                <MudSwitch T="bool" @bind-Value="_form.ShowResultsBeforeClose" Label="Mostrar parciais antes do encerramento" Color="Color.Primary" />
+                <MudSwitch T="bool" @bind-Value="_form.RequireResponsibleResident" Label="Somente responsável pela unidade pode votar" Color="Color.Primary" Class="full" />
+            </div>
+
+            <MudDivider Class="my-5" />
+            <div class="panel-heading">
+                <div><MudText Typo="Typo.h6">Pautas de votação</MudText><MudText Typo="Typo.caption">Cada pauta possui quórum e opções próprios.</MudText></div>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Add" OnClick="AddAgenda">Adicionar pauta</MudButton>
+            </div>
+            @for (var agendaIndex = 0; agendaIndex < _form.AgendaItems.Count; agendaIndex++)
+            {
+                var index = agendaIndex;
+                var agenda = _form.AgendaItems[index];
+                <MudPaper Outlined Class="pa-4 mb-4">
+                    <div class="panel-heading">
+                        <MudText Typo="Typo.subtitle1">Pauta @(index + 1)</MudText>
+                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Color="Color.Error" Disabled="@(_form.AgendaItems.Count == 1)" OnClick="() => RemoveAgenda(index)" />
+                    </div>
+                    <div class="form-grid">
+                        <MudTextField T="string" @bind-Value="agenda.Title" Label="Título da pauta" Required Variant="Variant.Outlined" MaxLength="240" Class="full" />
+                        <MudTextField T="string" @bind-Value="agenda.Description" Label="Descrição" Variant="Variant.Outlined" Lines="2" MaxLength="6000" Class="full" />
+                        <MudNumericField T="decimal" @bind-Value="agenda.QuorumPercentage" Label="Quórum mínimo (%)" Min="0" Max="100" Variant="Variant.Outlined" />
+                        <MudNumericField T="decimal" @bind-Value="agenda.ApprovalPercentage" Label="Aprovação mínima (%)" Min="0" Max="100" Variant="Variant.Outlined" />
+                        <MudSwitch T="bool" @bind-Value="agenda.AbstentionCountsForQuorum" Label="Abstenção conta no quórum" Color="Color.Primary" Class="full" />
+                    </div>
+                    <MudText Typo="Typo.overline" Class="mt-3">OPÇÕES</MudText>
+                    @for (var optionIndex = 0; optionIndex < agenda.Options.Count; optionIndex++)
+                    {
+                        var oi = optionIndex;
+                        var option = agenda.Options[oi];
+                        <div class="d-flex align-center gap-2 mb-2">
+                            <MudTextField T="string" @bind-Value="option.Label" Label="@($"Opção {oi + 1}")" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudCheckBox T="bool" @bind-Value="option.IsApproval" Label="Aprova" />
+                            <MudCheckBox T="bool" @bind-Value="option.IsAbstention" Label="Abstenção" />
+                            <MudIconButton Icon="@Icons.Material.Outlined.Close" Disabled="@(agenda.Options.Count <= 2)" OnClick="() => RemoveOption(index, oi)" />
+                        </div>
+                    }
+                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Add" OnClick="() => AddOption(index)">Adicionar opção</MudButton>
+                </MudPaper>
+            }
+            <div class="form-actions dialog-form-actions">
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving">@(_saving ? "Salvando..." : "Salvar rascunho")</MudButton>
+            </div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public Guid? AssemblyId { get; set; }
+    [Parameter] public AssemblyFormViewModel? Existing { get; set; }
+
+    private AssemblyFormViewModel _form = new();
+    private bool _saving;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        _form = Existing ?? new AssemblyFormViewModel();
+        if (_form.AgendaItems.Count == 0) _form.AgendaItems.Add(new());
+    }
+
+    private static string LocalValue(DateTime value) => value.ToLocalTime().ToString("yyyy-MM-ddTHH:mm");
+    private static void SetDate(ChangeEventArgs args, Action<DateTime> setter)
+    {
+        if (DateTime.TryParse(args.Value?.ToString(), out var parsed)) setter(DateTime.SpecifyKind(parsed, DateTimeKind.Local).ToUniversalTime());
+    }
+    private void AddAgenda() => _form.AgendaItems.Add(new());
+    private void RemoveAgenda(int index) { if (_form.AgendaItems.Count > 1) _form.AgendaItems.RemoveAt(index); }
+    private void AddOption(int index) { if (_form.AgendaItems[index].Options.Count < 12) _form.AgendaItems[index].Options.Add(new() { Label = "Nova opção" }); }
+    private void RemoveOption(int agenda, int option) { if (_form.AgendaItems[agenda].Options.Count > 2) _form.AgendaItems[agenda].Options.RemoveAt(option); }
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        _saving = true; _error = null;
+        var result = AssemblyId.HasValue
+            ? await Api.UpdateAssemblyAsync(LicenseId, AssemblyId.Value, _form)
+            : await Api.CreateAssemblyAsync(LicenseId, _form);
+        _saving = false;
+        if (!result.Success) { _error = result.Error; return; }
+        Dialog.Close(DialogResult.Ok(true));
+    }
+}

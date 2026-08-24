@@ -25,6 +25,13 @@ public sealed class MobileDeepLinksTests
     }
 
     [Fact]
+    public void TryNormalize_AcceptsAssemblyNotificationRoute()
+    {
+        Assert.True(MobileDeepLinks.TryNormalize($"/assembleias/{Id:N}", out var route));
+        Assert.Equal($"/assembleias/{Id:D}", route);
+    }
+
+    [Fact]
     public void ToCanonicalUrl_ProducesVerifiedHttpsHost()
     {
         Assert.Equal(

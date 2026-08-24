@@ -34,6 +34,8 @@ public static class LicensePermissionCatalog
         new(LicensePermission.ViewDocuments, "Documentos", "Ver documentos", "Consultar e baixar arquivos do condomínio"),
         new(LicensePermission.ManageDocuments, "Documentos", "Gerenciar documentos", "Enviar, organizar e remover arquivos"),
         new(LicensePermission.ManageAnnouncements, "Comunicação", "Gerenciar comunicados", "Criar, publicar e administrar comunicados"),
+        new(LicensePermission.ViewAssemblies, "Governança", "Ver assembleias", "Consultar pautas, presença e resultados"),
+        new(LicensePermission.ManageAssemblies, "Governança", "Gerenciar assembleias", "Criar, publicar, abrir e encerrar votações"),
         new(LicensePermission.ViewUsers, "Administração", "Ver usuários", "Equipe vinculada ao condomínio"),
         new(LicensePermission.ManageUsers, "Administração", "Gerenciar usuários", "Criar acessos e alterar permissões"),
         new(LicensePermission.ViewSettings, "Administração", "Ver configurações", "Políticas e parâmetros da licença"),
@@ -86,6 +88,7 @@ public static class LicensePermissionCatalog
         if (value.HasFlag(LicensePermission.ManageEmergency)) value |= LicensePermission.ViewEmergency | LicensePermission.ViewIncidents;
         if (value.HasFlag(LicensePermission.ManageFinance)) value |= LicensePermission.ViewFinance;
         if (value.HasFlag(LicensePermission.ManageDocuments)) value |= LicensePermission.ViewDocuments;
+        if (value.HasFlag(LicensePermission.ManageAssemblies)) value |= LicensePermission.ViewAssemblies;
         return (long)value;
     }
 
@@ -110,6 +113,7 @@ public static class LicensePermissionCatalog
             LicensePermission.ViewEmergency => ~LicensePermission.ManageEmergency,
             LicensePermission.ViewFinance => ~LicensePermission.ManageFinance,
             LicensePermission.ViewDocuments => ~LicensePermission.ManageDocuments,
+            LicensePermission.ViewAssemblies => ~LicensePermission.ManageAssemblies,
             _ => LicensePermission.All
         };
         return (long)value;

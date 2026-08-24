@@ -64,12 +64,22 @@ public class PublicRegistrationController : ControllerBase
         }
         if (string.IsNullOrWhiteSpace(input.Name)) return BadRequest(new { Errors = "Informe o nome completo." });
 
+        var resident = invite.Resident;
+        var requestedEmail = string.IsNullOrWhiteSpace(input.Email) ? resident.Email.Trim() : input.Email.Trim();
+        if (!string.IsNullOrWhiteSpace(requestedEmail))
+        {
+            var normalizedEmail = requestedEmail.ToLowerInvariant();
+            var anotherResidentUsesEmail = await _context.Residents.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(x => x.Id != resident.Id && x.Email.ToLower() == normalizedEmail);
+            if (anotherResidentUsesEmail)
+                return Conflict(new { Errors = "Este e-mail já pertence a outra conta de morador. Peça à administração para revisar o cadastro antes de continuar." });
+        }
+
         var passwordResult = ResidentPasswordSetter.Resolve(input.Password, _passwordHasher);
         if (!passwordResult.Succeeded) return BadRequest(new { Errors = passwordResult.Error });
 
-        var resident = invite.Resident;
         resident.Name = input.Name.Trim();
-        resident.Email = input.Email?.Trim() ?? resident.Email;
+        resident.Email = requestedEmail;
         resident.PhoneNumber = input.PhoneNumber?.Trim() ?? resident.PhoneNumber;
         resident.CPF = input.CPF?.Trim() ?? resident.CPF;
         resident.RG = input.RG?.Trim() ?? resident.RG;

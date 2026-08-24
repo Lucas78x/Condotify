@@ -643,6 +643,48 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<List<AnnouncementViewModel>>> GetResidentAnnouncementsAsync(CancellationToken cancellationToken = default) =>
         GetAsync<List<AnnouncementViewModel>>("api/resident/announcements", cancellationToken);
 
+    public Task<ApiResult<List<AssemblySummaryViewModel>>> GetAssembliesAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AssemblySummaryViewModel>>($"api/access/licenses/{licenseId}/assemblies", cancellationToken);
+
+    public Task<ApiResult<AssemblyDetailViewModel>> GetAssemblyAsync(Guid licenseId, Guid assemblyId, CancellationToken cancellationToken = default) =>
+        GetAsync<AssemblyDetailViewModel>($"api/access/licenses/{licenseId}/assemblies/{assemblyId}", cancellationToken);
+
+    public Task<ApiResult<List<AssemblyAuditViewModel>>> GetAssemblyAuditAsync(Guid licenseId, Guid assemblyId, CancellationToken cancellationToken = default) =>
+        GetAsync<List<AssemblyAuditViewModel>>($"api/access/licenses/{licenseId}/assemblies/{assemblyId}/audit", cancellationToken);
+
+    public Task<ApiResult<AssemblyDetailViewModel>> CreateAssemblyAsync(Guid licenseId, AssemblyFormViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<AssemblyDetailViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/assemblies", model, cancellationToken);
+
+    public Task<ApiResult<AssemblyDetailViewModel>> UpdateAssemblyAsync(Guid licenseId, Guid assemblyId, AssemblyFormViewModel model, CancellationToken cancellationToken = default) =>
+        SendForAsync<AssemblyDetailViewModel>(HttpMethod.Put, $"api/access/licenses/{licenseId}/assemblies/{assemblyId}", model, cancellationToken);
+
+    public Task<ApiResult<AssemblyDetailViewModel>> PublishAssemblyAsync(Guid licenseId, Guid assemblyId, CancellationToken cancellationToken = default) =>
+        SendForAsync<AssemblyDetailViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/assemblies/{assemblyId}/publish", new { }, cancellationToken);
+
+    public Task<ApiResult<AssemblyDetailViewModel>> OpenAssemblyAsync(Guid licenseId, Guid assemblyId, CancellationToken cancellationToken = default) =>
+        SendForAsync<AssemblyDetailViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/assemblies/{assemblyId}/open", new { }, cancellationToken);
+
+    public Task<ApiResult<AssemblyDetailViewModel>> CloseAssemblyAsync(Guid licenseId, Guid assemblyId, CancellationToken cancellationToken = default) =>
+        SendForAsync<AssemblyDetailViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/assemblies/{assemblyId}/close", new { }, cancellationToken);
+
+    public Task<ApiResult<AssemblyDetailViewModel>> CancelAssemblyAsync(Guid licenseId, Guid assemblyId, CancellationToken cancellationToken = default) =>
+        SendForAsync<AssemblyDetailViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/assemblies/{assemblyId}/cancel", new { }, cancellationToken);
+
+    public Task<ApiResult<bool>> DeleteAssemblyAsync(Guid licenseId, Guid assemblyId, CancellationToken cancellationToken = default) =>
+        SendForBoolAsync(HttpMethod.Delete, $"api/access/licenses/{licenseId}/assemblies/{assemblyId}", new { }, cancellationToken);
+
+    public Task<ApiResult<List<AssemblySummaryViewModel>>> GetResidentAssembliesAsync(CancellationToken cancellationToken = default) =>
+        GetAsync<List<AssemblySummaryViewModel>>("api/resident/assemblies", cancellationToken);
+
+    public Task<ApiResult<AssemblyDetailViewModel>> GetResidentAssemblyAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
+        GetAsync<AssemblyDetailViewModel>($"api/resident/assemblies/{assemblyId}", cancellationToken);
+
+    public Task<ApiResult<AssemblyDetailViewModel>> RegisterAssemblyAttendanceAsync(Guid assemblyId, Guid unitId, CancellationToken cancellationToken = default) =>
+        SendForAsync<AssemblyDetailViewModel>(HttpMethod.Post, $"api/resident/assemblies/{assemblyId}/attendance", new { UnitId = unitId }, cancellationToken);
+
+    public Task<ApiResult<AssemblyDetailViewModel>> CastAssemblyVoteAsync(Guid assemblyId, Guid agendaItemId, Guid unitId, Guid optionId, CancellationToken cancellationToken = default) =>
+        SendForAsync<AssemblyDetailViewModel>(HttpMethod.Post, $"api/resident/assemblies/{assemblyId}/agenda/{agendaItemId}/vote", new { UnitId = unitId, OptionId = optionId }, cancellationToken);
+
     private async Task<ApiResult<string>> GetPdfDataUrlAsync(string path, CancellationToken cancellationToken)
     {
         try

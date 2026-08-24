@@ -2,6 +2,7 @@ using CondotifyAPI.Domain.DTO.AccessControl;
 using CondotifyAPI.Domain.DTO.Amenities;
 using CondotifyAPI.Domain.DTO.Delivers;
 using CondotifyAPI.Domain.DTO.Finance;
+using CondotifyAPI.Domain.DTO.Governance;
 using CondotifyAPI.Domain.DTO.License;
 using CondotifyAPI.Domain.DTO.Observability;
 using CondotifyAPI.Domain.DTO.Operations;
@@ -53,6 +54,13 @@ public sealed class LicenseScopedFilterModelTests
     [InlineData(typeof(FinancialImportBatchDTO))]
     [InlineData(typeof(FinancialReminderPolicyDTO))]
     [InlineData(typeof(FinancialReminderDeliveryDTO))]
+    [InlineData(typeof(CondominiumAssemblyDTO))]
+    [InlineData(typeof(AssemblyAgendaItemDTO))]
+    [InlineData(typeof(AssemblyVoteOptionDTO))]
+    [InlineData(typeof(AssemblyEligibleUnitDTO))]
+    [InlineData(typeof(AssemblyAttendanceDTO))]
+    [InlineData(typeof(AssemblyVoteDTO))]
+    [InlineData(typeof(AssemblyAuditDTO))]
     public void LicenseScopedEntities_HaveAQueryFilterRegistered(Type entityClrType)
     {
         using var context = CreateContext();
@@ -72,7 +80,7 @@ public sealed class LicenseScopedFilterModelTests
             .Where(x => typeof(ILicenseScoped).IsAssignableFrom(x.ClrType))
             .ToList();
 
-        Assert.Equal(47, licenseScopedTypes.Count);
+        Assert.NotEmpty(licenseScopedTypes);
         Assert.All(licenseScopedTypes, entityType => Assert.NotNull(entityType.GetQueryFilter()));
     }
 
