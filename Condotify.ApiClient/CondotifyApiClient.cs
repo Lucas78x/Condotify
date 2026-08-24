@@ -1636,13 +1636,14 @@ public sealed class CondotifyApiClient
             model.Mark,
             model.DeviceType,
             model.MaxChannels,
-            model.ResidentVisible,
-            Channels = Enumerable.Range(1, Math.Max(1, model.MaxChannels)).Select(channel => new
+            ResidentVisible = EffectiveCameraChannels(model).Any(channel => channel.IsEnabled && channel.ResidentVisible),
+            Channels = EffectiveCameraChannels(model).Select(channel => new
             {
-                ChannelNumber = channel,
-                Name = $"Canal {channel}",
+                channel.ChannelNumber,
+                Name = channel.Name.Trim(),
                 RtspPath = string.Empty,
-                IsEnabled = true
+                channel.IsEnabled,
+                channel.ResidentVisible
             })
         }, true, cancellationToken);
 
@@ -1652,36 +1653,54 @@ public sealed class CondotifyApiClient
         Guid? deviceId = null,
         CancellationToken cancellationToken = default)
     {
-        var payload = new
+        if (deviceId.HasValue)
         {
-            LicenseId = licenseId.ToString(),
-            Name = model.Name.Trim(),
-            IpAddress = model.IpAddress.Trim(),
-            UserName = model.UserName.Trim(),
-            Password = string.IsNullOrWhiteSpace(model.Password) ? null : model.Password,
-            model.HTTPPort,
-            model.RTSPPort,
-            model.IpType,
-            model.Proportion,
-            model.Mark,
-            model.DeviceType,
-            model.MaxChannels,
-            model.ResidentVisible,
-            Channels = Enumerable.Range(1, Math.Max(1, model.MaxChannels)).ToArray()
-        };
-
-        return deviceId.HasValue
-            ? SendForAsync<CftvConnectionDiagnosticViewModel>(
+            return SendForAsync<CftvConnectionDiagnosticViewModel>(
                 HttpMethod.Post,
                 $"api/access/licenses/{licenseId}/cftv/{deviceId.Value}/test",
-                payload,
-                cancellationToken)
-            : SendForAsync<CftvConnectionDiagnosticViewModel>(
-                HttpMethod.Post,
-                "api/access/cftv/test-connection",
-                payload,
-                true,
+                new
+                {
+                    Name = model.Name.Trim(),
+                    IpAddress = model.IpAddress.Trim(),
+                    UserName = model.UserName.Trim(),
+                    Password = string.IsNullOrWhiteSpace(model.Password) ? null : model.Password,
+                    model.HTTPPort,
+                    model.RTSPPort,
+                    model.IpType,
+                    model.Proportion,
+                    model.Mark,
+                    model.DeviceType,
+                    model.MaxChannels,
+                    ResidentVisible = EffectiveCameraChannels(model).Any(channel => channel.IsEnabled && channel.ResidentVisible),
+                    Channels = EffectiveCameraChannels(model).Select(channel => new
+                    {
+                        channel.ChannelNumber,
+                        Name = channel.Name.Trim(),
+                        channel.IsEnabled,
+                        channel.ResidentVisible
+                    })
+                },
                 cancellationToken);
+        }
+
+        return SendForAsync<CftvConnectionDiagnosticViewModel>(
+            HttpMethod.Post,
+            "api/access/cftv/test-connection",
+            new
+            {
+                LicenseId = licenseId.ToString(),
+                IpAddress = model.IpAddress.Trim(),
+                UserName = model.UserName.Trim(),
+                model.Password,
+                model.HTTPPort,
+                model.RTSPPort,
+                model.IpType,
+                model.Mark,
+                model.DeviceType,
+                Channels = Enumerable.Range(1, Math.Max(1, model.MaxChannels)).ToArray()
+            },
+            true,
+            cancellationToken);
     }
 
     public Task<ApiResult<bool>> UpdateCameraAsync(
@@ -1702,8 +1721,36 @@ public sealed class CondotifyApiClient
             model.Mark,
             model.DeviceType,
             model.MaxChannels,
-            model.ResidentVisible
+            ResidentVisible = EffectiveCameraChannels(model).Any(channel => channel.IsEnabled && channel.ResidentVisible),
+            Channels = EffectiveCameraChannels(model).Select(channel => new
+            {
+                channel.ChannelNumber,
+                Name = channel.Name.Trim(),
+                channel.IsEnabled,
+                channel.ResidentVisible
+            })
         }, cancellationToken);
+
+    private static IReadOnlyList<CftvChannelViewModel> EffectiveCameraChannels(CftvDeviceFormViewModel model)
+    {
+        var maxChannels = Math.Max(1, model.MaxChannels);
+        var configured = model.Channels
+            .Where(channel => channel.ChannelNumber >= 1 && channel.ChannelNumber <= maxChannels)
+            .GroupBy(channel => channel.ChannelNumber)
+            .Select(group => group.First())
+            .ToDictionary(channel => channel.ChannelNumber);
+        return Enumerable.Range(1, maxChannels)
+            .Select(number => configured.TryGetValue(number, out var channel)
+                ? channel
+                : new CftvChannelViewModel
+                {
+                    ChannelNumber = number,
+                    Name = $"Canal {number}",
+                    IsEnabled = true,
+                    ResidentVisible = model.ResidentVisible
+                })
+            .ToList();
+    }
 
     public Task<ApiResult<bool>> CreateDeliveryAsync(Guid licenseId, DeliveryFormViewModel model, CancellationToken cancellationToken = default) =>
         PostAsync($"api/access/licenses/{licenseId}/deliveries", new

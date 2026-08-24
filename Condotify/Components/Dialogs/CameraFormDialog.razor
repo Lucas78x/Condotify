@@ -18,17 +18,31 @@
             <DataAnnotationsValidator />
             <div class="form-grid">
                 <MudTextField T="string" @bind-Value="_form.Name" Label="Nome" Placeholder="Ex.: Câmera da entrada social" Required RequiredError="Informe o nome da câmera ou gravador." Immediate Variant="Variant.Outlined" For="@(() => _form.Name)" Class="full" />
-                <MudSelect T="int" @bind-Value="_form.DeviceType" Label="Tipo" Variant="Variant.Outlined"><MudSelectItem Value="1">Câmera IP</MudSelectItem><MudSelectItem Value="2">DVR</MudSelectItem><MudSelectItem Value="3">NVR</MudSelectItem></MudSelect>
+                <MudSelect T="int" Value="_form.DeviceType" ValueChanged="OnDeviceTypeChanged" Label="Tipo" Variant="Variant.Outlined"><MudSelectItem Value="1">Câmera IP</MudSelectItem><MudSelectItem Value="2">DVR</MudSelectItem><MudSelectItem Value="3">NVR</MudSelectItem></MudSelect>
                 <MudSelect T="int" @bind-Value="_form.Mark" Label="Marca" Variant="Variant.Outlined"><MudSelectItem Value="11">Intelbras</MudSelectItem><MudSelectItem Value="8">Hikvision</MudSelectItem><MudSelectItem Value="4">Dahua</MudSelectItem><MudSelectItem Value="0">Outra</MudSelectItem></MudSelect>
                 <MudTextField T="string" @bind-Value="_form.IpAddress" Label="Endereço IP" Placeholder="192.168.0.20" Required RequiredError="Informe o endereço IP do dispositivo." Immediate Variant="Variant.Outlined" For="@(() => _form.IpAddress)" />
-                <MudNumericField T="int" @bind-Value="_form.MaxChannels" Label="Quantidade de canais" Min="1" Max="128" Variant="Variant.Outlined" />
+                <MudNumericField T="int" Value="_form.MaxChannels" ValueChanged="OnChannelCountChanged" Label="Quantidade de canais" Min="1" Max="128" Disabled="@(_form.DeviceType == 1)" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.HTTPPort" Label="Porta HTTP" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.RTSPPort" Label="Porta RTSP" Variant="Variant.Outlined" />
                 <MudTextField T="string" @bind-Value="_form.UserName" Label="Usuário" Required RequiredError="Informe o usuário de acesso ao dispositivo." Immediate Variant="Variant.Outlined" For="@(() => _form.UserName)" />
                 <MudTextField T="string" @bind-Value="_form.Password" Label="@(IsEditing ? "Nova senha (opcional)" : "Senha")" Required="@(!IsEditing)" RequiredError="Informe a senha de acesso ao dispositivo." Immediate InputType="InputType.Password" Variant="Variant.Outlined" />
-                <div class="full">
-                    <MudSwitch T="bool" @bind-Value="_form.ResidentVisible" Color="Color.Primary" Label="Disponibilizar no aplicativo dos moradores" />
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Moradores poderão visualizar esta câmera sem receber IP ou credenciais do equipamento.</MudText>
+                <div class="full camera-channel-editor">
+                    <div class="camera-channel-editor-heading">
+                        <div><strong>Canais do equipamento</strong><span>Defina nomes fáceis de localizar e compartilhe somente as imagens permitidas.</span></div>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@SharedChannelCount compartilhado(s)</MudChip>
+                    </div>
+                    <div class="camera-channel-editor-list">
+                        @foreach (var channel in _form.Channels.OrderBy(x => x.ChannelNumber))
+                        {
+                            <div class="camera-channel-editor-row">
+                                <span class="camera-channel-number">@channel.ChannelNumber</span>
+                                <MudTextField T="string" @bind-Value="channel.Name" Label="Nome da câmera" Placeholder="Ex.: Entrada social" Required RequiredError="Informe o nome do canal." MaxLength="100" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudSwitch T="bool" Value="channel.IsEnabled" ValueChanged="@(value => OnChannelEnabledChanged(channel, value))" Color="Color.Primary" Label="Ativo" />
+                                <MudSwitch T="bool" @bind-Value="channel.ResidentVisible" Disabled="@(!channel.IsEnabled)" Color="Color.Primary" Label="Moradores" />
+                            </div>
+                        }
+                    </div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">IP, usuário e senha permanecem protegidos. O aplicativo recebe somente o nome e o número dos canais autorizados.</MudText>
                 </div>
             </div>
             <div class="form-actions dialog-form-actions">
@@ -56,8 +70,13 @@
 
     protected override void OnParametersSet()
     {
-        if (_initialized || Device is null) return;
+        if (_initialized) return;
         _initialized = true;
+        if (Device is null)
+        {
+            EnsureChannels();
+            return;
+        }
         _form.Name = Device.Name;
         _form.IpAddress = Device.IpAddress;
         _form.UserName = Device.UserName;
@@ -69,6 +88,57 @@
         _form.DeviceType = Device.DeviceTypeValue;
         _form.MaxChannels = Math.Max(Device.MaxChannels, 1);
         _form.ResidentVisible = Device.ResidentVisible;
+        _form.Channels = Device.Channels.Count > 0
+            ? Device.Channels.OrderBy(x => x.ChannelNumber).Select(channel => new CftvChannelViewModel
+            {
+                ChannelNumber = channel.ChannelNumber,
+                Name = channel.Name,
+                IsEnabled = channel.IsEnabled,
+                ResidentVisible = channel.ResidentVisible
+            }).ToList()
+            : [];
+        EnsureChannels();
+    }
+
+    private int SharedChannelCount => _form.Channels.Count(channel => channel.IsEnabled && channel.ResidentVisible);
+
+    private void OnDeviceTypeChanged(int deviceType)
+    {
+        _form.DeviceType = deviceType;
+        if (deviceType == 1) _form.MaxChannels = 1;
+        EnsureChannels();
+    }
+
+    private void OnChannelCountChanged(int channelCount)
+    {
+        _form.MaxChannels = Math.Clamp(channelCount, 1, 128);
+        EnsureChannels();
+    }
+
+    private static void OnChannelEnabledChanged(CftvChannelViewModel channel, bool enabled)
+    {
+        channel.IsEnabled = enabled;
+        if (!enabled) channel.ResidentVisible = false;
+    }
+
+    private void EnsureChannels()
+    {
+        var maxChannels = _form.DeviceType == 1 ? 1 : Math.Clamp(_form.MaxChannels, 1, 128);
+        _form.MaxChannels = maxChannels;
+        _form.Channels.RemoveAll(channel => channel.ChannelNumber > maxChannels);
+        for (var number = 1; number <= maxChannels; number++)
+        {
+            if (_form.Channels.Any(channel => channel.ChannelNumber == number)) continue;
+            _form.Channels.Add(new CftvChannelViewModel
+            {
+                ChannelNumber = number,
+                Name = _form.DeviceType == 1 && !string.IsNullOrWhiteSpace(_form.Name)
+                    ? _form.Name
+                    : $"Canal {number}",
+                IsEnabled = true,
+                ResidentVisible = _form.ResidentVisible
+            });
+        }
     }
 
     private void Cancel() => Dialog.Cancel();

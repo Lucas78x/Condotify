@@ -10,6 +10,8 @@
 
         public bool IsEnabled { get; set; }
 
+        public bool ResidentVisible { get; set; }
+
         public string RtspPath { get; set; } = string.Empty;
 
     }
