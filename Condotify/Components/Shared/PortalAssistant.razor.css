@@ -45,6 +45,7 @@
 .assistant-launcher:focus-visible,
 .assistant-header-actions button:focus-visible,
 .assistant-message-actions button:focus-visible,
+.assistant-message-actions a:focus-visible,
 .assistant-suggestions button:focus-visible,
 .assistant-send:focus-visible {
     outline: 3px solid rgba(91, 125, 224, .28);
@@ -181,7 +182,8 @@
 .assistant-message.is-user p { border-color: transparent; border-radius: 15px 5px 15px 15px; color: #fff; background: linear-gradient(135deg, #3154ad, #4568c8); box-shadow: 0 5px 13px rgba(48,82,171,.14); }
 
 .assistant-message-actions { display: grid; gap: 6px; margin-top: 7px; }
-.assistant-message-actions button {
+.assistant-message-actions button,
+.assistant-message-actions a {
     width: 100%;
     min-height: 38px;
     display: grid;
@@ -197,12 +199,15 @@
     font-size: 9px;
     font-weight: 650;
     text-align: left;
+    text-decoration: none;
     cursor: pointer;
     transition: border-color .15s ease, color .15s ease, transform .15s ease;
 }
-.assistant-message-actions button:hover { border-color: #b9c8e5; color: var(--ds-primary); transform: translateX(2px); }
+.assistant-message-actions button:hover,
+.assistant-message-actions a:hover { border-color: #b9c8e5; color: var(--ds-primary); transform: translateX(2px); }
 .assistant-message-actions ::deep svg { font-size: 16px; }
-.assistant-message-actions button ::deep svg:last-child { color: #99a5b8; font-size: 14px; }
+.assistant-message-actions button ::deep svg:last-child,
+.assistant-message-actions a ::deep svg:last-child { color: #99a5b8; font-size: 14px; }
 
 .assistant-suggestions { display: grid; gap: 8px; margin: 20px 0 2px 35px; }
 .assistant-suggestions > small { color: #8995a7; font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
@@ -211,6 +216,13 @@
 .assistant-suggestions button:hover { border-color: #b9c9e8; color: var(--ds-primary); background: #fff; }
 
 .assistant-composer { padding: 11px 13px 10px; border-top: 1px solid #e5eaf1; background: #fff; }
+.assistant-support-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -1px 1px 9px; }
+.assistant-support-row > span { display: flex; align-items: center; gap: 5px; color: #7b8798; font-size: 8px; }
+.assistant-support-row > span ::deep svg { color: #55705f; font-size: 14px; }
+.assistant-support-row > a { display: inline-flex; align-items: center; gap: 4px; color: #167b55; font-size: 8px; font-weight: 750; text-decoration: none; }
+.assistant-support-row > a:hover { color: #0b6845; text-decoration: underline; }
+.assistant-support-row > a:focus-visible { outline: 3px solid rgba(22, 123, 85, .16); outline-offset: 2px; border-radius: 4px; }
+.assistant-support-row > a ::deep svg { font-size: 12px; }
 .assistant-input-shell { min-height: 46px; display: grid; grid-template-columns: minmax(0, 1fr) 34px; align-items: center; gap: 6px; padding: 5px 5px 5px 13px; border: 1px solid #d8dfe9; border-radius: 14px; background: #fafbfd; transition: border-color .15s ease, box-shadow .15s ease; }
 .assistant-input-shell:focus-within { border-color: #93a9df; box-shadow: 0 0 0 3px rgba(65, 99, 190, .08); background: #fff; }
 .assistant-input-shell input { min-width: 0; width: 100%; padding: 0; border: 0; outline: 0; color: #27334a; background: transparent; font: inherit; font-size: 11px; }
@@ -244,5 +256,5 @@
 
 @media (prefers-reduced-motion: reduce) {
     .assistant-window { animation: none; }
-    .assistant-launcher, .assistant-message-actions button, .assistant-send { transition: none; }
+    .assistant-launcher, .assistant-message-actions button, .assistant-message-actions a, .assistant-send { transition: none; }
 }
