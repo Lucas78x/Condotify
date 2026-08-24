@@ -32,6 +32,28 @@ public sealed class ResidentMobileClientTests
     }
 
     [Fact]
+    public async Task CreateResidentRegistrationInviteAsync_UsesResidentRouteAndUnitScope()
+    {
+        var handler = new CapturingHandler("{}");
+        var client = CreateClient(handler);
+        var unitId = Guid.NewGuid();
+
+        await client.CreateResidentRegistrationInviteAsync(new ResidentRegistrationInviteFormViewModel
+        {
+            UnitId = unitId,
+            Name = "Maria",
+            Email = "maria@example.com",
+            Relationship = 4
+        });
+
+        Assert.Equal(HttpMethod.Post, handler.Method);
+        Assert.Equal("/api/resident/registration-invites", handler.Uri?.AbsolutePath);
+        using var json = JsonDocument.Parse(handler.Body!);
+        Assert.Equal(unitId, json.RootElement.GetProperty("unitId").GetGuid());
+        Assert.Equal(4, json.RootElement.GetProperty("relationship").GetInt32());
+    }
+
+    [Fact]
     public async Task GetResidentAmenityAvailabilityAsync_UsesDateOnlyQuery()
     {
         var handler = new CapturingHandler("[]");

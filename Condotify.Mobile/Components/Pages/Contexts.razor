@@ -1,0 +1,135 @@
+@page "/contexts"
+@implements IDisposable
+@inject MobileSessionCoordinator Session
+@inject MobileDeviceContext Device
+@inject MobileAppState AppState
+@inject NavigationManager Navigation
+@inject MobilePullToRefreshState PullToRefresh
+
+<PageTitle>Meus condomínios | F&amp;F Access</PageTitle>
+<PageHeader Eyebrow="MINHA CONTA" Title="Condomínios e unidades" Subtitle="Escolha onde deseja acessar agora." />
+
+<PageState Loading="_loading" Error="@_error" Empty="@(Session.ResidentContexts.Count == 0)"
+           EmptyTitle="Nenhum vínculo disponível"
+           EmptyText="Peça à administração para revisar os condomínios e unidades da sua conta."
+           Retry="LoadAsync">
+    <section class="screen-overview license-overview">
+        <span class="screen-overview-icon primary"><MudIcon Icon="@Icons.Material.Outlined.Domain" /></span>
+        <div class="screen-overview-main">
+            <span>Contexto atual</span>
+            <strong>@(Session.Current?.LicenseName ?? "Selecione um condomínio")</strong>
+            <small>@ContextSummary</small>
+        </div>
+    </section>
+
+    <section class="content-panel card-list-panel">
+        <div class="panel-heading">
+            <div>
+                <MudText Typo="Typo.h5">Seus vínculos</MudText>
+                <span class="panel-subtitle">A troca mantém seu login e limita os dados ao condomínio escolhido</span>
+            </div>
+        </div>
+
+        @foreach (var context in Session.ResidentContexts)
+        {
+            var selected = Session.Current?.LicenseId == context.LicenseId;
+            <button type="button" class="list-row license-row @(selected ? "selected" : "")"
+                    disabled="@(_switching || selected)" @onclick="() => SelectAsync(context.LicenseId)">
+                <MudAvatar Color="@(selected ? Color.Primary : Color.Default)" Variant="Variant.Filled">
+                    <MudIcon Icon="@Icons.Material.Outlined.Apartment" />
+                </MudAvatar>
+                <div class="list-main">
+                    <div class="list-title">@context.LicenseName</div>
+                    <div class="list-meta">@UnitsLabel(context)</div>
+                    @foreach (var unit in context.Units)
+                    {
+                        <div class="list-meta">@unit.BlockName / @unit.UnitNumber · @unit.Relationship@(unit.IsPrimary ? " · principal" : string.Empty)</div>
+                    }
+                </div>
+                @if (selected)
+                {
+                    <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Color="Color.Success" />
+                }
+                else if (_switchingTo == context.LicenseId)
+                {
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Color="Color.Secondary" />
+                }
+            </button>
+        }
+    </section>
+</PageState>
+
+@code {
+    private bool _loading;
+    private bool _switching;
+    private Guid? _switchingTo;
+    private string _error = string.Empty;
+
+    private string ContextSummary => Session.ResidentContexts.Count == 1
+        ? "1 condomínio vinculado à sua conta"
+        : $"{Session.ResidentContexts.Count} condomínios vinculados à sua conta";
+
+    protected override async Task OnInitializedAsync()
+    {
+        PullToRefresh.Register(LoadAsync);
+        if (Session.ResidentContexts.Count == 0) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = string.Empty;
+        try
+        {
+            var result = await Session.LoadResidentContextsAsync();
+            if (!result.Success) _error = result.Error;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or OperationCanceledException)
+        {
+            _error = "Sem conexão com a central. Tente novamente quando a rede voltar.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SelectAsync(Guid licenseId)
+    {
+        if (_switching || Session.Current?.LicenseId == licenseId) return;
+        _switching = true;
+        _switchingTo = licenseId;
+        _error = string.Empty;
+        try
+        {
+            var result = await Session.SwitchResidentContextAsync(licenseId, Device.DeviceLabel);
+            if (!result.Success)
+            {
+                _error = result.Error;
+                return;
+            }
+
+            AppState.Clear();
+            Navigation.NavigateTo("/home", replace: true);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or OperationCanceledException)
+        {
+            _error = "Não foi possível trocar de condomínio. Verifique sua conexão e tente novamente.";
+        }
+        finally
+        {
+            _switching = false;
+            _switchingTo = null;
+        }
+    }
+
+    private static string UnitsLabel(MobileResidentContext context) => context.Units.Count == 1
+        ? "1 unidade vinculada"
+        : $"{context.Units.Count} unidades vinculadas";
+
+    public void Dispose() => PullToRefresh.Unregister(LoadAsync);
+}

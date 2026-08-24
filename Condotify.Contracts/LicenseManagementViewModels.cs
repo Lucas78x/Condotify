@@ -1008,6 +1008,7 @@ namespace Condotify.Models
         public string PhoneNumber { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public DateTime ExpiresAt { get; set; }
+        public bool ExistingAccount { get; set; }
     }
 
     public class CompleteRegistrationInviteViewModel
@@ -1021,8 +1022,9 @@ namespace Condotify.Models
 
         // Compartilhado com o futuro app MAUI (SP-0): este mesmo contrato serve a tela de
         // convite mobile, entao o campo fica aqui, nao apenas na pagina Blazor.
-        [Required, MinLength(8), MaxLength(100)] public string Password { get; set; } = string.Empty;
-        [Required, Compare(nameof(Password), ErrorMessage = "As senhas nao coincidem.")] public string PasswordConfirmation { get; set; } = string.Empty;
+        [MinLength(8), MaxLength(100)] public string Password { get; set; } = string.Empty;
+        [Compare(nameof(Password), ErrorMessage = "As senhas nao coincidem.")] public string PasswordConfirmation { get; set; } = string.Empty;
+        public bool ConfirmExistingAccount { get; set; }
     }
 
     public class ConciergeDashboardViewModel

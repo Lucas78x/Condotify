@@ -139,6 +139,34 @@ public class RefreshTokenServiceTests
         Assert.Null(entity.RevokedAt);
     }
 
+    [Fact]
+    public void BuildIssuedAndRotatedEntity_PreserveResidentLicenseContext()
+    {
+        var licenseId = Guid.NewGuid();
+        var issued = RefreshTokenService.BuildIssuedEntity(
+            Guid.NewGuid(), PrincipalTypes.Resident, "Android", "127.0.0.1", "hash", Now, licenseId);
+
+        var rotated = RefreshTokenService.BuildRotatedEntity(issued, "replacement", Now.AddMinutes(1));
+
+        Assert.Equal(licenseId, issued.ContextLicenseId);
+        Assert.Equal(licenseId, rotated.ContextLicenseId);
+    }
+
+    [Fact]
+    public void BuildContextSwitchedEntity_ReplacesLicenseAndKeepsTheSameSubject()
+    {
+        var previous = RefreshTokenService.BuildIssuedEntity(
+            Guid.NewGuid(), PrincipalTypes.Resident, "Android", "127.0.0.1", "hash", Now, Guid.NewGuid());
+        var nextLicense = Guid.NewGuid();
+
+        var replacement = RefreshTokenService.BuildContextSwitchedEntity(previous, "replacement", Now.AddMinutes(1), nextLicense);
+
+        Assert.Equal(previous.SubjectId, replacement.SubjectId);
+        Assert.Equal(previous.SubjectType, replacement.SubjectType);
+        Assert.Equal(nextLicense, replacement.ContextLicenseId);
+        Assert.Equal("replacement", replacement.TokenHash);
+    }
+
     // --- Decide (expiry / revocation / reuse-detection priority) ----------------------
 
     [Fact]

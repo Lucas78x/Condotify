@@ -41,6 +41,26 @@ public sealed class ResidentUnitViewModel
     public bool IsPrimary { get; set; }
 }
 
+public sealed class ResidentRegistrationInviteFormViewModel
+{
+    public Guid UnitId { get; set; }
+    [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(150)]
+    public string Name { get; set; } = string.Empty;
+    [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.EmailAddress, System.ComponentModel.DataAnnotations.MaxLength(160)]
+    public string Email { get; set; } = string.Empty;
+    [System.ComponentModel.DataAnnotations.MaxLength(20)]
+    public string PhoneNumber { get; set; } = string.Empty;
+    public int Relationship { get; set; }
+}
+
+public sealed class ResidentRegistrationInviteViewModel
+{
+    public Guid InviteId { get; set; }
+    public Guid UnitId { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+}
+
 public sealed class CftvStreamSessionViewModel
 {
     public Guid SessionId { get; set; }

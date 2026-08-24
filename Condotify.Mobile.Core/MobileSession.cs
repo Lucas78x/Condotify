@@ -35,6 +35,23 @@ public sealed record MobileLoginResult(
 
 public sealed record MobilePasswordResetResult(bool Success, string Error);
 
+public sealed record MobileResidentContext(
+    Guid LicenseId,
+    string LicenseName,
+    IReadOnlyList<MobileResidentContextUnit> Units);
+
+public sealed record MobileResidentContextUnit(
+    Guid UnitId,
+    string BlockName,
+    string UnitNumber,
+    string Relationship,
+    bool IsPrimary);
+
+public sealed record MobileResidentContextsResult(
+    bool Success,
+    IReadOnlyList<MobileResidentContext> Contexts,
+    string Error = "");
+
 public interface IMobileSessionVault
 {
     Task<MobileSession?> LoadAsync(CancellationToken cancellationToken = default);

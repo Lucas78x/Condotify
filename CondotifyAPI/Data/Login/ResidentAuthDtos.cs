@@ -9,6 +9,29 @@ public sealed class ResidentLoginIn
     /// the refresh token so a future "my sessions" screen (task 7) can show it. Never
     /// used for any authorization decision.</summary>
     public string? DeviceLabel { get; set; }
+    public Guid? LicenseId { get; set; }
+}
+
+public sealed class ResidentContextOut
+{
+    public Guid LicenseId { get; set; }
+    public string LicenseName { get; set; } = string.Empty;
+    public List<ResidentContextUnitOut> Units { get; set; } = [];
+}
+
+public sealed class ResidentContextUnitOut
+{
+    public Guid UnitId { get; set; }
+    public string BlockName { get; set; } = string.Empty;
+    public string UnitNumber { get; set; } = string.Empty;
+    public string Relationship { get; set; } = string.Empty;
+    public bool IsPrimary { get; set; }
+}
+
+public sealed class SwitchResidentContextIn
+{
+    public string? DeviceLabel { get; set; }
+    public string RefreshToken { get; set; } = string.Empty;
 }
 
 public sealed class ResidentLoginOut
@@ -35,6 +58,7 @@ public sealed class ResidentLoginOut
     public Guid? UnitId { get; set; }
     public string? UnitNumber { get; set; }
     public string? BlockName { get; set; }
+    public List<ResidentContextOut> Contexts { get; set; } = [];
 }
 
 /// <summary>Body for POST /api/auth/resident/password/forgot. Anonymous by nature - this is

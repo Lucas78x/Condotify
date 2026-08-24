@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Net.Mail;
 using System.Text.Json;
 using System.Linq.Expressions;
 using Condotify.Models;
@@ -23,8 +24,10 @@ using CondotifyAPI.Services.Operations;
 using CondotifyAPI.Services.AccessControl;
 using CondotifyAPI.Services.Extensions;
 using CondotifyAPI.Services.Security;
+using CondotifyAPI.Services.Invitation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace CondotifyAPI.Controllers;
@@ -39,19 +42,25 @@ public sealed class ResidentProfileController : ControllerBase
     private readonly IDigitalPassIssuanceService _issuance;
     private readonly IVisitFacialInviteService _facialInvites;
     private readonly IPrivateMediaStore _media;
+    private readonly IRegistrationInviteEmailSender _inviteEmail;
+    private readonly IConfiguration _configuration;
 
     public ResidentProfileController(
         DatabaseContext context,
         IResidentAuthorizationService authorization,
         IDigitalPassIssuanceService issuance,
         IVisitFacialInviteService facialInvites,
-        IPrivateMediaStore media)
+        IPrivateMediaStore media,
+        IRegistrationInviteEmailSender inviteEmail,
+        IConfiguration configuration)
     {
         _context = context;
         _authorization = authorization;
         _issuance = issuance;
         _facialInvites = facialInvites;
         _media = media;
+        _inviteEmail = inviteEmail;
+        _configuration = configuration;
     }
 
     [HttpGet("media/{mediaId:guid}")]
@@ -126,6 +135,7 @@ public sealed class ResidentProfileController : ControllerBase
             })
             .FirstOrDefaultAsync(cancellationToken);
 
+        var canInviteResidents = grant.IsResponsible || links.Any(x => CanInviteFromRelationship(x.Relationship));
         return Ok(new ResidentMeOut
         {
             ResidentId = resident.Id,
@@ -142,7 +152,7 @@ public sealed class ResidentProfileController : ControllerBase
             PhoneNumber = resident.PhoneNumber,
             PhotoUrl = resident.ImgUrl,
             AccessType = grant.AccessType,
-            IsResponsible = grant.IsResponsible,
+            IsResponsible = canInviteResidents,
             Units = links.Select(x => new ResidentUnitOut
             {
                 UnitId = x.UnitId,
@@ -154,6 +164,133 @@ public sealed class ResidentProfileController : ControllerBase
                 Description = x.Description,
                 IsPrimary = x.IsPrimary
             }).ToList()
+        });
+    }
+
+    [HttpPost("registration-invites")]
+    [EnableRateLimiting("resident-invite")]
+    public async Task<IActionResult> CreateRegistrationInvite(
+        [FromBody] CreateResidentRegistrationInviteIn input,
+        CancellationToken cancellationToken)
+    {
+        var grant = await _authorization.GetGrantAsync(User, cancellationToken);
+        if (grant is null) return Forbid();
+        if (input.UnitId == Guid.Empty || !grant.UnitIds.Contains(input.UnitId)) return NotFound();
+
+        var now = DateTime.UtcNow;
+        var canInviteFromUnit = grant.IsResponsible || await _context.ResidentUnitLinks.AsNoTracking()
+            .AnyAsync(x => x.ResidentId == grant.ResidentId && x.UnitId == input.UnitId && x.IsActive &&
+                           x.StartsAt <= now && (!x.EndsAt.HasValue || x.EndsAt > now) &&
+                           (x.Relationship == ResidentUnitRelationshipEnum.OwnerResponsible ||
+                            x.Relationship == ResidentUnitRelationshipEnum.TenantResponsible ||
+                            x.Relationship == ResidentUnitRelationshipEnum.Responsible), cancellationToken);
+        if (!canInviteFromUnit) return Forbid();
+
+        var name = input.Name?.Trim() ?? string.Empty;
+        var email = input.Email?.Trim() ?? string.Empty;
+        var phone = input.PhoneNumber?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 150)
+            return BadRequest(new { Errors = "Informe o nome completo com até 150 caracteres." });
+        if (!IsValidEmail(email))
+            return BadRequest(new { Errors = "Informe um e-mail válido para o convite." });
+        if (phone.Length > 20)
+            return BadRequest(new { Errors = "O celular deve ter no máximo 20 caracteres." });
+        if (input.Relationship is not ResidentUnitRelationshipEnum.Resident and not ResidentUnitRelationshipEnum.Dependent)
+            return BadRequest(new { Errors = "O convite pelo aplicativo permite os vínculos Morador ou Dependente." });
+
+        var normalizedEmail = email.ToLowerInvariant();
+        var host = await _context.Residents.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == grant.ResidentId, cancellationToken);
+        if (host is null) return NotFound();
+        if (string.Equals(host.Email.Trim(), email, StringComparison.OrdinalIgnoreCase))
+            return Conflict(new { Errors = "Este e-mail já pertence à sua própria conta." });
+
+        var unit = await _context.Units.AsNoTracking().Include(x => x.Block)
+            .FirstOrDefaultAsync(x => x.Id == input.UnitId && x.Block.LicenseId == grant.LicenseId, cancellationToken);
+        if (unit is null) return NotFound();
+
+        var alreadyLinked = await _context.ResidentUnitLinks.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(x => x.UnitId == input.UnitId && x.IsActive &&
+                           x.Resident.Email.ToLower() == normalizedEmail, cancellationToken);
+        if (alreadyLinked)
+            return Conflict(new { Errors = "Esta pessoa já possui vínculo ativo com a unidade selecionada." });
+
+        var smtpPolicy = await _context.AlertNotificationPolicies.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.LicenseId == grant.LicenseId, cancellationToken);
+        if (!_inviteEmail.IsReady(smtpPolicy))
+            return Conflict(new { Errors = "O envio de convites por e-mail ainda não está configurado neste condomínio." });
+
+        var licenseName = await _context.Licenses.AsNoTracking()
+            .Where(x => x.Id == grant.LicenseId).Select(x => x.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? "seu condomínio";
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
+        var inviteUrl = BuildPublicInviteUrl(token);
+        if (!Uri.TryCreate(inviteUrl, UriKind.Absolute, out var inviteUri) || inviteUri.Scheme != Uri.UriSchemeHttps)
+            return Conflict(new { Errors = "O endereço público HTTPS do portal ainda não está configurado." });
+
+        var resident = new ResidentAccessDTO
+        {
+            Id = Guid.NewGuid(), UnitId = unit.Id, Name = name, Email = email,
+            Password = string.Empty, PhoneNumber = phone, ApartmentNumber = unit.Number,
+            AccessType = ResidentAccessTypeEnum.Default, FirstAccess = true, IsActive = true,
+            Temporary = false, Expire = now.AddYears(10), LastAccess = now, CreatedAt = now
+        };
+        var link = new ResidentUnitLinkDTO
+        {
+            Id = Guid.NewGuid(), ResidentId = resident.Id, Resident = resident, UnitId = unit.Id,
+            Relationship = input.Relationship, IsPrimary = true, IsActive = true,
+            StartsAt = now, CreatedAt = now, UpdatedAt = now
+        };
+        var invite = new RegistrationInviteDTO
+        {
+            Id = Guid.NewGuid(), LicenseId = grant.LicenseId, ResidentId = resident.Id, Resident = resident,
+            Contact = email, Channel = RegistrationInviteChannelEnum.Email,
+            Status = RegistrationInviteStatusEnum.Pending,
+            TokenHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token))),
+            CreatedBy = ResidentActor(grant), SentAt = now, ExpiresAt = now.AddDays(7),
+            CreatedAt = now, UpdatedAt = now
+        };
+
+        _context.Residents.Add(resident);
+        _context.ResidentUnitLinks.Add(link);
+        _context.RegistrationInvites.Add(invite);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        RegistrationInviteEmailResult delivery;
+        try
+        {
+            delivery = await _inviteEmail.SendAsync(
+                smtpPolicy, email, name, licenseName, inviteUrl, invite.ExpiresAt, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            _context.Residents.Remove(resident);
+            await _context.SaveChangesAsync(CancellationToken.None);
+            throw;
+        }
+        if (!delivery.Success)
+        {
+            _context.Residents.Remove(resident);
+            await _context.SaveChangesAsync(cancellationToken);
+            return StatusCode(StatusCodes.Status502BadGateway, new { Errors = delivery.Error });
+        }
+
+        invite.SendCount = 1;
+        invite.SentAt = DateTime.UtcNow;
+        invite.UpdatedAt = invite.SentAt;
+        _context.AccessOperationAudits.Add(new AccessOperationAuditDTO
+        {
+            Id = Guid.NewGuid(), LicenseId = grant.LicenseId, EntityType = "RegistrationInvite",
+            EntityId = invite.Id, Action = "ResidentRegistrationInviteCreated", Status = "EmailDelivered",
+            Summary = $"Convite de morador enviado por {host.Name} para {name}.",
+            DetailsJson = JsonSerializer.Serialize(new { input.UnitId, input.Relationship, Destination = MaskEmail(email) }),
+            UserName = ResidentActor(grant), CreatedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Created(string.Empty, new ResidentRegistrationInviteOut
+        {
+            InviteId = invite.Id, UnitId = unit.Id, Email = email, ExpiresAt = invite.ExpiresAt
         });
     }
 
@@ -790,6 +927,39 @@ public sealed class ResidentProfileController : ControllerBase
     /// <c>UserId</c> is null. Same convention as <see cref="CreateVisit"/>.
     /// </summary>
     private static string ResidentActor(ResidentAccessGrant grant) => $"resident:{grant.ResidentId:N}";
+
+    internal static bool CanInviteFromRelationship(ResidentUnitRelationshipEnum relationship) =>
+        relationship is ResidentUnitRelationshipEnum.OwnerResponsible or
+            ResidentUnitRelationshipEnum.TenantResponsible or
+            ResidentUnitRelationshipEnum.Responsible;
+
+    private string BuildPublicInviteUrl(string token)
+    {
+        var path = $"/cadastro/convite/{token}";
+        var baseUrl = Environment.GetEnvironmentVariable("CONDOTIFY_PUBLIC_PORTAL_URL")
+            ?? _configuration["PublicPortal:BaseUrl"];
+        return string.IsNullOrWhiteSpace(baseUrl) ? path : $"{baseUrl.TrimEnd('/')}{path}";
+    }
+
+    internal static bool IsValidEmail(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Trim().Length > 160) return false;
+        try
+        {
+            var address = new MailAddress(value);
+            return string.Equals(address.Address, value.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is FormatException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static string MaskEmail(string email)
+    {
+        var at = email.IndexOf('@');
+        return at <= 1 ? "***" : $"{email[0]}***{email[(at - 1)..]}";
+    }
 
     private IQueryable<AccessVisitDTO> ResidentVisitQuery(ResidentAccessGrant grant) =>
         _context.AccessVisits

@@ -158,6 +158,7 @@ public class PublicRegistrationInviteOut
     public string PhoneNumber { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
+    public bool ExistingAccount { get; set; }
 }
 
 public class CompleteRegistrationInviteIn
@@ -175,4 +176,5 @@ public class CompleteRegistrationInviteIn
     /// veio — ver <c>ResidentPasswordSetter</c>.
     /// </summary>
     public string? Password { get; set; }
+    public bool ConfirmExistingAccount { get; set; }
 }

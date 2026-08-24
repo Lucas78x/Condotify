@@ -197,6 +197,18 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
             AutoReplenishment = true
         }));
+    options.AddPolicy("resident-invite", httpContext => RateLimitPartition.GetSlidingWindowLimiter(
+        httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "unknown",
+        _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromHours(1),
+            SegmentsPerWindow = 6,
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
 });
 
 builder.Services.AddEndpointsApiExplorer();

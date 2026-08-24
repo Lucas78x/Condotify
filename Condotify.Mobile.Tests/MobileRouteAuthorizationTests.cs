@@ -19,6 +19,7 @@ public sealed class MobileRouteAuthorizationTests
     [InlineData("/comunicados")]
     [InlineData("/assembleias")]
     [InlineData("/assembleias/149328be-3fe6-4510-a5f4-0df1ca947106")]
+    [InlineData("/contexts")]
     public void Staff_CannotOpenResidentRoutes(string route) =>
         Assert.False(MobileRouteAuthorization.IsAllowed(MobilePrincipalKind.Staff, route));
 
@@ -36,6 +37,17 @@ public sealed class MobileRouteAuthorizationTests
     [Fact]
     public void UnknownRoute_IsDenied() =>
         Assert.False(MobileRouteAuthorization.IsAllowed(MobilePrincipalKind.Staff, "/admin"));
+
+    [Fact]
+    public void Resident_CanOpenContextSelector() =>
+        Assert.True(MobileRouteAuthorization.IsAllowed(MobilePrincipalKind.Resident, "/contexts"));
+
+    [Fact]
+    public void OnlyResident_CanOpenResidentInvitationPage()
+    {
+        Assert.True(MobileRouteAuthorization.IsAllowed(MobilePrincipalKind.Resident, "/invite-resident"));
+        Assert.False(MobileRouteAuthorization.IsAllowed(MobilePrincipalKind.Staff, "/invite-resident"));
+    }
 
     [Theory]
     [InlineData("/cameras", LicenseModuleEnum.Cameras)]

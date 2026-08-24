@@ -1,0 +1,139 @@
+@page "/invite-resident"
+@inject CondotifyApiClient Api
+@inject MobileAppState AppState
+@inject NavigationManager Navigation
+
+<PageTitle>Convidar morador | F&amp;F Access</PageTitle>
+<PageHeader Eyebrow="MINHA UNIDADE" Title="Convidar morador" Subtitle="Envie um convite seguro para cadastro." />
+
+<PageState Loading="_loading" Error="@_error" Retry="LoadAsync">
+    @if (_sent is not null)
+    {
+        <section class="content-panel">
+            <div class="page-state success-state">
+                <MudIcon Icon="@Icons.Material.Outlined.MarkEmailRead" Color="Color.Success" Size="Size.Large" />
+                <MudText Typo="Typo.h5">Convite enviado</MudText>
+                <MudText Color="Color.Secondary">Enviamos as instruções para <strong>@_sent.Email</strong>.</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">O link é válido até @_sent.ExpiresAt.ToLocalTime().ToString("dd/MM 'às' HH:mm").</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="NewInvite">Enviar outro convite</MudButton>
+                <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="GoBack">Voltar</MudButton>
+            </div>
+        </section>
+    }
+    else if (_profile is not null && !_profile.IsResponsible)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+            Apenas o responsável pela conta pode convidar novos moradores. A administração do condomínio também pode enviar o convite pelo portal.
+        </MudAlert>
+        <MudButton Class="mt-4" Variant="Variant.Text" Color="Color.Primary" OnClick="GoBack">Voltar</MudButton>
+    }
+    else if (_profile is not null)
+    {
+        <section class="screen-overview license-overview">
+            <span class="screen-overview-icon primary"><MudIcon Icon="@Icons.Material.Outlined.GroupAdd" /></span>
+            <div class="screen-overview-main">
+                <span>Convite de cadastro</span>
+                <strong>@_profile.LicenseName</strong>
+                <small>A pessoa receberá o link por e-mail e criará o próprio acesso.</small>
+            </div>
+        </section>
+
+        <section class="content-panel">
+            @if (!string.IsNullOrWhiteSpace(_submitError))
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_submitError</MudAlert>
+            }
+            <MudForm @ref="_form" Model="_model">
+                <div class="form-grid">
+                    <MudSelect T="Guid" @bind-Value="_model.UnitId" Label="Unidade" Required RequiredError="Selecione a unidade." Variant="Variant.Outlined" Class="full">
+                        @foreach (var unit in _profile.Units)
+                        {
+                            <MudSelectItem T="Guid" Value="@unit.UnitId">@unit.BlockName / @unit.Number</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudTextField T="string" @bind-Value="_model.Name" Label="Nome completo" Required RequiredError="Informe o nome." Variant="Variant.Outlined" Class="full" />
+                    <MudTextField T="string" @bind-Value="_model.Email" Label="E-mail" Required RequiredError="Informe o e-mail." InputType="InputType.Email" Variant="Variant.Outlined" Class="full" />
+                    <MudTextField T="string" @bind-Value="_model.PhoneNumber" Label="Celular (opcional)" Variant="Variant.Outlined" />
+                    <MudSelect T="int" @bind-Value="_model.Relationship" Label="Vínculo" Variant="Variant.Outlined">
+                        <MudSelectItem T="int" Value="0">Morador</MudSelectItem>
+                        <MudSelectItem T="int" Value="4">Dependente</MudSelectItem>
+                    </MudSelect>
+                </div>
+                <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="public-privacy-note">
+                    O convite não cria credenciais de porta automaticamente. O novo morador terá somente os recursos autorizados pelo condomínio.
+                </MudAlert>
+                <MudButton FullWidth Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                           StartIcon="@Icons.Material.Outlined.Send" Disabled="_sending" OnClick="SendAsync">
+                    @(_sending ? "Enviando..." : "Enviar convite por e-mail")
+                </MudButton>
+            </MudForm>
+        </section>
+    }
+</PageState>
+
+@code {
+    private MudForm? _form;
+    private ResidentProfileViewModel? _profile;
+    private ResidentRegistrationInviteFormViewModel _model = new();
+    private ResidentRegistrationInviteViewModel? _sent;
+    private bool _loading;
+    private bool _sending;
+    private string _error = string.Empty;
+    private string _submitError = string.Empty;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = string.Empty;
+        var result = await Api.GetResidentProfileAsync();
+        _loading = false;
+        if (!result.Success || result.Value is null)
+        {
+            _error = result.Error ?? "Não foi possível carregar suas unidades.";
+            return;
+        }
+
+        _profile = result.Value;
+        if (_model.UnitId == Guid.Empty && _profile.Units.Count > 0)
+            _model.UnitId = _profile.Units.OrderByDescending(x => x.IsPrimary).First().UnitId;
+    }
+
+    private async Task SendAsync()
+    {
+        if (_sending || _form is null) return;
+        await _form.ValidateAsync();
+        if (!_form.IsValid) return;
+        _sending = true;
+        _submitError = string.Empty;
+        try
+        {
+            var result = await Api.CreateResidentRegistrationInviteAsync(_model);
+            if (!result.Success || result.Value is null)
+            {
+                _submitError = result.Error ?? "Não foi possível enviar o convite.";
+                return;
+            }
+            _sent = result.Value;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or OperationCanceledException)
+        {
+            _submitError = "Sem conexão com a central. Verifique sua rede e tente novamente.";
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+
+    private void NewInvite()
+    {
+        var unitId = _model.UnitId;
+        _model = new ResidentRegistrationInviteFormViewModel { UnitId = unitId };
+        _sent = null;
+        _submitError = string.Empty;
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/more");
+}
