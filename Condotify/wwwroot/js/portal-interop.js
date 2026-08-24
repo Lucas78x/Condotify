@@ -1,4 +1,10 @@
 window.portalInterop = {
+    focusElement: function (element) {
+        if (element instanceof HTMLElement) element.focus({ preventScroll: true });
+    },
+    scrollToBottom: function (element) {
+        if (element instanceof HTMLElement) element.scrollTop = element.scrollHeight;
+    },
     downloadText: function (fileName, content, contentType) {
         const blob = new Blob([content], { type: contentType || "text/plain" });
         const url = URL.createObjectURL(blob);

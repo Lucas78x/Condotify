@@ -43,6 +43,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     if (!string.IsNullOrWhiteSpace(allowedHost)) options.AllowedHosts.Add(allowedHost);
 });
 builder.Services.AddSingleton<WebSessionRefreshCoordinator>();
+builder.Services.AddSingleton<PortalAssistantKnowledge>();
 builder.Services.AddScoped<ISessionContextProvider, ClaimsSessionContextProvider>();
 builder.Services.AddScoped<CondotifyApiClient>();
 
