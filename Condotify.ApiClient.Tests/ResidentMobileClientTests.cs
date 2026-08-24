@@ -170,6 +170,38 @@ public sealed class ResidentMobileClientTests
         Assert.Equal($"/api/resident/cameras/{deviceId}/sessions/3", handler.Uri?.AbsolutePath);
     }
 
+    [Fact]
+    public async Task UpdateCameraAsync_SendsNamesAndVisibilityForEachChannel()
+    {
+        var handler = new CapturingHandler(string.Empty, HttpStatusCode.NoContent);
+        var client = CreateClient(handler);
+        var deviceId = Guid.NewGuid();
+
+        await client.UpdateCameraAsync(Guid.NewGuid(), deviceId, new CftvDeviceFormViewModel
+        {
+            Name = "NVR Portaria",
+            IpAddress = "192.168.0.20",
+            UserName = "admin",
+            HTTPPort = "80",
+            RTSPPort = "554",
+            DeviceType = 3,
+            MaxChannels = 2,
+            Channels =
+            [
+                new() { ChannelNumber = 1, Name = "Entrada", IsEnabled = true, ResidentVisible = true },
+                new() { ChannelNumber = 2, Name = "Interna", IsEnabled = true, ResidentVisible = false }
+            ]
+        });
+
+        using var json = JsonDocument.Parse(handler.Body!);
+        Assert.True(json.RootElement.GetProperty("residentVisible").GetBoolean());
+        var channels = json.RootElement.GetProperty("channels");
+        Assert.Equal(2, channels.GetArrayLength());
+        Assert.Equal("Entrada", channels[0].GetProperty("name").GetString());
+        Assert.True(channels[0].GetProperty("residentVisible").GetBoolean());
+        Assert.False(channels[1].GetProperty("residentVisible").GetBoolean());
+    }
+
     private static CondotifyApiClient CreateClient(HttpMessageHandler handler)
     {
         var factory = new StubHttpClientFactory(new HttpClient(handler));

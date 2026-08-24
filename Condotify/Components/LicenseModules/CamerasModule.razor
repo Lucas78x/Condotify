@@ -120,13 +120,12 @@ else
                 <MudSelectItem T="string" Value="@("main")">Principal · melhor imagem</MudSelectItem>
                 <MudSelectItem T="string" Value="@("secondary")">Secundária · menor consumo</MudSelectItem>
             </MudSelect>
-            @if (_selectedDevice is not null && _selectedDevice.MaxChannels > 1)
+            @if (_selectedDevice is not null && EnabledChannels(_selectedDevice).Count > 1)
             {
                 <MudSelect T="int" Value="_channel" ValueChanged="ChangeChannelAsync" Label="Canal" Variant="Variant.Outlined" Margin="Margin.Dense">
-                    @for (var channel = 1; channel <= _selectedDevice.MaxChannels; channel++)
+                    @foreach (var channel in EnabledChannels(_selectedDevice))
                     {
-                        var number = channel;
-                        <MudSelectItem T="int" Value="@number">Canal @number</MudSelectItem>
+                        <MudSelectItem T="int" Value="@channel.ChannelNumber">@channel.Name · Canal @channel.ChannelNumber</MudSelectItem>
                     }
                 </MudSelect>
             }
@@ -211,12 +210,12 @@ else
                         <span class="camera-device-status @(IsOnline(device.Id) ? "online" : "offline")"><i></i>@StatusText(device.Id)</span>
                     </button>
                     <div class="camera-device-meta">
-                        <span><MudIcon Icon="@Icons.Material.Outlined.PhoneAndroid" /> @(device.ResidentVisible ? "Visível aos moradores" : "Somente equipe")</span>
+                        <span><MudIcon Icon="@Icons.Material.Outlined.PhoneAndroid" /> @ResidentVisibilityLabel(device)</span>
                         <span><MudIcon Icon="@Icons.Material.Outlined.SensorDoor" /> @(device.AccessActions.Count == 0 ? "Sem acesso vinculado" : $"{device.AccessActions.Count} acesso(s)")</span>
                         <span><MudIcon Icon="@Icons.Material.Outlined.Schedule" /> @LastSeenLabel(device.Id)</span>
                     </div>
                     <div class="camera-device-footer">
-                        <label><span>Aplicativo dos moradores</span><MudSwitch T="bool" Value="@device.ResidentVisible" ValueChanged="@(value => SetResidentVisibilityAsync(device, value))" Disabled="@(!CanManage || _updatingVisibility == device.Id)" Color="Color.Primary" aria-label="@($"Compartilhar {device.Name} com moradores")" /></label>
+                        <label><span>Todos os canais no aplicativo</span><MudSwitch T="bool" Value="@AllEnabledChannelsShared(device)" ValueChanged="@(value => SetResidentVisibilityAsync(device, value))" Disabled="@(!CanManage || _updatingVisibility == device.Id || !device.Channels.Any(channel => channel.IsEnabled))" Color="Color.Primary" aria-label="@($"Compartilhar todos os canais de {device.Name} com moradores")" /></label>
                         @if (CanManage)
                         {
                             <MudTooltip Text="Editar e testar câmera"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" Color="Color.Primary" OnClick="@(() => OpenEditDialogAsync(device))" aria-label="@($"Editar {device.Name}")" /></MudTooltip>
@@ -298,6 +297,7 @@ else
         {
             _devices = result.Value ?? [];
             _selectedDevice = _devices.FirstOrDefault(x => x.Id == selectedId) ?? _devices.FirstOrDefault();
+            _channel = ResolveChannel(_selectedDevice, _channel);
         }
         else _error = result.Error;
         var statuses = await statusTask;
@@ -350,7 +350,20 @@ else
             return;
         }
         device.ResidentVisible = visible;
-        Snackbar.Add(visible ? "Câmera disponibilizada aos moradores." : "Câmera removida do aplicativo dos moradores.", Severity.Success);
+        foreach (var channel in device.Channels)
+            channel.ResidentVisible = visible && channel.IsEnabled;
+        Snackbar.Add(visible ? "Canais ativos disponibilizados aos moradores." : "Canais removidos do aplicativo dos moradores.", Severity.Success);
+    }
+
+    private static bool AllEnabledChannelsShared(CftvDeviceRowViewModel device) =>
+        device.Channels.Any(channel => channel.IsEnabled) &&
+        device.Channels.Where(channel => channel.IsEnabled).All(channel => channel.ResidentVisible);
+
+    private static string ResidentVisibilityLabel(CftvDeviceRowViewModel device)
+    {
+        var enabled = device.Channels.Count(channel => channel.IsEnabled);
+        var shared = device.Channels.Count(channel => channel.IsEnabled && channel.ResidentVisible);
+        return shared == 0 ? "Somente equipe" : $"{shared} de {enabled} canal(is) para moradores";
     }
 
     private async Task DeleteDeviceAsync(CftvDeviceRowViewModel device)
@@ -413,7 +426,7 @@ else
         if (_selectedDevice?.Id == id) return;
         await StopStreamAsync();
         _selectedDevice = _devices.FirstOrDefault(x => x.Id == id);
-        _channel = 1;
+        _channel = ResolveChannel(_selectedDevice, 1);
         _snapshot = string.Empty;
         if (_selectedDevice is not null) await LoadSnapshotAsync(showWarning: false);
     }
@@ -424,6 +437,25 @@ else
         _channel = value;
         _snapshot = string.Empty;
         await LoadSnapshotAsync();
+    }
+
+    private static List<CftvChannelViewModel> EnabledChannels(CftvDeviceRowViewModel device) =>
+        device.Channels.Count > 0
+            ? device.Channels.Where(channel => channel.IsEnabled).OrderBy(channel => channel.ChannelNumber).ToList()
+            : Enumerable.Range(1, Math.Max(1, device.MaxChannels)).Select(number => new CftvChannelViewModel
+            {
+                ChannelNumber = number,
+                Name = $"Canal {number}",
+                IsEnabled = true
+            }).ToList();
+
+    private static int ResolveChannel(CftvDeviceRowViewModel? device, int requested)
+    {
+        if (device is null) return 1;
+        var enabled = EnabledChannels(device);
+        return enabled.Any(channel => channel.ChannelNumber == requested)
+            ? requested
+            : enabled.FirstOrDefault()?.ChannelNumber ?? 1;
     }
 
     private async Task ChangeQualityAsync(string value)

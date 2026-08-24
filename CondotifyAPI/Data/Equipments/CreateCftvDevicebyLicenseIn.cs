@@ -31,6 +31,26 @@ namespace CondotifyAPI.Data.Equipments
     {
         public static CreateCftvDeviceByLicenseCommand ToCommand(this CreateCftvDeviceByLicenseIn device)
         {
+            device.Channels ??= [];
+            if (device.DeviceType == CFTVDeviceTypeEnum.Camera && device.Channels.Count == 0)
+            {
+                device.Channels.Add(new CFTVChannel
+                {
+                    Id = Guid.NewGuid(),
+                    ChannelNumber = 1,
+                    Name = string.IsNullOrWhiteSpace(device.Name) ? "Câmera" : device.Name.Trim(),
+                    IsEnabled = true,
+                    ResidentVisible = device.ResidentVisible
+                });
+            }
+            // Compatibilidade com versões anteriores do portal, que enviavam a
+            // visibilidade apenas no equipamento e não em cada canal.
+            if (device.ResidentVisible && device.Channels.All(channel => !channel.ResidentVisible))
+            {
+                foreach (var channel in device.Channels.Where(channel => channel.IsEnabled))
+                    channel.ResidentVisible = true;
+            }
+
             return new CreateCftvDeviceByLicenseCommand(
                 Guid.Parse(device.LicenseId),
                 device.Name,

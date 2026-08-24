@@ -22,6 +22,10 @@ namespace CondotifyAPI.Infrastructure.ContextConfiguration.Equipments
                 .IsRequired()
                 .HasDefaultValue(true);
 
+            builder.Property(x => x.ResidentVisible)
+                .IsRequired()
+                .HasDefaultValue(false);
+
             builder.Property(x => x.RtspPath)
                 .HasMaxLength(300);
 
