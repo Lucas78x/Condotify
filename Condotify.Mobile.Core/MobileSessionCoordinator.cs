@@ -14,6 +14,7 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
     private readonly TimeProvider _time;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private MobileSession? _session;
+    private IReadOnlyList<MobileResidentContext> _residentContexts = [];
 
     public MobileSessionCoordinator(
         IHttpClientFactory clients,
@@ -26,6 +27,7 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
     }
 
     public MobileSession? Current => _session;
+    public IReadOnlyList<MobileResidentContext> ResidentContexts => _residentContexts;
     public bool IsAuthenticated => _session?.IsAuthenticated == true;
     public event Action? Changed;
 
@@ -82,6 +84,56 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
             new { ChallengeToken = challengeToken, Code = code, DeviceLabel = deviceLabel },
             cancellationToken);
         return await CompleteLoginAsync(response, MobilePrincipalKind.Staff, cancellationToken);
+    }
+
+    public async Task<MobileResidentContextsResult> LoadResidentContextsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (_session?.Principal != MobilePrincipalKind.Resident)
+            return new(false, [], "A sessão atual não pertence a um morador.");
+
+        var token = await GetAccessTokenAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(token))
+            return new(false, [], "Sua sessão expirou. Entre novamente.");
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/auth/resident/contexts");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var response = await _clients.CreateClient("CondotifyAuth").SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return new(false, [], "Não foi possível carregar seus condomínios agora.");
+
+        try
+        {
+            var payload = await response.Content.ReadFromJsonAsync<List<ResidentContextResponse>>(JsonOptions, cancellationToken) ?? [];
+            _residentContexts = MapContexts(payload);
+            Changed?.Invoke();
+            return new(true, _residentContexts);
+        }
+        catch (Exception exception) when (exception is JsonException or NotSupportedException)
+        {
+            return new(false, [], "A central retornou uma lista de condomínios inválida.");
+        }
+    }
+
+    public async Task<MobileLoginResult> SwitchResidentContextAsync(
+        Guid licenseId,
+        string deviceLabel,
+        CancellationToken cancellationToken = default)
+    {
+        if (_session?.Principal != MobilePrincipalKind.Resident || licenseId == Guid.Empty)
+            return new(false, false, "Condomínio inválido.");
+
+        var token = await GetAccessTokenAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(token))
+            return new(false, false, "Sua sessão expirou. Entre novamente.");
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"api/auth/resident/contexts/{licenseId:D}/switch")
+        {
+            Content = JsonContent.Create(new { DeviceLabel = deviceLabel, _session.RefreshToken }, options: JsonOptions)
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var response = await _clients.CreateClient("CondotifyAuth").SendAsync(request, cancellationToken);
+        return await CompleteLoginAsync(response, MobilePrincipalKind.Resident, cancellationToken);
     }
 
     public async Task<bool> ForgotPasswordAsync(string email, CancellationToken cancellationToken = default)
@@ -278,6 +330,9 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
                 return new(false, false, "A resposta de autenticação não identificou o usuário.");
 
             _session = session;
+            _residentContexts = principal == MobilePrincipalKind.Resident
+                ? MapContexts(payload.Contexts)
+                : [];
             await _vault.SaveAsync(_session, cancellationToken);
             Changed?.Invoke();
             return new(true, false, string.Empty);
@@ -326,6 +381,7 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
     private async Task ClearAsync(CancellationToken cancellationToken)
     {
         _session = null;
+        _residentContexts = [];
         await _vault.ClearAsync(cancellationToken);
         Changed?.Invoke();
     }
@@ -399,7 +455,38 @@ public sealed class MobileSessionCoordinator : ISessionContextProvider
         public string? Email { get; set; }
         public Guid? LicenseId { get; set; }
         public string? LicenseName { get; set; }
+        public List<ResidentContextResponse> Contexts { get; set; } = [];
     }
+
+    private sealed class ResidentContextResponse
+    {
+        public Guid LicenseId { get; set; }
+        public string LicenseName { get; set; } = string.Empty;
+        public List<ResidentContextUnitResponse> Units { get; set; } = [];
+    }
+
+    private sealed class ResidentContextUnitResponse
+    {
+        public Guid UnitId { get; set; }
+        public string BlockName { get; set; } = string.Empty;
+        public string UnitNumber { get; set; } = string.Empty;
+        public string Relationship { get; set; } = string.Empty;
+        public bool IsPrimary { get; set; }
+    }
+
+    private static IReadOnlyList<MobileResidentContext> MapContexts(IEnumerable<ResidentContextResponse> contexts) =>
+        contexts
+            .Where(x => x.LicenseId != Guid.Empty)
+            .Select(x => new MobileResidentContext(
+                x.LicenseId,
+                x.LicenseName,
+                x.Units.Select(unit => new MobileResidentContextUnit(
+                    unit.UnitId,
+                    unit.BlockName,
+                    unit.UnitNumber,
+                    unit.Relationship,
+                    unit.IsPrimary)).ToList()))
+            .ToList();
 
     private sealed class ResetPasswordResponse
     {

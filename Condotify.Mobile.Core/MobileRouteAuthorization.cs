@@ -17,7 +17,7 @@ public static class MobileRouteAuthorization
 
     private static readonly HashSet<string> ResidentRoutes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "financeiro", "boletos", "documentos", "comunicados", "assembleias"
+        "financeiro", "boletos", "documentos", "comunicados", "assembleias", "contexts", "invite-resident"
     };
 
     public static bool IsAllowed(MobilePrincipalKind principal, string? path)

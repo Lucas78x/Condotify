@@ -106,6 +106,18 @@ public sealed class CondotifyApiClient
         CancellationToken cancellationToken = default) =>
         GetAsync<ResidentProfileViewModel>("api/resident/me", cancellationToken);
 
+    public Task<ApiResult<ResidentRegistrationInviteViewModel>> CreateResidentRegistrationInviteAsync(
+        ResidentRegistrationInviteFormViewModel model,
+        CancellationToken cancellationToken = default) =>
+        SendForAsync<ResidentRegistrationInviteViewModel>(HttpMethod.Post, "api/resident/registration-invites", new
+        {
+            model.UnitId,
+            model.Name,
+            model.Email,
+            model.PhoneNumber,
+            model.Relationship
+        }, cancellationToken);
+
     public Task<ApiResult<List<ConciergeVisitViewModel>>> GetResidentVisitsAsync(
         CancellationToken cancellationToken = default) =>
         GetAsync<List<ConciergeVisitViewModel>>("api/resident/visits", cancellationToken);
@@ -1274,7 +1286,8 @@ public sealed class CondotifyApiClient
             model.CPF,
             model.RG,
             model.BirthDate,
-            model.Password
+            model.Password,
+            model.ConfirmExistingAccount
         }, cancellationToken);
 
     public Task<ApiResult<PublicVisitFacialInviteViewModel>> CompleteVisitFacialInviteAsync(string token, CompleteVisitFacialInviteViewModel model, CancellationToken cancellationToken = default) =>

@@ -94,6 +94,35 @@ public sealed class ResidentProfileControllerTests
         Assert.Equal("bookings/{bookingId:guid}", Assert.Single(cancelBooking!.GetCustomAttributes(typeof(HttpDeleteAttribute), false).Cast<HttpDeleteAttribute>()).Template);
     }
 
+    [Theory]
+    [InlineData("morador@example.com", true)]
+    [InlineData("  morador@example.com  ", true)]
+    [InlineData("Morador <morador@example.com>", false)]
+    [InlineData("invalido", false)]
+    public void RegistrationInvite_AcceptsOnlyPlainEmailAddress(string email, bool expected) =>
+        Assert.Equal(expected, ResidentProfileController.IsValidEmail(email));
+
+    [Fact]
+    public void RegistrationInvite_UsesAuthenticatedResidentRoute()
+    {
+        var action = typeof(ResidentProfileController).GetMethod(nameof(ResidentProfileController.CreateRegistrationInvite));
+
+        Assert.NotNull(action);
+        Assert.Equal("registration-invites", Assert.Single(action!.GetCustomAttributes(typeof(HttpPostAttribute), false).Cast<HttpPostAttribute>()).Template);
+        Assert.Empty(action.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+    }
+
+    [Theory]
+    [InlineData(ResidentUnitRelationshipEnum.OwnerResponsible, true)]
+    [InlineData(ResidentUnitRelationshipEnum.TenantResponsible, true)]
+    [InlineData(ResidentUnitRelationshipEnum.Responsible, true)]
+    [InlineData(ResidentUnitRelationshipEnum.Resident, false)]
+    [InlineData(ResidentUnitRelationshipEnum.Dependent, false)]
+    public void RegistrationInvite_OnlyResponsibleRelationshipsCanInvite(
+        ResidentUnitRelationshipEnum relationship,
+        bool expected) =>
+        Assert.Equal(expected, ResidentProfileController.CanInviteFromRelationship(relationship));
+
     [Fact]
     public void Deliveries_UsesResidentPolicyAndResidentRoute()
     {

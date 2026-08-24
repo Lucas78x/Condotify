@@ -27,8 +27,10 @@
             <aside class="invite-guide">
                 <div class="invite-guide-copy">
                     <span class="invite-guide-eyebrow"><MudIcon Icon="@Icons.Material.Outlined.MarkEmailRead" Size="Size.Small" /> CONVITE DE CADASTRO</span>
-                    <h2>Seu acesso começa aqui</h2>
-                    <p>Confirme seus dados uma única vez. A F&amp;F Access prepara sua identidade digital para os acessos autorizados pelo condomínio.</p>
+                    <h2>@(_invite.ExistingAccount ? "Adicione este novo vínculo" : "Seu acesso começa aqui")</h2>
+                    <p>@(_invite.ExistingAccount
+                        ? "Sua conta F&F Access já existe. Confirme apenas que deseja adicionar este condomínio e esta unidade."
+                        : "Confirme seus dados uma única vez. A F&F Access prepara sua identidade digital para os acessos autorizados pelo condomínio.")</p>
                 </div>
 
                 <div class="invite-phone-demo" role="img" aria-label="Animação mostrando as três etapas para concluir o convite do condomínio">
@@ -40,16 +42,16 @@
                     <div class="invite-demo-track" aria-hidden="true"><i></i></div>
                     <div class="invite-demo-steps" aria-hidden="true">
                         <div class="invite-demo-step invite-demo-step-one"><span><MudIcon Icon="@Icons.Material.Outlined.Badge" /></span><div><small>ETAPA 1</small><strong>Confirme seus dados</strong></div><b>1</b></div>
-                        <div class="invite-demo-step invite-demo-step-two"><span><MudIcon Icon="@Icons.Material.Outlined.Password" /></span><div><small>ETAPA 2</small><strong>Crie sua senha</strong></div><b>2</b></div>
+                        <div class="invite-demo-step invite-demo-step-two"><span><MudIcon Icon="@(_invite.ExistingAccount ? Icons.Material.Outlined.AddHome : Icons.Material.Outlined.Password)" /></span><div><small>ETAPA 2</small><strong>@(_invite.ExistingAccount ? "Autorize o vínculo" : "Crie sua senha")</strong></div><b>2</b></div>
                         <div class="invite-demo-step invite-demo-step-three"><span><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /></span><div><small>ETAPA 3</small><strong>Cadastro concluído</strong></div><b><MudIcon Icon="@Icons.Material.Outlined.Check" Size="Size.Small" /></b></div>
                     </div>
                     <div class="invite-demo-secure"><MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" /> Seus dados são enviados com segurança</div>
                 </div>
 
                 <ol class="invite-guide-steps">
-                    <li><span>1</span><div><strong>Revise suas informações</strong><small>Confira nome, documentos e contato.</small></div></li>
-                    <li><span>2</span><div><strong>Defina uma senha segura</strong><small>Ela será usada no seu acesso à F&amp;F Access.</small></div></li>
-                    <li><span>3</span><div><strong>Conclua o cadastro</strong><small>A administração receberá a confirmação.</small></div></li>
+                    <li><span>1</span><div><strong>@(_invite.ExistingAccount ? "Confira o novo vínculo" : "Revise suas informações")</strong><small>@(_invite.ExistingAccount ? $"{_invite.BlockName} / Unidade {_invite.UnitNumber}." : "Confira nome, documentos e contato.")</small></div></li>
+                    <li><span>2</span><div><strong>@(_invite.ExistingAccount ? "Confirme a inclusão" : "Defina uma senha segura")</strong><small>@(_invite.ExistingAccount ? "Você continuará usando o mesmo e-mail e a mesma senha." : "Ela será usada no seu acesso à F&F Access.")</small></div></li>
+                    <li><span>3</span><div><strong>@(_invite.ExistingAccount ? "Acesse sem novo login" : "Conclua o cadastro")</strong><small>@(_invite.ExistingAccount ? "O novo condomínio aparecerá na sua conta." : "A administração receberá a confirmação.")</small></div></li>
                 </ol>
 
                 <div class="invite-guide-expiry"><MudIcon Icon="@Icons.Material.Outlined.Schedule" /><span><small>Este link é pessoal</small><strong>Válido até @_invite.ExpiresAt.ToCondotifyTime().ToString("dd/MM 'às' HH:mm")</strong></span></div>
@@ -58,23 +60,34 @@
             <section class="invite-form-panel">
                 <header class="invite-public-head">
                     <span class="invite-public-icon"><MudIcon Icon="@Icons.Material.Outlined.PersonAdd" /></span>
-                    <div><MudText Typo="Typo.h5">Conclua seu cadastro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_invite.LicenseName | @_invite.BlockName / Unidade @_invite.UnitNumber</MudText></div>
+                    <div><MudText Typo="Typo.h5">@(_invite.ExistingAccount ? "Confirme o novo vínculo" : "Conclua seu cadastro")</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_invite.LicenseName | @_invite.BlockName / Unidade @_invite.UnitNumber</MudText></div>
                 </header>
                 @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert> }
                 <EditForm Model="_form" OnValidSubmit="CompleteAsync">
                     <DataAnnotationsValidator />
-                    <div class="form-grid">
-                        <MudTextField T="string" @bind-Value="_form.Name" Label="Nome completo" Required For="@(() => _form.Name)" Variant="Variant.Outlined" Class="full" />
-                        <MudTextField T="string" @bind-Value="_form.CPF" Label="CPF" Variant="Variant.Outlined" />
-                        <MudTextField T="string" @bind-Value="_form.RG" Label="RG" Variant="Variant.Outlined" />
-                        <MudTextField T="string" @bind-Value="_form.BirthDate" Label="Data de nascimento" Placeholder="dd/mm/aaaa" Variant="Variant.Outlined" />
-                        <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Variant="Variant.Outlined" />
-                        <MudTextField T="string" @bind-Value="_form.Email" Label="E-mail" InputType="InputType.Email" For="@(() => _form.Email)" Variant="Variant.Outlined" Class="full" />
-                        <MudTextField T="string" @bind-Value="_form.Password" Label="Senha" Required InputType="InputType.Password" For="@(() => _form.Password)" Variant="Variant.Outlined" HelperText="Mínimo de 8 caracteres, com maiúscula, minúscula, número e caractere especial." />
-                        <MudTextField T="string" @bind-Value="_form.PasswordConfirmation" Label="Confirme a senha" Required InputType="InputType.Password" For="@(() => _form.PasswordConfirmation)" Variant="Variant.Outlined" />
-                    </div>
+                    @if (_invite.ExistingAccount)
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+                            Encontramos sua conta <strong>@_invite.Email</strong>. Nenhuma senha ou dado pessoal precisa ser informado novamente.
+                        </MudAlert>
+                        <MudCheckBox T="bool" @bind-Value="_form.ConfirmExistingAccount" Color="Color.Primary"
+                                     Label="Confirmo que desejo adicionar este condomínio e esta unidade à minha conta F&F Access." />
+                    }
+                    else
+                    {
+                        <div class="form-grid">
+                            <MudTextField T="string" @bind-Value="_form.Name" Label="Nome completo" Required For="@(() => _form.Name)" Variant="Variant.Outlined" Class="full" />
+                            <MudTextField T="string" @bind-Value="_form.CPF" Label="CPF" Variant="Variant.Outlined" />
+                            <MudTextField T="string" @bind-Value="_form.RG" Label="RG" Variant="Variant.Outlined" />
+                            <MudTextField T="string" @bind-Value="_form.BirthDate" Label="Data de nascimento" Placeholder="dd/mm/aaaa" Variant="Variant.Outlined" />
+                            <MudTextField T="string" @bind-Value="_form.PhoneNumber" Label="Celular" Variant="Variant.Outlined" />
+                            <MudTextField T="string" @bind-Value="_form.Email" Label="E-mail" InputType="InputType.Email" For="@(() => _form.Email)" Variant="Variant.Outlined" Class="full" ReadOnly="@(!string.IsNullOrWhiteSpace(_invite.Email))" />
+                            <MudTextField T="string" @bind-Value="_form.Password" Label="Senha" Required InputType="InputType.Password" For="@(() => _form.Password)" Variant="Variant.Outlined" HelperText="Mínimo de 8 caracteres, com maiúscula, minúscula, número e caractere especial." />
+                            <MudTextField T="string" @bind-Value="_form.PasswordConfirmation" Label="Confirme a senha" Required InputType="InputType.Password" For="@(() => _form.PasswordConfirmation)" Variant="Variant.Outlined" />
+                        </div>
+                    }
                     <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="public-privacy-note">Os dados serão usados somente para identificação e controle de acesso da propriedade.</MudAlert>
-                    <MudButton ButtonType="ButtonType.Submit" FullWidth Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Outlined.Check" Disabled="_saving">@(_saving ? "Enviando..." : "Concluir cadastro")</MudButton>
+                    <MudButton ButtonType="ButtonType.Submit" FullWidth Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Outlined.Check" Disabled="@(_saving || (_invite.ExistingAccount && !_form.ConfirmExistingAccount))">@(_saving ? "Enviando..." : _invite.ExistingAccount ? "Confirmar novo vínculo" : "Concluir cadastro")</MudButton>
                 </EditForm>
             </section>
         </div>

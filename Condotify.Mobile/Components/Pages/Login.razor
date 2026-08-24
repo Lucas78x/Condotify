@@ -295,7 +295,11 @@
             if (Session.Current?.Principal == MobilePrincipalKind.Staff)
                 await AppState.LoadLicensesAsync();
             await Push.RegisterAsync();
-            Navigation.NavigateTo("/home", replace: true);
+            Navigation.NavigateTo(
+                Session.Current?.Principal == MobilePrincipalKind.Resident && Session.ResidentContexts.Count > 1
+                    ? "/contexts"
+                    : "/home",
+                replace: true);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
         {

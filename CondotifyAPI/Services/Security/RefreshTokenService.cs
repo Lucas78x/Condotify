@@ -24,7 +24,7 @@ public sealed record RefreshTokenSummary(
 
 public interface IRefreshTokenService
 {
-    Task<RefreshTokenIssued> IssueAsync(Guid subjectId, string subjectType, string deviceLabel, string ip, CancellationToken cancellationToken = default);
+    Task<RefreshTokenIssued> IssueAsync(Guid subjectId, string subjectType, string deviceLabel, string ip, CancellationToken cancellationToken = default, Guid? contextLicenseId = null);
 
     /// <summary>
     /// Consumes <paramref name="presentedToken"/>. On success, revokes it and returns a
@@ -34,6 +34,15 @@ public interface IRefreshTokenService
     /// revoked as a side effect before returning null - see <see cref="RefreshTokenService"/>.
     /// </summary>
     Task<RefreshTokenIssued?> RotateAsync(string presentedToken, CancellationToken cancellationToken = default);
+
+    /// <summary>Rotates an authenticated resident session while replacing its active
+    /// licence context. The presented token must belong to the authenticated subject.</summary>
+    Task<RefreshTokenIssued?> RotateContextAsync(
+        string presentedToken,
+        Guid subjectId,
+        string subjectType,
+        Guid contextLicenseId,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Revokes the presented token (e.g. logout). A no-op if the token is unknown
     /// or already revoked - logout is idempotent, not an oracle for token validity.</summary>
@@ -84,10 +93,10 @@ public sealed class RefreshTokenService : IRefreshTokenService
 
     public RefreshTokenService(DatabaseContext context) => _context = context;
 
-    public async Task<RefreshTokenIssued> IssueAsync(Guid subjectId, string subjectType, string deviceLabel, string ip, CancellationToken cancellationToken = default)
+    public async Task<RefreshTokenIssued> IssueAsync(Guid subjectId, string subjectType, string deviceLabel, string ip, CancellationToken cancellationToken = default, Guid? contextLicenseId = null)
     {
         var (plainToken, hash) = GenerateTokenPair();
-        var entity = BuildIssuedEntity(subjectId, subjectType, deviceLabel, ip, hash, DateTime.UtcNow);
+        var entity = BuildIssuedEntity(subjectId, subjectType, deviceLabel, ip, hash, DateTime.UtcNow, contextLicenseId);
 
         _context.RefreshTokens.Add(entity);
         await _context.SaveChangesAsync(cancellationToken);
@@ -122,6 +131,35 @@ public sealed class RefreshTokenService : IRefreshTokenService
         _context.RefreshTokens.Add(replacement);
         await _context.SaveChangesAsync(cancellationToken);
 
+        return new RefreshTokenIssued(replacement.Id, plainToken, replacement.ExpiresAt);
+    }
+
+    public async Task<RefreshTokenIssued?> RotateContextAsync(
+        string presentedToken,
+        Guid subjectId,
+        string subjectType,
+        Guid contextLicenseId,
+        CancellationToken cancellationToken = default)
+    {
+        var hash = HashToken(presentedToken);
+        var existing = await _context.RefreshTokens.FirstOrDefaultAsync(x => x.TokenHash == hash, cancellationToken);
+        if (existing is null || existing.SubjectId != subjectId || existing.SubjectType != subjectType)
+            return null;
+
+        var now = DateTime.UtcNow;
+        var decision = Decide(existing, now);
+        if (decision == RotationDecision.RejectReuse)
+        {
+            await RevokeAllInternalAsync(existing.SubjectId, existing.SubjectType, now, cancellationToken);
+            return null;
+        }
+        if (decision == RotationDecision.RejectExpired) return null;
+
+        var (plainToken, newHash) = GenerateTokenPair();
+        var replacement = BuildContextSwitchedEntity(existing, newHash, now, contextLicenseId);
+        ApplyRotation(existing, replacement, now);
+        _context.RefreshTokens.Add(replacement);
+        await _context.SaveChangesAsync(cancellationToken);
         return new RefreshTokenIssued(replacement.Id, plainToken, replacement.ExpiresAt);
     }
 
@@ -181,11 +219,12 @@ public sealed class RefreshTokenService : IRefreshTokenService
         return (plainToken, HashToken(plainToken));
     }
 
-    internal static RefreshTokenDTO BuildIssuedEntity(Guid subjectId, string subjectType, string deviceLabel, string ip, string tokenHash, DateTime now) => new()
+    internal static RefreshTokenDTO BuildIssuedEntity(Guid subjectId, string subjectType, string deviceLabel, string ip, string tokenHash, DateTime now, Guid? contextLicenseId = null) => new()
     {
         Id = Guid.NewGuid(),
         SubjectId = subjectId,
         SubjectType = subjectType,
+        ContextLicenseId = contextLicenseId,
         TokenHash = tokenHash,
         CreatedAt = now,
         ExpiresAt = now.Add(Lifetime),
@@ -198,12 +237,24 @@ public sealed class RefreshTokenService : IRefreshTokenService
         Id = Guid.NewGuid(),
         SubjectId = previous.SubjectId,
         SubjectType = previous.SubjectType,
+        ContextLicenseId = previous.ContextLicenseId,
         TokenHash = newHash,
         CreatedAt = now,
         ExpiresAt = now.Add(Lifetime),
         DeviceLabel = previous.DeviceLabel,
         CreatedIp = previous.CreatedIp,
     };
+
+    internal static RefreshTokenDTO BuildContextSwitchedEntity(
+        RefreshTokenDTO previous,
+        string newHash,
+        DateTime now,
+        Guid contextLicenseId)
+    {
+        var replacement = BuildRotatedEntity(previous, newHash, now);
+        replacement.ContextLicenseId = contextLicenseId;
+        return replacement;
+    }
 
     /// <summary>Links the rotated-out token to its replacement and revokes it. After this
     /// call, <see cref="Decide"/> on <paramref name="previous"/> returns RejectReuse -

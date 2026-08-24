@@ -58,6 +58,69 @@ public sealed class MobileSessionCoordinatorTests
     }
 
     [Fact]
+    public async Task LoginResident_KeepsAllCondominiumsAndUnitsReturnedByApi()
+    {
+        var firstLicense = Guid.NewGuid();
+        var secondLicense = Guid.NewGuid();
+        var handler = new RecordingHandler(_ => Json(new
+        {
+            result = "Success",
+            accessToken = Jwt(DateTimeOffset.UtcNow.AddHours(1), licenseId: firstLicense),
+            refreshToken = "resident-refresh",
+            licenseId = firstLicense,
+            licenseName = "Residencial Azul",
+            contexts = new object[]
+            {
+                new { licenseId = firstLicense, licenseName = "Residencial Azul", units = new[] { new { unitId = Guid.NewGuid(), blockName = "Bloco A", unitNumber = "101", relationship = "Owner", isPrimary = true }, new { unitId = Guid.NewGuid(), blockName = "Bloco B", unitNumber = "202", relationship = "Tenant", isPrimary = false } } },
+                new { licenseId = secondLicense, licenseName = "Residencial Verde", units = new[] { new { unitId = Guid.NewGuid(), blockName = "Torre 1", unitNumber = "35", relationship = "Owner", isPrimary = false } } }
+            }
+        }));
+        var service = Create(handler, new MemoryVault());
+
+        var result = await service.LoginResidentAsync("lucas@example.com", "secret", "Android");
+
+        Assert.True(result.Success);
+        Assert.Equal(2, service.ResidentContexts.Count);
+        Assert.Equal(2, service.ResidentContexts[0].Units.Count);
+        Assert.Equal(secondLicense, service.ResidentContexts[1].LicenseId);
+    }
+
+    [Fact]
+    public async Task SwitchResidentContext_ReplacesSessionWithoutNewLogin()
+    {
+        var firstLicense = Guid.NewGuid();
+        var secondLicense = Guid.NewGuid();
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath.Contains("/contexts/")
+            ? Json(new
+            {
+                result = "Success",
+                accessToken = Jwt(DateTimeOffset.UtcNow.AddHours(1), licenseId: secondLicense),
+                refreshToken = "refresh-second",
+                licenseId = secondLicense,
+                licenseName = "Residencial Verde",
+                contexts = new[] { new { licenseId = secondLicense, licenseName = "Residencial Verde", units = Array.Empty<object>() } }
+            })
+            : Json(new
+            {
+                result = "Success",
+                accessToken = Jwt(DateTimeOffset.UtcNow.AddHours(1), licenseId: firstLicense),
+                refreshToken = "refresh-first",
+                licenseId = firstLicense,
+                licenseName = "Residencial Azul"
+            }));
+        var service = Create(handler, new MemoryVault());
+        Assert.True((await service.LoginResidentAsync("lucas@example.com", "secret", "Android")).Success);
+
+        var result = await service.SwitchResidentContextAsync(secondLicense, "Android");
+
+        Assert.True(result.Success);
+        Assert.Equal(secondLicense, service.Current?.LicenseId);
+        Assert.Equal("Residencial Verde", service.Current?.LicenseName);
+        Assert.Equal("refresh-second", service.Current?.RefreshToken);
+        Assert.Equal($"/api/auth/resident/contexts/{secondLicense:D}/switch", handler.Paths.Last());
+    }
+
+    [Fact]
     public async Task LoginUnified_RoutesStaffWithoutCallingResidentEndpoint()
     {
         var handler = new RecordingHandler(_ => Json(new

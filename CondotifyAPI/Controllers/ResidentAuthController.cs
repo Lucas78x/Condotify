@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CondotifyAPI.Data.Login;
 using CondotifyAPI.Domain.DTO.Resident;
 using CondotifyAPI.Domain.DTO.Unit;
@@ -24,7 +25,6 @@ namespace CondotifyAPI.Controllers;
 /// wrong-password check. See <see cref="Decide"/> for the full rationale.
 /// </summary>
 [ApiController]
-[AllowAnonymous]
 [Route("api/auth/resident")]
 public sealed class ResidentAuthController : ControllerBase
 {
@@ -68,41 +68,79 @@ public sealed class ResidentAuthController : ControllerBase
             : await _context.Residents.IgnoreQueryFilters()
                 .Include(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
                 .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
-                .FirstOrDefaultAsync(x => x.Email.ToLower() == email, cancellationToken);
+                // Convites pendentes usam um cadastro provisório com senha vazia e podem
+                // compartilhar o e-mail da conta central já existente. Nunca deixe esse
+                // placeholder interceptar o login da conta efetivamente ativada.
+                .FirstOrDefaultAsync(x => x.Email.ToLower() == email && x.Password != string.Empty, cancellationToken);
 
         var now = DateTime.UtcNow;
-        var decision = Decide(resident, input.Password ?? string.Empty, _passwordHasher, now);
+        var decision = Decide(resident, input.Password ?? string.Empty, _passwordHasher, now, input.LicenseId);
         if (!decision.Success) return InvalidCredentials();
 
         // decision.Success is only ever true when resident is non-null and a licence was
         // resolved - both are guaranteed together by Decide.
         resident!.LastAccess = now;
 
-        var deviceLabel = string.IsNullOrWhiteSpace(input.DeviceLabel) ? "Desconhecido" : input.DeviceLabel!.Trim();
+        var deviceLabel = SessionController.ResolveDeviceLabel(input.DeviceLabel, Request.Headers.UserAgent.ToString());
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconhecido";
-        var refresh = await _refreshTokens.IssueAsync(resident.Id, PrincipalTypes.Resident, deviceLabel, ip, cancellationToken);
+        var refresh = await _refreshTokens.IssueAsync(resident.Id, PrincipalTypes.Resident, deviceLabel, ip, cancellationToken, decision.LicenseId);
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        var accessToken = _jwt.CreateResidentAccessToken(resident, decision.LicenseId!.Value);
-        var unit = ResolvePrimaryUnit(resident);
+        return Ok(Success(resident, decision.LicenseId!.Value, refresh));
+    }
 
-        return Ok(new ResidentLoginOut
+    [HttpGet("contexts")]
+    [Authorize(Policy = "Resident")]
+    public async Task<IActionResult> Contexts(CancellationToken cancellationToken)
+    {
+        var resident = await LoadCurrentResidentAsync(cancellationToken);
+        return resident is null ? Unauthorized() : Ok(ResolveContexts(resident, DateTime.UtcNow));
+    }
+
+    [HttpPost("contexts/{licenseId:guid}/switch")]
+    [Authorize(Policy = "Resident")]
+    public async Task<IActionResult> SwitchContext(
+        Guid licenseId,
+        [FromBody] SwitchResidentContextIn? input,
+        CancellationToken cancellationToken)
+    {
+        var resident = await LoadCurrentResidentAsync(cancellationToken);
+        if (resident is null || ResolveLicenseId(resident, licenseId, DateTime.UtcNow) != licenseId)
+            return Forbid();
+
+        if (string.IsNullOrWhiteSpace(input?.RefreshToken)) return Unauthorized();
+        var refresh = await _refreshTokens.RotateContextAsync(
+            input.RefreshToken, resident.Id, PrincipalTypes.Resident, licenseId, cancellationToken);
+        if (refresh is null) return Unauthorized();
+        return Ok(Success(resident, licenseId, refresh));
+    }
+
+    private async Task<ResidentAccessDTO?> LoadCurrentResidentAsync(CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var residentId)) return null;
+        // Ignora o filtro do contexto atual de propósito: esta consulta é restrita ao
+        // próprio subject autenticado e precisa enxergar os demais condomínios dele.
+        return await _context.Residents.IgnoreQueryFilters()
+            .Include(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
+            .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
+            .FirstOrDefaultAsync(x => x.Id == residentId, cancellationToken);
+    }
+
+    private ResidentLoginOut Success(ResidentAccessDTO resident, Guid licenseId, RefreshTokenIssued refresh)
+    {
+        var contexts = ResolveContexts(resident, DateTime.UtcNow);
+        var selected = contexts.First(x => x.LicenseId == licenseId);
+        var unit = selected.Units.OrderByDescending(x => x.IsPrimary).ThenBy(x => x.BlockName).ThenBy(x => x.UnitNumber).First();
+        return new ResidentLoginOut
         {
-            Result = "Success",
-            AccessToken = accessToken,
-            RefreshToken = refresh.Token,
-            ExpiresIn = _jwt.AccessTokenLifetimeSeconds,
-            ResidentId = resident.Id,
-            Name = resident.Name,
-            Email = resident.Email,
-            AccessType = resident.AccessType,
-            LicenseId = decision.LicenseId,
-            LicenseName = unit?.Block?.License?.Name,
-            UnitId = unit?.Id,
-            UnitNumber = unit?.Number,
-            BlockName = unit?.Block?.Name,
-        });
+            Result = "Success", AccessToken = _jwt.CreateResidentAccessToken(resident, licenseId),
+            RefreshToken = refresh.Token, ExpiresIn = _jwt.AccessTokenLifetimeSeconds,
+            ResidentId = resident.Id, Name = resident.Name, Email = resident.Email,
+            AccessType = resident.AccessType, LicenseId = licenseId, LicenseName = selected.LicenseName,
+            UnitId = unit.UnitId, UnitNumber = unit.UnitNumber, BlockName = unit.BlockName,
+            Contexts = contexts
+        };
     }
 
     /// <summary>The one shape every failure returns - 401 with a body that carries no
@@ -151,7 +189,7 @@ public sealed class ResidentAuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(normalizedEmail)) return;
 
         var resident = await _context.Residents.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Email.ToLower() == normalizedEmail, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Email.ToLower() == normalizedEmail && x.Password != string.Empty, cancellationToken);
         if (resident is null || !ResidentAuthorizationService.ResidentCanSignIn(resident, DateTime.UtcNow)) return;
 
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "desconhecido";
@@ -349,7 +387,8 @@ public sealed class ResidentAuthController : ControllerBase
         ResidentAccessDTO? resident,
         string password,
         IPasswordHasher<ResidentAccess> hasher,
-        DateTime now)
+        DateTime now,
+        Guid? requestedLicenseId = null)
     {
         var hasStoredPassword = resident is not null && !string.IsNullOrEmpty(resident.Password);
         var storedHash = hasStoredPassword ? resident!.Password : DummyPasswordHash;
@@ -363,25 +402,69 @@ public sealed class ResidentAuthController : ControllerBase
         if (!ResidentAuthorizationService.ResidentCanSignIn(resident, now))
             return ResidentLoginDecision.Failure;
 
-        var licenseId = ResolveLicenseId(resident);
+        var licenseId = ResolveLicenseId(resident, requestedLicenseId, now);
         return licenseId is null ? ResidentLoginDecision.Failure : ResidentLoginDecision.Ok(licenseId.Value);
     }
 
     /// <summary>
-    /// A resident reaches a licence through Unit -&gt; Block -&gt; License. The primary
-    /// <see cref="ResidentUnitLinkDTO"/> (or, absent any links, the resident's direct
-    /// <see cref="ResidentAccessDTO.Unit"/> - CondotifyAPI.DevelopmentDataSeeder's own demo
-    /// resident has zero rows in ResidentUnitLinks, only the direct UnitId) decides which
-    /// licence the resulting token is scoped to. A resident linked to units under more than
-    /// one licence signs in to the licence of their primary unit only - the other licence
-    /// is simply not reachable through this token, by design; there is no attempt to merge
-    /// or pick "the more important one" across licences, which would be ambiguous.
+    /// Resolves one active licence context from all currently valid unit links. Login uses
+    /// the primary unit by default, while an explicit requested licence is accepted only when
+    /// the resident has at least one active unit there. This is the authorization boundary
+    /// that allows one account to switch condominiums without widening a token's tenant scope.
+    /// Legacy seeded residents with only the direct UnitId remain supported.
     /// </summary>
-    internal static Guid? ResolveLicenseId(ResidentAccessDTO resident)
+    internal static Guid? ResolveLicenseId(ResidentAccessDTO resident, Guid? requestedLicenseId = null, DateTime? now = null)
     {
+        var contexts = ResolveContexts(resident, now ?? DateTime.UtcNow);
+        if (requestedLicenseId.HasValue)
+            return contexts.Any(x => x.LicenseId == requestedLicenseId.Value) ? requestedLicenseId : null;
         var unit = ResolvePrimaryUnit(resident);
-        if (unit?.Block is null || unit.Block.LicenseId == Guid.Empty) return null;
-        return unit.Block.LicenseId;
+        if (unit?.Block is not null && contexts.Any(x => x.LicenseId == unit.Block.LicenseId))
+            return unit.Block.LicenseId;
+        return contexts.FirstOrDefault()?.LicenseId;
+    }
+
+    internal static List<ResidentContextOut> ResolveContexts(ResidentAccessDTO resident, DateTime now)
+    {
+        var activeLinks = resident.UnitLinks
+            .Where(x => ResidentAuthorizationService.LinkIsCurrentlyValid(x, now) &&
+                        x.Unit?.Block is not null && x.Unit.Block.LicenseId != Guid.Empty)
+            .ToList();
+
+        if (activeLinks.Count == 0 && resident.Unit?.Block is not null && resident.Unit.Block.LicenseId != Guid.Empty)
+        {
+            return
+            [
+                new ResidentContextOut
+                {
+                    LicenseId = resident.Unit.Block.LicenseId,
+                    LicenseName = resident.Unit.Block.License?.Name ?? string.Empty,
+                    Units =
+                    [
+                        new ResidentContextUnitOut
+                        {
+                            UnitId = resident.Unit.Id, BlockName = resident.Unit.Block.Name,
+                            UnitNumber = resident.Unit.Number, Relationship = resident.AccessType.ToString(), IsPrimary = true
+                        }
+                    ]
+                }
+            ];
+        }
+
+        return activeLinks
+            .GroupBy(x => new { x.Unit.Block.LicenseId, Name = x.Unit.Block.License?.Name ?? string.Empty })
+            .OrderBy(x => x.Key.Name)
+            .Select(group => new ResidentContextOut
+            {
+                LicenseId = group.Key.LicenseId,
+                LicenseName = group.Key.Name,
+                Units = group.OrderByDescending(x => x.IsPrimary).ThenBy(x => x.Unit.Block.Name).ThenBy(x => x.Unit.Number)
+                    .Select(x => new ResidentContextUnitOut
+                    {
+                        UnitId = x.UnitId, BlockName = x.Unit.Block.Name, UnitNumber = x.Unit.Number,
+                        Relationship = x.Relationship.ToString(), IsPrimary = x.IsPrimary
+                    }).ToList()
+            }).ToList();
     }
 
     /// <summary>Same "primary link, else first link" precedent already used by

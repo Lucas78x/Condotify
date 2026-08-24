@@ -78,7 +78,7 @@ public sealed class SessionController : ControllerBase
 
         var accessToken = kind == AccessTokenKind.User
             ? await MintStaffAccessTokenAsync(existing.SubjectId, cancellationToken)
-            : await MintResidentAccessTokenAsync(existing.SubjectId, cancellationToken);
+            : await MintResidentAccessTokenAsync(existing.SubjectId, existing.ContextLicenseId, cancellationToken);
         if (accessToken is null) return InvalidRefresh();
 
         var rotated = await _refreshTokens.RotateAsync(input.RefreshToken, cancellationToken);
@@ -152,7 +152,7 @@ public sealed class SessionController : ControllerBase
         return dto is null ? null : _jwt.CreateAccessToken(_mapper.Map<UserAccess>(dto));
     }
 
-    private async Task<string?> MintResidentAccessTokenAsync(Guid residentId, CancellationToken cancellationToken)
+    private async Task<string?> MintResidentAccessTokenAsync(Guid residentId, Guid? contextLicenseId, CancellationToken cancellationToken)
     {
         // IgnoreQueryFilters() deliberado: chamado a partir de um endpoint AllowAnonymous
         // de refresh de token, sem principal para popular o accessor. Consulta ja restrita
@@ -165,7 +165,7 @@ public sealed class SessionController : ControllerBase
         if (resident is null || !ResidentAuthorizationService.ResidentCanSignIn(resident, DateTime.UtcNow))
             return null;
 
-        var licenseId = ResidentAuthController.ResolveLicenseId(resident);
+        var licenseId = ResidentAuthController.ResolveLicenseId(resident, contextLicenseId, DateTime.UtcNow);
         return licenseId is null ? null : _jwt.CreateResidentAccessToken(resident, licenseId.Value);
     }
 

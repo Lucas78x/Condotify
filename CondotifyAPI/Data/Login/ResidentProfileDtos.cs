@@ -39,6 +39,23 @@ public sealed class ResidentUnitOut
     public bool IsPrimary { get; set; }
 }
 
+public sealed class CreateResidentRegistrationInviteIn
+{
+    public Guid UnitId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string PhoneNumber { get; set; } = string.Empty;
+    public ResidentUnitRelationshipEnum Relationship { get; set; } = ResidentUnitRelationshipEnum.Resident;
+}
+
+public sealed class ResidentRegistrationInviteOut
+{
+    public Guid InviteId { get; set; }
+    public Guid UnitId { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+}
+
 public sealed class CreateResidentVisitIn
 {
     public Guid UnitId { get; set; }

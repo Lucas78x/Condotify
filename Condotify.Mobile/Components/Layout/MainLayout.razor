@@ -44,12 +44,9 @@ else
                 <MudText Typo="Typo.caption">@ContextLabel</MudText>
             </div>
             <MudSpacer />
-            @if (Session.Current?.Principal == MobilePrincipalKind.Staff)
-            {
-                <MudTooltip Text="Trocar condomínio">
-                    <MudIconButton Icon="@Icons.Material.Outlined.Apartment" Color="Color.Inherit" OnClick="OpenLicenses" aria-label="Trocar condomínio" />
-                </MudTooltip>
-            }
+            <MudTooltip Text="Trocar condomínio">
+                <MudIconButton Icon="@Icons.Material.Outlined.Apartment" Color="Color.Inherit" OnClick="OpenContexts" aria-label="Trocar condomínio" />
+            </MudTooltip>
             <MudTooltip Text="Notificações">
                 <MudIconButton Icon="@Icons.Material.Outlined.NotificationsNone" Color="Color.Inherit" OnClick="OpenNotifications" aria-label="Notificações" />
             </MudTooltip>
@@ -221,7 +218,8 @@ else
         Navigation.NavigateTo("/login", replace: true);
     }
 
-    private void OpenLicenses() => Navigation.NavigateTo("/licenses");
+    private void OpenContexts() => Navigation.NavigateTo(
+        Session.Current?.Principal == MobilePrincipalKind.Resident ? "/contexts" : "/licenses");
     private void OpenNotifications() => Navigation.NavigateTo("/notifications");
     private void OpenProfile() => Navigation.NavigateTo("/profile");
     private void Refresh() => InvokeAsync(() =>

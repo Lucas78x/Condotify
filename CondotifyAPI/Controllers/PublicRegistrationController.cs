@@ -1,9 +1,11 @@
 using System.Security.Cryptography;
 using System.Text;
 using CondotifyAPI.Data.People;
+using CondotifyAPI.Domain.DTO.Resident;
 using CondotifyAPI.Domain.Enums.Invitation;
 using CondotifyAPI.Domain.Models.Resident;
 using CondotifyAPI.Infrastructure;
+using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -43,7 +45,9 @@ public class PublicRegistrationController : ControllerBase
 
         invite.UpdatedAt = now;
         await _context.SaveChangesAsync();
-        return Ok(ToPublicOut(invite));
+        var output = ToPublicOut(invite);
+        output.ExistingAccount = await HasExistingAccountAsync(invite);
+        return Ok(output);
     }
 
     [HttpPost("{token}/complete")]
@@ -62,35 +66,92 @@ public class PublicRegistrationController : ControllerBase
             await _context.SaveChangesAsync();
             return BadRequest(new { Errors = "Este convite expirou. Solicite um novo convite a administracao." });
         }
-        if (string.IsNullOrWhiteSpace(input.Name)) return BadRequest(new { Errors = "Informe o nome completo." });
-
         var resident = invite.Resident;
-        var requestedEmail = string.IsNullOrWhiteSpace(input.Email) ? resident.Email.Trim() : input.Email.Trim();
+        // O endereço originalmente convidado é a identidade à qual este token foi enviado.
+        // Não permita trocar o destinatário numa página pública e vincular outra conta.
+        var requestedEmail = string.IsNullOrWhiteSpace(resident.Email)
+            ? input.Email?.Trim() ?? string.Empty
+            : resident.Email.Trim();
+        ResidentAccessDTO? existingAccount = null;
         if (!string.IsNullOrWhiteSpace(requestedEmail))
         {
             var normalizedEmail = requestedEmail.ToLowerInvariant();
-            var anotherResidentUsesEmail = await _context.Residents.IgnoreQueryFilters().AsNoTracking()
-                .AnyAsync(x => x.Id != resident.Id && x.Email.ToLower() == normalizedEmail);
-            if (anotherResidentUsesEmail)
-                return Conflict(new { Errors = "Este e-mail já pertence a outra conta de morador. Peça à administração para revisar o cadastro antes de continuar." });
+            existingAccount = await _context.Residents.IgnoreQueryFilters()
+                .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block).ThenInclude(x => x.License)
+                .FirstOrDefaultAsync(x => x.Id != resident.Id && x.Email.ToLower() == normalizedEmail && x.Password != string.Empty);
         }
 
-        var passwordResult = ResidentPasswordSetter.Resolve(input.Password, _passwordHasher);
-        if (!passwordResult.Succeeded) return BadRequest(new { Errors = passwordResult.Error });
+        if (existingAccount is not null)
+        {
+            if (!input.ConfirmExistingAccount)
+                return BadRequest(new { Errors = "Confirme que deseja vincular esta unidade à sua conta existente." });
+            if (!existingAccount.IsActive)
+                return Conflict(new { Errors = "A conta existente está inativa. Peça à administração para revisar o acesso." });
+            if (await HasOperationalDependenciesAsync(resident.Id, invite.Id))
+                return Conflict(new { Errors = "Este cadastro já possui movimentações ou credenciais. Peça à administração para consolidar os vínculos antes de concluir o convite." });
 
-        resident.Name = input.Name.Trim();
-        resident.Email = requestedEmail;
-        resident.PhoneNumber = input.PhoneNumber?.Trim() ?? resident.PhoneNumber;
-        resident.CPF = input.CPF?.Trim() ?? resident.CPF;
-        resident.RG = input.RG?.Trim() ?? resident.RG;
-        resident.BirthDate = input.BirthDate?.Trim() ?? resident.BirthDate;
-        resident.Password = passwordResult.Hash!;
-        resident.FirstAccess = false;
+            var links = await _context.ResidentUnitLinks.IgnoreQueryFilters()
+                .Where(x => x.ResidentId == resident.Id).ToListAsync();
+            foreach (var link in links)
+            {
+                if (existingAccount.UnitLinks.Any(x => x.UnitId == link.UnitId))
+                    _context.ResidentUnitLinks.Remove(link);
+                else
+                {
+                    link.ResidentId = existingAccount.Id;
+                    link.Resident = existingAccount;
+                }
+            }
+            invite.ResidentId = existingAccount.Id;
+            invite.Resident = existingAccount;
+            existingAccount.LastAccess = now;
+            _context.Residents.Remove(resident);
+            resident = existingAccount;
+        }
+
+        if (existingAccount is null)
+        {
+            if (string.IsNullOrWhiteSpace(input.Name)) return BadRequest(new { Errors = "Informe o nome completo." });
+            var passwordResult = ResidentPasswordSetter.Resolve(input.Password, _passwordHasher);
+            if (!passwordResult.Succeeded) return BadRequest(new { Errors = passwordResult.Error });
+            resident.Password = passwordResult.Hash!;
+            resident.Name = input.Name!.Trim();
+            resident.Email = requestedEmail;
+            resident.PhoneNumber = input.PhoneNumber?.Trim() ?? resident.PhoneNumber;
+            resident.CPF = input.CPF?.Trim() ?? resident.CPF;
+            resident.RG = input.RG?.Trim() ?? resident.RG;
+            resident.BirthDate = input.BirthDate?.Trim() ?? resident.BirthDate;
+            resident.FirstAccess = false;
+        }
         invite.Status = RegistrationInviteStatusEnum.Completed;
         invite.CompletedAt = now;
         invite.UpdatedAt = now;
         await _context.SaveChangesAsync();
         return Ok(ToPublicOut(invite));
+    }
+
+    private async Task<bool> HasOperationalDependenciesAsync(Guid residentId, Guid currentInviteId)
+    {
+        return await _context.ResidentAccessCredentials.IgnoreQueryFilters().AnyAsync(x => x.ResidentId == residentId) ||
+               await _context.ResidentPasswordRecoveryTokens.IgnoreQueryFilters().AnyAsync(x => x.ResidentId == residentId) ||
+               await _context.RegistrationInvites.IgnoreQueryFilters().AnyAsync(x => x.ResidentId == residentId && x.Id != currentInviteId) ||
+               await _context.Vehicles.IgnoreQueryFilters().AnyAsync(x => x.ResidentId == residentId) ||
+               await _context.AccessVisits.IgnoreQueryFilters().AnyAsync(x => x.HostResidentId == residentId || x.GuestResidentId == residentId) ||
+               await _context.AmenityBookings.IgnoreQueryFilters().AnyAsync(x => x.ResidentId == residentId) ||
+               await _context.Deliveries.IgnoreQueryFilters().AnyAsync(x => x.RecipientResidentId == residentId) ||
+               await _context.AssemblyAttendances.IgnoreQueryFilters().AnyAsync(x => x.ResidentId == residentId) ||
+               await _context.AssemblyVotes.IgnoreQueryFilters().AnyAsync(x => x.ResidentId == residentId) ||
+               await _context.AccessRouteResidentOverrides.IgnoreQueryFilters().AnyAsync(x => x.ResidentId == residentId) ||
+               await _context.FinancialReminderDeliveries.IgnoreQueryFilters().AnyAsync(x => x.ResidentId == residentId) ||
+               await _context.Incidents.IgnoreQueryFilters().AnyAsync(x => x.ReportedByResidentId == residentId) ||
+               await _context.IncidentAttachments.IgnoreQueryFilters().AnyAsync(x => x.UploadedByResidentId == residentId);
+    }
+
+    private async Task<bool> HasExistingAccountAsync(CondotifyAPI.Domain.DTO.Invitation.RegistrationInviteDTO invite)
+    {
+        var email = invite.Resident.Email.Trim().ToLowerInvariant();
+        return !string.IsNullOrWhiteSpace(email) && await _context.Residents.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(x => x.Id != invite.ResidentId && x.Email.ToLower() == email && x.Password != string.Empty);
     }
 
     private async Task<CondotifyAPI.Domain.DTO.Invitation.RegistrationInviteDTO?> FindInviteAsync(string token)
@@ -103,6 +164,7 @@ public class PublicRegistrationController : ControllerBase
         return await _context.RegistrationInvites.IgnoreQueryFilters()
             .Include(x => x.License)
             .Include(x => x.Resident).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
+            .Include(x => x.Resident).ThenInclude(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .FirstOrDefaultAsync(x => x.TokenHash == hash);
     }
 
@@ -110,8 +172,8 @@ public class PublicRegistrationController : ControllerBase
     {
         ResidentName = invite.Resident.Name,
         LicenseName = invite.License.Name,
-        BlockName = invite.Resident.Unit.Block.Name,
-        UnitNumber = invite.Resident.Unit.Number,
+        BlockName = ResidentLicenseScope.ResolveUnitForLicense(invite.Resident, invite.LicenseId)?.Block.Name ?? invite.Resident.Unit.Block.Name,
+        UnitNumber = ResidentLicenseScope.ResolveUnitForLicense(invite.Resident, invite.LicenseId)?.Number ?? invite.Resident.Unit.Number,
         Email = invite.Resident.Email,
         PhoneNumber = invite.Resident.PhoneNumber,
         Status = invite.Status.ToString(),

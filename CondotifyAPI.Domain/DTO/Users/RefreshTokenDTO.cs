@@ -13,6 +13,8 @@ public class RefreshTokenDTO
     public Guid Id { get; set; }
     public Guid SubjectId { get; set; }
     public string SubjectType { get; set; } = string.Empty;
+    /// <summary>Contexto de condomínio preservado durante a rotação da sessão do morador.</summary>
+    public Guid? ContextLicenseId { get; set; }
     public string TokenHash { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; }
