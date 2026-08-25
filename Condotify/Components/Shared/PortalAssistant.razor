@@ -61,11 +61,22 @@
                                 <div class="assistant-message-actions" aria-label="Atalhos relacionados">
                                     @foreach (var action in message.Actions)
                                     {
-                                        <button type="button" @onclick="@(() => Navigate(action.Url))">
-                                            <MudIcon Icon="@ActionIcon(action.Icon)" />
-                                            <span>@action.Label</span>
-                                            <MudIcon Icon="@Icons.Material.Outlined.ArrowForward" />
-                                        </button>
+                                        @if (IsExternal(action.Url))
+                                        {
+                                            <a href="@action.Url" target="_blank" rel="noopener noreferrer">
+                                                <MudIcon Icon="@ActionIcon(action.Icon)" />
+                                                <span>@action.Label</span>
+                                                <MudIcon Icon="@Icons.Material.Outlined.OpenInNew" />
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" @onclick="@(() => Navigate(action.Url))">
+                                                <MudIcon Icon="@ActionIcon(action.Icon)" />
+                                                <span>@action.Label</span>
+                                                <MudIcon Icon="@Icons.Material.Outlined.ArrowForward" />
+                                            </button>
+                                        }
                                     }
                                 </div>
                             }
@@ -88,6 +99,13 @@
             </div>
 
             <footer class="assistant-composer">
+                <div class="assistant-support-row">
+                    <span><MudIcon Icon="@Icons.Material.Outlined.SupportAgent" /> Precisa falar com uma pessoa?</span>
+                    <a href="@PortalAssistantKnowledge.SupportWhatsAppUrl" target="_blank" rel="noopener noreferrer">
+                        Falar com o suporte
+                        <MudIcon Icon="@Icons.Material.Outlined.OpenInNew" />
+                    </a>
+                </div>
                 <div class="assistant-input-shell">
                     <input @ref="_inputElement"
                            value="@_draft"
@@ -229,6 +247,9 @@
         Navigation.NavigateTo(url);
     }
 
+    private static bool IsExternal(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var parsed) && parsed.Scheme is "https" or "http";
+
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
     {
         _ = InvokeAsync(() =>
@@ -270,6 +291,7 @@
         "auto_awesome" => Icons.Material.Outlined.AutoAwesome,
         "health_and_safety" => Icons.Material.Outlined.HealthAndSafety,
         "new_releases" => Icons.Material.Outlined.NewReleases,
+        "support_agent" => Icons.Material.Outlined.SupportAgent,
         _ => Icons.Material.Outlined.Search
     };
 

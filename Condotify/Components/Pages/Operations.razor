@@ -129,7 +129,7 @@ else
         else
         {
             <div class="operations-job-list">
-                @foreach (var job in FilteredJobs)
+                @foreach (var job in VisibleJobs)
                 {
                     <article class="operations-job-card @JobTone(job.Status)">
                         <header>
@@ -208,6 +208,13 @@ else
                     </article>
                 }
             </div>
+            @if (HiddenJobCount > 0)
+            {
+                <button type="button" class="operations-list-more" @onclick="ShowAllJobs">
+                    <MudIcon Icon="@Icons.Material.Outlined.ExpandMore" Size="Size.Small" />
+                    Ver mais @HiddenJobCount operações
+                </button>
+            }
         }
     </MudPaper>
 
@@ -241,7 +248,7 @@ else
             else
             {
                 <div class="operations-activity-list">
-                    @foreach (var activity in _dashboard.RecentActivities)
+                    @foreach (var activity in VisibleActivities)
                     {
                         <a href="@LicenseTarget(activity.LicenseId)" class="operations-activity-row">
                             <span class="activity-status @ActivityTone(activity.Status)"></span>
@@ -254,6 +261,13 @@ else
                         </a>
                     }
                 </div>
+                @if (HiddenActivityCount > 0)
+                {
+                    <button type="button" class="operations-list-more is-flush" @onclick="ShowAllActivities">
+                        <MudIcon Icon="@Icons.Material.Outlined.ExpandMore" Size="Size.Small" />
+                        Ver mais @HiddenActivityCount atividades
+                    </button>
+                }
             }
         </MudPaper>
     </div>
@@ -269,6 +283,8 @@ else
     private List<LicenseViewModel> _licenses = [];
     private readonly CancellationTokenSource _refreshCancellation = new();
     private string _jobFilter = "all";
+    private bool _showAllJobs;
+    private bool _showAllActivities;
     private bool _jobsBusy;
     private Guid? _busyJobId;
     private int AttentionCount => _alertSummary?.Active ?? 0;
@@ -282,6 +298,14 @@ else
         "completed" => _jobs.Where(x => x.Status is "Completed" or "Canceled"),
         _ => _jobs
     };
+    private IEnumerable<AccessBatchOperationViewModel> VisibleJobs => _showAllJobs ? FilteredJobs : FilteredJobs.Take(4);
+    private int HiddenJobCount => _showAllJobs ? 0 : Math.Max(0, FilteredJobs.Count() - 4);
+    private IEnumerable<OperationalActivityViewModel> VisibleActivities => _showAllActivities
+        ? _dashboard?.RecentActivities ?? []
+        : (_dashboard?.RecentActivities ?? []).Take(6);
+    private int HiddenActivityCount => _showAllActivities
+        ? 0
+        : Math.Max(0, (_dashboard?.RecentActivities.Count ?? 0) - 6);
     private string AccessRateHint => _dashboard?.AccessEventCount > 0
         ? $"{_dashboard.AuthorizationRate:N1}% autorizados"
         : "Sem eventos no período";
@@ -290,8 +314,10 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        var cancellationToken = _refreshCancellation.Token;
         await LoadAsync();
-        _ = AutoRefreshAsync(_refreshCancellation.Token);
+        if (!cancellationToken.IsCancellationRequested)
+            _ = AutoRefreshAsync(cancellationToken);
     }
 
     private async Task LoadAsync()
@@ -412,7 +438,14 @@ else
         await RefreshJobsAsync();
     }
 
-    private void SetJobFilter(string filter) => _jobFilter = filter;
+    private void SetJobFilter(string filter)
+    {
+        _jobFilter = filter;
+        _showAllJobs = false;
+    }
+
+    private void ShowAllJobs() => _showAllJobs = true;
+    private void ShowAllActivities() => _showAllActivities = true;
     private bool IsJobBusy(AccessBatchOperationViewModel job) => _busyJobId == job.Id;
     private static bool CanCancelJob(string status) => status is "Queued" or "Running";
     private static bool CanRetryJob(string status) => status is "CompletedWithErrors" or "Failed" or "DeadLetter";

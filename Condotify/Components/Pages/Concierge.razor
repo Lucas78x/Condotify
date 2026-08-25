@@ -186,7 +186,7 @@ else if (_dashboard is not null)
                     <MudPaper Class="content-panel concierge-events-panel" Elevation="0">
                         <div class="panel-toolbar"><div><MudText Typo="Typo.h6" Class="panel-title">Eventos recentes</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Leitura dos controladores</MudText></div></div>
                         <div class="concierge-event-list">
-                            @foreach (var accessEvent in _dashboard.Events.Take(8))
+                            @foreach (var accessEvent in VisibleEvents)
                             {
                                 var eventPersonName = string.IsNullOrWhiteSpace(accessEvent.PersonName) ? accessEvent.Event : accessEvent.PersonName;
                                 <button type="button" class="concierge-event-row" @onclick="@(() => OpenEventAsync(accessEvent))">
@@ -206,6 +206,13 @@ else if (_dashboard is not null)
                                 </button>
                             }
                         </div>
+                        @if (HiddenEventCount > 0)
+                        {
+                            <button type="button" class="concierge-list-more-button" @onclick="ShowAllEvents">
+                                <MudIcon Icon="@Icons.Material.Outlined.ExpandMore" Size="Size.Small" />
+                                Ver mais @HiddenEventCount eventos
+                            </button>
+                        }
                     </MudPaper>
                     @if (_dashboard.Watchlist.Count > 0)
                     {
@@ -227,6 +234,12 @@ else if (_dashboard is not null)
 }
 
 @code {
+    private bool _showAllEvents;
+    private IEnumerable<ConciergeEventViewModel> VisibleEvents => _showAllEvents
+        ? _dashboard?.Events ?? []
+        : (_dashboard?.Events ?? []).Take(5);
+    private int HiddenEventCount => _showAllEvents ? 0 : Math.Max(0, (_dashboard?.Events.Count ?? 0) - 5);
+    private void ShowAllEvents() => _showAllEvents = true;
     private List<LicenseViewModel> _licenses = [];
     private List<AccessRouteViewModel> _routes = [];
     private ConciergeDashboardViewModel? _dashboard;

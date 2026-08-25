@@ -45,6 +45,8 @@ public sealed record PortalAssistantPageContext(
 
 public sealed class PortalAssistantKnowledge
 {
+    public const string SupportWhatsAppUrl = "https://wa.me/5571406268609?text=Ol%C3%A1%21%20Preciso%20de%20ajuda%20com%20o%20F%26F%20Access.";
+
     private sealed record Intent(
         string Topic,
         string[] Phrases,
@@ -243,6 +245,14 @@ public sealed class PortalAssistantKnowledge
                 "Em Atualizações você consulta a versão exibida pelo portal e um resumo das funcionalidades e correções recentes. É o melhor lugar para entender mudanças antes de orientar a equipe.",
                 "atualizacoes",
                 Action("Ver Atualizações", "/atualizacoes", "new_releases"))),
+
+        new("suporte",
+            ["falar com suporte", "falar com atendente", "atendimento humano", "chamar no whatsapp", "entrar em contato"],
+            ["suporte", "atendente", "atendimento", "humano", "pessoa", "whatsapp", "contato", "telefone"],
+            context => Reply(
+                "Claro! Você pode falar diretamente com a equipe de suporte pelo WhatsApp. A conversa será aberta em uma nova guia com uma mensagem inicial pronta.",
+                "suporte",
+                Action("Conversar no WhatsApp", SupportWhatsAppUrl, "support_agent"))),
 
         new("atalhos",
             ["mostrar atalhos", "o que voce faz", "como pode ajudar", "menu de ajuda", "onde encontro"],

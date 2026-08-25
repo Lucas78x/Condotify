@@ -78,4 +78,19 @@ public sealed class PortalAssistantKnowledgeTests
         Assert.Equal("condominios", reply.Topic);
         Assert.Contains(reply.Actions, action => action.Url == "/licencas");
     }
+
+    [Theory]
+    [InlineData("Quero falar com o suporte")]
+    [InlineData("Tem atendimento humano?")]
+    [InlineData("Posso chamar no WhatsApp?")]
+    public void SupportQuestion_OffersPrefilledWhatsAppContact(string question)
+    {
+        var reply = _knowledge.Answer(question, "https://portal.example/");
+
+        Assert.Equal("suporte", reply.Topic);
+        var action = Assert.Single(reply.Actions);
+        Assert.Equal("Conversar no WhatsApp", action.Label);
+        Assert.StartsWith("https://wa.me/5571406268609?text=", action.Url);
+        Assert.Contains("F%26F%20Access", action.Url);
+    }
 }
