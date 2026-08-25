@@ -70,6 +70,8 @@ public sealed class CftvStreamingController : ControllerBase
         var channel = ResolveChannel(device.DeviceType, input.Channel);
         if (device.DeviceType != CFTVDeviceTypeEnum.Camera && channel > device.MaxChannels)
             return BadRequest(new { Result = "InvalidChannel", Errors = "O canal informado nao existe neste equipamento." });
+        if (!IsChannelEnabled(device.Channels, channel))
+            return BadRequest(new { Result = "ChannelDisabled", Errors = "Este canal está desativado." });
 
         var quality = string.Equals(input.Quality, "secondary", StringComparison.OrdinalIgnoreCase)
             ? StreamQuality.Secondary
@@ -138,6 +140,7 @@ public sealed class CftvStreamingController : ControllerBase
         [FromBody] UpdateCftvDeviceIn input,
         CancellationToken cancellationToken)
     {
+        input.Channels ??= [];
         var persisted = await _context.CFTVDevices
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId, cancellationToken);
@@ -165,6 +168,7 @@ public sealed class CftvStreamingController : ControllerBase
         [FromBody] UpdateCftvDeviceIn input,
         CancellationToken cancellationToken)
     {
+        input.Channels ??= [];
         var device = await _context.CFTVDevices
             .Include(x => x.Channels)
             .FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId, cancellationToken);
@@ -197,7 +201,10 @@ public sealed class CftvStreamingController : ControllerBase
         device.Mark = input.Mark;
         device.DeviceType = input.DeviceType;
         device.MaxChannels = maxChannels;
-        device.ResidentVisible = input.ResidentVisible;
+        var previousResidentVisibility = device.ResidentVisible;
+        device.ResidentVisible = input.Channels.Count > 0
+            ? input.Channels.Any(channel => channel.IsEnabled && channel.ResidentVisible)
+            : input.ResidentVisible;
         device.IsActive = true;
         device.HealthMessage = string.Empty;
         device.LastSeenAt = DateTime.UtcNow;
@@ -211,16 +218,39 @@ public sealed class CftvStreamingController : ControllerBase
 
         foreach (var number in wantedChannels.Where(number => device.Channels.All(x => x.ChannelNumber != number)))
         {
+            var configured = input.Channels.FirstOrDefault(channel => channel.ChannelNumber == number);
             device.Channels.Add(new CFTVChannelDTO
             {
                 Id = Guid.NewGuid(),
                 ChannelNumber = number,
-                Name = $"Canal {number}",
-                IsEnabled = true,
+                Name = configured?.Name.Trim() ?? $"Canal {number}",
+                IsEnabled = configured?.IsEnabled ?? true,
+                ResidentVisible = configured is not null
+                    ? configured.IsEnabled && configured.ResidentVisible
+                    : input.Channels.Count == 0 && input.ResidentVisible,
                 RtspPath = string.Empty,
                 CFTVDeviceId = device.Id
             });
         }
+
+        if (input.Channels.Count > 0)
+        {
+            var configuredChannels = input.Channels.ToDictionary(channel => channel.ChannelNumber);
+            foreach (var channel in device.Channels)
+            {
+                if (!configuredChannels.TryGetValue(channel.ChannelNumber, out var configured)) continue;
+                channel.Name = configured.Name.Trim();
+                channel.IsEnabled = configured.IsEnabled;
+                channel.ResidentVisible = configured.IsEnabled && configured.ResidentVisible;
+            }
+        }
+        else if (previousResidentVisibility != input.ResidentVisible)
+        {
+            foreach (var channel in device.Channels)
+                channel.ResidentVisible = input.ResidentVisible && channel.IsEnabled;
+        }
+
+        device.ResidentVisible = device.Channels.Any(channel => channel.IsEnabled && channel.ResidentVisible);
 
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -247,8 +277,15 @@ public sealed class CftvStreamingController : ControllerBase
     public async Task<IActionResult> Snapshot(Guid licenseId, Guid deviceId, [FromQuery] int channel = 1, CancellationToken cancellationToken = default)
     {
         var device = await _context.CFTVDevices.AsNoTracking()
+            .Include(x => x.Channels)
             .FirstOrDefaultAsync(x => x.Id == deviceId && x.LicenseId == licenseId, cancellationToken);
         if (device is null) return NotFound();
+
+        channel = ResolveChannel(device.DeviceType, channel);
+        if (device.DeviceType != CFTVDeviceTypeEnum.Camera && channel > device.MaxChannels)
+            return BadRequest(new { Result = "InvalidChannel", Errors = "O canal informado nao existe neste equipamento." });
+        if (!IsChannelEnabled(device.Channels, channel))
+            return BadRequest(new { Result = "ChannelDisabled", Errors = "Este canal está desativado." });
 
         var snapshot = await _snapshots.FetchAsync(device, channel, cancellationToken);
         return snapshot is null
@@ -413,6 +450,12 @@ public sealed class CftvStreamingController : ControllerBase
     /// </summary>
     internal static int ResolveChannel(CFTVDeviceTypeEnum deviceType, int requestedChannel) =>
         deviceType == CFTVDeviceTypeEnum.Camera ? 1 : Math.Max(requestedChannel, 1);
+
+    internal static bool IsChannelEnabled(IEnumerable<CFTVChannelDTO> channels, int channel)
+    {
+        var configured = channels.ToList();
+        return configured.Count == 0 ? channel == 1 : configured.Any(x => x.ChannelNumber == channel && x.IsEnabled);
+    }
 
     /// <summary>
     /// Com sourceOnDemand:true o MediaMTX so contata a camera na primeira leitura, entao sem

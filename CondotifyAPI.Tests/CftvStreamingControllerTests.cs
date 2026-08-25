@@ -1,6 +1,7 @@
 using CondotifyAPI.Controllers;
 using CondotifyAPI.Data.Equipments;
 using CondotifyAPI.Services.CFTV;
+using CondotifyAPI.Domain.DTO.Equipments;
 using Xunit;
 
 namespace CondotifyAPI.Tests;
@@ -33,6 +34,35 @@ public class CftvStreamingControllerTests
     public void ResolveChannel_ForNonCameras_KeepsTheRequestedChannel_ButNeverBelowOne(int requested, int expected)
     {
         Assert.Equal(expected, CftvStreamingController.ResolveChannel(CFTVDeviceTypeEnum.DVR, requested));
+    }
+
+    [Fact]
+    public void ChannelAvailability_RejectsDisabledOrUnknownChannels()
+    {
+        var channels = new[]
+        {
+            new CFTVChannelDTO { ChannelNumber = 1, IsEnabled = true },
+            new CFTVChannelDTO { ChannelNumber = 2, IsEnabled = false }
+        };
+
+        Assert.True(CftvStreamingController.IsChannelEnabled(channels, 1));
+        Assert.False(CftvStreamingController.IsChannelEnabled(channels, 2));
+        Assert.False(CftvStreamingController.IsChannelEnabled(channels, 3));
+    }
+
+    [Fact]
+    public void ResidentChannelVisibility_RequiresEnabledAndExplicitlySharedChannel()
+    {
+        var channels = new[]
+        {
+            new CFTVChannelDTO { ChannelNumber = 1, IsEnabled = true, ResidentVisible = true },
+            new CFTVChannelDTO { ChannelNumber = 2, IsEnabled = true, ResidentVisible = false },
+            new CFTVChannelDTO { ChannelNumber = 3, IsEnabled = false, ResidentVisible = true }
+        };
+
+        Assert.True(ResidentCftvController.IsResidentChannelVisible(channels, 1));
+        Assert.False(ResidentCftvController.IsResidentChannelVisible(channels, 2));
+        Assert.False(ResidentCftvController.IsResidentChannelVisible(channels, 3));
     }
 
     [Fact]
@@ -115,6 +145,30 @@ public class CftvStreamingControllerTests
             Mark = MarkEnum.Intelbras,
             DeviceType = CFTVDeviceTypeEnum.Camera,
             MaxChannels = 1
+        };
+
+        Assert.False(new UpdateCftvDeviceInValidator().Validate(input).IsValid);
+    }
+
+    [Fact]
+    public void CameraUpdateValidator_RejectsDuplicateOrOutOfRangeChannels()
+    {
+        var input = new UpdateCftvDeviceIn
+        {
+            Name = "NVR Portaria",
+            IpAddress = "192.168.0.20",
+            UserName = "admin",
+            HTTPPort = "80",
+            RTSPPort = "554",
+            Mark = MarkEnum.Intelbras,
+            DeviceType = CFTVDeviceTypeEnum.NVR,
+            MaxChannels = 2,
+            Channels =
+            [
+                new() { ChannelNumber = 1, Name = "Entrada" },
+                new() { ChannelNumber = 1, Name = "Garagem" },
+                new() { ChannelNumber = 3, Name = "Elevador" }
+            ]
         };
 
         Assert.False(new UpdateCftvDeviceInValidator().Validate(input).IsValid);

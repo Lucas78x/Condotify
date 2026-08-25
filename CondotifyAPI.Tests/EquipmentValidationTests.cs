@@ -13,6 +13,8 @@ public sealed class EquipmentValidationTests
         {
             LicenseId = Guid.NewGuid().ToString(),
             Name = "Entrada",
+            DeviceType = CFTVDeviceTypeEnum.Camera,
+            ResidentVisible = true,
             HTTPPort = null!,
             RTSPPort = null!
         };
@@ -21,7 +23,9 @@ public sealed class EquipmentValidationTests
 
         Assert.Equal("80", command.HTTPPort);
         Assert.Equal("554", command.RTSPPort);
-        Assert.NotNull(command.Channels);
+        var channel = Assert.Single(command.Channels);
+        Assert.Equal(1, channel.ChannelNumber);
+        Assert.True(channel.ResidentVisible);
     }
 
     [Theory]
