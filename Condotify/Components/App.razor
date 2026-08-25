@@ -30,17 +30,17 @@
         <button type="button" onclick="location.reload()">Recarregar</button>
     </div>
     <script src="@VersionedAsset("js/session-keepalive.js")"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script src="js/portal-interop.js?v=20260805-ux1"></script>
+    <script src="js/portal-motion.js"></script>
+    <script src="lib/hls.js/hls.min.js?v=1.6.16"></script>
+    <script src="js/cftv-player.js?v=20260818.cameras12"></script>
     <script src="_framework/blazor.web.js" autostart="false"></script>
     <script>
         window.condotifySessionReady.then(function (ready) {
             if (ready) Blazor.start();
         });
     </script>
-    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
-    <script src="js/portal-interop.js?v=20260805-ux1"></script>
-    <script src="js/portal-motion.js"></script>
-    <script src="lib/hls.js/hls.min.js?v=1.6.16"></script>
-    <script src="js/cftv-player.js?v=20260818.cameras12"></script>
 </body>
 
 </html>

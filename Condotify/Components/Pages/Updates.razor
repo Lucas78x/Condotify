@@ -59,16 +59,16 @@
             <div class="updates-filters" role="group" aria-label="Filtrar atualizações">
                 @foreach (var filter in Filters)
                 {
-                    <button type="button" class="@FilterCss(filter)" aria-pressed="@(_activeFilter == filter)" @onclick="@(() => _activeFilter = filter)">@filter</button>
+                    <button type="button" class="@FilterCss(filter)" aria-pressed="@(_activeFilter == filter)" @onclick="@(() => SetFilter(filter))">@filter</button>
                 }
             </div>
         </header>
 
         <div class="updates-timeline">
-            @foreach (var pair in FilteredUpdates.Select((update, index) => (update, index)))
+            @foreach (var pair in VisibleUpdates.Select((update, index) => (update, index)))
             {
                 var update = pair.update;
-                <article class="update-release-card @update.Tone" style="--update-index:@pair.index" @key="update">
+                <article class="update-release-card tone-@update.Tone" style="--update-index:@pair.index" @key="update">
                     <div class="update-release-date">
                         <strong>@update.DateLabel</strong>
                         <span>@update.Year</span>
@@ -94,6 +94,13 @@
                 </article>
             }
         </div>
+        @if (HiddenUpdatesCount > 0)
+        {
+            <button type="button" class="updates-more" @onclick="ShowAllUpdates">
+                <MudIcon Icon="@Icons.Material.Outlined.ExpandMore" Size="Size.Small" />
+                Ver mais @HiddenUpdatesCount atualizações
+            </button>
+        }
     </section>
 </div>
 
@@ -158,10 +165,27 @@
         ?? "indisponível";
 
     private string _activeFilter = "Todas";
+    private bool _showAll;
 
     private IEnumerable<ReleaseUpdate> FilteredUpdates => _activeFilter == "Todas"
         ? Releases
         : Releases.Where(update => update.Category == _activeFilter);
+
+    private IEnumerable<ReleaseUpdate> VisibleUpdates => _showAll
+        ? FilteredUpdates
+        : FilteredUpdates.Take(4);
+
+    private int HiddenUpdatesCount => _showAll
+        ? 0
+        : Math.Max(0, FilteredUpdates.Count() - 4);
+
+    private void SetFilter(string filter)
+    {
+        _activeFilter = filter;
+        _showAll = false;
+    }
+
+    private void ShowAllUpdates() => _showAll = true;
 
     private string FilterCss(string filter) => _activeFilter == filter
         ? "updates-filter is-active"
