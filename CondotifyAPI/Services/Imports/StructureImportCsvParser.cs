@@ -12,7 +12,7 @@ public sealed class StructureImportCsvParser
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["agrupamento"] = "block", ["bloco"] = "block", ["quadra"] = "block", ["setor"] = "block", ["group"] = "block",
-            ["unidade"] = "unit", ["lote"] = "unit", ["apartamento"] = "unit", ["casa"] = "unit", ["unit"] = "unit",
+            ["unidade"] = "unit", ["sala"] = "unit", ["lote"] = "unit", ["apartamento"] = "unit", ["casa"] = "unit", ["unit"] = "unit",
             ["andar"] = "floor", ["pavimento"] = "floor",
             ["nome"] = "name", ["pessoa"] = "name", ["morador"] = "name",
             ["categoria"] = "category", ["perfil"] = "category", ["tipopessoa"] = "category",
@@ -73,7 +73,7 @@ public sealed class StructureImportCsvParser
 
         var headerMap = BuildHeaderMap(headers, result.Errors);
         if (!headerMap.ContainsKey("block")) result.Errors.Add("Adicione a coluna Agrupamento, Bloco ou Quadra.");
-        if (!headerMap.ContainsKey("unit")) result.Errors.Add("Adicione a coluna Unidade, Lote ou Apartamento.");
+        if (!headerMap.ContainsKey("unit")) result.Errors.Add("Adicione a coluna Unidade, Sala, Lote ou Apartamento.");
         if (result.Errors.Count > 0) return result;
 
         var rowNumber = 1;

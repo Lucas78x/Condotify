@@ -22,6 +22,10 @@ namespace CondotifyAPI.ViewModels
         public DateTime ExpireDate { get; set; }
         public bool IsExpired { get; set; }
         public long EnabledModules { get; set; }
+        public string GroupLabelSingular { get; set; } = "Bloco";
+        public string GroupLabelPlural { get; set; } = "Blocos";
+        public string UnitLabelSingular { get; set; } = "Unidade";
+        public string UnitLabelPlural { get; set; } = "Unidades";
 
         public List<BlockSummaryViewModel> Blocks { get; set; } = new();
 

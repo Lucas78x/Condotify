@@ -1,6 +1,6 @@
 <div class="stats-grid workspace-overview-stats">
-    <StatTile Label="Blocos" Value="@License.TotalBlocks.ToString()" Hint="@(License.TotalBlocks == 0 ? "Estrutura ainda não iniciada" : "Estrutura cadastrada")" Icon="@Icons.Material.Outlined.Apartment" Tone="blue" />
-    <StatTile Label="Unidades" Value="@License.TotalUnits.ToString()" Hint="@(License.TotalUnits == 0 ? "Aguardando cadastro" : "Unidades disponíveis")" Icon="@Icons.Material.Outlined.MeetingRoom" Tone="amber" />
+    <StatTile Label="@License.GroupLabelPlural" Value="@License.TotalBlocks.ToString()" Hint="@(License.TotalBlocks == 0 ? "Estrutura ainda não iniciada" : "Estrutura cadastrada")" Icon="@Icons.Material.Outlined.Apartment" Tone="blue" />
+    <StatTile Label="@License.UnitLabelPlural" Value="@License.TotalUnits.ToString()" Hint="@(License.TotalUnits == 0 ? "Aguardando cadastro" : $"{License.UnitLabelPlural} disponíveis")" Icon="@Icons.Material.Outlined.MeetingRoom" Tone="amber" />
     <StatTile Label="Moradores" Value="@License.TotalResidents.ToString()" Hint="@(License.TotalResidents == 0 ? "Nenhum convite concluído" : "Pessoas vinculadas")" Icon="@Icons.Material.Outlined.Groups" Tone="green" />
     <StatTile Label="Validade" Value="@License.ExpireDate.ToString("dd/MM/yyyy")" Hint="@(License.IsExpired ? "Licença expirada" : "Licença ativa")" Icon="@Icons.Material.Outlined.EventAvailable" Tone="red" />
 </div>
@@ -23,11 +23,11 @@
                 </div>
                 <div class="overview-onboarding-copy">
                     <MudText Typo="Typo.h5" HtmlTag="h2">Comece pela estrutura</MudText>
-                    <MudText Typo="Typo.body2">Cadastre o primeiro bloco e suas unidades. Depois, a F&amp;F Access libera convites, credenciais e automações de acesso.</MudText>
+                    <MudText Typo="Typo.body2">Cadastre o primeiro @License.GroupLabelSingular.ToLowerInvariant() e suas @License.UnitLabelPlural.ToLowerInvariant(). Depois, a F&amp;F Access libera convites, credenciais e automações de acesso.</MudText>
                     <div class="setup-progress-label"><span>Configuração inicial</span><strong>25%</strong></div>
                     <div class="setup-progress" role="progressbar" aria-label="Configuração inicial" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25"><span></span></div>
                     <div class="overview-onboarding-actions">
-                        <MudButton Href="@Url("estrutura")" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add">Criar primeiro bloco</MudButton>
+                        <MudButton Href="@Url("estrutura")" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add">Criar primeiro @License.GroupLabelSingular.ToLowerInvariant()</MudButton>
                         <MudButton Href="@Url("estrutura")" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.UploadFile">Importar planilha</MudButton>
                     </div>
                 </div>
@@ -43,7 +43,7 @@
                     </div>
                 </div>
                 <div class="panel-body setup-actions">
-                    <a class="setup-action" href="@Url("estrutura")"><span class="setup-action-index">01</span><span><strong>Criar estrutura</strong><small>Blocos, andares e unidades</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+                    <a class="setup-action" href="@Url("estrutura")"><span class="setup-action-index">01</span><span><strong>Criar estrutura</strong><small>@License.GroupLabelPlural, andares e @License.UnitLabelPlural.ToLowerInvariant()</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
                     <a class="setup-action" href="@Url("estrutura")"><span class="setup-action-index">02</span><span><strong>Convidar moradores</strong><small>Envio seguro por link</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
                     <a class="setup-action" href="@Url("credenciais")"><span class="setup-action-index">03</span><span><strong>Configurar acessos</strong><small>Credenciais e equipamentos</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
                 </div>
@@ -61,7 +61,7 @@ else
     <div class="overview-grid">
         <MudPaper Class="content-panel" Elevation="0">
             <div class="panel-toolbar">
-                <div><MudText Typo="Typo.h5" Class="panel-title">Estrutura do condomínio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Distribuição cadastrada por bloco</MudText></div>
+                <div><MudText Typo="Typo.h5" Class="panel-title">Estrutura do condomínio</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Distribuição cadastrada por @License.GroupLabelSingular.ToLowerInvariant()</MudText></div>
                 <MudButton Href="@Url("estrutura")" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.AccountTree">Ver estrutura</MudButton>
             </div>
             <div class="panel-body">
@@ -70,8 +70,8 @@ else
                     {
                         <div class="hierarchy-card group-card">
                             <span class="hierarchy-card-icon"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span>
-                            <span class="hierarchy-card-main"><strong>@block.Name</strong><small>Bloco</small></span>
-                            <span class="hierarchy-card-stats"><span><strong>@block.TotalUnits</strong>unidade@(block.TotalUnits == 1 ? "" : "s")</span><span><strong>@block.TotalResidents</strong>pessoas</span></span>
+                            <span class="hierarchy-card-main"><strong>@block.Name</strong><small>@License.GroupLabelSingular</small></span>
+                            <span class="hierarchy-card-stats"><span><strong>@block.TotalUnits</strong>@(block.TotalUnits == 1 ? License.UnitLabelSingular.ToLowerInvariant() : License.UnitLabelPlural.ToLowerInvariant())</span><span><strong>@block.TotalResidents</strong>pessoas</span></span>
                             <a href="@Url("estrutura")" class="hierarchy-card-action"><span>Ver estrutura</span><MudIcon Icon="@Icons.Material.Outlined.ArrowForward" /></a>
                         </div>
                     }
@@ -92,7 +92,7 @@ else
             <MudPaper Class="content-panel" Elevation="0">
                 <div class="panel-toolbar"><MudText Typo="Typo.subtitle1" Class="panel-title">Ações rápidas</MudText></div>
                 <div class="panel-body quick-actions">
-                    <a class="qa-item" href="@Url("estrutura")"><MudIcon Icon="@Icons.Material.Outlined.AddHomeWork" />Novo bloco<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
+                    <a class="qa-item" href="@Url("estrutura")"><MudIcon Icon="@Icons.Material.Outlined.AddHomeWork" />Cadastrar @License.GroupLabelSingular.ToLowerInvariant()<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
                     <a class="qa-item" href="@Url("estrutura")"><MudIcon Icon="@Icons.Material.Outlined.Groups" />Ver moradores<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
                     <a class="qa-item" href="@Url("credenciais")"><MudIcon Icon="@Icons.Material.Outlined.Badge" />Configurar acessos<MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Class="qa-arrow" /></a>
                     @if (CanViewDocuments)

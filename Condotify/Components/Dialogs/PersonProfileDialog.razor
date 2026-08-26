@@ -29,7 +29,7 @@
                 </div>
                 <div class="person-profile-identity">
                     <MudText Typo="Typo.h6">@_profile.Name</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_profile.BlockName / Unidade @_profile.UnitNumber</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_profile.BlockName / @UnitLabelSingular @_profile.UnitNumber</MudText>
                 </div>
                 <div class="person-profile-head-actions">
                     <MudChip T="string" Size="Size.Small" Color="@(_profile.IsActive ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(_profile.IsActive ? "Ativo" : "Inativo")</MudChip>
@@ -63,7 +63,7 @@
                             <MudTextField T="string" @bind-Value="_form.CPF" Label="CPF" Variant="Variant.Outlined" />
                             <MudTextField T="string" @bind-Value="_form.RG" Label="RG" Variant="Variant.Outlined" />
                             <MudTextField T="string" @bind-Value="_form.BirthDate" Label="Data de nascimento" Placeholder="dd/mm/aaaa" Variant="Variant.Outlined" />
-                            <MudSelect T="int" @bind-Value="_form.Relationship" Label="Vínculo com a unidade" Variant="Variant.Outlined">
+                            <MudSelect T="int" @bind-Value="_form.Relationship" Label="@($"Vínculo com {UnitLabelSingular.ToLowerInvariant()}")" Variant="Variant.Outlined">
                                 <MudSelectItem Value="1">Proprietário responsável</MudSelectItem>
                                 <MudSelectItem Value="2">Locatário responsável</MudSelectItem>
                                 <MudSelectItem Value="3">Apenas responsável</MudSelectItem>
@@ -186,7 +186,7 @@
                 </MudTabPanel>
 
                 <MudTabPanel Text="Veículos" Icon="@Icons.Material.Outlined.DirectionsCar">
-                    <div class="profile-panel-toolbar"><div><strong>Veículos da unidade</strong><span>Tags criadas aqui passam a integrar a base de credenciais.</span></div>@if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenVehicleDialogAsync())">Novo veículo</MudButton> }</div>
+                    <div class="profile-panel-toolbar"><div><strong>Veículos de @UnitLabelSingular.ToLowerInvariant()</strong><span>Tags criadas aqui passam a integrar a base de credenciais.</span></div>@if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenVehicleDialogAsync())">Novo veículo</MudButton> }</div>
                     @if (_profile.Vehicles.Count == 0)
                     {
                         <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /><span>Nenhum veículo cadastrado.</span></div>
@@ -253,6 +253,7 @@
     [Parameter] public bool CanManagePeople { get; set; }
     [Parameter] public bool CanManageCredentials { get; set; }
     [Parameter] public int InitialTabIndex { get; set; }
+    [Parameter] public string UnitLabelSingular { get; set; } = "Unidade";
     private PersonProfileViewModel? _profile;
     private readonly PersonProfileFormViewModel _form = new();
     private bool _loading = true;

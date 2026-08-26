@@ -71,6 +71,8 @@
 @code {
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public string GroupLabelSingular { get; set; } = "Bloco";
+    [Parameter] public string UnitLabelSingular { get; set; } = "Unidade";
 
     private List<RecycleBinItemViewModel> _items = [];
     private string _search = string.Empty;
@@ -147,10 +149,10 @@
     }
 
     private static string DisplayActor(string value) => string.IsNullOrWhiteSpace(value) ? "usuário não identificado" : value;
-    private static string EntityLabel(string type) => type switch
+    private string EntityLabel(string type) => type switch
     {
-        "Block" => "Agrupamento",
-        "Unit" => "Unidade",
+        "Block" => GroupLabelSingular,
+        "Unit" => UnitLabelSingular,
         "Resident" => "Pessoa",
         "Vehicle" => "Veículo",
         "Device" => "Equipamento",

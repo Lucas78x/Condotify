@@ -11,21 +11,21 @@
         @if (ActiveSection == "blocos")
         {
             <MudForm @ref="_form" @bind-IsValid="_isValid">
-                <MudTextField T="string" @bind-Value="_block.Name" Label="Nome do bloco" Placeholder="Ex.: Bloco A" Required RequiredError="Informe o nome do bloco." Immediate Variant="Variant.Outlined" FullWidth />
-                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveBlockAsync">@(_saving ? "Salvando..." : IsEditing ? "Salvar alterações" : "Cadastrar bloco")</MudButton></div>
+                <MudTextField T="string" @bind-Value="_block.Name" Label="@($"Nome: {GroupLabelSingular}")" Placeholder="Ex.: A" Required RequiredError="@($"Informe o nome de {GroupLabelSingular.ToLowerInvariant()}.")" Immediate Variant="Variant.Outlined" FullWidth />
+                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveBlockAsync">@(_saving ? "Salvando..." : IsEditing ? "Salvar alterações" : $"Cadastrar {GroupLabelSingular.ToLowerInvariant()}")</MudButton></div>
             </MudForm>
         }
         else if (ActiveSection == "unidades")
         {
             <MudForm @ref="_form" @bind-IsValid="_isValid">
                 <div class="form-grid">
-                    <MudSelect T="Guid" @bind-Value="_unit.BlockId" Label="@GroupLabelSingular" Required RequiredError="Selecione o agrupamento da unidade." Variant="Variant.Outlined" Class="full">
+                    <MudSelect T="Guid" @bind-Value="_unit.BlockId" Label="@GroupLabelSingular" Required RequiredError="@($"Selecione {GroupLabelSingular.ToLowerInvariant()}.")" Variant="Variant.Outlined" Class="full">
                         @foreach (var block in Blocks) { <MudSelectItem T="Guid" Value="@block.Id">@block.Name</MudSelectItem> }
                     </MudSelect>
-                    <MudTextField T="string" @bind-Value="_unit.Number" Label="Número da unidade" Placeholder="Ex.: 101" Required RequiredError="Informe o número da unidade." Immediate Variant="Variant.Outlined" />
+                    <MudTextField T="string" @bind-Value="_unit.Number" Label="@($"Identificação: {UnitLabelSingular}")" Placeholder="Ex.: 101" Required RequiredError="@($"Informe a identificação de {UnitLabelSingular.ToLowerInvariant()}.")" Immediate Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_unit.Floor" Label="Andar (opcional)" Variant="Variant.Outlined" />
                 </div>
-                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveUnitAsync">@(_saving ? "Salvando..." : IsEditing ? "Salvar alterações" : "Cadastrar unidade")</MudButton></div>
+                <div class="form-actions dialog-form-actions"><MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Button" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Disabled="_saving" OnClick="SaveUnitAsync">@(_saving ? "Salvando..." : IsEditing ? "Salvar alterações" : $"Cadastrar {UnitLabelSingular.ToLowerInvariant()}")</MudButton></div>
             </MudForm>
         }
         else
@@ -45,7 +45,7 @@
                     <MudSelect T="int" @bind-Value="_resident.AccessType" Label="Categoria" Variant="Variant.Outlined"><MudSelectItem Value="1">Morador responsável</MudSelectItem><MudSelectItem Value="2">Morador dependente</MudSelectItem><MudSelectItem Value="3">Visitante</MudSelectItem><MudSelectItem Value="4">Prestador de serviço</MudSelectItem></MudSelect>
                     @if (_resident.AccessType is 1 or 2)
                     {
-                        <MudSelect T="int" @bind-Value="_resident.Relationship" Label="Vínculo com a unidade" Variant="Variant.Outlined"><MudSelectItem Value="1">Proprietário responsável</MudSelectItem><MudSelectItem Value="2">Locatário responsável</MudSelectItem><MudSelectItem Value="3">Apenas responsável</MudSelectItem><MudSelectItem Value="0">Morador</MudSelectItem><MudSelectItem Value="4">Dependente</MudSelectItem></MudSelect>
+                        <MudSelect T="int" @bind-Value="_resident.Relationship" Label="@($"Vínculo com {UnitLabelSingular.ToLowerInvariant()}")" Variant="Variant.Outlined"><MudSelectItem Value="1">Proprietário responsável</MudSelectItem><MudSelectItem Value="2">Locatário responsável</MudSelectItem><MudSelectItem Value="3">Apenas responsável</MudSelectItem><MudSelectItem Value="0">Morador</MudSelectItem><MudSelectItem Value="4">Dependente</MudSelectItem></MudSelect>
                     }
                     <MudTextField T="string" @bind-Value="_resident.Description" Label="Observações" Lines="2" Variant="Variant.Outlined" Class="full" />
                     <MudSwitch T="bool" @bind-Value="_resident.NotifyAccess" Label="Notificar acessos" Color="Color.Primary" />
@@ -79,8 +79,8 @@
     private List<UnitRowViewModel> Units => Blocks.SelectMany(x => x.Units).ToList();
     private bool IsEditing => ExistingBlock is not null || ExistingUnit is not null;
     private string DialogIcon => ActiveSection switch { "unidades" => Icons.Material.Outlined.Apartment, "moradores" => Icons.Material.Outlined.PersonAdd, _ => Icons.Material.Outlined.DomainAdd };
-    private string DescriptionTitle => ActiveSection switch { "unidades" => IsEditing ? "Editar unidade" : "Nova unidade", "moradores" => "Novo morador", _ => IsEditing ? "Editar bloco" : "Novo bloco" };
-    private string Description => ActiveSection switch { "unidades" => "Vincule a unidade ao bloco correspondente.", "moradores" => "Associe o morador a uma unidade e defina seu tipo de acesso.", _ => "Organize a estrutura física do condomínio." };
+    private string DescriptionTitle => ActiveSection switch { "unidades" => IsEditing ? $"Editar {UnitLabelSingular.ToLowerInvariant()}" : $"Cadastrar {UnitLabelSingular.ToLowerInvariant()}", "moradores" => "Novo morador", _ => IsEditing ? $"Editar {GroupLabelSingular.ToLowerInvariant()}" : $"Cadastrar {GroupLabelSingular.ToLowerInvariant()}" };
+    private string Description => ActiveSection switch { "unidades" => "Vincule o cadastro ao agrupamento correspondente.", "moradores" => $"Defina o local ({UnitLabelSingular.ToLowerInvariant()}) e o tipo de acesso da pessoa.", _ => "Organize a estrutura física do condomínio." };
 
     protected override void OnInitialized()
     {
@@ -98,13 +98,13 @@
     private void Cancel() => Dialog.Cancel();
     private Task SaveBlockAsync() => SaveStructureAsync(
         () => ExistingBlock is null ? Api.CreateBlockAsync(LicenseId, _block) : Api.UpdateBlockAsync(LicenseId, ExistingBlock.Id, _block),
-        string.IsNullOrWhiteSpace(_block.Name) ? "Informe o nome do bloco." : null);
+        string.IsNullOrWhiteSpace(_block.Name) ? $"Informe o nome de {GroupLabelSingular.ToLowerInvariant()}." : null);
 
     private Task SaveUnitAsync() => SaveStructureAsync(
         () => ExistingUnit is null ? Api.CreateUnitAsync(LicenseId, _unit) : Api.UpdateUnitAsync(LicenseId, ExistingUnit.Id, _unit),
         _unit.BlockId == Guid.Empty
-            ? "Selecione o bloco da unidade."
-            : string.IsNullOrWhiteSpace(_unit.Number) ? "Informe o número da unidade." : null);
+            ? $"Selecione {GroupLabelSingular.ToLowerInvariant()}."
+            : string.IsNullOrWhiteSpace(_unit.Number) ? $"Informe a identificação de {UnitLabelSingular.ToLowerInvariant()}." : null);
 
     private Task SaveResidentAsync() => SaveAsync(() => Api.CreateResidentAsync(LicenseId, _resident));
 
