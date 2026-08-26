@@ -4,6 +4,7 @@ using CondotifyAPI.Services.Security;
 using DigitalWorldOnline.Management.Api.Data;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace DigitalWorldOnline.Management.Api.Controllers;
 
@@ -11,6 +12,7 @@ namespace DigitalWorldOnline.Management.Api.Controllers;
 // empresa, entao nao ha JWT possivel para autenticar a chamada. Protegida por
 // rede (porta interna, ver InternalRouteGuard) em vez de credencial de usuario.
 [ApiController]
+[AllowAnonymous]
 [Route("api/internal/users")]
 public sealed class UserAccessController : ControllerBase
 {

@@ -24,7 +24,16 @@
             <Authorized Context="auth">
                 <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="user-menu">
                     <ActivatorContent Context="menu"><button type="button" class="user-summary user-profile-trigger" aria-label="Abrir menu do usuário" @onclick="menu.ToggleAsync"><MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(auth.User)</MudAvatar><div class="user-copy"><MudText Typo="Typo.body2" Class="user-name">@(auth.User.Identity?.Name ?? "Administrador")</MudText><MudText Typo="Typo.caption">@AccessLabel(auth.User)</MudText></div><MudIcon Icon="@Icons.Material.Outlined.ExpandMore" Size="Size.Small" /></button></ActivatorContent>
-                    <ChildContent><MudMenuItem Href="/seguranca" Icon="@Icons.Material.Outlined.Security">Segurança da conta</MudMenuItem><MudMenuItem Href="/Login/Logout" Icon="@Icons.Material.Outlined.Logout">Sair</MudMenuItem></ChildContent>
+                    <ChildContent>
+                        <MudMenuItem Href="/seguranca" Icon="@Icons.Material.Outlined.Security">Segurança da conta</MudMenuItem>
+                        <form id="portal-logout-form" method="post" action="/Login/Logout" class="portal-logout-form">
+                            <AntiforgeryToken />
+                            <button type="submit" class="portal-logout-button">
+                                <MudIcon Icon="@Icons.Material.Outlined.Logout" Size="Size.Small" />
+                                <span>Sair</span>
+                            </button>
+                        </form>
+                    </ChildContent>
                 </MudMenu>
             </Authorized>
         </AuthorizeView>

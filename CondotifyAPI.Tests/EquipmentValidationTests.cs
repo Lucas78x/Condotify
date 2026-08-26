@@ -53,4 +53,39 @@ public sealed class EquipmentValidationTests
 
         Assert.False(result.IsValid);
     }
+
+    [Theory]
+    [InlineData("127.0.0.1")]
+    [InlineData("0.0.0.0")]
+    [InlineData("169.254.169.254")]
+    [InlineData("224.0.0.1")]
+    [InlineData("::1")]
+    [InlineData("fe80::1")]
+    public void EquipmentValidators_ShouldRejectSensitiveDestinations(string ipAddress)
+    {
+        var access = new CreateAccessControlDeviceByLicenseCommand(
+            Guid.NewGuid(), "Portaria", ipAddress, 80, "admin", "secret", null,
+            "Modelo", null, null, DeviceTypeEnum.IdFace, true, new Location());
+        var cftv = new CreateCftvDeviceByLicenseCommand(
+            Guid.NewGuid(), "Camera", ipAddress, "admin", "secret", "80", "554",
+            IpTypeEnum.Ipv4, ScreenProportionEnum.Widescreen, MarkEnum.Intelbras,
+            CFTVDeviceTypeEnum.Camera, 1, []);
+
+        Assert.False(new CreateAccessControlDeviceByLicenseCommandValidator().Validate(access).IsValid);
+        Assert.False(new CreateCftvDeviceByLicenseCommandValidator().Validate(cftv).IsValid);
+    }
+
+    [Theory]
+    [InlineData("192.168.1.10")]
+    [InlineData("10.0.0.20")]
+    [InlineData("172.16.1.30")]
+    [InlineData("2001:db8::10")]
+    public void EquipmentValidators_ShouldAllowUnicastDeviceAddresses(string ipAddress)
+    {
+        var command = new CreateAccessControlDeviceByLicenseCommand(
+            Guid.NewGuid(), "Portaria", ipAddress, 80, "admin", "secret", null,
+            "Modelo", null, null, DeviceTypeEnum.IdFace, true, new Location());
+
+        Assert.True(new CreateAccessControlDeviceByLicenseCommandValidator().Validate(command).IsValid);
+    }
 }

@@ -3018,3 +3018,27 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
 @media (max-width: 440px) {
     .reports-executive-grid { grid-template-columns: 1fr; }.reports-health-card { grid-column: 1; }.reports-health-copy p { max-width: 190px; }.reports-score-ring { width: 84px; height: 84px; }.reports-score-ring::before { width: 66px; height: 66px; }.reports-score-ring strong { font-size: 1.35rem; }
 }
+.portal-logout-form {
+    margin: 0;
+}
+
+.portal-logout-button {
+    width: 100%;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 16px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.portal-logout-button:hover,
+.portal-logout-button:focus-visible {
+    background: var(--mud-palette-action-default-hover);
+    outline: none;
+}

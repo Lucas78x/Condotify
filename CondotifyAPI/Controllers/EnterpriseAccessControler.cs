@@ -3,12 +3,14 @@ using CondotifyAPI.Data.Enterprise;
 using DigitalWorldOnline.Management.Api.Data;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using CondotifyAPI.Services.Security;
 
 // Rota de bootstrap: cria a empresa antes de qualquer conta existir para ela,
 // entao nao ha JWT possivel para autenticar a chamada. Protegida por rede
 // (porta interna, ver InternalRouteGuard) em vez de credencial de usuario.
 [ApiController]
+[AllowAnonymous]
 [Route("api/internal/enterprises")]
 public class EnterpriseAccessController : ControllerBase
 {

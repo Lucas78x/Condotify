@@ -33,6 +33,7 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Events;
 using System.Reflection;
+using System.Net;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -49,6 +50,11 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.ForwardLimit = 1;
     options.KnownNetworks.Clear();
     options.KnownProxies.Clear();
+    options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("10.0.0.0"), 8));
+    options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("172.16.0.0"), 12));
+    options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("192.168.0.0"), 16));
+    options.KnownProxies.Add(IPAddress.Loopback);
+    options.KnownProxies.Add(IPAddress.IPv6Loopback);
 
     var allowedHost = builder.Configuration["ReverseProxy:AllowedHost"];
     if (!string.IsNullOrWhiteSpace(allowedHost)) options.AllowedHosts.Add(allowedHost);
@@ -155,11 +161,16 @@ builder.Services.AddAuthentication(options =>
 // caller is authenticated (no principal_type claim check at all), so it is used
 // explicitly by name (see SessionController.AnyPrincipalPolicy) rather than by adding a
 // third implicit default - the default policy itself is unchanged.
-builder.Services.AddAuthorizationBuilder()
-    .SetDefaultPolicy(new AuthorizationPolicyBuilder()
+var staffAuthorizationPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .RequireClaim(PrincipalTypes.Claim, PrincipalTypes.User)
-        .Build())
+        .Build();
+
+builder.Services.AddAuthorizationBuilder()
+    .SetDefaultPolicy(staffAuthorizationPolicy)
+    // Fail closed: a newly added endpoint is staff-only unless it explicitly
+    // declares another policy or [AllowAnonymous].
+    .SetFallbackPolicy(staffAuthorizationPolicy)
     .AddPolicy("Resident", policy => policy
         .RequireAuthenticatedUser()
         .RequireClaim(PrincipalTypes.Claim, PrincipalTypes.Resident))
@@ -374,6 +385,7 @@ app.Use(async (context, next) =>
     context.Response.Headers.XFrameOptions = "DENY";
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
     context.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    context.Response.Headers.ContentSecurityPolicy = "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'";
     await next();
 });
 app.UseRateLimiter();
