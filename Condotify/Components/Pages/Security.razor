@@ -3,6 +3,7 @@
 @inject CondotifyApiClient Api
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>Segurança | F&amp;F Access</PageTitle>
 
@@ -159,7 +160,7 @@ else
 
         Snackbar.Add("Senha alterada. Entre novamente com a nova senha.", Severity.Success);
         await Task.Delay(600);
-        Navigation.NavigateTo("/Login/Logout", forceLoad: true);
+        await JS.InvokeVoidAsync("portalInterop.submitLogout");
     }
 
     private string? ValidatePassword()

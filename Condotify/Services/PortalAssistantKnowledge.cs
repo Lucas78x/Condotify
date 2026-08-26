@@ -235,8 +235,7 @@ public sealed class PortalAssistantKnowledge
             context => Reply(
                 "Em Segurança da conta você troca a senha e configura a autenticação em dois fatores. Se a sessão expirar, salve o que estiver preenchendo quando possível e entre novamente; o portal não deve manter acesso a áreas protegidas após a expiração.",
                 "seguranca",
-                Action("Abrir Segurança", "/seguranca", "security"),
-                Action("Sair com segurança", "/Login/Logout", "logout"))),
+                Action("Abrir Segurança", "/seguranca", "security"))),
 
         new("atualizacoes",
             ["ver atualizacoes", "novidades da plataforma", "versao da plataforma", "o que mudou"],

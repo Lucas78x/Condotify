@@ -3,6 +3,7 @@ using CondotifyAPI.Domain.Models.Equipments;
 using FluentValidation;
 using MediatR;
 using System.Net;
+using CondotifyAPI.Services.Security;
 
 namespace CondotifyAPI.Commands.Equipments
 {
@@ -160,7 +161,7 @@ namespace CondotifyAPI.Commands.Equipments
         }
         private static bool BeAValidIp(string ip)
         {
-            return IPAddress.TryParse(ip, out _);
+            return EquipmentNetworkSecurity.IsAllowedAddress(ip);
         }
 
         private static bool BeAValidPort(string? port)

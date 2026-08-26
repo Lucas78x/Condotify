@@ -1,5 +1,6 @@
 using System.Net;
 using CondotifyAPI.Domain.Models.Equipments;
+using CondotifyAPI.Services.Security;
 using FluentValidation;
 
 namespace CondotifyAPI.Data.Equipments;
@@ -39,8 +40,8 @@ public sealed class UpdateCftvDeviceInValidator : AbstractValidator<UpdateCftvDe
 
         RuleFor(x => x.IpAddress)
             .NotEmpty()
-            .Must(value => IPAddress.TryParse(value, out _))
-            .WithMessage("Informe um endereço IP válido.");
+            .Must(EquipmentNetworkSecurity.IsAllowedAddress)
+            .WithMessage("Informe o IP unicast de um equipamento; loopback, link-local e multicast não são permitidos.");
 
         RuleFor(x => x.UserName)
             .NotEmpty().WithMessage("Informe o usuário do equipamento.")

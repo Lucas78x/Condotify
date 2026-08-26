@@ -5,6 +5,10 @@ window.portalInterop = {
     scrollToBottom: function (element) {
         if (element instanceof HTMLElement) element.scrollTop = element.scrollHeight;
     },
+    submitLogout: function () {
+        const form = document.getElementById("portal-logout-form");
+        if (form instanceof HTMLFormElement) form.requestSubmit();
+    },
     downloadText: function (fileName, content, contentType) {
         const blob = new Blob([content], { type: contentType || "text/plain" });
         const url = URL.createObjectURL(blob);

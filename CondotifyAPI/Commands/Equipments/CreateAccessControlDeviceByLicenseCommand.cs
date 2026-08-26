@@ -4,6 +4,7 @@ using CondotifyAPI.Domain.Models;
 using FluentValidation;
 using MediatR;
 using System.Net;
+using CondotifyAPI.Services.Security;
 
 namespace CondotifyAPI.Commands.Equipments
 {
@@ -99,8 +100,8 @@ namespace CondotifyAPI.Commands.Equipments
 
             RuleFor(x => x.IPAddress)
                 .NotEmpty().WithMessage("O IP Address é obrigatório.")
-                .Must(value => IPAddress.TryParse(value, out _))
-                .WithMessage("IP inválido.");
+                .Must(EquipmentNetworkSecurity.IsAllowedAddress)
+                .WithMessage("Informe o IP unicast de um equipamento; loopback, link-local e multicast não são permitidos.");
 
             RuleFor(x => x.Port)
                 .InclusiveBetween(1, 65535).WithMessage("Porta inválida.");
