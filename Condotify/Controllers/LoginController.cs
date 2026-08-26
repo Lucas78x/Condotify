@@ -140,7 +140,8 @@ namespace Condotify.Controllers
             }
         }
 
-        [HttpGet]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
         {
             await RevokeRemoteSessionAsync(HttpContext.RequestAborted);

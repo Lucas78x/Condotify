@@ -370,8 +370,8 @@ public class LicenseStructureController : ControllerBase
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
         var name = input.Name?.Trim();
         var ipAddress = input.IPAddress?.Trim();
-        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(ipAddress) || input.Port is < 1 or > 65535)
-            return BadRequest(new { Result = "InvalidRequest", Errors = "Nome, endereço IP e uma porta válida são obrigatórios." });
+        if (string.IsNullOrWhiteSpace(name) || !EquipmentNetworkSecurity.IsAllowedAddress(ipAddress) || input.Port is < 1 or > 65535)
+            return BadRequest(new { Result = "InvalidRequest", Errors = "Nome, IP unicast do equipamento e uma porta válida são obrigatórios." });
 
         var device = await AccessDeviceUpdateQuery(_context, licenseId, deviceId).FirstOrDefaultAsync();
         if (device is null) return NotFound();

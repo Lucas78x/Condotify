@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using System.Net;
+using CondotifyAPI.Services.Security;
 
 namespace CondotifyAPI.Data.Equipments
 {
@@ -74,7 +75,7 @@ namespace CondotifyAPI.Data.Equipments
 
         private bool BeAValidIp(string ip)
         {
-            return IPAddress.TryParse(ip, out _);
+            return EquipmentNetworkSecurity.IsAllowedAddress(ip);
         }
 
         private static bool BeAValidPort(string? port)

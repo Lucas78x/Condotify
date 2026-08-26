@@ -2,12 +2,14 @@
 using DigitalWorldOnline.Management.Api.Data;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using static CondotifyAPI.Commands.Tickets.CreateTicketCommand;
 using CondotifyAPI.Services.Security;
 
 namespace DigitalWorldOnline.Management.Api.Controllers;
 
 [ApiController]
+[AllowAnonymous]
 [Route("api/tickets")]
 public class TicketController : ControllerBase
 {

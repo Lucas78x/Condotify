@@ -45,15 +45,18 @@ public sealed class AuthController : ControllerBase
     public IActionResult ValidateToken() => Ok(new { Result = "Valid", User = User.Identity?.Name });
 
     [HttpPost("login")]
+    [AllowAnonymous]
     [EnableRateLimiting("login")]
     public async Task<IActionResult> Login([FromBody] LoginIn input, CancellationToken cancellationToken)
     {
-        var email = input.Email.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(input.Password)) return InvalidCredentials();
-        var dto = await _context.Users.FirstOrDefaultAsync(x => x.Email.ToLower() == email);
-        if (dto is null) return InvalidCredentials();
+        var email = (input.Email ?? string.Empty).Trim().ToLowerInvariant();
+        var dto = string.IsNullOrWhiteSpace(email)
+            ? null
+            : await _context.Users.FirstOrDefaultAsync(x => x.Email.ToLower() == email, cancellationToken);
+        if (!VerifyLoginPassword(dto?.PasswordHash, input.Password, _passwordHasher) || dto is null)
+            return InvalidCredentials();
+
         var user = _mapper.Map<UserAccess>(dto);
-        if (!user.VerifyPassword(input.Password, _passwordHasher)) return InvalidCredentials();
 
         if (dto.MfaEnabled)
         {
@@ -70,6 +73,7 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("mfa/verify")]
+    [AllowAnonymous]
     [EnableRateLimiting("login")]
     public async Task<IActionResult> VerifyMfa([FromBody] VerifyMfaIn input, CancellationToken cancellationToken)
     {
@@ -137,7 +141,7 @@ public sealed class AuthController : ControllerBase
     [HttpPost("password/change")]
     [Authorize]
     [EnableRateLimiting("login")]
-    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordIn input)
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordIn input, CancellationToken cancellationToken)
     {
         var dto = await CurrentUserAsync();
         if (dto is null) return NotFound();
@@ -158,7 +162,8 @@ public sealed class AuthController : ControllerBase
         dto.FirstAccess = false;
         dto.MfaChallengeHash = string.Empty;
         dto.MfaChallengeExpiresAt = null;
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
+        await _refreshTokens.RevokeAllAsync(dto.Id, PrincipalTypes.User, cancellationToken);
         return NoContent();
     }
 
@@ -197,6 +202,18 @@ public sealed class AuthController : ControllerBase
         ExpiresIn = _jwt.AccessTokenLifetimeSeconds
     });
     private static IActionResult InvalidCredentials() => new UnauthorizedObjectResult(new LoginOut { Result = "InvalidCredentials" });
+    internal static readonly string DummyPasswordHash =
+        new PasswordHasher<UserAccess>().HashPassword(null!, "Dummy-Staff-Timing-Guard-Password-1!");
+
+    internal static bool VerifyLoginPassword(
+        string? storedHash,
+        string? presentedPassword,
+        IPasswordHasher<UserAccess> hasher)
+    {
+        var hashToCompare = string.IsNullOrWhiteSpace(storedHash) ? DummyPasswordHash : storedHash;
+        return hasher.VerifyHashedPassword(null!, hashToCompare, presentedPassword ?? string.Empty)
+            != PasswordVerificationResult.Failed;
+    }
     private static string RecoveryCode() => $"{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}-{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}";
     private static string NormalizeRecoveryCode(string value) => value.Trim().Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value ?? string.Empty)));
