@@ -175,6 +175,26 @@ public class LicenseAccessController : ControllerBase
 
     private async Task EnrichLicenseSummaryAsync(LicenseSummaryViewModel license, Guid licenseId)
     {
+        var nomenclature = await _context.Licenses
+            .AsNoTracking()
+            .Where(item => item.Id == licenseId)
+            .Select(item => new
+            {
+                item.GroupLabelSingular,
+                item.GroupLabelPlural,
+                item.UnitLabelSingular,
+                item.UnitLabelPlural
+            })
+            .FirstOrDefaultAsync();
+
+        if (nomenclature is not null)
+        {
+            license.GroupLabelSingular = nomenclature.GroupLabelSingular;
+            license.GroupLabelPlural = nomenclature.GroupLabelPlural;
+            license.UnitLabelSingular = nomenclature.UnitLabelSingular;
+            license.UnitLabelPlural = nomenclature.UnitLabelPlural;
+        }
+
         var blocks = await _context.Blocks
             .AsNoTracking()
             .Where(block => block.LicenseId == licenseId)

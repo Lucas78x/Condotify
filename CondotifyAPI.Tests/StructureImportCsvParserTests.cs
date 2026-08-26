@@ -38,6 +38,19 @@ public sealed class StructureImportCsvParserTests
         Assert.Equal("Ana Souza", row.Name);
     }
 
+    [Fact]
+    public void Parse_ShouldAcceptConfiguredSectorAndRoomTerminology()
+    {
+        const string csv = "Setor;Sala;Nome\nNOC;01;Lucas Teste";
+
+        var result = _parser.Parse(csv);
+
+        Assert.Empty(result.Errors);
+        var row = Assert.Single(result.Rows);
+        Assert.Equal("NOC", row.Block);
+        Assert.Equal("01", row.Unit);
+    }
+
     [Theory]
     [InlineData("Relação", "relacao")]
     [InlineData("  QUADRA A  ", "quadraa")]

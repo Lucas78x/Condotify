@@ -36,7 +36,7 @@ else
             <div class="structure-level-head">
                 <div>
                     <MudText Typo="Typo.h5">Estrutura da propriedade</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Organize os agrupamentos e entre em cada área para administrar suas unidades.</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Organize @_structure.GroupLabelPlural.ToLowerInvariant() e entre em cada área para administrar @_structure.UnitLabelPlural.ToLowerInvariant().</MudText>
                 </div>
                 @if (CanManageStructure)
                 {
@@ -50,7 +50,7 @@ else
                             <MudTooltip Text="Abrir lixeira"><MudIconButton Icon="@Icons.Material.Outlined.RestoreFromTrash" Variant="Variant.Outlined" OnClick="OpenRecycleBinAsync" /></MudTooltip>
                         }
                         <MudTooltip Text="Configurar nomenclatura"><MudIconButton Icon="@Icons.Material.Outlined.Tune" Variant="Variant.Outlined" OnClick="OpenSettingsAsync" /></MudTooltip>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddBusiness" OnClick="@(() => OpenCreateAsync("blocos"))">Novo @_structure.GroupLabelSingular.ToLowerInvariant()</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddBusiness" OnClick="@(() => OpenCreateAsync("blocos"))">Cadastrar @_structure.GroupLabelSingular.ToLowerInvariant()</MudButton>
                     </div>
                 }
             </div>
@@ -63,7 +63,7 @@ else
 
             @if (Blocks.Count == 0)
             {
-                <div class="structure-empty"><span><MudIcon Icon="@Icons.Material.Outlined.DomainAdd" /></span><MudText Typo="Typo.h6">Nenhum @_structure.GroupLabelSingular.ToLowerInvariant() cadastrado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A estrutura física ainda não foi configurada.</MudText>@if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenCreateAsync("blocos"))">Começar cadastro</MudButton> }</div>
+                <div class="structure-empty"><span><MudIcon Icon="@Icons.Material.Outlined.DomainAdd" /></span><MudText Typo="Typo.h6">Ainda não há @_structure.GroupLabelPlural.ToLowerInvariant()</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A estrutura física ainda não foi configurada.</MudText>@if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenCreateAsync("blocos"))">Começar cadastro</MudButton> }</div>
             }
             else
             {
@@ -92,7 +92,7 @@ else
                     <div class="structure-actions">
                         <MudTooltip Text="Editar agrupamento"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" OnClick="OpenEditBlockAsync" /></MudTooltip>
                         <MudTooltip Text="Excluir agrupamento"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Variant="Variant.Outlined" OnClick="DeleteBlockAsync" /></MudTooltip>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddHomeWork" OnClick="@(() => OpenCreateAsync("unidades"))">Nova @_structure.UnitLabelSingular.ToLowerInvariant()</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddHomeWork" OnClick="@(() => OpenCreateAsync("unidades"))">Cadastrar @_structure.UnitLabelSingular.ToLowerInvariant()</MudButton>
                     </div>
                 }
             </div>
@@ -105,7 +105,7 @@ else
 
             @if (SelectedBlock.Units.Count == 0)
             {
-                <div class="structure-empty"><span><MudIcon Icon="@Icons.Material.Outlined.OtherHouses" /></span><MudText Typo="Typo.h6">Nenhuma @_structure.UnitLabelSingular.ToLowerInvariant() cadastrada</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Esta área ainda não possui unidades.</MudText>@if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenCreateAsync("unidades"))">Cadastrar @_structure.UnitLabelSingular.ToLowerInvariant()</MudButton> }</div>
+                <div class="structure-empty"><span><MudIcon Icon="@Icons.Material.Outlined.OtherHouses" /></span><MudText Typo="Typo.h6">Ainda não há @_structure.UnitLabelPlural.ToLowerInvariant()</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Cadastre o primeiro local desta área.</MudText>@if (CanManageStructure) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="@(() => OpenCreateAsync("unidades"))">Cadastrar @_structure.UnitLabelSingular.ToLowerInvariant()</MudButton> }</div>
             }
             else
             {
@@ -136,8 +136,8 @@ else
                 <div class="structure-actions">
                     @if (CanManageStructure)
                     {
-                        <MudTooltip Text="Editar unidade"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" OnClick="OpenEditUnitAsync" /></MudTooltip>
-                        <MudTooltip Text="Excluir unidade"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Variant="Variant.Outlined" OnClick="DeleteUnitAsync" /></MudTooltip>
+                        <MudTooltip Text="@($"Editar {_structure.UnitLabelSingular.ToLowerInvariant()}")"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" OnClick="OpenEditUnitAsync" /></MudTooltip>
+                        <MudTooltip Text="@($"Excluir {_structure.UnitLabelSingular.ToLowerInvariant()}")"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Variant="Variant.Outlined" OnClick="DeleteUnitAsync" /></MudTooltip>
                     }
                     @if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" OnClick="@(() => OpenCreateAsync("moradores"))">Nova pessoa</MudButton> }
                 </div>
@@ -158,7 +158,7 @@ else
                         </div>
                         @if (FilteredPeople.Count == 0)
                         {
-                            <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.PersonSearch" /><span>Nenhuma pessoa encontrada nesta unidade.</span></div>
+                            <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.PersonSearch" /><span>Nenhuma pessoa encontrada nesta @_structure.UnitLabelSingular.ToLowerInvariant().</span></div>
                         }
                         else
                         {
@@ -190,11 +190,11 @@ else
                         }
                     </MudTabPanel>
                     <MudTabPanel Text="Veículos" Icon="@Icons.Material.Outlined.DirectionsCar">
-                        @if (_unit.Vehicles.Count == 0) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /><span>Nenhum veículo cadastrado nesta unidade. Abra uma pessoa para vincular o primeiro.</span></div> }
+                        @if (_unit.Vehicles.Count == 0) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /><span>Nenhum veículo cadastrado nesta @_structure.UnitLabelSingular.ToLowerInvariant(). Abra uma pessoa para vincular o primeiro.</span></div> }
                         else { <div class="profile-list">@foreach (var vehicle in _unit.Vehicles) { <div class="profile-list-row"><div class="profile-row-icon"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></div><div class="profile-row-main"><strong>@vehicle.Plate</strong><span>@vehicle.Brand @vehicle.Model | @vehicle.OwnerName</span></div><div class="profile-row-meta">@(!string.IsNullOrWhiteSpace(vehicle.TagIdentifier) ? $"Tag {vehicle.TagIdentifier}" : "Sem tag")</div><MudChip T="string" Size="Size.Small" Color="@(vehicle.IsActive ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(vehicle.IsActive ? "Ativo" : "Inativo")</MudChip></div> }</div> }
                     </MudTabPanel>
                     <MudTabPanel Text="Credenciais" Icon="@Icons.Material.Outlined.Badge">
-                        @if (_unit.People.All(x => x.CredentialCount == 0)) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.Badge" /><span>Nenhuma credencial vinculada nesta unidade.</span></div> }
+                        @if (_unit.People.All(x => x.CredentialCount == 0)) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.Badge" /><span>Nenhuma credencial vinculada nesta @_structure.UnitLabelSingular.ToLowerInvariant().</span></div> }
                         else { <div class="people-list">@foreach (var person in _unit.People.Where(x => x.CredentialCount > 0)) { <button type="button" class="person-row compact-person-row" @onclick="@(() => OpenProfileAsync(person.Id))">@if (!string.IsNullOrWhiteSpace(person.ImageUrl)) { <span class="person-list-photo"><img src="@person.ImageUrl" alt="Foto de @person.Name" /></span> } else { <MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(person.Name)</MudAvatar> }<span class="person-row-main"><strong>@person.Name</strong><small>@person.CredentialCount credencial(is)</small></span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></button> }</div> }
                     </MudTabPanel>
                 </MudTabs>
@@ -269,7 +269,7 @@ else
             [nameof(StructureFormDialog.InitialUnitId)] = _selectedUnitId, [nameof(StructureFormDialog.GroupLabelSingular)] = _structure.GroupLabelSingular,
             [nameof(StructureFormDialog.UnitLabelSingular)] = _structure.UnitLabelSingular
         };
-        var title = section switch { "unidades" => $"Nova {_structure.UnitLabelSingular.ToLowerInvariant()}", "moradores" => "Nova pessoa", _ => $"Novo {_structure.GroupLabelSingular.ToLowerInvariant()}" };
+        var title = section switch { "unidades" => $"Cadastrar {_structure.UnitLabelSingular.ToLowerInvariant()}", "moradores" => "Nova pessoa", _ => $"Cadastrar {_structure.GroupLabelSingular.ToLowerInvariant()}" };
         var dialog = await DialogService.ShowAsync<StructureFormDialog>(title, parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = section == "moradores" ? MaxWidth.Medium : MaxWidth.Small });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
@@ -297,7 +297,7 @@ else
         if (SelectedBlock is null) return;
         var confirmed = await DialogService.ShowMessageBoxAsync(
             $"Mover para a lixeira",
-            $"Mover {SelectedBlock.Name} para a lixeira? O item poderá ser restaurado por 30 dias e não pode possuir unidades vinculadas.",
+            $"Mover {SelectedBlock.Name} para a lixeira? O item poderá ser restaurado por 30 dias e não pode possuir {_structure.UnitLabelPlural.ToLowerInvariant()} vinculadas.",
             yesText: "Mover para a lixeira",
             cancelText: "Cancelar");
         if (confirmed != true) return;
@@ -319,7 +319,7 @@ else
             new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Small });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        Snackbar.Add("Unidade atualizada.", Severity.Success);
+        Snackbar.Add($"Cadastro de {_structure.UnitLabelSingular.ToLowerInvariant()} atualizado.", Severity.Success);
         await LoadAsync(current.BlockId, current.Id);
     }
 
@@ -335,7 +335,7 @@ else
         var blockId = _unit.BlockId;
         var result = await Api.DeleteUnitAsync(LicenseId, _unit.Id);
         if (!result.Success) { _error = result.Error; Snackbar.Add(result.Error ?? "Não foi possível excluir.", Severity.Error); return; }
-        Snackbar.Add("Unidade movida para a lixeira.", Severity.Success);
+        Snackbar.Add($"Cadastro de {_structure.UnitLabelSingular.ToLowerInvariant()} movido para a lixeira.", Severity.Success);
         await LoadAsync(blockId);
     }
 
@@ -363,6 +363,10 @@ else
     private async Task OpenImportAsync()
     {
         var parameters = new DialogParameters { [nameof(StructureImportDialog.LicenseId)] = LicenseId };
+        parameters[nameof(StructureImportDialog.GroupLabelSingular)] = _structure.GroupLabelSingular;
+        parameters[nameof(StructureImportDialog.GroupLabelPlural)] = _structure.GroupLabelPlural;
+        parameters[nameof(StructureImportDialog.UnitLabelSingular)] = _structure.UnitLabelSingular;
+        parameters[nameof(StructureImportDialog.UnitLabelPlural)] = _structure.UnitLabelPlural;
         var dialog = await DialogService.ShowAsync<StructureImportDialog>(
             "Centro de migração",
             parameters,
@@ -377,7 +381,12 @@ else
 
     private async Task OpenRecycleBinAsync()
     {
-        var parameters = new DialogParameters { [nameof(RecycleBinDialog.LicenseId)] = LicenseId };
+        var parameters = new DialogParameters
+        {
+            [nameof(RecycleBinDialog.LicenseId)] = LicenseId,
+            [nameof(RecycleBinDialog.GroupLabelSingular)] = _structure.GroupLabelSingular,
+            [nameof(RecycleBinDialog.UnitLabelSingular)] = _structure.UnitLabelSingular
+        };
         var dialog = await DialogService.ShowAsync<RecycleBinDialog>(
             "Lixeira",
             parameters,
@@ -394,7 +403,8 @@ else
             [nameof(PersonProfileDialog.ResidentId)] = residentId,
             [nameof(PersonProfileDialog.CanManagePeople)] = CanManagePeople,
             [nameof(PersonProfileDialog.CanManageCredentials)] = CanManageCredentials,
-            [nameof(PersonProfileDialog.InitialTabIndex)] = initialTabIndex
+            [nameof(PersonProfileDialog.InitialTabIndex)] = initialTabIndex,
+            [nameof(PersonProfileDialog.UnitLabelSingular)] = _structure.UnitLabelSingular
         };
         var dialog = await DialogService.ShowAsync<PersonProfileDialog>("Cadastro da pessoa", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Large });
         await dialog.Result; await LoadAsync(_selectedBlockId, _selectedUnitId);

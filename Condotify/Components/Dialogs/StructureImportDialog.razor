@@ -95,8 +95,8 @@
                 <div><strong>Prévia registrada</strong><small>Protocolo @_preview.PreviewId.ToString("N")[..12] · SHA-256 @_preview.FileSha256[..12]… · O arquivo ainda não foi importado.</small></div>
             </div>
             <div class="import-summary-grid">
-                <div><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span><span><strong>@_preview.NewBlocks</strong><small>Agrupamentos novos</small></span></div>
-                <div><span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><span><strong>@_preview.NewUnits</strong><small>Unidades novas</small></span></div>
+                <div><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Apartment" /></span><span><strong>@_preview.NewBlocks</strong><small>@GroupLabelPlural</small></span></div>
+                <div><span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.DoorFront" /></span><span><strong>@_preview.NewUnits</strong><small>@UnitLabelPlural</small></span></div>
                 <div><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.Groups" /></span><span><strong>@_preview.NewPeople</strong><small>Pessoas novas</small></span></div>
                 <div><span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /></span><span><strong>@_preview.NewVehicles</strong><small>Veículos novos</small></span></div>
             </div>
@@ -122,7 +122,7 @@
                 <MudTable Items="_preview.Rows" Hover Dense Elevation="0" Class="import-preview-table">
                     <HeaderContent>
                         <MudTh>Linha</MudTh>
-                        <MudTh>Agrupamento / unidade</MudTh>
+                        <MudTh>@GroupLabelSingular / @UnitLabelSingular.ToLowerInvariant()</MudTh>
                         <MudTh>Pessoa</MudTh>
                         <MudTh>Veículo</MudTh>
                         <MudTh>Validação</MudTh>
@@ -161,6 +161,10 @@
 @code {
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public string GroupLabelSingular { get; set; } = "Bloco";
+    [Parameter] public string GroupLabelPlural { get; set; } = "Blocos";
+    [Parameter] public string UnitLabelSingular { get; set; } = "Unidade";
+    [Parameter] public string UnitLabelPlural { get; set; } = "Unidades";
 
     private const long MaxFileSize = 2_000_000;
     private string _fileName = string.Empty;
