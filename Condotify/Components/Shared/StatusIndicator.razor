@@ -1,0 +1,13 @@
+<span class="status-indicator status-@Tone.ToLowerInvariant() @Class" role="status">
+    <i aria-hidden="true"></i>
+    @if (!string.IsNullOrWhiteSpace(Label))
+    {
+        <span>@Label</span>
+    }
+</span>
+
+@code {
+    [Parameter] public string Tone { get; set; } = "inactive";
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public string Class { get; set; } = string.Empty;
+}
