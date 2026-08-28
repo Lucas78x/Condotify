@@ -10,9 +10,6 @@ public sealed class OperationalDashboardViewModel
     public int PendingCredentialCount { get; set; }
     public int AccessEventCount { get; set; }
     public int AuthorizedAccessCount { get; set; }
-    public int Last24HourAccessCount { get; set; }
-    public int Last24HourAuthorizedCount { get; set; }
-    public int Last24HourDeniedCount { get; set; }
     public int PendingBookingCount { get; set; }
     public int TodayBookingCount { get; set; }
     public int PendingBatchCount { get; set; }
