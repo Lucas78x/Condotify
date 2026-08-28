@@ -42,11 +42,11 @@
     }
     else if (!_searched)
     {
-        <EmptyState Class="compact-empty" Icon="@Icons.Material.Outlined.ManageSearch" Title="Informe ao menos um filtro" Description="A pesquisa consulta todos os condomínios aos quais sua empresa tem acesso." />
+        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.ManageSearch" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Informe ao menos um filtro</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">A pesquisa consulta todos os condomínios aos quais sua empresa tem acesso.</MudText></div>
     }
     else if (_results.Count == 0)
     {
-        <EmptyState Class="compact-empty" Icon="@Icons.Material.Outlined.PersonOff" Title="Nenhum cadastro encontrado" Description="Revise os filtros ou tente uma informação diferente." />
+        <div class="empty-state compact-empty"><MudIcon Icon="@Icons.Material.Outlined.PersonOff" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1">Nenhum cadastro encontrado</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Revise os filtros ou tente uma informação diferente.</MudText></div>
     }
     else
     {

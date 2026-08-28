@@ -37,14 +37,15 @@
 }
 else if (_devices.Count == 0)
 {
-    <EmptyState Class="camera-empty-state" Icon="@Icons.Material.Outlined.VideocamOff" Title="Seu monitoramento começa aqui" Description="Cadastre uma câmera IP ou gravador para visualizar imagens com segurança.">
-        <Action>
-            @if (CanManage)
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateDialogAsync">Adicionar primeira câmera</MudButton>
-            }
-        </Action>
-    </EmptyState>
+    <MudPaper Class="camera-empty-state" Elevation="0">
+        <span><MudIcon Icon="@Icons.Material.Outlined.VideocamOff" /></span>
+        <MudText Typo="Typo.h5">Seu monitoramento começa aqui</MudText>
+        <MudText Typo="Typo.body2">Cadastre uma câmera IP ou gravador para visualizar imagens com segurança.</MudText>
+        @if (CanManage)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateDialogAsync">Adicionar primeira câmera</MudButton>
+        }
+    </MudPaper>
 }
 else
 {
@@ -197,7 +198,7 @@ else
     <MudPaper Class="camera-library" Elevation="0">
         <div class="camera-library-heading">
             <div><MudText Typo="Typo.h5">Dispositivos instalados</MudText><MudText Typo="Typo.body2">Gerencie compartilhamento, vínculos e ciclo de vida das câmeras.</MudText></div>
-            <MudTooltip Text="Atualizar dispositivos"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" aria-label="Atualizar dispositivos" /></MudTooltip>
+            <MudTooltip Text="Atualizar dispositivos"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" /></MudTooltip>
         </div>
         <div class="camera-device-grid">
             @foreach (var device in _devices)
