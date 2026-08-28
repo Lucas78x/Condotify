@@ -31,7 +31,6 @@ public sealed class OperationsController(
         var now = DateTime.UtcNow;
         var today = DateTime.SpecifyKind(now.Date, DateTimeKind.Utc);
         var since = today.AddDays(-13);
-        var last24Hours = now.AddHours(-24);
         var permissionMap = await authorization.GetLicensePermissionsAsync(
             User,
             HttpContext.RequestAborted);
@@ -70,12 +69,6 @@ public sealed class OperationsController(
                 .CountAsync(x => eventLicenseIds.Contains(x.LicenseId) && x.OccurredAt >= since),
             AuthorizedAccessCount = await context.AccessEventRecords.AsNoTracking()
                 .CountAsync(x => eventLicenseIds.Contains(x.LicenseId) && x.OccurredAt >= since && x.Authorized),
-            Last24HourAccessCount = await context.AccessEventRecords.AsNoTracking()
-                .CountAsync(x => eventLicenseIds.Contains(x.LicenseId) && x.OccurredAt >= last24Hours),
-            Last24HourAuthorizedCount = await context.AccessEventRecords.AsNoTracking()
-                .CountAsync(x => eventLicenseIds.Contains(x.LicenseId) && x.OccurredAt >= last24Hours && x.Authorized),
-            Last24HourDeniedCount = await context.AccessEventRecords.AsNoTracking()
-                .CountAsync(x => eventLicenseIds.Contains(x.LicenseId) && x.OccurredAt >= last24Hours && !x.Authorized),
             PendingBookingCount = await context.AmenityBookings.AsNoTracking()
                 .CountAsync(x => bookingLicenseIds.Contains(x.LicenseId) && x.Status == AmenityBookingStatusEnum.Pending),
             TodayBookingCount = await context.AmenityBookings.AsNoTracking()
