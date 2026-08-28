@@ -1,6 +1,7 @@
 @page "/licencas"
 @attribute [Authorize]
 @inject CondotifyApiClient Api
+@inject IJSRuntime Js
 
 <PageTitle>Condomínios | F&amp;F Access</PageTitle>
 
@@ -25,10 +26,34 @@
 </div>
 
 <MudPaper Class="content-panel" Elevation="0">
-    <div class="panel-toolbar">
+    <div class="panel-toolbar professional-table-toolbar">
         <MudTextField T="string" @bind-Value="_search" Immediate Label="Buscar por nome, código ou cidade" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Style="min-width:min(430px,100%)" />
-        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" aria-label="Atualizar lista" />
+        <MudSelect T="string" @bind-Value="_city" Label="Cidade" Variant="Variant.Outlined" Margin="Margin.Dense" Class="table-quick-filter">
+            <MudSelectItem T="string" Value="@("all")">Todas</MudSelectItem>
+            @foreach (var city in Cities) { <MudSelectItem T="string" Value="@city">@city</MudSelectItem> }
+        </MudSelect>
+        <div class="table-view-actions">
+            <MudMenu Icon="@Icons.Material.Outlined.ViewColumn" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" aria-label="Configurar colunas">
+                <MudMenuItem><MudCheckBox T="bool" @bind-Value="_showCity" Dense Label="Cidade" /></MudMenuItem>
+                <MudMenuItem><MudCheckBox T="bool" @bind-Value="_showResidents" Dense Label="Moradores" /></MudMenuItem>
+            </MudMenu>
+            <MudTooltip Text="@(_dense ? "Usar densidade confortável" : "Usar densidade compacta")"><MudIconButton Icon="@(_dense ? Icons.Material.Outlined.DensityMedium : Icons.Material.Outlined.DensitySmall)" OnClick="ToggleDensity" aria-label="Alternar densidade da tabela" /></MudTooltip>
+            <MudTooltip Text="Atualizar lista"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" aria-label="Atualizar lista" /></MudTooltip>
+        </div>
     </div>
+
+    @if (_selected.Count > 0)
+    {
+        <div class="table-bulk-bar" role="status">
+            <span><strong>@_selected.Count</strong> selecionado(s)</span>
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Download" OnClick="ExportSelectedAsync">Exportar CSV</MudButton>
+            @if (_selected.Count == 1)
+            {
+                <MudButton Href="@LicenseRoutes.Workspace(_selected.First())" Variant="Variant.Text" EndIcon="@Icons.Material.Outlined.ArrowForward">Abrir condomínio</MudButton>
+            }
+            <MudTooltip Text="Limpar seleção"><MudIconButton Icon="@Icons.Material.Outlined.Close" OnClick="ClearSelection" aria-label="Limpar seleção" /></MudTooltip>
+        </div>
+    }
 
     @if (_loading)
     {
@@ -40,14 +65,17 @@
     }
     else if (!Filtered.Any())
     {
-        <div class="panel-body"><MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhuma licença corresponde aos filtros informados.</MudAlert></div>
+        <EmptyState Icon="@Icons.Material.Outlined.FilterAltOff" Title="Nenhum condomínio encontrado" Description="Revise a busca ou remova o filtro de cidade." />
     }
     else
     {
         <div class="table-wrap">
-            <MudTable Items="Filtered" Hover Dense Elevation="0" RowsPerPage="10">
+            <MudTable T="LicenseViewModel" Items="Filtered" Hover Dense="_dense" Elevation="0" RowsPerPage="10" MultiSelection SelectedItems="_selected" SelectedItemsChanged="SelectedChanged" Class="professional-table">
                 <HeaderContent>
-                    <MudTh>Condomínio</MudTh><MudTh>Cidade</MudTh><MudTh>Moradores</MudTh><MudTh>Acesso</MudTh>
+                    <MudTh>Condomínio</MudTh>
+                    @if (_showCity) { <MudTh>Cidade</MudTh> }
+                    @if (_showResidents) { <MudTh>Moradores</MudTh> }
+                    <MudTh>Acesso</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Condomínio">
@@ -56,8 +84,8 @@
                             <span class="license-meta"><span class="license-title">@context.Nome</span><span class="license-code">@context.Codigo</span></span>
                         </div>
                     </MudTd>
-                    <MudTd DataLabel="Cidade">@context.Cidade</MudTd>
-                    <MudTd DataLabel="Moradores">@context.Moradores</MudTd>
+                    @if (_showCity) { <MudTd DataLabel="Cidade">@context.Cidade</MudTd> }
+                    @if (_showResidents) { <MudTd DataLabel="Moradores">@context.Moradores</MudTd> }
                     <MudTd DataLabel="Acesso"><MudButton Href="@LicenseRoutes.Workspace(context)" Variant="Variant.Text" EndIcon="@Icons.Material.Outlined.ArrowForward">Gerenciar</MudButton></MudTd>
                 </RowTemplate>
                 <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 10, 20, 50 })" RowsPerPageString="Itens por página" InfoFormat="{first_item}-{last_item} de {all_items}" AllItemsText="Todos" /></PagerContent>
@@ -70,11 +98,17 @@
     private bool _loading = true;
     private string? _error;
     private string _search = string.Empty;
+    private string _city = "all";
+    private bool _dense;
+    private bool _showCity = true;
+    private bool _showResidents = true;
     private List<LicenseViewModel> _licenses = [];
+    private HashSet<LicenseViewModel> _selected = [];
+    private IEnumerable<string> Cities => _licenses.Select(x => x.Cidade).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x);
 
-    private IEnumerable<LicenseViewModel> Filtered => string.IsNullOrWhiteSpace(_search)
-        ? _licenses
-        : _licenses.Where(x => $"{x.Nome} {x.Codigo} {x.Cidade}".Contains(_search, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<LicenseViewModel> Filtered => _licenses
+        .Where(x => string.IsNullOrWhiteSpace(_search) || $"{x.Nome} {x.Codigo} {x.Cidade}".Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .Where(x => _city == "all" || string.Equals(x.Cidade, _city, StringComparison.OrdinalIgnoreCase));
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -86,6 +120,23 @@
         _loading = false;
         if (result.Success) _licenses = result.Value ?? [];
         else _error = result.Error;
+    }
+
+    private void ToggleDensity() => _dense = !_dense;
+    private void ClearSelection() => _selected.Clear();
+    private void SelectedChanged(HashSet<LicenseViewModel> value) => _selected = value;
+
+    private async Task ExportSelectedAsync()
+    {
+        static string Csv(string value)
+        {
+            const char quote = '"';
+            return string.Concat(quote, value.Replace(quote.ToString(), new string(quote, 2)), quote);
+        }
+        var content = string.Join(Environment.NewLine,
+            new[] { "Codigo,Condominio,Cidade,Moradores" }.Concat(
+                _selected.OrderBy(x => x.Nome).Select(x => $"{Csv(x.Codigo)},{Csv(x.Nome)},{Csv(x.Cidade)},{x.Moradores}")));
+        await Js.InvokeVoidAsync("portalInterop.downloadText", $"condominios-{DateTime.Now:yyyyMMdd-HHmm}.csv", content, "text/csv;charset=utf-8");
     }
 
     private static string Monogram(string name) => string.IsNullOrWhiteSpace(name) ? "C" : name.Trim()[0].ToString().ToUpperInvariant();
