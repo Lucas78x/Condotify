@@ -2,6 +2,8 @@
 @inherits LayoutComponentBase
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
+@inject IJSRuntime Js
+@implements IAsyncDisposable
 
 <MudThemeProvider Theme="CondotifyTheme.Default" ObserveSystemDarkModeChange="false" />
 <MudPopoverProvider />
@@ -10,15 +12,22 @@
 
 <span id="condotify-authenticated-session" hidden aria-hidden="true"></span>
 
-<MudLayout>
+<MudLayout Class="@(_compactDrawer ? "portal-shell portal-shell-compact" : "portal-shell")">
     <MudAppBar Elevation="0" Class="portal-appbar">
-        <MudIconButton Icon="@Icons.Material.Outlined.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" Class="mobile-menu" />
+        <MudIconButton Icon="@Icons.Material.Outlined.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" Class="mobile-menu" aria-label="Abrir menu principal" />
+        <MudTooltip Text="@(_compactDrawer ? "Expandir menu" : "Recolher menu")">
+            <MudIconButton Icon="@(_compactDrawer ? Icons.Material.Outlined.LastPage : Icons.Material.Outlined.FirstPage)" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleCompactDrawerAsync" Class="desktop-sidebar-toggle" aria-label="@(_compactDrawer ? "Expandir menu lateral" : "Recolher menu lateral")" />
+        </MudTooltip>
         <div class="appbar-context">
             <MudText Typo="Typo.subtitle1" Class="appbar-title">Central de operações</MudText>
             <div class="appbar-environment"><span></span>Ambiente operacional</div>
         </div>
         <MudSpacer />
-        <MudButton Href="/pesquisa" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Search" Class="appbar-search">Pesquisar pessoas e credenciais</MudButton>
+        <button type="button" class="appbar-command-trigger" @onclick="OpenCommandPalette" aria-label="Abrir busca global">
+            <MudIcon Icon="@Icons.Material.Outlined.Search" Size="Size.Small" />
+            <span>Pesquisar no portal</span>
+            <kbd>Ctrl K</kbd>
+        </button>
         <AlertIndicator />
         <AuthorizeView>
             <Authorized Context="auth">
@@ -39,9 +48,10 @@
         </AuthorizeView>
     </MudAppBar>
 
-    <MudDrawer @bind-Open="_drawerOpen" Elevation="0" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md" Class="portal-drawer">
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="0" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md" Class="@(_compactDrawer ? "portal-drawer is-compact" : "portal-drawer")">
         <div class="brand-block" aria-label="F&amp;F Access">
             <BrandMark Class="portal-brand-symbol" Inverted="true" />
+            <img class="portal-brand-compact-symbol" src="assets/logo/ff-access-mark.svg" alt="" aria-hidden="true" />
         </div>
         <NavMenu />
     </MudDrawer>
@@ -53,16 +63,45 @@
     </MudMainContent>
 
     <PortalAssistant />
+    <CommandPalette Open="@_commandPaletteOpen" OpenChanged="@SetCommandPaletteOpenAsync" />
 </MudLayout>
 
 @code {
     private bool _drawerOpen = true;
+    private bool _compactDrawer;
+    private bool _commandPaletteOpen;
+    private DotNetObjectReference<MainLayout>? _selfReference;
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private async Task ToggleCompactDrawerAsync()
+    {
+        _compactDrawer = !_compactDrawer;
+        await Js.InvokeVoidAsync("portalInterop.setSidebarCompact", _compactDrawer);
+    }
+
+    private void OpenCommandPalette() => _commandPaletteOpen = true;
+
+    private Task SetCommandPaletteOpenAsync(bool open)
+    {
+        _commandPaletteOpen = open;
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task ToggleCommandPaletteFromKeyboardAsync()
+    {
+        _commandPaletteOpen = !_commandPaletteOpen;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
+        _selfReference = DotNetObjectReference.Create(this);
+        _compactDrawer = await Js.InvokeAsync<bool>("portalInterop.initializeShell", _selfReference);
+        StateHasChanged();
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
         var relativePath = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', 2)[0];
         if (user.FindFirstValue("first_access") == "true" &&
@@ -88,4 +127,15 @@
         "Viewer" => "Equipe operacional",
         _ => "Conta de acesso"
     };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_selfReference is not null)
+        {
+            try { await Js.InvokeVoidAsync("portalInterop.disposeShell"); }
+            catch (JSDisconnectedException) { }
+            catch (InvalidOperationException) { }
+        }
+        _selfReference?.Dispose();
+    }
 }

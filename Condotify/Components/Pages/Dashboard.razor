@@ -53,7 +53,7 @@ else
         </div>
         <div>
             <span class="pulse-icon blue"><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span>
-            <span><strong>@(_operations?.AccessEventCount ?? 0)</strong><small>Acessos nos últimos 14 dias</small></span>
+            <span><strong>@(_operations?.Last24HourAccessCount ?? 0)</strong><small>Acessos nas últimas 24 horas</small></span>
         </div>
         <div>
             <span class="pulse-icon violet"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" /></span>
@@ -76,9 +76,9 @@ else
             </div>
             @if (_licenses.Count == 0)
             {
-                <div class="panel-body">
-                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhuma licença encontrada. Cadastre o primeiro condomínio para iniciar a operação.</MudAlert>
-                </div>
+                <EmptyState Icon="@Icons.Material.Outlined.DomainAdd" Title="Nenhum condomínio cadastrado" Description="Cadastre o primeiro ambiente para iniciar a operação.">
+                    <Action><MudButton Href="/licencas/nova" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AddBusiness">Cadastrar condomínio</MudButton></Action>
+                </EmptyState>
             }
             else
             {
@@ -130,6 +130,62 @@ else
             }
         </MudPaper>
     </div>
+
+    <div class="dashboard-insight-grid">
+        <section class="dashboard-access-panel" aria-labelledby="dashboard-access-title">
+            <header>
+                <div>
+                    <span class="dashboard-section-kicker">MOVIMENTO</span>
+                    <h2 id="dashboard-access-title">Acessos e recusas</h2>
+                    <p>Comportamento dos últimos 14 dias e recorte das últimas 24 horas.</p>
+                </div>
+                <div class="dashboard-access-summary">
+                    <span><i class="authorized"></i><strong>@(_operations?.Last24HourAuthorizedCount ?? 0)</strong><small>autorizados</small></span>
+                    <span><i class="denied"></i><strong>@(_operations?.Last24HourDeniedCount ?? 0)</strong><small>negados</small></span>
+                </div>
+            </header>
+            @if (HasAccessTrend)
+            {
+                <div class="dashboard-access-chart" role="img" aria-label="Acessos autorizados e negados nos últimos 14 dias">
+                    @foreach (var point in _operations!.AccessTrend)
+                    {
+                        <div class="dashboard-chart-column" title="@($"{point.Date:dd/MM}: {point.Authorized} autorizados e {point.Denied} negados")">
+                            <div><span class="authorized" style="@ChartHeight(point.Authorized)"></span><span class="denied" style="@ChartHeight(point.Denied)"></span></div>
+                            <small>@point.Date.ToString("dd/MM")</small>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <EmptyState Class="dashboard-chart-empty" Icon="@Icons.Material.Outlined.QueryStats" Title="O gráfico começa com o primeiro acesso" Description="As autorizações e recusas aparecerão aqui automaticamente." />
+            }
+        </section>
+
+        <section class="dashboard-activity-panel" aria-labelledby="dashboard-activity-title">
+            <header>
+                <div><span class="dashboard-section-kicker">RASTREABILIDADE</span><h2 id="dashboard-activity-title">Atividade recente</h2></div>
+                <MudTooltip Text="Abrir central de operações"><MudIconButton Href="/operacoes" Icon="@Icons.Material.Outlined.ArrowForward" aria-label="Abrir central de operações" /></MudTooltip>
+            </header>
+            @if (_operations?.RecentActivities.Count > 0)
+            {
+                <div class="dashboard-activity-list">
+                    @foreach (var activity in _operations.RecentActivities.Take(6))
+                    {
+                        <a href="@LicenseTarget(activity.LicenseId)">
+                            <StatusIndicator Tone="@ActivityTone(activity.Status)" />
+                            <span><strong>@ActivityLabel(activity.Action)</strong><small>@activity.LicenseName · @activity.CreatedAt.ToCondotifyTime().ToString("dd/MM HH:mm")</small></span>
+                            <MudIcon Icon="@Icons.Material.Outlined.ChevronRight" Size="Size.Small" />
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <EmptyState Class="dashboard-activity-empty" Icon="@Icons.Material.Outlined.History" Title="Nenhuma atividade recente" Description="As ações operacionais aparecerão aqui." />
+            }
+        </section>
+    </div>
 }
 
 @code {
@@ -139,6 +195,8 @@ else
     private List<LicenseViewModel> _licenses = [];
     private OperationalDashboardViewModel? _operations;
     private int AttentionCount => _operations?.Alerts.Count(x => x.Severity is "Critical" or "Warning") ?? 0;
+    private bool HasAccessTrend => _operations?.AccessTrend.Any(x => x.Authorized > 0 || x.Denied > 0) == true;
+    private int TrendMaximum => Math.Max(1, _operations?.AccessTrend.Max(x => Math.Max(x.Authorized, x.Denied)) ?? 1);
 
     protected override async Task OnInitializedAsync()
     {
@@ -171,6 +229,35 @@ else
 
     private static bool CanCreateLicense(System.Security.Claims.ClaimsPrincipal user) =>
         user.FindFirst("access_type")?.Value is "Admin" or "Developer";
+
+    private string LicenseTarget(Guid licenseId)
+    {
+        var license = _licenses.FirstOrDefault(x => Guid.TryParse(x.Id, out var id) && id == licenseId);
+        return license is null ? LicenseRoutes.Legacy(licenseId) : LicenseRoutes.Workspace(license);
+    }
+
+    private string ChartHeight(int value) => $"height:{Math.Max(value > 0 ? 7 : 0, value * 100d / TrendMaximum):0.#}%";
+
+    private static string ActivityTone(string status) => status switch
+    {
+        "Success" or "Completed" => "operational",
+        "Pending" or "Queued" or "Running" => "syncing",
+        "Warning" or "CompletedWithErrors" => "attention",
+        "Failed" or "Error" or "DeadLetter" => "failure",
+        _ => "inactive"
+    };
+
+    private static string ActivityLabel(string action) => action switch
+    {
+        "OpenDoor" => "Porta acionada",
+        "Inspect" => "Equipamento verificado",
+        "Created" => "Cadastro criado",
+        "Updated" => "Cadastro atualizado",
+        "Activated" => "Credencial ativada",
+        "Deactivated" => "Credencial suspensa",
+        "Restore" => "Restauração solicitada",
+        _ => "Operação registrada"
+    };
 
     private static string AlertIcon(string type) => type switch
     {

@@ -1,4 +1,39 @@
 window.portalInterop = {
+    shellKey: "ff-access.sidebar.compact",
+    shellHandler: null,
+    shellScrollHandler: null,
+    shellScrollQueued: false,
+    initializeShell: function (dotNetReference) {
+        this.disposeShell();
+        this.shellHandler = function (event) {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+                event.preventDefault();
+                dotNetReference.invokeMethodAsync("ToggleCommandPaletteFromKeyboardAsync");
+            }
+        };
+        document.addEventListener("keydown", this.shellHandler);
+        this.shellScrollHandler = () => {
+            if (this.shellScrollQueued) return;
+            this.shellScrollQueued = true;
+            window.requestAnimationFrame(() => {
+                document.body.classList.toggle("portal-scrolled", window.scrollY > 112);
+                this.shellScrollQueued = false;
+            });
+        };
+        window.addEventListener("scroll", this.shellScrollHandler, { passive: true });
+        this.shellScrollHandler();
+        return localStorage.getItem(this.shellKey) === "true";
+    },
+    disposeShell: function () {
+        if (this.shellHandler) document.removeEventListener("keydown", this.shellHandler);
+        if (this.shellScrollHandler) window.removeEventListener("scroll", this.shellScrollHandler);
+        this.shellHandler = null;
+        this.shellScrollHandler = null;
+        document.body.classList.remove("portal-scrolled");
+    },
+    setSidebarCompact: function (compact) {
+        localStorage.setItem(this.shellKey, compact ? "true" : "false");
+    },
     focusElement: function (element) {
         if (element instanceof HTMLElement) element.focus({ preventScroll: true });
     },

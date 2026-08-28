@@ -33,7 +33,7 @@
                 <MudSelectItem Value="@("online")">Online</MudSelectItem>
                 <MudSelectItem Value="@("offline")">Offline</MudSelectItem>
             </MudSelect>
-            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" />
+            <MudTooltip Text="Atualizar equipamentos"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Color="Color.Primary" aria-label="Atualizar equipamentos" /></MudTooltip>
         </div>
     </div>
 
@@ -43,27 +43,28 @@
     }
     else if (!FilteredDevices.Any())
     {
-        <div class="empty-state compact-empty">
-            <MudIcon Icon="@Icons.Material.Outlined.SensorsOff" Size="Size.Large" Color="Color.Primary" />
-            <MudText Typo="Typo.h5">Nenhum equipamento encontrado</MudText>
-            <MudText Typo="Typo.body2" Color="Color.Secondary">Cadastre um terminal ou ajuste os filtros.</MudText>
-        </div>
+        <EmptyState Class="compact-empty" Icon="@Icons.Material.Outlined.SensorsOff" Title="Nenhum equipamento encontrado" Description="Cadastre um terminal ou ajuste os filtros.">
+            <Action>
+                @if (CanManage)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add" OnClick="OpenCreateDialogAsync">Cadastrar equipamento</MudButton>
+                }
+            </Action>
+        </EmptyState>
     }
     else
     {
         <div class="device-grid">
             @foreach (var device in FilteredDevices)
             {
-                <article class="device-card">
+                <article class="device-card @(device.IsActive ? "is-online" : "is-attention")">
                     <div class="device-card-head">
                         <span class="device-type-icon"><MudIcon Icon="@DeviceIcon(device.Type)" /></span>
                         <div class="device-identity">
                             <MudText Typo="Typo.subtitle1">@device.Name</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">@device.Model</MudText>
+                            <div class="device-identity-line"><span class="device-vendor">@DeviceVendor(device)</span><MudText Typo="Typo.caption" Color="Color.Secondary">@device.Model</MudText></div>
                         </div>
-                        <MudChip T="string" Size="Size.Small" Color="@(device.IsActive ? Color.Success : Color.Warning)" Variant="Variant.Outlined" Icon="@(device.IsActive ? Icons.Material.Outlined.CheckCircle : Icons.Material.Outlined.ErrorOutline)">
-                            @(device.IsActive ? "Online" : "Não testado")
-                        </MudChip>
+                        <StatusIndicator Tone="@(device.IsActive ? "operational" : "attention")" Label="@(device.IsActive ? "Online" : "Requer teste")" />
                     </div>
 
                     <div class="device-network">
@@ -84,7 +85,7 @@
                     </div>
 
                     <div class="device-card-actions">
-                        <MudTooltip Text="Abrir detalhes do equipamento"><MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Color="Color.Primary" OnClick="@(() => OpenDetailsAsync(device))" /></MudTooltip>
+                        <MudTooltip Text="Abrir detalhes do equipamento"><MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Color="Color.Primary" OnClick="@(() => OpenDetailsAsync(device))" aria-label="@($"Abrir detalhes de {device.Name}")" /></MudTooltip>
                         @if (device.IsActive && CanOperate)
                         {
                             <MudMenu Label="Abrir porta" StartIcon="@Icons.Material.Outlined.SensorDoor" Variant="Variant.Filled" Color="Color.Success" Disabled="@(_operatingDeviceId == device.Id)">
@@ -93,17 +94,14 @@
                                     <MudMenuItem OnClick="@(() => OpenDoorAsync(device, portal.Number))" Icon="@Icons.Material.Outlined.MeetingRoom">@portal.Name</MudMenuItem>
                                 }
                             </MudMenu>
-                            @if (CanManage) { <MudTooltip Text="Atualizar diagnóstico e portas"><MudIconButton Icon="@Icons.Material.Outlined.MonitorHeart" Color="Color.Primary" OnClick="@(() => InspectDeviceAsync(device))" Disabled="@(_operatingDeviceId == device.Id)" /></MudTooltip> }
+                            @if (CanManage) { <MudTooltip Text="Atualizar diagnóstico e portas"><MudIconButton Icon="@Icons.Material.Outlined.MonitorHeart" Color="Color.Primary" OnClick="@(() => InspectDeviceAsync(device))" Disabled="@(_operatingDeviceId == device.Id)" aria-label="@($"Atualizar diagnóstico de {device.Name}")" /></MudTooltip> }
                         }
                         @if (CanManage && !device.IsActive)
-                        {
-                            <MudTooltip Text="Executar diagnóstico detalhado"><MudIconButton Icon="@Icons.Material.Outlined.MonitorHeart" Color="Color.Primary" OnClick="@(() => InspectDeviceAsync(device))" Disabled="@(_operatingDeviceId == device.Id)" /></MudTooltip>
-                        }
-                        else if (!device.IsActive && CanManage)
                         {
                             <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Outlined.WifiTethering" OnClick="@(() => TestConnectionAsync(device))" Disabled="@(_operatingDeviceId == device.Id)">
                                 @(_operatingDeviceId == device.Id ? "Testando..." : "Testar conexão")
                             </MudButton>
+                            <MudTooltip Text="Executar diagnóstico detalhado"><MudIconButton Icon="@Icons.Material.Outlined.MonitorHeart" Color="Color.Primary" OnClick="@(() => InspectDeviceAsync(device))" Disabled="@(_operatingDeviceId == device.Id)" aria-label="@($"Diagnosticar {device.Name}")" /></MudTooltip>
                         }
                     </div>
                 </article>
@@ -249,6 +247,16 @@
         : type.Contains("Face", StringComparison.OrdinalIgnoreCase)
             ? Icons.Material.Outlined.Face
             : Icons.Material.Outlined.SensorDoor;
+
+    private static string DeviceVendor(AccessDeviceRowViewModel device)
+    {
+        var identity = $"{device.Type} {device.Model}";
+        var model = device.Model?.Trim() ?? string.Empty;
+        if (identity.Contains("Intelbras", StringComparison.OrdinalIgnoreCase) || model.StartsWith("SS", StringComparison.OrdinalIgnoreCase)) return "Intelbras";
+        if (identity.Contains("Hikvision", StringComparison.OrdinalIgnoreCase) || model.StartsWith("DS-K", StringComparison.OrdinalIgnoreCase)) return "Hikvision";
+        if (identity.Contains("Control", StringComparison.OrdinalIgnoreCase) || model.StartsWith("iDFace", StringComparison.OrdinalIgnoreCase)) return "Control iD";
+        return "Terminal";
+    }
 
     private static List<DevicePortalCapabilityViewModel> DevicePortals(
      AccessDeviceRowViewModel device)
