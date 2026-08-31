@@ -572,12 +572,21 @@ namespace Condotify.Models
         public bool Temporary { get; set; }
         public DateTime Expire { get; set; }
         public List<GlobalCredentialSearchViewModel> Credentials { get; set; } = [];
+        public List<GlobalVehicleSearchViewModel> Vehicles { get; set; } = [];
     }
 
     public class GlobalCredentialSearchViewModel
     {
         public string Type { get; set; } = string.Empty;
         public string Identifier { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+
+    public class GlobalVehicleSearchViewModel
+    {
+        public string Plate { get; set; } = string.Empty;
+        public string Brand { get; set; } = string.Empty;
+        public string Model { get; set; } = string.Empty;
         public bool IsActive { get; set; }
     }
 

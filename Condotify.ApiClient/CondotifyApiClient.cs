@@ -911,6 +911,17 @@ public sealed class CondotifyApiClient
         string? credential,
         string? unit,
         string? licenseId,
+        CancellationToken cancellationToken = default) =>
+        SearchResidentsAsync(query, document, phone, credential, unit, licenseId, null, cancellationToken);
+
+    public Task<ApiResult<List<GlobalResidentSearchViewModel>>> SearchResidentsAsync(
+        string? query,
+        string? document,
+        string? phone,
+        string? credential,
+        string? unit,
+        string? licenseId,
+        string? vehiclePlate,
         CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, string?>
@@ -920,7 +931,8 @@ public sealed class CondotifyApiClient
             ["phone"] = phone,
             ["credential"] = credential,
             ["unit"] = unit,
-            ["licenseId"] = licenseId
+            ["licenseId"] = licenseId,
+            ["vehiclePlate"] = vehiclePlate
         };
         var queryString = string.Join("&", parameters
             .Where(x => !string.IsNullOrWhiteSpace(x.Value))

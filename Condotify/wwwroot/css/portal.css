@@ -379,7 +379,7 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
 .dialog-form-actions { position: sticky; bottom: -24px; z-index: 1; margin: 24px -24px -24px; padding: 14px 24px; border-top: 1px solid #e7eaf0; background: #fff; }
 
 .search-workbench { overflow: visible; }
-.global-search-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.global-search-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .search-actions { margin-top: 16px; }
 .search-results { margin-top: 18px; }
 .person-monogram { width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center; border-radius: 50%; background: #e8f5f1; color: #08715f; font-weight: 700; }
@@ -755,6 +755,7 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
     .group-card-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
     .unit-card-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
     .overview-grid { grid-template-columns: 1fr; }
+    .global-search-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 1250px) {

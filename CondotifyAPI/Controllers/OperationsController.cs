@@ -231,14 +231,24 @@ public sealed class OperationsController(
         [FromQuery] string? credential,
         [FromQuery] string? unit,
         [FromQuery] Guid? licenseId,
+        [FromQuery] string? vehiclePlate,
         [FromQuery] int take = 50)
     {
         var enterpriseClaim = User.FindFirstValue("enterprise_id");
         if (!Guid.TryParse(enterpriseClaim, out var enterpriseId)) return Unauthorized();
-        var accessibleLicenseIds = await authorization.GetLicenseIdsWithPermissionAsync(
+        var accessibleLicenseIds = (await authorization.GetLicenseIdsWithPermissionAsync(
             User,
             LicensePermissionEnum.ViewPeople,
-            HttpContext.RequestAborted);
+            HttpContext.RequestAborted)).ToHashSet();
+        var vehiclePattern = string.IsNullOrWhiteSpace(vehiclePlate) ? null : Pattern(vehiclePlate);
+        if (vehiclePattern is not null)
+        {
+            var vehicleLicenseIds = await authorization.GetLicenseIdsWithPermissionAsync(
+                User,
+                LicensePermissionEnum.ViewVehicles,
+                HttpContext.RequestAborted);
+            accessibleLicenseIds.IntersectWith(vehicleLicenseIds);
+        }
 
         var residents = context.Residents
             .AsNoTracking()
@@ -272,6 +282,8 @@ public sealed class OperationsController(
             var pattern = Pattern(credential);
             residents = residents.Where(x => x.AccessCredentials.Any(c => EF.Functions.ILike(c.Identifier, pattern)));
         }
+        if (vehiclePattern is not null)
+            residents = residents.Where(x => x.Vehicles.Any(v => EF.Functions.ILike(v.Plate, vehiclePattern)));
 
         var result = await residents
             .OrderBy(x => x.Name)
@@ -301,6 +313,19 @@ public sealed class OperationsController(
                         Type = c.CredentialType.ToString(),
                         Identifier = c.CredentialType == AccessCredentialTypeEnum.Password ? "********" : c.Identifier,
                         IsActive = c.IsActive
+                    })
+                    .ToList(),
+                Vehicles = x.Vehicles
+                    .Where(v => vehiclePattern != null && EF.Functions.ILike(v.Plate, vehiclePattern))
+                    .OrderByDescending(v => v.IsActive)
+                    .ThenBy(v => v.Plate)
+                    .Take(5)
+                    .Select(v => new GlobalVehicleSearchOut
+                    {
+                        Plate = v.Plate,
+                        Brand = v.Brand,
+                        Model = v.Model,
+                        IsActive = v.IsActive
                     })
                     .ToList()
             })
