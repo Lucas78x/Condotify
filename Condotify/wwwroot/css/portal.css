@@ -564,6 +564,16 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
 .operation-preview-grid strong { font-size: 1.1rem; }
 .operation-preview-grid span { color: #667184; font-size: .66rem; }
 .operation-batch-list { display: grid; gap: 7px; padding-top: 10px; }
+.operation-batch-toolbar { min-height: 44px; display: flex; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid #e7ebf1; }
+.operation-batch-filters { display: flex; flex: 1; gap: 5px; }
+.operation-batch-filters button { min-height: 32px; display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px; border: 1px solid transparent; border-radius: 5px; color: #687489; background: transparent; font: inherit; font-size: .66rem; cursor: pointer; }
+.operation-batch-filters button:hover { color: #293449; background: #f3f5f8; }
+.operation-batch-filters button:focus-visible { outline: 2px solid var(--ds-primary); outline-offset: 2px; }
+.operation-batch-filters button strong { min-width: 18px; padding: 2px 5px; border-radius: 4px; color: #4c586c; background: #e9edf3; font-size: .58rem; text-align: center; }
+.operation-batch-filters button.active { border-color: #ccd9fb; color: var(--ds-primary); background: #eff3ff; font-weight: 700; }
+.operation-batch-filters button.active strong { color: #fff; background: var(--ds-primary); }
+.operation-live-state { display: inline-flex; align-items: center; gap: 7px; color: #748096; font-size: .62rem; white-space: nowrap; }
+.operation-live-state i { width: 7px; height: 7px; border-radius: 50%; background: #15936f; box-shadow: 0 0 0 3px #e4f5ef; }
 .operation-batch-row { display: grid; grid-template-columns: 38px minmax(180px, .8fr) minmax(220px, 1fr) 38px; gap: 12px; align-items: center; padding: 10px; border: 1px solid #dfe5ef; }
 .operation-status-icon { display: grid; width: 34px; height: 34px; place-items: center; color: #7b879a; background: #f0f2f6; }
 .operation-status-icon.completed { color: #087b62; background: #e4f6f1; }
@@ -582,6 +592,9 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
     .credential-terminal-item { grid-template-columns: 30px minmax(0, 1fr) auto; }
     .terminal-sync-time { grid-column: 2 / -1; text-align: left; }
     .operation-preview-grid { grid-template-columns: repeat(2, 1fr); }
+    .operation-batch-toolbar { align-items: flex-start; flex-wrap: wrap; }
+    .operation-batch-filters { width: 100%; flex: 1 1 100%; overflow-x: auto; }
+    .operation-batch-filters button { flex: 0 0 auto; }
     .operation-batch-row { grid-template-columns: 38px minmax(0, 1fr) 38px; }
     .operation-progress { grid-column: 2; }
 }

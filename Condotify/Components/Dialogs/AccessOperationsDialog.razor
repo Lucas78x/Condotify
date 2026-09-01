@@ -2,6 +2,7 @@
 @inject ISnackbar Snackbar
 @inject Microsoft.JSInterop.IJSRuntime JS
 @inject IDialogService DialogService
+@implements IAsyncDisposable
 
 <MudDialog Class="entity-dialog access-operations-dialog">
     <DialogContent>
@@ -37,14 +38,24 @@
 
         <MudTabs Elevation="0" Class="operations-tabs">
             <MudTabPanel Text="Processamentos" Icon="@Icons.Material.Outlined.Sync">
-                @if (_batches.Count == 0)
+                <div class="operation-batch-toolbar">
+                    <div class="operation-batch-filters" role="group" aria-label="Filtrar processamentos">
+                        @BatchFilterButton("all", "Todos", _batches.Count)
+                        @BatchFilterButton("active", "Em andamento", ActiveBatchCount)
+                        @BatchFilterButton("attention", "Pendências", AttentionBatchCount)
+                        @BatchFilterButton("completed", "Concluídos", CompletedBatchCount)
+                    </div>
+                    <span class="operation-live-state"><i></i>Atualização automática</span>
+                    <MudTooltip Text="Atualizar agora"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Size="Size.Small" Disabled="_refreshing" OnClick="RefreshBatchesAsync" /></MudTooltip>
+                </div>
+                @if (!FilteredBatches.Any())
                 {
-                    <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.HourglassEmpty" /><span>Nenhum processamento solicitado.</span></div>
+                    <div class="profile-empty profile-empty-compact"><MudIcon Icon="@Icons.Material.Outlined.HourglassEmpty" /><span>@(_batches.Count == 0 ? "Nenhum processamento solicitado." : "Nenhum processamento neste estado.")</span></div>
                 }
                 else
                 {
                     <div class="operation-batch-list">
-                        @foreach (var batch in _batches)
+                        @foreach (var batch in FilteredBatches)
                         {
                             <div class="operation-batch-row @batch.Status.ToLowerInvariant()">
                                 <span class="operation-status-icon @batch.Status.ToLowerInvariant()"><MudIcon Icon="@BatchIcon(batch.Status)" /></span>
@@ -134,13 +145,30 @@
     private string _auditEntity = "all";
     private ReconciliationPreviewViewModel? _preview;
     private bool _busy;
+    private bool _refreshing;
     private string? _error;
+    private string _batchFilter = "all";
+    private readonly CancellationTokenSource _refreshCancellation = new();
+    private int ActiveBatchCount => _batches.Count(x => x.Status is "Queued" or "Running");
+    private int AttentionBatchCount => _batches.Count(x => x.Status is "CompletedWithErrors" or "Failed" or "DeadLetter");
+    private int CompletedBatchCount => _batches.Count(x => x.Status is "Completed" or "Canceled");
+    private IEnumerable<AccessBatchOperationViewModel> FilteredBatches => _batchFilter switch
+    {
+        "active" => _batches.Where(x => x.Status is "Queued" or "Running"),
+        "attention" => _batches.Where(x => x.Status is "CompletedWithErrors" or "Failed" or "DeadLetter"),
+        "completed" => _batches.Where(x => x.Status is "Completed" or "Canceled"),
+        _ => _batches
+    };
     private IEnumerable<AccessAuditViewModel> FilteredAudits => _audits
         .Where(x => _auditEntity == "all" || x.EntityType == _auditEntity)
         .Where(x => string.IsNullOrWhiteSpace(_auditSearch) ||
             $"{x.Action} {x.Summary} {x.UserName} {x.EntityType}".Contains(_auditSearch.Trim(), StringComparison.OrdinalIgnoreCase));
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _ = AutoRefreshAsync(_refreshCancellation.Token);
+    }
 
     private async Task LoadAsync()
     {
@@ -150,6 +178,47 @@
         if (batchesTask.Result.Success) _batches = batchesTask.Result.Value ?? [];
         if (auditsTask.Result.Success) _audits = auditsTask.Result.Value ?? [];
         _error = batchesTask.Result.Error ?? auditsTask.Result.Error;
+    }
+
+    private async Task RefreshBatchesAsync()
+    {
+        if (_refreshing) return;
+        _refreshing = true;
+        try
+        {
+            var result = await Api.GetReconciliationBatchesAsync(LicenseId, _refreshCancellation.Token);
+            if (result.Success) _batches = result.Value ?? [];
+            else if (string.IsNullOrWhiteSpace(_error)) _error = result.Error;
+        }
+        catch (OperationCanceledException) when (_refreshCancellation.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
+    private async Task AutoRefreshAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (!_busy) await RefreshBatchesAsync();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
     }
 
     private async Task PreviewAsync()
@@ -165,11 +234,27 @@
     {
         await PreviewAsync();
         if (_preview is null) return;
+        if (_preview.CredentialCount == 0 || _preview.TargetCount == 0)
+        {
+            _error = _preview.CredentialCount == 0
+                ? "Não há credenciais ativas para reconciliar."
+                : "Nenhum terminal foi encontrado pelas rotas de acesso. Revise as rotas antes de continuar.";
+            return;
+        }
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Reconciliar credenciais",
+            $"Enviar {_preview.CredentialCount} credencial(is) de {_preview.ResidentCount} pessoa(s) para {_preview.TargetCount} destino(s)? A operação continuará em segundo plano.",
+            yesText: "Enviar para a fila",
+            cancelText: "Cancelar");
+        if (confirmed != true) return;
+
         _busy = true;
         var result = await Api.QueueReconciliationAsync(LicenseId);
         _busy = false;
         if (!result.Success) { _error = result.Error; return; }
-        Snackbar.Add("Reconciliação adicionada à fila.", Severity.Success);
+        Snackbar.Add($"Reconciliação adicionada à fila com {result.Value?.TotalItems ?? _preview.TargetCount} item(ns).", Severity.Success);
+        _batchFilter = "active";
         await LoadAsync();
     }
 
@@ -234,16 +319,29 @@
             await using var stream = args.File.OpenReadStream(5_000_000);
             var backup = await System.Text.Json.JsonSerializer.DeserializeAsync<CredentialBackupViewModel>(stream, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
             if (backup is null) { _error = "O arquivo não possui um backup válido."; return; }
+            if (backup.LicenseId != LicenseId) { _error = "Este backup pertence a outra licença e não pode ser restaurado aqui."; return; }
+            if (backup.Credentials.Count == 0) { _error = "O backup não contém credenciais para restaurar."; return; }
+            var confirmed = await DialogService.ShowMessageBoxAsync(
+                "Restaurar backup de credenciais",
+                $"Restaurar {backup.Credentials.Count} credencial(is) do backup exportado em {backup.ExportedAt.ToCondotifyTime():dd/MM/yyyy HH:mm}? Os itens serão validados e enviados para reconciliação.",
+                yesText: "Restaurar backup",
+                cancelText: "Cancelar");
+            if (confirmed != true) return;
             var result = await Api.RestoreCredentialBackupAsync(LicenseId, backup);
             if (!result.Success) { _error = result.Error; return; }
-            Snackbar.Add("Backup restaurado e enviado para reconciliação.", Severity.Success);
+            Snackbar.Add($"Backup restaurado; {result.Value?.TotalItems ?? backup.Credentials.Count} item(ns) foram enviados para processamento.", Severity.Success);
+            _batchFilter = "active";
             await LoadAsync();
         }
-        catch (Exception exception) { _error = exception.Message; }
+        catch (System.Text.Json.JsonException) { _error = "O arquivo selecionado não contém um backup JSON válido."; }
+        catch (IOException) { _error = "Não foi possível ler o arquivo de backup. Verifique o arquivo e tente novamente."; }
+        catch (Exception) { _error = "Não foi possível restaurar o backup. Tente novamente ou gere um novo arquivo."; }
         finally { _busy = false; }
     }
 
     private void Close() => Dialog.Close(DialogResult.Ok(true));
+    private void SetBatchFilter(string filter) => _batchFilter = filter;
+    private RenderFragment BatchFilterButton(string filter, string label, int count) => @<button type="button" class="@(_batchFilter == filter ? "active" : null)" @onclick="@(() => SetBatchFilter(filter))"><span>@label</span><strong>@count</strong></button>;
     private static double BatchProgress(AccessBatchOperationViewModel x) => x.TotalItems <= 0 ? 0 : x.ProcessedItems * 100d / x.TotalItems;
     private static string BatchIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.CheckCircle, "CompletedWithErrors" => Icons.Material.Outlined.WarningAmber, "Failed" or "DeadLetter" => Icons.Material.Outlined.ReportProblem, "Running" => Icons.Material.Outlined.Sync, "Canceled" => Icons.Material.Outlined.Cancel, _ => Icons.Material.Outlined.Schedule };
     private static string BatchLabel(string status) => status switch { "Completed" => "Concluído", "CompletedWithErrors" => "Concluído com pendências", "Failed" => "Falhou", "DeadLetter" => "Requer intervenção", "Running" => "Em processamento", "Canceled" => "Cancelado", _ => "Na fila" };
@@ -311,6 +409,13 @@
         "AccessOperationItem" => "Destino da operação",
         _ => "Registro"
     };
+
+    public ValueTask DisposeAsync()
+    {
+        _refreshCancellation.Cancel();
+        _refreshCancellation.Dispose();
+        return ValueTask.CompletedTask;
+    }
     private static string AuditDetails(AccessAuditViewModel audit)
     {
         if (string.IsNullOrWhiteSpace(audit.DetailsJson) || audit.DetailsJson == "{}") return string.Empty;
