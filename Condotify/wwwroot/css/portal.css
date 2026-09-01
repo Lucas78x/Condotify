@@ -351,6 +351,32 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
 .credential-segment.person-kind-segment { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 0 4px; }
 .person-kind-segment .credential-segment-option { min-height: 72px; }
 .person-temporary-note { margin: 0; }
+.temporary-access-dialog { width: min(1080px, calc(100vw - 32px)); }
+.temporary-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.temporary-summary article { min-width: 0; display: flex; align-items: center; gap: 11px; padding: 12px 14px; border: 1px solid #e1e6ed; border-radius: 6px; background: #fff; }
+.temporary-summary article > div { min-width: 0; display: flex; flex-direction: column; }
+.temporary-summary strong { color: #202938; font-size: 1rem; }
+.temporary-summary small { margin-top: 2px; color: #748094; font-size: .65rem; }
+.temporary-view-switch { display: flex; gap: 5px; padding: 5px; border: 1px solid #dfe5ed; border-radius: 6px; background: #f5f7fa; }
+.temporary-view-switch button { min-height: 38px; display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid transparent; border-radius: 5px; color: #626e82; background: transparent; font: inherit; font-size: .7rem; cursor: pointer; }
+.temporary-view-switch button strong { min-width: 20px; padding: 2px 5px; border-radius: 4px; background: #e5e9ef; font-size: .6rem; text-align: center; }
+.temporary-view-switch button.active { border-color: #ccd8f8; color: var(--ds-primary); background: #fff; box-shadow: 0 1px 3px rgba(31, 45, 72, .08); font-weight: 700; }
+.temporary-view-switch button.active strong { color: #fff; background: var(--ds-primary); }
+.temporary-view-switch button:focus-visible { outline: 2px solid var(--ds-primary); outline-offset: 2px; }
+.temporary-toolbar { display: grid; grid-template-columns: minmax(260px, 1fr) 210px; gap: 10px; margin: 14px 0 10px; }
+.temporary-list { overflow: hidden; border: 1px solid #e1e6ed; border-radius: 6px; background: #fff; }
+.temporary-row { min-height: 74px; display: grid; grid-template-columns: 38px minmax(220px, 1fr) minmax(150px, auto) auto 38px; align-items: center; gap: 12px; padding: 11px 13px; border-top: 1px solid #edf0f4; }
+.temporary-row:first-child { border-top: 0; }
+.temporary-row-icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 6px; color: var(--ds-primary); background: var(--ds-primary-soft); }
+.temporary-row-icon.success { color: #08715f; background: #e8f5f1; }
+.temporary-row-icon.warning { color: #955700; background: #fff3dd; }
+.temporary-row-icon.error { color: #b42f40; background: #fdecef; }
+.temporary-row-icon.info { color: #176da4; background: #eaf5fb; }
+.temporary-row-main, .temporary-row-validity { min-width: 0; display: flex; flex-direction: column; }
+.temporary-row-main strong { overflow: hidden; color: #273145; font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.temporary-row-main span, .temporary-row-main small, .temporary-row-validity small, .temporary-row-validity span { overflow: hidden; margin-top: 2px; color: #778297; font-size: .62rem; text-overflow: ellipsis; white-space: nowrap; }
+.temporary-row-validity strong { margin-top: 2px; color: #485368; font-size: .68rem; }
+.temporary-row-actions { display: flex; align-items: center; justify-content: flex-end; }
 .credential-upload > div { display: flex; align-items: center; gap: 12px; color: #4f5b6d; }
 .credential-upload span { display: flex; flex-direction: column; }
 .credential-upload small { margin-top: 2px; color: #7b8494; }
@@ -834,6 +860,13 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
     .device-card-head { align-items: flex-start; flex-wrap: wrap; }
     .credential-upload { align-items: stretch; flex-direction: column; }
     .credential-segment.person-kind-segment { grid-template-columns: 1fr; }
+    .temporary-summary, .temporary-toolbar { grid-template-columns: 1fr; }
+    .temporary-view-switch { overflow-x: auto; }
+    .temporary-view-switch button { flex: 0 0 auto; }
+    .temporary-row { grid-template-columns: 38px minmax(0, 1fr) auto; }
+    .temporary-row-validity { grid-column: 2; }
+    .temporary-row > .mud-chip { grid-column: 3; grid-row: 1; }
+    .temporary-row > .mud-icon-button, .temporary-row-actions { grid-column: 3; grid-row: 2; }
     .file-button { text-align: center; }
     .credential-lifecycle-bar { overflow-x: auto; padding: 9px 12px; }
     .credential-lifecycle-filter { flex: 0 0 auto; }

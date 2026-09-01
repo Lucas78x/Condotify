@@ -38,9 +38,13 @@ else
                     <MudText Typo="Typo.h5">Estrutura da propriedade</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">Organize @_structure.GroupLabelPlural.ToLowerInvariant() e entre em cada área para administrar @_structure.UnitLabelPlural.ToLowerInvariant().</MudText>
                 </div>
-                @if (CanManageStructure)
+                @if (CanViewPeople || CanManageStructure)
                 {
                     <div class="structure-actions">
+                        @if (CanViewPeople)
+                        {
+                            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Schedule" OnClick="OpenTemporaryAccessAsync">Temporários e convites</MudButton>
+                        }
                         @if (CanManagePeople)
                         {
                             <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.MoveDown" OnClick="OpenImportAsync">Migrar dados</MudButton>
@@ -134,6 +138,10 @@ else
                     <div><MudText Typo="Typo.h5">@_structure.UnitLabelSingular @_unit.Number</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_unit.BlockName@(string.IsNullOrWhiteSpace(_unit.Floor) ? string.Empty : $" | {_unit.Floor}")</MudText></div>
                 </div>
                 <div class="structure-actions">
+                    @if (CanViewPeople)
+                    {
+                        <MudTooltip Text="Abrir temporários e convites"><MudIconButton Icon="@Icons.Material.Outlined.Schedule" Variant="Variant.Outlined" OnClick="OpenTemporaryAccessAsync" /></MudTooltip>
+                    }
                     @if (CanManageStructure)
                     {
                         <MudTooltip Text="@($"Editar {_structure.UnitLabelSingular.ToLowerInvariant()}")"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" OnClick="OpenEditUnitAsync" /></MudTooltip>
@@ -213,6 +221,7 @@ else
 @code {
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
     [Parameter] public string ActiveSection { get; set; } = "estrutura";
+    [Parameter] public bool CanViewPeople { get; set; }
     [Parameter] public bool CanManageStructure { get; set; }
     [Parameter] public bool CanManagePeople { get; set; }
     [Parameter] public bool CanManageCredentials { get; set; }
@@ -399,6 +408,23 @@ else
             "Lixeira",
             parameters,
             new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Large });
+        await dialog.Result;
+        await LoadAsync(_selectedBlockId, _selectedUnitId);
+    }
+
+    private async Task OpenTemporaryAccessAsync()
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(TemporaryAccessDialog.LicenseId)] = LicenseId,
+            [nameof(TemporaryAccessDialog.CanManagePeople)] = CanManagePeople,
+            [nameof(TemporaryAccessDialog.CanManageCredentials)] = CanManageCredentials,
+            [nameof(TemporaryAccessDialog.UnitLabelSingular)] = _structure.UnitLabelSingular
+        };
+        var dialog = await DialogService.ShowAsync<TemporaryAccessDialog>(
+            "Temporários e convites",
+            parameters,
+            new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.ExtraLarge });
         await dialog.Result;
         await LoadAsync(_selectedBlockId, _selectedUnitId);
     }
