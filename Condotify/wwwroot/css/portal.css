@@ -348,6 +348,9 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
 .action-history { margin-top: 18px; }
 
 .credential-upload { min-height: 78px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px dashed #cbd3df; border-radius: 6px; background: #fafbfc; }
+.credential-segment.person-kind-segment { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 0 4px; }
+.person-kind-segment .credential-segment-option { min-height: 72px; }
+.person-temporary-note { margin: 0; }
 .credential-upload > div { display: flex; align-items: center; gap: 12px; color: #4f5b6d; }
 .credential-upload span { display: flex; flex-direction: column; }
 .credential-upload small { margin-top: 2px; color: #7b8494; }
@@ -830,6 +833,7 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
     .toolbar-filters .mud-input-control:first-child { width: 100%; }
     .device-card-head { align-items: flex-start; flex-wrap: wrap; }
     .credential-upload { align-items: stretch; flex-direction: column; }
+    .credential-segment.person-kind-segment { grid-template-columns: 1fr; }
     .file-button { text-align: center; }
     .credential-lifecycle-bar { overflow-x: auto; padding: 9px 12px; }
     .credential-lifecycle-filter { flex: 0 0 auto; }
