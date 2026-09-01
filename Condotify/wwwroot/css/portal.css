@@ -354,6 +354,15 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
 .file-button { position: relative; flex: 0 0 auto; padding: 8px 13px; border: 1px solid #cad2de; border-radius: 5px; background: #fff; color: var(--ds-primary); font-size: .8rem; font-weight: 700; cursor: pointer; }
 .file-button input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .credential-list { display: flex; flex-direction: column; }
+.credential-lifecycle-bar { display: flex; gap: 6px; padding: 10px 18px; border-top: 1px solid #edf0f4; border-bottom: 1px solid #edf0f4; background: #fafbfc; }
+.credential-lifecycle-filter { min-height: 34px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #657186; font: inherit; font-size: .71rem; cursor: pointer; }
+.credential-lifecycle-filter:hover { color: #263247; background: #f1f4f8; }
+.credential-lifecycle-filter:focus-visible { outline: 2px solid var(--ds-primary); outline-offset: 2px; }
+.credential-lifecycle-filter strong { min-width: 20px; padding: 2px 5px; border-radius: 4px; background: #e9edf3; color: #465268; font-size: .62rem; text-align: center; }
+.credential-lifecycle-filter.active { border-color: #cbd8fb; color: var(--ds-primary); background: #eef3ff; font-weight: 700; }
+.credential-lifecycle-filter.active strong { color: #fff; background: var(--ds-primary); }
+.credential-expiration-note { display: flex; align-items: center; gap: 8px; padding: 9px 18px; border-bottom: 1px solid #f1dfbd; color: #8a5a08; background: #fff8e9; font-size: .69rem; }
+.credential-expiration-note strong { font-weight: 750; }
 .credential-row { min-height: 82px; display: grid; grid-template-columns: 42px minmax(180px, 1.3fr) minmax(130px, .7fr) minmax(180px, 1fr) auto; align-items: center; gap: 14px; padding: 14px 18px; border-top: 1px solid #edf0f4; }
 .credential-row:first-child { border-top: 0; }
 .credential-row:hover { background: #fafbfc; }
@@ -797,6 +806,8 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
     .device-card-head { align-items: flex-start; flex-wrap: wrap; }
     .credential-upload { align-items: stretch; flex-direction: column; }
     .file-button { text-align: center; }
+    .credential-lifecycle-bar { overflow-x: auto; padding: 9px 12px; }
+    .credential-lifecycle-filter { flex: 0 0 auto; }
     .credential-row { grid-template-columns: 42px minmax(0, 1fr) auto; }
     .credential-validity, .credential-bindings { grid-column: 2 / -1; }
     .credential-actions { grid-column: 3; grid-row: 1; }
