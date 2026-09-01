@@ -1,6 +1,7 @@
 using CondotifyAPI.Domain.DTO.Observability;
 using CondotifyAPI.Domain.Enums.AccessControl;
 using CondotifyAPI.Domain.Enums.Amenities;
+using CondotifyAPI.Domain.Enums.Invitation;
 using CondotifyAPI.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -218,6 +219,42 @@ public sealed class OperationalAlertEvaluationService(
             $"{x.Count} credencial(is) ainda estão ativas após o vencimento.",
             x.OccurredAt, $"/licencas/{x.LicenseId}/credenciais", "License", x.LicenseId)));
 
+        var credentialWarningLimit = now.AddHours(Math.Clamp(
+            configuration.GetValue("Observability:CredentialExpirationWarningHours", 72),
+            1,
+            720));
+        var expiringCredentials = await ExpiringCredentialQuery(context, now, credentialWarningLimit)
+            .ToListAsync(cancellationToken);
+        signals.AddRange(expiringCredentials.Select(x => Signal(
+            x.EnterpriseId, x.LicenseId, $"credentials-expiring:{x.LicenseId:N}", "CredentialExpiring",
+            OperationalAlertSeverity.Info, "Credenciais próximas do vencimento",
+            $"{CountLabel(x.Count, "credencial permanente", "credenciais permanentes")} vencem em breve. O prazo mais próximo termina em {RemainingLabel(x.ExpiresAt, now)}.",
+            now, $"/licencas/{x.LicenseId}/credenciais", "License", x.LicenseId)));
+
+        var temporaryWarningLimit = now.AddHours(Math.Clamp(
+            configuration.GetValue("Observability:TemporaryAccessExpirationWarningHours", 72),
+            1,
+            720));
+        var expiringTemporaryAccess = await ExpiringTemporaryAccessQuery(context, now, temporaryWarningLimit)
+            .ToListAsync(cancellationToken);
+        signals.AddRange(expiringTemporaryAccess.Select(x => Signal(
+            x.EnterpriseId, x.LicenseId, $"temporary-access-expiring:{x.LicenseId:N}", "TemporaryAccessExpiring",
+            OperationalAlertSeverity.Warning, "Acessos temporários vencem em breve",
+            $"{CountLabel(x.Count, "pessoa temporária", "pessoas temporárias")} perdem o acesso em breve. O prazo mais próximo termina em {RemainingLabel(x.ExpiresAt, now)}.",
+            now, $"/licencas/{x.LicenseId}/estrutura", "License", x.LicenseId)));
+
+        var inviteWarningLimit = now.AddHours(Math.Clamp(
+            configuration.GetValue("Observability:RegistrationInviteExpirationWarningHours", 24),
+            1,
+            168));
+        var expiringInvites = await ExpiringRegistrationInviteQuery(context, now, inviteWarningLimit)
+            .ToListAsync(cancellationToken);
+        signals.AddRange(expiringInvites.Select(x => Signal(
+            x.EnterpriseId, x.LicenseId, $"registration-invites-expiring:{x.LicenseId:N}", "RegistrationInviteExpiring",
+            OperationalAlertSeverity.Info, "Convites de cadastro vencem em breve",
+            $"{CountLabel(x.Count, "convite ainda não concluído", "convites ainda não concluídos")} vencem em breve. O prazo mais próximo termina em {RemainingLabel(x.ExpiresAt, now)}.",
+            now, $"/licencas/{x.LicenseId}/estrutura", "License", x.LicenseId)));
+
         var failedBatches = await context.AccessBatchOperations.AsNoTracking()
             .Where(x => x.Status == AccessBatchStatusEnum.Failed ||
                         x.Status == AccessBatchStatusEnum.DeadLetter ||
@@ -292,6 +329,70 @@ public sealed class OperationalAlertEvaluationService(
         return signals;
     }
 
+    internal static IQueryable<ExpirationSignalCandidate> ExpiringCredentialQuery(
+        DatabaseContext database,
+        DateTime now,
+        DateTime warningLimit) =>
+        database.ResidentAccessCredentials.AsNoTracking()
+            .Where(x => x.IsActive && !x.Resident.Temporary && x.ValidTo > now && x.ValidTo <= warningLimit)
+            .GroupBy(x => new
+            {
+                LicenseId = x.Resident.Unit.Block.LicenseId,
+                x.Resident.Unit.Block.License.EnterpriseId
+            })
+            .Select(group => new ExpirationSignalCandidate
+            {
+                LicenseId = group.Key.LicenseId,
+                EnterpriseId = group.Key.EnterpriseId,
+                Count = group.Count(),
+                ExpiresAt = group.Min(x => x.ValidTo)
+            });
+
+    internal static IQueryable<ExpirationSignalCandidate> ExpiringTemporaryAccessQuery(
+        DatabaseContext database,
+        DateTime now,
+        DateTime warningLimit) =>
+        database.Residents.AsNoTracking()
+            .Where(x => x.IsActive && x.Temporary && x.Expire > now && x.Expire <= warningLimit)
+            .GroupBy(x => new
+            {
+                LicenseId = x.Unit.Block.LicenseId,
+                x.Unit.Block.License.EnterpriseId
+            })
+            .Select(group => new ExpirationSignalCandidate
+            {
+                LicenseId = group.Key.LicenseId,
+                EnterpriseId = group.Key.EnterpriseId,
+                Count = group.Count(),
+                ExpiresAt = group.Min(x => x.Expire)
+            });
+
+    internal static IQueryable<ExpirationSignalCandidate> ExpiringRegistrationInviteQuery(
+        DatabaseContext database,
+        DateTime now,
+        DateTime warningLimit) =>
+        database.RegistrationInvites.AsNoTracking()
+            .Where(x =>
+                (x.Status == RegistrationInviteStatusEnum.Pending || x.Status == RegistrationInviteStatusEnum.Opened) &&
+                x.ExpiresAt > now &&
+                x.ExpiresAt <= warningLimit)
+            .GroupBy(x => new { x.LicenseId, x.License.EnterpriseId })
+            .Select(group => new ExpirationSignalCandidate
+            {
+                LicenseId = group.Key.LicenseId,
+                EnterpriseId = group.Key.EnterpriseId,
+                Count = group.Count(),
+                ExpiresAt = group.Min(x => x.ExpiresAt)
+            });
+
+    internal sealed class ExpirationSignalCandidate
+    {
+        public Guid EnterpriseId { get; init; }
+        public Guid LicenseId { get; init; }
+        public int Count { get; init; }
+        public DateTime ExpiresAt { get; init; }
+    }
+
     private static AlertSignal Signal(
         Guid enterpriseId,
         Guid licenseId,
@@ -319,6 +420,22 @@ public sealed class OperationalAlertEvaluationService(
 
     private static string Short(string value, int max) =>
         value.Length <= max ? value : value[..max];
+
+    internal static string RemainingLabel(DateTime expiresAt, DateTime now)
+    {
+        var remaining = expiresAt - now;
+        if (remaining <= TimeSpan.Zero) return "menos de uma hora";
+        if (remaining.TotalHours < 24)
+        {
+            var hours = Math.Max(1, (int)Math.Ceiling(remaining.TotalHours));
+            return CountLabel(hours, "hora", "horas");
+        }
+        var days = Math.Max(1, (int)Math.Ceiling(remaining.TotalDays));
+        return CountLabel(days, "dia", "dias");
+    }
+
+    internal static string CountLabel(int count, string singular, string plural) =>
+        $"{count} {(count == 1 ? singular : plural)}";
 
     private sealed record AlertSignal(
         Guid EnterpriseId,
