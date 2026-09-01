@@ -18,6 +18,7 @@ public sealed class LicensePermissionCatalogTests
     [Theory]
     [InlineData(LicensePermission.ManageFinance, LicensePermission.ViewFinance)]
     [InlineData(LicensePermission.ManageDocuments, LicensePermission.ViewDocuments)]
+    [InlineData(LicensePermission.ManageVehicles, LicensePermission.ViewVehicles)]
     public void Normalize_ManagementPermissionAlsoGrantsReading(LicensePermission management, LicensePermission reading)
     {
         var normalized = LicensePermissionCatalog.Normalize((long)management);
@@ -28,6 +29,9 @@ public sealed class LicensePermissionCatalogTests
     [Theory]
     [InlineData(LicensePermission.ViewFinance, LicensePermission.ManageFinance)]
     [InlineData(LicensePermission.ViewDocuments, LicensePermission.ManageDocuments)]
+    [InlineData(LicensePermission.ViewVehicles, LicensePermission.ManageVehicles)]
+    [InlineData(LicensePermission.ViewPeople, LicensePermission.ManageVehicles)]
+    [InlineData(LicensePermission.ViewStructure, LicensePermission.ManageVehicles)]
     public void RemovingReadingPermission_AlsoRemovesDependentManagement(LicensePermission reading, LicensePermission management)
     {
         var permissions = (long)(reading | management);
@@ -43,6 +47,21 @@ public sealed class LicensePermissionCatalogTests
     [InlineData(LicensePermission.ViewDocuments)]
     [InlineData(LicensePermission.ManageDocuments)]
     [InlineData(LicensePermission.ManageAnnouncements)]
+    [InlineData(LicensePermission.ViewVehicles)]
+    [InlineData(LicensePermission.ManageVehicles)]
     public void ConfigurablePermission_IsVisibleInCatalog(LicensePermission permission) =>
         Assert.Contains(LicensePermissionCatalog.Options, option => option.Permission == permission);
+
+    [Theory]
+    [InlineData(0, LicensePermission.ManageVehicles)]
+    [InlineData(1, LicensePermission.ManageVehicles)]
+    [InlineData(2, LicensePermission.ManageVehicles)]
+    [InlineData(3, LicensePermission.ViewVehicles)]
+    [InlineData(4, LicensePermission.ViewVehicles)]
+    public void DefaultProfiles_IncludeExpectedVehicleAccess(int role, LicensePermission permission)
+    {
+        var defaults = LicensePermissionCatalog.Defaults(role);
+
+        Assert.Equal((long)permission, defaults & (long)permission);
+    }
 }

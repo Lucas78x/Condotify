@@ -14,12 +14,12 @@ else
                 @if (CanViewUsers)
                 {
                     <MudTabPanel Text="Usuários e acesso" Icon="@Icons.Material.Outlined.ManageAccounts">
-                        <div class="admin-tab-head"><div><strong>Equipe deste condomínio</strong><span>Cada usuário enxerga e opera apenas o que foi permitido.</span></div>@if (CanManageUsers) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" OnClick="@(() => OpenUserAsync(null))">Novo usuário</MudButton> }</div>
+                        <div class="admin-tab-head"><div><strong>Equipe deste condomínio</strong><span>Cada usuário enxerga e opera apenas o que foi permitido.</span></div><div class="admin-user-tools"><MudTextField T="string" @bind-Value="_userSearch" Placeholder="Buscar usuário" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate />@if (CanManageUsers) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" OnClick="@(() => OpenUserAsync(null))">Novo usuário</MudButton> }</div></div>
                         <div class="admin-summary-strip"><div><strong>@_data.Users.Count</strong><span>Usuários vinculados</span></div><div><strong>@_data.Users.Count(x => x.IsActive)</strong><span>Acessos ativos</span></div><div><strong>@_data.Users.Count(x => x.Role is "Administrator" or "Manager")</strong><span>Síndicos e gestores</span></div></div>
-                        @if (_data.Users.Count == 0) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.GroupOff" /><span>Nenhum usuário vinculado a esta licença.</span></div> }
+                        @if (!FilteredUsers.Any()) { <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.GroupOff" /><span>@(_data.Users.Count == 0 ? "Nenhum usuário vinculado a esta licença." : "Nenhum usuário corresponde à busca.")</span></div> }
                         else
                         {
-                            <div class="access-user-list">@foreach (var user in _data.Users) { <div class="access-user-row"><MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(user.Name)</MudAvatar><div class="access-user-main"><strong>@user.Name</strong><span>@user.Email@(!string.IsNullOrWhiteSpace(user.PhoneNumber) ? $" | {user.PhoneNumber}" : string.Empty)</span></div><div class="access-user-role"><strong>@RoleLabel(user.Role)</strong><span>@PermissionCount(user.Permissions) permissões</span></div><MudChip T="string" Size="Size.Small" Color="@(user.IsActive ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(user.IsActive ? "Ativo" : "Inativo")</MudChip>@if (CanManageUsers) { <MudTooltip Text="Editar acesso"><MudIconButton Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenUserAsync(user))" /></MudTooltip> }</div> }</div>
+                            <div class="access-user-list">@foreach (var user in FilteredUsers) { <div class="access-user-row"><MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(user.Name)</MudAvatar><div class="access-user-main"><strong>@user.Name</strong><span>@user.Email@(!string.IsNullOrWhiteSpace(user.PhoneNumber) ? $" | {user.PhoneNumber}" : string.Empty)</span></div><div class="access-user-role"><strong>@RoleLabel(user.Role)</strong><span>@PermissionCount(user.Permissions) permissões</span></div><div class="access-user-last-access"><small>Último acesso</small><strong>@LastAccessLabel(user.LastAccess)</strong></div><MudChip T="string" Size="Size.Small" Color="@(user.IsActive ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(user.IsActive ? "Ativo" : "Inativo")</MudChip>@if (CanManageUsers) { <MudTooltip Text="Editar acesso"><MudIconButton Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => OpenUserAsync(user))" /></MudTooltip> }</div> }</div>
                         }
                     </MudTabPanel>
                 }
@@ -84,6 +84,9 @@ else
     private bool _isPlatformAdmin;
     private bool _savingModules;
     private string? _error;
+    private string? _userSearch;
+    private IEnumerable<LicenseUserAccessViewModel> FilteredUsers => (_data?.Users ?? [])
+        .Where(x => string.IsNullOrWhiteSpace(_userSearch) || $"{x.Name} {x.Email} {x.PhoneNumber} {RoleLabel(x.Role)}".Contains(_userSearch, StringComparison.OrdinalIgnoreCase));
     private bool CanViewUsers => _data?.CurrentAccess.Has(LicensePermission.ViewUsers) == true;
     private bool CanManageUsers => _data?.CurrentAccess.Has(LicensePermission.ManageUsers) == true;
     private bool CanViewSettings => _data?.CurrentAccess.Has(LicensePermission.ViewSettings) == true;
@@ -102,6 +105,7 @@ else
     private async Task OpenUserAsync(LicenseUserAccessViewModel? user) { var parameters = new DialogParameters { [nameof(LicenseUserDialog.LicenseId)] = LicenseId, [nameof(LicenseUserDialog.Existing)] = user }; var dialog = await DialogService.ShowAsync<LicenseUserDialog>(user is null ? "Novo usuário" : "Editar acesso", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Medium }); var result = await dialog.Result; if (result?.Canceled != false) return; await LoadAsync(); Snackbar.Add("Acesso atualizado.", Severity.Success); }
     private async Task SavePolicyAsync() { if (_data is null || !CanManageSettings) return; _savingPolicy = true; var result = await Api.UpdateCredentialPolicyAsync(LicenseId, _data.Policy); _savingPolicy = false; if (!result.Success) { Snackbar.Add(result.Error ?? "Falha ao salvar as políticas.", Severity.Error); return; } _data.Policy = result.Value ?? _data.Policy; Snackbar.Add("Políticas de credenciais atualizadas.", Severity.Success); }
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+    private static string LastAccessLabel(DateTime value) => value == default ? "Nunca acessou" : value.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm");
     private static int PermissionCount(long value) => LicensePermissionCatalog.Options.Count(x => (value & (long)x.Permission) == (long)x.Permission);
     private static string RoleLabel(string role) => role switch { "Administrator" => "Administrador", "Manager" => "Síndico / gestor", "Concierge" => "Portaria", "Operator" => "Operador", "Viewer" => "Somente leitura", _ => role };
 
