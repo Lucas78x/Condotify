@@ -33,6 +33,11 @@
             <EditForm Model="_resident" OnValidSubmit="SaveResidentAsync">
                 <DataAnnotationsValidator />
                 <div class="form-grid">
+                    <div class="credential-segment person-kind-segment full" role="radiogroup" aria-label="Categoria da pessoa">
+                        <button type="button" role="radio" aria-checked="@IsResident" class="@PersonKindClass(1)" @onclick="@(() => SelectPersonKind(1))"><MudIcon Icon="@Icons.Material.Outlined.Home" /><span><strong>Morador</strong><small>Residência permanente ou com prazo</small></span></button>
+                        <button type="button" role="radio" aria-checked="@(_resident.AccessType == 3)" class="@PersonKindClass(3)" @onclick="@(() => SelectPersonKind(3))"><MudIcon Icon="@Icons.Material.Outlined.PersonPin" /><span><strong>Visitante</strong><small>Autorização temporária de acesso</small></span></button>
+                        <button type="button" role="radio" aria-checked="@(_resident.AccessType == 4)" class="@PersonKindClass(4)" @onclick="@(() => SelectPersonKind(4))"><MudIcon Icon="@Icons.Material.Outlined.Engineering" /><span><strong>Prestador</strong><small>Serviço com período definido</small></span></button>
+                    </div>
                     <MudSelect T="Guid" @bind-Value="_resident.UnitId" Label="@UnitLabelSingular" Required Variant="Variant.Outlined" Class="full">
                         @foreach (var unit in Units) { <MudSelectItem T="Guid" Value="@unit.Id">@unit.BlockName - @unit.Number</MudSelectItem> }
                     </MudSelect>
@@ -42,17 +47,23 @@
                     <MudTextField T="string" @bind-Value="_resident.Email" Label="E-mail" InputType="InputType.Email" Variant="Variant.Outlined" For="@(() => _resident.Email)" />
                     <MudTextField T="string" @bind-Value="_resident.PhoneNumber" Label="Telefone" Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_resident.CommercialPhone" Label="Telefone comercial" Variant="Variant.Outlined" />
-                    <MudSelect T="int" @bind-Value="_resident.AccessType" Label="Categoria" Variant="Variant.Outlined"><MudSelectItem Value="1">Morador responsável</MudSelectItem><MudSelectItem Value="2">Morador dependente</MudSelectItem><MudSelectItem Value="3">Visitante</MudSelectItem><MudSelectItem Value="4">Prestador de serviço</MudSelectItem></MudSelect>
-                    @if (_resident.AccessType is 1 or 2)
+                    @if (IsResident)
                     {
-                        <MudSelect T="int" @bind-Value="_resident.Relationship" Label="@($"Vínculo com {UnitLabelSingular.ToLowerInvariant()}")" Variant="Variant.Outlined"><MudSelectItem Value="1">Proprietário responsável</MudSelectItem><MudSelectItem Value="2">Locatário responsável</MudSelectItem><MudSelectItem Value="3">Apenas responsável</MudSelectItem><MudSelectItem Value="0">Morador</MudSelectItem><MudSelectItem Value="4">Dependente</MudSelectItem></MudSelect>
+                        <MudSelect T="int" Value="_resident.Relationship" ValueChanged="RelationshipChanged" Label="@($"Vínculo com {UnitLabelSingular.ToLowerInvariant()}")" Variant="Variant.Outlined" Class="full"><MudSelectItem Value="1">Proprietário responsável</MudSelectItem><MudSelectItem Value="2">Locatário responsável</MudSelectItem><MudSelectItem Value="3">Apenas responsável</MudSelectItem><MudSelectItem Value="0">Morador</MudSelectItem><MudSelectItem Value="4">Dependente</MudSelectItem></MudSelect>
                     }
-                    <MudTextField T="string" @bind-Value="_resident.Description" Label="Observações" Lines="2" Variant="Variant.Outlined" Class="full" />
-                    <MudSwitch T="bool" @bind-Value="_resident.NotifyAccess" Label="Notificar acessos" Color="Color.Primary" />
-                    <MudSwitch T="bool" @bind-Value="_resident.Temporary" Label="Acesso temporário" Color="Color.Warning" />
-                    @if (_resident.Temporary) { <MudDatePicker @bind-Date="_resident.Expire" Label="Válido até" Variant="Variant.Outlined" Class="full" /> }
+                    <MudTextField T="string" @bind-Value="_resident.Description" Label="@DescriptionFieldLabel" Lines="2" Variant="Variant.Outlined" Class="full" />
+                    @if (IsResident)
+                    {
+                        <MudSwitch T="bool" @bind-Value="_resident.NotifyAccess" Label="Notificar acessos" Color="Color.Primary" />
+                        <MudSwitch T="bool" @bind-Value="_resident.Temporary" Label="Moradia com prazo definido" Color="Color.Warning" />
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense Class="full person-temporary-note">@TemporaryAccessMessage</MudAlert>
+                    }
+                    @if (_resident.Temporary) { <MudDatePicker @bind-Date="_resident.Expire" Label="Acesso válido até" Required RequiredError="Informe até quando o acesso será válido." MinDate="@CondotifyTime.Today.AddDays(1)" Variant="Variant.Outlined" Class="full" /> }
                 </div>
-                <div class="form-actions dialog-form-actions"><MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" Disabled="_saving">@(_saving ? "Salvando..." : "Cadastrar morador")</MudButton></div>
+                <div class="form-actions dialog-form-actions"><MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton><MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" Disabled="_saving">@(_saving ? "Salvando..." : SavePersonLabel)</MudButton></div>
             </EditForm>
         }
     </DialogContent>
@@ -69,21 +80,29 @@
     [Parameter] public UnitRowViewModel? ExistingUnit { get; set; }
     [Parameter] public string GroupLabelSingular { get; set; } = "Bloco";
     [Parameter] public string UnitLabelSingular { get; set; } = "Unidade";
+    [Parameter] public int InitialAccessType { get; set; } = 1;
     private readonly BlockFormViewModel _block = new();
     private readonly UnitFormViewModel _unit = new();
-    private readonly ResidentFormViewModel _resident = new() { AccessType = 1 };
+    private readonly ResidentFormViewModel _resident = new() { AccessType = 1, Relationship = 1 };
     private MudForm? _form;
     private bool _isValid;
     private bool _saving;
     private string? _error;
     private List<UnitRowViewModel> Units => Blocks.SelectMany(x => x.Units).ToList();
     private bool IsEditing => ExistingBlock is not null || ExistingUnit is not null;
+    private bool IsResident => _resident.AccessType is 1 or 2;
     private string DialogIcon => ActiveSection switch { "unidades" => Icons.Material.Outlined.Apartment, "moradores" => Icons.Material.Outlined.PersonAdd, _ => Icons.Material.Outlined.DomainAdd };
-    private string DescriptionTitle => ActiveSection switch { "unidades" => IsEditing ? $"Editar {UnitLabelSingular.ToLowerInvariant()}" : $"Cadastrar {UnitLabelSingular.ToLowerInvariant()}", "moradores" => "Novo morador", _ => IsEditing ? $"Editar {GroupLabelSingular.ToLowerInvariant()}" : $"Cadastrar {GroupLabelSingular.ToLowerInvariant()}" };
-    private string Description => ActiveSection switch { "unidades" => "Vincule o cadastro ao agrupamento correspondente.", "moradores" => $"Defina o local ({UnitLabelSingular.ToLowerInvariant()}) e o tipo de acesso da pessoa.", _ => "Organize a estrutura física do condomínio." };
+    private string DescriptionTitle => ActiveSection switch { "unidades" => IsEditing ? $"Editar {UnitLabelSingular.ToLowerInvariant()}" : $"Cadastrar {UnitLabelSingular.ToLowerInvariant()}", "moradores" => $"Novo {PersonKindLabel.ToLowerInvariant()}", _ => IsEditing ? $"Editar {GroupLabelSingular.ToLowerInvariant()}" : $"Cadastrar {GroupLabelSingular.ToLowerInvariant()}" };
+    private string Description => ActiveSection switch { "unidades" => "Vincule o cadastro ao agrupamento correspondente.", "moradores" => PersonKindDescription, _ => "Organize a estrutura física do condomínio." };
+    private string PersonKindLabel => _resident.AccessType switch { 3 => "Visitante", 4 => "Prestador de serviço", _ => "Morador" };
+    private string PersonKindDescription => _resident.AccessType switch { 3 => $"Vincule o visitante ao local ({UnitLabelSingular.ToLowerInvariant()}) e defina o período autorizado.", 4 => $"Registre o prestador, o serviço e a validade de acesso ao local ({UnitLabelSingular.ToLowerInvariant()}).", _ => $"Defina {UnitLabelSingular.ToLowerInvariant()}, vínculo residencial e dados de contato." };
+    private string DescriptionFieldLabel => _resident.AccessType switch { 3 => "Motivo da visita ou observações", 4 => "Empresa, serviço ou observações", _ => "Observações" };
+    private string TemporaryAccessMessage => _resident.AccessType == 3 ? "Visitantes usam acesso temporário e serão desativados ao fim da validade." : "Prestadores usam acesso temporário vinculado ao período do serviço.";
+    private string SavePersonLabel => $"Cadastrar {PersonKindLabel.ToLowerInvariant()}";
 
     protected override void OnInitialized()
     {
+        if (ActiveSection == "moradores") SelectPersonKind(InitialAccessType);
         if (ExistingBlock is not null) _block.Name = ExistingBlock.Name;
         if (ExistingUnit is not null)
         {
@@ -106,7 +125,45 @@
             ? $"Selecione {GroupLabelSingular.ToLowerInvariant()}."
             : string.IsNullOrWhiteSpace(_unit.Number) ? $"Informe a identificação de {UnitLabelSingular.ToLowerInvariant()}." : null);
 
-    private Task SaveResidentAsync() => SaveAsync(() => Api.CreateResidentAsync(LicenseId, _resident));
+    private async Task SaveResidentAsync()
+    {
+        if (_resident.UnitId == Guid.Empty) { _error = $"Selecione {UnitLabelSingular.ToLowerInvariant()}."; return; }
+        if (_resident.Temporary && (!_resident.Expire.HasValue || _resident.Expire.Value.Date <= CondotifyTime.Today)) { _error = "Informe uma validade futura para o acesso temporário."; return; }
+        await SaveAsync(() => Api.CreateResidentAsync(LicenseId, _resident));
+    }
+
+    private string PersonKindClass(int accessType) => $"credential-segment-option{((_resident.AccessType == accessType || accessType == 1 && IsResident) ? " selected" : string.Empty)}";
+    private void SelectPersonKind(int accessType)
+    {
+        _resident.AccessType = accessType is 3 or 4 ? accessType : 1;
+        if (_resident.AccessType == 3)
+        {
+            _resident.Relationship = 0;
+            _resident.Temporary = true;
+            _resident.NotifyAccess = false;
+            _resident.Expire = CondotifyTime.Today.AddDays(1);
+        }
+        else if (_resident.AccessType == 4)
+        {
+            _resident.Relationship = 0;
+            _resident.Temporary = true;
+            _resident.NotifyAccess = false;
+            _resident.Expire = CondotifyTime.Today.AddDays(7);
+        }
+        else
+        {
+            _resident.Relationship = _resident.Relationship is 1 or 2 or 3 or 4 ? _resident.Relationship : 1;
+            RelationshipChanged(_resident.Relationship);
+            _resident.Temporary = false;
+            _resident.Expire = null;
+        }
+    }
+
+    private void RelationshipChanged(int relationship)
+    {
+        _resident.Relationship = relationship;
+        _resident.AccessType = relationship is 0 or 4 ? 2 : 1;
+    }
 
     private async Task SaveStructureAsync(Func<Task<ApiResult<bool>>> operation, string? validationError)
     {

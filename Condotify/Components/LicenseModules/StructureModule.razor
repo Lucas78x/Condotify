@@ -38,9 +38,13 @@ else
                     <MudText Typo="Typo.h5">Estrutura da propriedade</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">Organize @_structure.GroupLabelPlural.ToLowerInvariant() e entre em cada área para administrar @_structure.UnitLabelPlural.ToLowerInvariant().</MudText>
                 </div>
-                @if (CanManageStructure)
+                @if (CanViewPeople || CanManageStructure)
                 {
                     <div class="structure-actions">
+                        @if (CanViewPeople)
+                        {
+                            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Schedule" OnClick="OpenTemporaryAccessAsync">Temporários e convites</MudButton>
+                        }
                         @if (CanManagePeople)
                         {
                             <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.MoveDown" OnClick="OpenImportAsync">Migrar dados</MudButton>
@@ -134,12 +138,23 @@ else
                     <div><MudText Typo="Typo.h5">@_structure.UnitLabelSingular @_unit.Number</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_unit.BlockName@(string.IsNullOrWhiteSpace(_unit.Floor) ? string.Empty : $" | {_unit.Floor}")</MudText></div>
                 </div>
                 <div class="structure-actions">
+                    @if (CanViewPeople)
+                    {
+                        <MudTooltip Text="Abrir temporários e convites"><MudIconButton Icon="@Icons.Material.Outlined.Schedule" Variant="Variant.Outlined" OnClick="OpenTemporaryAccessAsync" /></MudTooltip>
+                    }
                     @if (CanManageStructure)
                     {
                         <MudTooltip Text="@($"Editar {_structure.UnitLabelSingular.ToLowerInvariant()}")"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" OnClick="OpenEditUnitAsync" /></MudTooltip>
                         <MudTooltip Text="@($"Excluir {_structure.UnitLabelSingular.ToLowerInvariant()}")"><MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Variant="Variant.Outlined" OnClick="DeleteUnitAsync" /></MudTooltip>
                     }
-                    @if (CanManagePeople) { <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" OnClick="@(() => OpenCreateAsync("moradores"))">Nova pessoa</MudButton> }
+                    @if (CanManagePeople)
+                    {
+                        <MudMenu Label="Nova pessoa" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.PersonAdd" EndIcon="@Icons.Material.Outlined.ExpandMore" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                            <MudMenuItem Icon="@Icons.Material.Outlined.Home" OnClick="@(() => OpenCreateAsync("moradores", 1))">Morador</MudMenuItem>
+                            <MudMenuItem Icon="@Icons.Material.Outlined.PersonPin" OnClick="@(() => OpenCreateAsync("moradores", 3))">Visitante</MudMenuItem>
+                            <MudMenuItem Icon="@Icons.Material.Outlined.Engineering" OnClick="@(() => OpenCreateAsync("moradores", 4))">Prestador de serviço</MudMenuItem>
+                        </MudMenu>
+                    }
                 </div>
             </div>
 
@@ -167,7 +182,7 @@ else
                                 {
                                     <div class="person-row" role="button" tabindex="0" @onclick="@(() => OpenProfileAsync(person.Id))" @onkeydown="@(args => HandlePersonRowKeyDownAsync(args, person.Id))">
                                         @if (!string.IsNullOrWhiteSpace(person.ImageUrl)) { <span class="person-list-photo"><img src="@person.ImageUrl" alt="Foto de @person.Name" /></span> } else { <MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(person.Name)</MudAvatar> }
-                                        <span class="person-row-main"><strong>@person.Name</strong><small>@RelationshipLabel(person.Relationship)@(!string.IsNullOrWhiteSpace(person.Description) ? $" | {person.Description}" : string.Empty)</small></span>
+                                        <span class="person-row-main"><strong>@person.Name</strong><small>@PersonKindLabel(person)@(!string.IsNullOrWhiteSpace(person.Description) ? $" | {person.Description}" : string.Empty)</small></span>
                                         <span class="person-row-contact">@PrimaryContact(person)</span>
                                         <span class="person-row-assets"><MudIcon Icon="@Icons.Material.Outlined.Badge" /> @person.CredentialCount <MudIcon Icon="@Icons.Material.Outlined.DirectionsCar" /> @person.VehicleCount</span>
                                         <MudChip T="string" Size="Size.Small" Color="@(person.IsActive ? Color.Success : Color.Default)" Variant="Variant.Outlined">@(person.IsActive ? "Ativo" : "Inativo")</MudChip>
@@ -206,6 +221,7 @@ else
 @code {
     [Parameter, EditorRequired] public Guid LicenseId { get; set; }
     [Parameter] public string ActiveSection { get; set; } = "estrutura";
+    [Parameter] public bool CanViewPeople { get; set; }
     [Parameter] public bool CanManageStructure { get; set; }
     [Parameter] public bool CanManagePeople { get; set; }
     [Parameter] public bool CanManageCredentials { get; set; }
@@ -260,14 +276,15 @@ else
         if (result.Success) _unit = result.Value; else _error = result.Error;
     }
 
-    private async Task OpenCreateAsync(string section)
+    private async Task OpenCreateAsync(string section, int initialAccessType = 1)
     {
         var parameters = new DialogParameters
         {
             [nameof(StructureFormDialog.LicenseId)] = LicenseId, [nameof(StructureFormDialog.ActiveSection)] = section,
             [nameof(StructureFormDialog.Blocks)] = Blocks, [nameof(StructureFormDialog.InitialBlockId)] = _selectedBlockId,
             [nameof(StructureFormDialog.InitialUnitId)] = _selectedUnitId, [nameof(StructureFormDialog.GroupLabelSingular)] = _structure.GroupLabelSingular,
-            [nameof(StructureFormDialog.UnitLabelSingular)] = _structure.UnitLabelSingular
+            [nameof(StructureFormDialog.UnitLabelSingular)] = _structure.UnitLabelSingular,
+            [nameof(StructureFormDialog.InitialAccessType)] = initialAccessType
         };
         var title = section switch { "unidades" => $"Cadastrar {_structure.UnitLabelSingular.ToLowerInvariant()}", "moradores" => "Nova pessoa", _ => $"Cadastrar {_structure.GroupLabelSingular.ToLowerInvariant()}" };
         var dialog = await DialogService.ShowAsync<StructureFormDialog>(title, parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = section == "moradores" ? MaxWidth.Medium : MaxWidth.Small });
@@ -395,6 +412,23 @@ else
         await LoadAsync(_selectedBlockId, _selectedUnitId);
     }
 
+    private async Task OpenTemporaryAccessAsync()
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(TemporaryAccessDialog.LicenseId)] = LicenseId,
+            [nameof(TemporaryAccessDialog.CanManagePeople)] = CanManagePeople,
+            [nameof(TemporaryAccessDialog.CanManageCredentials)] = CanManageCredentials,
+            [nameof(TemporaryAccessDialog.UnitLabelSingular)] = _structure.UnitLabelSingular
+        };
+        var dialog = await DialogService.ShowAsync<TemporaryAccessDialog>(
+            "Temporários e convites",
+            parameters,
+            new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.ExtraLarge });
+        await dialog.Result;
+        await LoadAsync(_selectedBlockId, _selectedUnitId);
+    }
+
     private async Task OpenProfileAsync(Guid residentId, int initialTabIndex = 0)
     {
         var parameters = new DialogParameters
@@ -426,6 +460,12 @@ else
 
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
     private static string PrimaryContact(PersonSummaryViewModel person) => !string.IsNullOrWhiteSpace(person.PhoneNumber) ? person.PhoneNumber : !string.IsNullOrWhiteSpace(person.Email) ? person.Email : "Sem contato";
+    private static string PersonKindLabel(PersonSummaryViewModel person) => person.Category switch
+    {
+        "Guest" => "Visitante",
+        "ServiceProvider" => "Prestador de serviço",
+        _ => RelationshipLabel(person.Relationship)
+    };
     private static string RelationshipLabel(string relationship) => relationship switch { "OwnerResponsible" => "Proprietário responsável", "TenantResponsible" => "Locatário responsável", "Responsible" => "Responsável", "Dependent" => "Dependente", _ => "Morador" };
     private bool FaceActionDisabled(PersonSummaryViewModel person) => !CanManageCredentials || !HasPreparedFacePhoto(person);
     private string FaceActionTooltip(PersonSummaryViewModel person) => !CanManageCredentials

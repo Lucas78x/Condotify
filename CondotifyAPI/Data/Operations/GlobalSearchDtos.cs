@@ -17,11 +17,20 @@ public sealed class GlobalResidentSearchOut
     public bool Temporary { get; set; }
     public DateTime Expire { get; set; }
     public List<GlobalCredentialSearchOut> Credentials { get; set; } = [];
+    public List<GlobalVehicleSearchOut> Vehicles { get; set; } = [];
 }
 
 public sealed class GlobalCredentialSearchOut
 {
     public string Type { get; set; } = string.Empty;
     public string Identifier { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+}
+
+public sealed class GlobalVehicleSearchOut
+{
+    public string Plate { get; set; } = string.Empty;
+    public string Brand { get; set; } = string.Empty;
+    public string Model { get; set; } = string.Empty;
     public bool IsActive { get; set; }
 }

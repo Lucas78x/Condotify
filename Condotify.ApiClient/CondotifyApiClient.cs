@@ -867,6 +867,7 @@ public sealed class CondotifyApiClient
         SendForAsync<ConciergeVisitViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/concierge/visits", new
         {
             model.HostResidentId,
+            model.AccessType,
             model.VisitorName,
             model.Document,
             model.PhoneNumber,
@@ -911,6 +912,17 @@ public sealed class CondotifyApiClient
         string? credential,
         string? unit,
         string? licenseId,
+        CancellationToken cancellationToken = default) =>
+        SearchResidentsAsync(query, document, phone, credential, unit, licenseId, null, cancellationToken);
+
+    public Task<ApiResult<List<GlobalResidentSearchViewModel>>> SearchResidentsAsync(
+        string? query,
+        string? document,
+        string? phone,
+        string? credential,
+        string? unit,
+        string? licenseId,
+        string? vehiclePlate,
         CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, string?>
@@ -920,7 +932,8 @@ public sealed class CondotifyApiClient
             ["phone"] = phone,
             ["credential"] = credential,
             ["unit"] = unit,
-            ["licenseId"] = licenseId
+            ["licenseId"] = licenseId,
+            ["vehiclePlate"] = vehiclePlate
         };
         var queryString = string.Join("&", parameters
             .Where(x => !string.IsNullOrWhiteSpace(x.Value))
@@ -1276,6 +1289,15 @@ public sealed class CondotifyApiClient
             Channel = channel,
             ValidDays = validDays
         }, cancellationToken);
+
+    public Task<ApiResult<RegistrationInviteViewModel>> ReissueRegistrationInviteAsync(Guid licenseId, Guid inviteId, int validDays = 7, CancellationToken cancellationToken = default) =>
+        SendForAsync<RegistrationInviteViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/registration-invites/{inviteId}/reissue", new
+        {
+            ValidDays = validDays
+        }, cancellationToken);
+
+    public Task<ApiResult<bool>> CancelRegistrationInviteAsync(Guid licenseId, Guid inviteId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/registration-invites/{inviteId}", cancellationToken);
 
     public Task<ApiResult<PublicRegistrationInviteViewModel>> CompleteRegistrationInviteAsync(string token, CompleteRegistrationInviteViewModel model, CancellationToken cancellationToken = default) =>
         SendForAsync<PublicRegistrationInviteViewModel>(HttpMethod.Post, $"api/public/registration-invites/{Uri.EscapeDataString(token)}/complete", new

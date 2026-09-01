@@ -4,7 +4,7 @@
     <TitleContent>
         <div class="dialog-title-block">
             <MudIcon Icon="@Icons.Material.Outlined.PersonAddAlt1" />
-            <div><MudText Typo="Typo.h6">Autorizar visitante</MudText><MudText Typo="Typo.caption">Defina quem, quando e por onde a pessoa poderá acessar.</MudText></div>
+            <div><MudText Typo="Typo.h6">Autorizar acesso temporário</MudText><MudText Typo="Typo.caption">Defina quem, quando e por onde a pessoa poderá acessar.</MudText></div>
         </div>
     </TitleContent>
     <DialogContent>
@@ -23,7 +23,12 @@
             </div>
 
             <div class="visit-form-section">
-                <div class="form-section-heading"><span>2</span><div><strong>Visitante</strong><small>Dados para identificação na portaria.</small></div></div>
+                <div class="form-section-heading"><span>2</span><div><strong>Tipo de acesso</strong><small>As rotas disponíveis respeitam a finalidade da autorização.</small></div></div>
+                <div class="credential-segment" role="radiogroup" aria-label="Tipo de pessoa">
+                    <button type="button" role="radio" aria-checked="@(_form.AccessType == GuestAccessType)" class="@AccessTypeClass(GuestAccessType)" @onclick="() => SelectAccessType(GuestAccessType)"><MudIcon Icon="@Icons.Material.Outlined.Person" /><span><strong>Visitante</strong><small>Acesso eventual ou convite</small></span></button>
+                    <button type="button" role="radio" aria-checked="@(_form.AccessType == ServiceProviderAccessType)" class="@AccessTypeClass(ServiceProviderAccessType)" @onclick="() => SelectAccessType(ServiceProviderAccessType)"><MudIcon Icon="@Icons.Material.Outlined.Engineering" /><span><strong>Prestador de serviço</strong><small>Autorização única ou recorrente</small></span></button>
+                </div>
+                <div class="form-section-heading form-section-subheading"><div><strong>@PersonTypeTitle</strong><small>Dados para identificação na portaria.</small></div></div>
                 <div class="form-grid form-grid-two">
                     <MudTextField T="string" @bind-Value="_form.VisitorName" Label="Nome completo" Required MaxLength="150" Immediate="true" Variant="Variant.Outlined" />
                     <MudTextField T="string" @bind-Value="_form.Document" Label="CPF, RG ou documento" MaxLength="20" Immediate="true" Variant="Variant.Outlined" />
@@ -91,7 +96,7 @@
                 {
                     <div class="form-grid form-grid-two">
                         <MudNumericField T="int" @bind-Value="_form.RepeatCount" Label="Quantidade de ocorrências" Min="2" Max="30" Variant="Variant.Outlined" />
-                        <MudNumericField T="int" @bind-Value="_form.RepeatEveryDays" Label="Intervalo em dias" Min="1" Max="365" Variant="Variant.Outlined" />
+                        <MudSelect T="int" @bind-Value="_form.RepeatEveryDays" Label="Frequência" Variant="Variant.Outlined"><MudSelectItem Value="1">Todos os dias</MudSelectItem><MudSelectItem Value="7">Toda semana</MudSelectItem><MudSelectItem Value="15">A cada 15 dias</MudSelectItem><MudSelectItem Value="30">Todo mês</MudSelectItem></MudSelect>
                     </div>
                 }
             </div>
@@ -100,7 +105,7 @@
                 <div class="form-section-heading"><span>4</span><div><strong>Rotas permitidas</strong><small>Somente os terminais destas rotas receberão a credencial.</small></div></div>
                 @if (Routes.Count == 0)
                 {
-                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Nenhuma rota para visitantes está configurada. Solicite ao síndico ou administrador a configuração antes de liberar o acesso.</MudAlert>
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Nenhuma rota para @AudienceLabel está configurada. Solicite ao síndico ou administrador a configuração antes de liberar o acesso.</MudAlert>
                 }
                 else
                 {
@@ -118,7 +123,7 @@
 
             <div class="form-actions dialog-form-actions">
                 <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="Cancel">Cancelar</MudButton>
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.VerifiedUser" Disabled="@(_saving || Routes.Count == 0)">@(_saving ? "Autorizando..." : "Autorizar visita")</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.VerifiedUser" Disabled="@(_saving || Routes.Count == 0)">@(_saving ? "Autorizando..." : "Autorizar acesso")</MudButton>
             </div>
         </EditForm>
     </DialogContent>
@@ -139,6 +144,9 @@
     private string? _error;
     private string? _photoName;
     private bool _recurring;
+    private List<AccessRouteViewModel> _availableRoutes = [];
+    private const int GuestAccessType = 3;
+    private const int ServiceProviderAccessType = 4;
 
     protected override void OnInitialized()
     {
@@ -148,8 +156,8 @@
         _fromTime = now.TimeOfDay;
         _toDate = suggestedEnd.Date;
         _toTime = suggestedEnd.TimeOfDay;
-        Routes = Routes.Where(x => x.IsActive && x.AllowTemporary && ((AccessRouteAudience)x.Audience).HasFlag(AccessRouteAudience.Visitor)).ToList();
-        _form.RouteIds = Routes.Select(x => x.Id).ToList();
+        _availableRoutes = Routes.Where(x => x.IsActive && x.AllowTemporary).ToList();
+        SelectAccessType(GuestAccessType);
     }
 
     private async Task<IEnumerable<GlobalResidentSearchViewModel>> SearchHostsAsync(string value, CancellationToken cancellationToken)
@@ -185,6 +193,22 @@
     }
 
     private string SegmentClass(int type) => _form.CredentialType == type ? "credential-segment-option selected" : "credential-segment-option";
+    private string AccessTypeClass(int type) => _form.AccessType == type ? "credential-segment-option selected" : "credential-segment-option";
+    private string PersonTypeTitle => _form.AccessType == ServiceProviderAccessType ? "Prestador" : "Visitante";
+    private string AudienceLabel => _form.AccessType == ServiceProviderAccessType ? "prestadores de serviço" : "visitantes";
+    private void SelectAccessType(int accessType)
+    {
+        _form.AccessType = accessType;
+        var audience = accessType == ServiceProviderAccessType ? AccessRouteAudience.ServiceProvider : AccessRouteAudience.Visitor;
+        Routes = _availableRoutes.Where(x => ((AccessRouteAudience)x.Audience).HasFlag(audience)).ToList();
+        _form.RouteIds = Routes.Select(x => x.Id).ToList();
+        if (accessType == ServiceProviderAccessType && !_form.CreateFacialInvite)
+        {
+            _recurring = true;
+            _form.RepeatCount = Math.Max(2, _form.RepeatCount);
+        }
+        _error = null;
+    }
     private string FacialModeClass(bool invite) => _form.CreateFacialInvite == invite ? "credential-segment-option selected" : "credential-segment-option";
     private void SelectFacialMode(bool invite)
     {
@@ -244,7 +268,7 @@
     {
         var messages = context.GetValidationMessages().Distinct().ToList();
         _error = messages.Count == 0
-            ? "Revise os dados do visitante antes de autorizar o acesso."
+            ? $"Revise os dados do {PersonTypeTitle.ToLowerInvariant()} antes de autorizar o acesso."
             : string.Join(" ", messages);
     }
 

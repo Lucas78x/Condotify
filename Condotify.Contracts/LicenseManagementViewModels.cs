@@ -572,12 +572,21 @@ namespace Condotify.Models
         public bool Temporary { get; set; }
         public DateTime Expire { get; set; }
         public List<GlobalCredentialSearchViewModel> Credentials { get; set; } = [];
+        public List<GlobalVehicleSearchViewModel> Vehicles { get; set; } = [];
     }
 
     public class GlobalCredentialSearchViewModel
     {
         public string Type { get; set; } = string.Empty;
         public string Identifier { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+
+    public class GlobalVehicleSearchViewModel
+    {
+        public string Plate { get; set; } = string.Empty;
+        public string Brand { get; set; } = string.Empty;
+        public string Model { get; set; } = string.Empty;
         public bool IsActive { get; set; }
     }
 
@@ -1061,6 +1070,7 @@ namespace Condotify.Models
         public string BlockName { get; set; } = string.Empty;
         public string UnitNumber { get; set; } = string.Empty;
         public string VisitorName { get; set; } = string.Empty;
+        public string AccessType { get; set; } = string.Empty;
         public string Document { get; set; } = string.Empty;
         public string PhoneNumber { get; set; } = string.Empty;
         public string Company { get; set; } = string.Empty;
@@ -1133,6 +1143,7 @@ namespace Condotify.Models
     public class ConciergeVisitFormViewModel
     {
         [Required(ErrorMessage = "Selecione o morador que receberá a visita.")] public Guid HostResidentId { get; set; }
+        public int AccessType { get; set; } = 3;
         [Required(ErrorMessage = "Informe o nome do visitante."), MaxLength(150, ErrorMessage = "O nome do visitante deve ter no máximo 150 caracteres.")] public string VisitorName { get; set; } = string.Empty;
         [MaxLength(20, ErrorMessage = "O documento deve ter no máximo 20 caracteres.")] public string Document { get; set; } = string.Empty;
         [MaxLength(20, ErrorMessage = "O telefone deve ter no máximo 20 caracteres.")] public string PhoneNumber { get; set; } = string.Empty;

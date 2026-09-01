@@ -178,3 +178,8 @@ public class CompleteRegistrationInviteIn
     public string? Password { get; set; }
     public bool ConfirmExistingAccount { get; set; }
 }
+
+public class ReissueRegistrationInviteIn
+{
+    public int ValidDays { get; set; } = 7;
+}

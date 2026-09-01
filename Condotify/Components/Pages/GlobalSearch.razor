@@ -12,15 +12,16 @@
     </div>
     <div class="panel-body">
         <div class="global-search-grid">
-            <MudTextField T="string" @bind-Value="_name" Label="Pessoa" Placeholder="Nome ou e-mail" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.PersonSearch" Immediate />
-            <MudTextField T="string" @bind-Value="_document" Label="Documento" Placeholder="CPF ou RG" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Badge" Immediate />
-            <MudTextField T="string" @bind-Value="_phone" Label="Telefone" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Phone" Immediate />
-            <MudTextField T="string" @bind-Value="_credential" Label="Credencial" Placeholder="Cartão, tag ou QR Code" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Contactless" Immediate />
+            <MudTextField T="string" @bind-Value="_name" Label="Pessoa" Placeholder="Nome ou e-mail" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.PersonSearch" Immediate OnKeyDown="HandleSearchKeyDownAsync" />
+            <MudTextField T="string" @bind-Value="_document" Label="Documento" Placeholder="CPF ou RG" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Badge" Immediate OnKeyDown="HandleSearchKeyDownAsync" />
+            <MudTextField T="string" @bind-Value="_phone" Label="Telefone" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Phone" Immediate OnKeyDown="HandleSearchKeyDownAsync" />
+            <MudTextField T="string" @bind-Value="_credential" Label="Credencial" Placeholder="Cartão, tag ou QR Code" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Contactless" Immediate OnKeyDown="HandleSearchKeyDownAsync" />
+            <MudTextField T="string" @bind-Value="_vehiclePlate" Label="Veículo" Placeholder="Placa" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.DirectionsCar" Immediate OnKeyDown="HandleSearchKeyDownAsync" />
             <MudSelect T="string" @bind-Value="_licenseId" Label="Condomínio" Variant="Variant.Outlined">
                 <MudSelectItem T="string" Value="@("all")">Todos os condomínios</MudSelectItem>
                 @foreach (var license in _licenses.OrderBy(x => x.Nome)) { <MudSelectItem T="string" Value="@license.Id">@license.Nome</MudSelectItem> }
             </MudSelect>
-            <MudTextField T="string" @bind-Value="_unit" Label="Bloco ou unidade" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Apartment" Immediate />
+            <MudTextField T="string" @bind-Value="_unit" Label="Bloco ou unidade" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Apartment" Immediate OnKeyDown="HandleSearchKeyDownAsync" />
         </div>
         <div class="form-actions search-actions">
             <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Clear" Disabled="@(!HasFilters || _loading)" OnClick="ClearAsync">Limpar</MudButton>
@@ -51,13 +52,14 @@
     else
     {
         <div class="table-wrap"><MudTable Items="_results" Hover Dense Elevation="0" RowsPerPage="20">
-            <HeaderContent><MudTh>Pessoa</MudTh><MudTh>Condomínio</MudTh><MudTh>Unidade</MudTh><MudTh>Contato</MudTh><MudTh>Credenciais</MudTh><MudTh></MudTh></HeaderContent>
+            <HeaderContent><MudTh>Pessoa</MudTh><MudTh>Condomínio</MudTh><MudTh>Unidade</MudTh><MudTh>Contato</MudTh><MudTh>Credenciais</MudTh>@if (_showVehicleResults) { <MudTh>Veículos</MudTh> }<MudTh></MudTh></HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Pessoa"><div class="license-name-cell"><span class="person-monogram">@Monogram(context.Name)</span><span class="license-meta"><span class="license-title">@context.Name</span><span class="license-code">@DocumentLabel(context)</span></span></div></MudTd>
                 <MudTd DataLabel="Condomínio">@context.LicenseName</MudTd>
                 <MudTd DataLabel="Unidade"><strong>@context.UnitNumber</strong><div class="license-code">@context.BlockName</div></MudTd>
                 <MudTd DataLabel="Contato">@(!string.IsNullOrWhiteSpace(context.PhoneNumber) ? context.PhoneNumber : context.Email)</MudTd>
                 <MudTd DataLabel="Credenciais"><div class="credential-bindings">@foreach (var credential in context.Credentials) { <span class="sync-state @(credential.IsActive ? "ok" : "pending")">@CredentialLabel(credential.Type) @credential.Identifier</span> }</div></MudTd>
+                @if (_showVehicleResults) { <MudTd DataLabel="Veículos"><div class="credential-bindings">@foreach (var vehicle in context.Vehicles) { <span class="sync-state @(vehicle.IsActive ? "ok" : "pending")">@vehicle.Plate</span> }</div></MudTd> }
                 <MudTd><MudTooltip Text="Abrir cadastro no condomínio"><MudIconButton Href="@LicenseTarget(context.LicenseId, "estrutura")" Icon="@Icons.Material.Outlined.ArrowForward" Color="Color.Primary" /></MudTooltip></MudTd>
             </RowTemplate>
             <PagerContent><MudTablePager PageSizeOptions="@(new int[] { 20, 50, 100 })" RowsPerPageString="Itens por página" InfoFormat="{first_item}-{last_item} de {all_items}" AllItemsText="Todos" /></PagerContent>
@@ -72,12 +74,14 @@
     private string? _document;
     private string? _phone;
     private string? _credential;
+    private string? _vehiclePlate;
     private string? _unit;
     private string _licenseId = "all";
     private string? _error;
     private bool _loading;
     private bool _searched;
-    private bool HasFilters => _licenseId != "all" || new[] { _name, _document, _phone, _credential, _unit }.Any(x => !string.IsNullOrWhiteSpace(x));
+    private bool _showVehicleResults;
+    private bool HasFilters => _licenseId != "all" || new[] { _name, _document, _phone, _credential, _vehiclePlate, _unit }.Any(x => !string.IsNullOrWhiteSpace(x));
     private string ResultSubtitle => !_searched ? "Aguardando pesquisa" : $"{_results.Count} pessoa(s) encontrada(s)";
 
     protected override async Task OnInitializedAsync()
@@ -89,14 +93,21 @@
     {
         if (!HasFilters) return;
         _loading = true; _error = null; _searched = true;
-        var result = await Api.SearchResidentsAsync(_name, _document, _phone, _credential, _unit, _licenseId == "all" ? null : _licenseId);
+        _showVehicleResults = !string.IsNullOrWhiteSpace(_vehiclePlate);
+        var result = await Api.SearchResidentsAsync(_name, _document, _phone, _credential, _unit, _licenseId == "all" ? null : _licenseId, _vehiclePlate);
         _loading = false;
         if (result.Success) _results = result.Value ?? []; else { _results = []; _error = result.Error; }
     }
     private Task ClearAsync()
     {
-        _name = _document = _phone = _credential = _unit = null; _licenseId = "all"; _results = []; _searched = false; _error = null;
+        _name = _document = _phone = _credential = _vehiclePlate = _unit = null; _licenseId = "all"; _results = []; _searched = false; _showVehicleResults = false; _error = null;
         return Task.CompletedTask;
+    }
+    private async Task HandleSearchKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (_loading) return;
+        if (args.Key == "Enter" && HasFilters) await SearchAsync();
+        else if (args.Key == "Escape" && HasFilters) await ClearAsync();
     }
     private static string Monogram(string name) => string.IsNullOrWhiteSpace(name) ? "P" : name.Trim()[0].ToString().ToUpperInvariant();
     private static string DocumentLabel(GlobalResidentSearchViewModel item) => !string.IsNullOrWhiteSpace(item.CPF) ? $"CPF {item.CPF}" : !string.IsNullOrWhiteSpace(item.RG) ? $"RG {item.RG}" : item.AccessType;

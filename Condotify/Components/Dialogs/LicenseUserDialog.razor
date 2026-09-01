@@ -25,10 +25,14 @@
             </div>
 
             <div class="permission-editor">
-                <div class="permission-editor-head"><div><strong>Permissões deste usuário</strong><span>Ajuste exceções ao perfil selecionado.</span></div><MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ResetPermissions">Restaurar perfil</MudButton></div>
-                @foreach (var group in LicensePermissionCatalog.Options.GroupBy(x => x.Group))
+                <div class="permission-editor-head">
+                    <div><strong>Permissões deste usuário</strong><span>Ajuste exceções ao perfil selecionado.</span></div>
+                    <div class="permission-editor-summary"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@(HasCustomPermissions ? Color.Warning : Color.Info)">@PermissionProfileLabel</MudChip><strong>@SelectedPermissionCount de @LicensePermissionCatalog.Options.Count</strong><MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ResetPermissions">Restaurar perfil</MudButton></div>
+                </div>
+                <MudTextField T="string" @bind-Value="_permissionSearch" Placeholder="Buscar permissão" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate Class="permission-search" />
+                @foreach (var group in FilteredPermissionGroups)
                 {
-                    <section class="permission-group"><h4>@group.Key</h4><div class="permission-grid">
+                    <section class="permission-group"><div class="permission-group-head"><h4>@group.Key</h4><button type="button" @onclick="@(() => SetGroupPermissions(group, !IsGroupSelected(group)))">@(IsGroupSelected(group) ? "Limpar grupo" : "Selecionar grupo")</button></div><div class="permission-grid">
                         @foreach (var option in group)
                         {
                             <label class="permission-option"><MudCheckBox T="bool" Value="@HasPermission(option.Permission)" ValueChanged="@(value => SetPermission(option.Permission, value))" Color="Color.Primary" /><span><strong>@option.Name</strong><small>@option.Description</small></span></label>
@@ -54,6 +58,13 @@
     private EditContext _editContext = null!;
     private bool _saving;
     private string? _error;
+    private string? _permissionSearch;
+    private IEnumerable<IGrouping<string, LicensePermissionOption>> FilteredPermissionGroups => LicensePermissionCatalog.Options
+        .Where(x => string.IsNullOrWhiteSpace(_permissionSearch) || $"{x.Group} {x.Name} {x.Description}".Contains(_permissionSearch, StringComparison.OrdinalIgnoreCase))
+        .GroupBy(x => x.Group);
+    private int SelectedPermissionCount => LicensePermissionCatalog.Options.Count(x => HasPermission(x.Permission));
+    private bool HasCustomPermissions => LicensePermissionCatalog.Normalize(_form.Permissions) != LicensePermissionCatalog.Normalize(LicensePermissionCatalog.Defaults(_form.Role));
+    private string PermissionProfileLabel => HasCustomPermissions ? "Acesso personalizado" : "Perfil padrão";
 
     protected override void OnInitialized()
     {
@@ -67,6 +78,19 @@
     private void RoleChanged(int role) { _form.Role = role; _form.Permissions = LicensePermissionCatalog.Defaults(role); }
     private void ResetPermissions() => _form.Permissions = LicensePermissionCatalog.Defaults(_form.Role);
     private bool HasPermission(LicensePermission permission) => (_form.Permissions & (long)permission) == (long)permission;
+    private bool IsGroupSelected(IEnumerable<LicensePermissionOption> options) => options.All(x => HasPermission(x.Permission));
+    private void SetGroupPermissions(IEnumerable<LicensePermissionOption> options, bool enabled)
+    {
+        var group = options.ToList();
+        if (enabled)
+        {
+            _form.Permissions = LicensePermissionCatalog.Normalize(group.Aggregate(_form.Permissions, (value, option) => value | (long)option.Permission));
+            return;
+        }
+
+        foreach (var option in group)
+            _form.Permissions = LicensePermissionCatalog.RemoveDependents(_form.Permissions, option.Permission);
+    }
     private void SetPermission(LicensePermission permission, bool enabled) => _form.Permissions = enabled
         ? LicensePermissionCatalog.Normalize(_form.Permissions | (long)permission)
         : LicensePermissionCatalog.RemoveDependents(_form.Permissions, permission);

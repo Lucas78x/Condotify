@@ -22,6 +22,7 @@ using CondotifyAPI.Services.Authorization;
 using CondotifyAPI.Services.RecycleBin;
 using CondotifyAPI.Services.Mobile;
 using CondotifyAPI.Services.Security;
+using CondotifyAPI.Domain.Enums.Resident;
 
 namespace CondotifyAPI.Controllers;
 
@@ -272,8 +273,10 @@ public class LicenseStructureController : ControllerBase
     {
         if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
 
-        if (input.UnitId == Guid.Empty || string.IsNullOrWhiteSpace(input.Name))
-            return BadRequest(new { Result = "InvalidRequest", Errors = "Unidade e nome do morador sao obrigatorios." });
+        var now = DateTime.UtcNow;
+        var validationError = ValidateResidentRegistration(input, now);
+        if (validationError is not null)
+            return BadRequest(new { Result = "InvalidRequest", Errors = validationError });
 
         var unit = await _context.Units
             .Include(x => x.Block)
@@ -287,9 +290,8 @@ public class LicenseStructureController : ControllerBase
             x.CPF == input.CPF);
 
         if (duplicate)
-            return Conflict(new { Result = "Duplicate", Errors = "Ja existe um morador com este CPF nesta unidade." });
+            return Conflict(new { Result = "Duplicate", Errors = "Ja existe uma pessoa com este CPF nesta unidade." });
 
-        var now = DateTime.UtcNow;
         var resident = new ResidentAccessDTO
         {
             Id = Guid.NewGuid(),
@@ -327,6 +329,30 @@ public class LicenseStructureController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Created("", ToResidentOut(resident, unit.Number));
+    }
+
+    internal static string? ValidateResidentRegistration(CreateResidentIn input, DateTime now)
+    {
+        if (input.UnitId == Guid.Empty || string.IsNullOrWhiteSpace(input.Name))
+            return "Unidade e nome da pessoa sao obrigatorios.";
+        if (!Enum.IsDefined(input.AccessType) || input.AccessType == ResidentAccessTypeEnum.Default)
+            return "Informe uma categoria valida para a pessoa.";
+        if (!Enum.IsDefined(input.Relationship))
+            return "Informe um vinculo valido com a unidade.";
+
+        var temporaryCategory = input.AccessType is ResidentAccessTypeEnum.Guest or ResidentAccessTypeEnum.ServiceProvider;
+        if (temporaryCategory && !input.Temporary)
+            return "Visitantes e prestadores devem possuir acesso temporario.";
+        if (input.Temporary && (!input.Expire.HasValue || input.Expire.Value <= now))
+            return "Informe uma validade futura para o acesso temporario.";
+        if (temporaryCategory && input.Relationship != ResidentUnitRelationshipEnum.Resident)
+            return "Visitantes e prestadores nao podem usar vinculo residencial.";
+        if (input.AccessType == ResidentAccessTypeEnum.Responsible && input.Relationship is ResidentUnitRelationshipEnum.Resident or ResidentUnitRelationshipEnum.Dependent)
+            return "Selecione um vinculo de responsavel para este morador.";
+        if (input.AccessType == ResidentAccessTypeEnum.NonResponsible && input.Relationship is not (ResidentUnitRelationshipEnum.Resident or ResidentUnitRelationshipEnum.Dependent))
+            return "Selecione o vinculo morador ou dependente.";
+
+        return null;
     }
 
     [HttpGet("devices")]

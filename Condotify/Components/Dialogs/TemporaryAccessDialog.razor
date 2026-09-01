@@ -1,0 +1,251 @@
+@inject CondotifyApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject Microsoft.JSInterop.IJSRuntime JS
+
+<MudDialog Class="entity-dialog entity-dialog-wide temporary-access-dialog">
+    <DialogContent>
+        <div class="dialog-description">
+            <MudIcon Icon="@Icons.Material.Outlined.Schedule" />
+            <div><strong>Central de acessos temporários</strong><span>Acompanhe pessoas com prazo definido e convites de cadastro em toda a licença.</span></div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+        }
+
+        <div class="temporary-summary">
+            <article><span class="overview-icon blue"><MudIcon Icon="@Icons.Material.Outlined.PersonPin" /></span><div><strong>@ActiveTemporaryCount</strong><small>Pessoas temporárias ativas</small></div></article>
+            <article><span class="overview-icon amber"><MudIcon Icon="@Icons.Material.Outlined.AccessTime" /></span><div><strong>@ExpiringTemporaryCount</strong><small>Expiram em até 72 horas</small></div></article>
+            <article><span class="overview-icon green"><MudIcon Icon="@Icons.Material.Outlined.MarkEmailUnread" /></span><div><strong>@PendingInviteCount</strong><small>Convites aguardando conclusão</small></div></article>
+        </div>
+
+        <div class="temporary-view-switch" role="tablist" aria-label="Conteúdo da central">
+            <button type="button" role="tab" aria-selected="@(_activeView == "people")" class="@ViewClass("people")" @onclick="@(() => SetView("people"))"><MudIcon Icon="@Icons.Material.Outlined.Groups" /><span>Pessoas temporárias</span><strong>@TemporaryPeople.Count</strong></button>
+            <button type="button" role="tab" aria-selected="@(_activeView == "invites")" class="@ViewClass("invites")" @onclick="@(() => SetView("invites"))"><MudIcon Icon="@Icons.Material.Outlined.Send" /><span>Convites de cadastro</span><strong>@_invites.Count</strong></button>
+        </div>
+
+        @if (_loading)
+        {
+            <div class="loading-state"><MudProgressCircular Indeterminate Color="Color.Primary" /></div>
+        }
+        else if (_activeView == "people")
+        {
+            <div class="temporary-toolbar">
+                <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar nome, unidade ou contato" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate />
+                <MudSelect T="string" @bind-Value="_peopleStatus" Label="Situação" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem Value="@("all")">Todas</MudSelectItem><MudSelectItem Value="@("active")">Ativas</MudSelectItem><MudSelectItem Value="@("expiring")">Próximas do vencimento</MudSelectItem><MudSelectItem Value="@("expired")">Expiradas</MudSelectItem></MudSelect>
+            </div>
+            @if (!FilteredTemporaryPeople.Any())
+            {
+                <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.PersonOff" /><span>Nenhuma pessoa temporária corresponde aos filtros.</span></div>
+            }
+            else
+            {
+                <div class="temporary-list">
+                    @foreach (var person in FilteredTemporaryPeople)
+                    {
+                        <article class="temporary-row">
+                            <span class="temporary-row-icon @TemporaryTone(person)"><MudIcon Icon="@PersonIcon(person.AccessType)" /></span>
+                            <div class="temporary-row-main"><strong>@person.Name</strong><span>@PersonTypeLabel(person.AccessType) · @UnitLabelSingular @person.UnitNumber</span><small>@PrimaryContact(person)</small></div>
+                            <div class="temporary-row-validity"><small>Validade</small><strong>@person.Expire.ToCondotifyTime().ToString("dd/MM/yyyy")</strong><span>@ExpirationLabel(person.Expire)</span></div>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@TemporaryColor(person)">@TemporaryStatusLabel(person)</MudChip>
+                            <MudTooltip Text="Abrir cadastro"><MudIconButton Icon="@Icons.Material.Outlined.ChevronRight" OnClick="@(() => OpenProfileAsync(person.Id, 0))" /></MudTooltip>
+                        </article>
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <div class="temporary-toolbar">
+                <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar pessoa, contato ou responsável" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate />
+                <MudSelect T="string" @bind-Value="_inviteStatus" Label="Situação" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem Value="@("all")">Todos</MudSelectItem><MudSelectItem Value="@("pending")">Pendentes</MudSelectItem><MudSelectItem Value="@("completed")">Concluídos</MudSelectItem><MudSelectItem Value="@("expired")">Expirados ou cancelados</MudSelectItem></MudSelect>
+            </div>
+            @if (!FilteredInvites.Any())
+            {
+                <div class="profile-empty"><MudIcon Icon="@Icons.Material.Outlined.MarkEmailRead" /><span>Nenhum convite corresponde aos filtros.</span></div>
+            }
+            else
+            {
+                <div class="temporary-list">
+                    @foreach (var invite in FilteredInvites)
+                    {
+                        <article class="temporary-row invite-central-row">
+                            <span class="temporary-row-icon @InviteTone(invite.Status)"><MudIcon Icon="@InviteIcon(invite.Status)" /></span>
+                            <div class="temporary-row-main"><strong>@invite.ResidentName</strong><span>@invite.Contact · @invite.Channel</span><small>Enviado por @invite.CreatedBy em @invite.SentAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</small></div>
+                            <div class="temporary-row-validity"><small>Expira em</small><strong>@invite.ExpiresAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</strong><span>@ExpirationLabel(invite.ExpiresAt)</span></div>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@InviteColor(invite.Status)">@InviteLabel(invite.Status)</MudChip>
+                            <div class="temporary-row-actions">
+                                @if (!string.IsNullOrWhiteSpace(invite.InviteUrl) && invite.Status is "Pending" or "Opened")
+                                {
+                                    <MudTooltip Text="Copiar link"><MudIconButton Icon="@Icons.Material.Outlined.ContentCopy" Color="Color.Primary" OnClick="@(() => CopyInviteAsync(invite))" /></MudTooltip>
+                                }
+                                @if (CanManagePeople && invite.Status != "Completed")
+                                {
+                                    <MudTooltip Text="@(invite.Channel == "Email" ? "Reenviar convite" : "Gerar novo link")"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Disabled="@IsOperatingInvite(invite.Id)" OnClick="@(() => ReissueInviteAsync(invite))" /></MudTooltip>
+                                }
+                                @if (CanManagePeople && invite.Status is "Pending" or "Opened")
+                                {
+                                    <MudTooltip Text="Cancelar convite"><MudIconButton Icon="@Icons.Material.Outlined.Block" Color="Color.Error" Disabled="@IsOperatingInvite(invite.Id)" OnClick="@(() => CancelInviteAsync(invite))" /></MudTooltip>
+                                }
+                                <MudTooltip Text="Abrir perfil e convites"><MudIconButton Icon="@Icons.Material.Outlined.ChevronRight" OnClick="@(() => OpenProfileAsync(invite.ResidentId, 3))" /></MudTooltip>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        }
+    </DialogContent>
+    <DialogActions><MudButton Variant="Variant.Text" OnClick="Close">Fechar</MudButton></DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Guid LicenseId { get; set; }
+    [Parameter] public bool CanManagePeople { get; set; }
+    [Parameter] public bool CanManageCredentials { get; set; }
+    [Parameter] public string UnitLabelSingular { get; set; } = "Unidade";
+
+    private LicenseStructureViewModel _structure = new();
+    private List<RegistrationInviteViewModel> _invites = [];
+    private bool _loading = true;
+    private string? _error;
+    private string _activeView = "people";
+    private string _search = string.Empty;
+    private string _peopleStatus = "all";
+    private string _inviteStatus = "all";
+    private Guid? _operatingInviteId;
+    private List<ResidentRowViewModel> TemporaryPeople => _structure.Blocks.SelectMany(x => x.Units).SelectMany(x => x.Residents).Where(x => x.Temporary).ToList();
+    private IEnumerable<ResidentRowViewModel> FilteredTemporaryPeople => TemporaryPeople.Where(MatchesPerson).OrderBy(x => x.Expire).ThenBy(x => x.Name);
+    private IEnumerable<RegistrationInviteViewModel> FilteredInvites => _invites.Where(MatchesInvite).OrderByDescending(x => x.SentAt);
+    private int ActiveTemporaryCount => TemporaryPeople.Count(x => x.Expire > DateTime.UtcNow);
+    private int ExpiringTemporaryCount => TemporaryPeople.Count(x => x.Expire > DateTime.UtcNow && x.Expire <= DateTime.UtcNow.AddHours(72));
+    private int PendingInviteCount => _invites.Count(x => x.Status is "Pending" or "Opened");
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        var structureTask = Api.GetStructureAsync(LicenseId);
+        var invitesTask = Api.GetRegistrationInvitesAsync(LicenseId);
+        await Task.WhenAll(structureTask, invitesTask);
+        _loading = false;
+        if (structureTask.Result.Success) _structure = structureTask.Result.Value ?? new(); else _error = structureTask.Result.Error;
+        if (invitesTask.Result.Success) _invites = invitesTask.Result.Value ?? []; else _error ??= invitesTask.Result.Error;
+    }
+
+    private void Close() => Dialog.Close(DialogResult.Ok(true));
+    private void SetView(string view) { _activeView = view; _search = string.Empty; }
+    private string ViewClass(string view) => $"{(_activeView == view ? "active" : string.Empty)}";
+    private bool MatchesPerson(ResidentRowViewModel person)
+    {
+        var statusMatches = _peopleStatus switch
+        {
+            "active" => person.Expire > DateTime.UtcNow,
+            "expiring" => person.Expire > DateTime.UtcNow && person.Expire <= DateTime.UtcNow.AddHours(72),
+            "expired" => person.Expire <= DateTime.UtcNow,
+            _ => true
+        };
+        return statusMatches && (string.IsNullOrWhiteSpace(_search) || $"{person.Name} {person.UnitNumber} {person.Email} {person.PhoneNumber} {person.AccessType}".Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool MatchesInvite(RegistrationInviteViewModel invite)
+    {
+        var statusMatches = _inviteStatus switch
+        {
+            "pending" => invite.Status is "Pending" or "Opened",
+            "completed" => invite.Status == "Completed",
+            "expired" => invite.Status is "Expired" or "Canceled",
+            _ => true
+        };
+        return statusMatches && (string.IsNullOrWhiteSpace(_search) || $"{invite.ResidentName} {invite.Contact} {invite.CreatedBy} {invite.Channel}".Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task OpenProfileAsync(Guid residentId, int tabIndex)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(PersonProfileDialog.LicenseId)] = LicenseId,
+            [nameof(PersonProfileDialog.ResidentId)] = residentId,
+            [nameof(PersonProfileDialog.CanManagePeople)] = CanManagePeople,
+            [nameof(PersonProfileDialog.CanManageCredentials)] = CanManageCredentials,
+            [nameof(PersonProfileDialog.InitialTabIndex)] = tabIndex,
+            [nameof(PersonProfileDialog.UnitLabelSingular)] = UnitLabelSingular
+        };
+        var dialog = await DialogService.ShowAsync<PersonProfileDialog>("Cadastro da pessoa", parameters, new DialogOptions { CloseButton = true, FullWidth = true, MaxWidth = MaxWidth.Large });
+        await dialog.Result;
+        await LoadAsync();
+    }
+
+    private async Task CopyInviteAsync(RegistrationInviteViewModel invite)
+    {
+        if (string.IsNullOrWhiteSpace(invite.InviteUrl)) return;
+        var url = Navigation.ToAbsoluteUri(invite.InviteUrl).ToString();
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+        Snackbar.Add("Link do convite copiado.", Severity.Success);
+    }
+
+    private bool IsOperatingInvite(Guid inviteId) => _operatingInviteId == inviteId;
+
+    private async Task ReissueInviteAsync(RegistrationInviteViewModel invite)
+    {
+        _operatingInviteId = invite.Id;
+        var result = await Api.ReissueRegistrationInviteAsync(LicenseId, invite.Id);
+        _operatingInviteId = null;
+        if (!result.Success || result.Value is null)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível reemitir o convite.", Severity.Error);
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(result.Value.InviteUrl))
+        {
+            var url = Navigation.ToAbsoluteUri(result.Value.InviteUrl).ToString();
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+        }
+        Snackbar.Add(invite.Channel == "Email" ? "Convite reenviado por e-mail." : "Novo link gerado e copiado.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task CancelInviteAsync(RegistrationInviteViewModel invite)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Cancelar convite",
+            $"O link de cadastro de {invite.ResidentName} deixará de funcionar. Confirmar?",
+            yesText: "Cancelar convite",
+            cancelText: "Voltar");
+        if (confirmed != true) return;
+
+        _operatingInviteId = invite.Id;
+        var result = await Api.CancelRegistrationInviteAsync(LicenseId, invite.Id);
+        _operatingInviteId = null;
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível cancelar o convite.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Convite cancelado.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private static string PrimaryContact(ResidentRowViewModel person) => !string.IsNullOrWhiteSpace(person.PhoneNumber) ? person.PhoneNumber : !string.IsNullOrWhiteSpace(person.Email) ? person.Email : "Sem contato";
+    private static string PersonTypeLabel(string type) => type switch { "Guest" => "Visitante", "ServiceProvider" => "Prestador de serviço", _ => "Morador temporário" };
+    private static string PersonIcon(string type) => type == "ServiceProvider" ? Icons.Material.Outlined.Engineering : Icons.Material.Outlined.PersonPin;
+    private static string TemporaryStatusLabel(ResidentRowViewModel person) => person.Expire <= DateTime.UtcNow ? "Expirado" : person.Expire <= DateTime.UtcNow.AddHours(72) ? "Expira em breve" : "Ativo";
+    private static Color TemporaryColor(ResidentRowViewModel person) => person.Expire <= DateTime.UtcNow ? Color.Error : person.Expire <= DateTime.UtcNow.AddHours(72) ? Color.Warning : Color.Success;
+    private static string TemporaryTone(ResidentRowViewModel person) => person.Expire <= DateTime.UtcNow ? "error" : person.Expire <= DateTime.UtcNow.AddHours(72) ? "warning" : "success";
+    private static string ExpirationLabel(DateTime value)
+    {
+        var remaining = value - DateTime.UtcNow;
+        if (remaining <= TimeSpan.Zero) return "Prazo encerrado";
+        if (remaining.TotalHours < 24) return $"Em {Math.Max(1, (int)Math.Ceiling(remaining.TotalHours))} hora(s)";
+        return $"Em {Math.Max(1, (int)Math.Ceiling(remaining.TotalDays))} dia(s)";
+    }
+    private static string InviteIcon(string status) => status switch { "Completed" => Icons.Material.Outlined.MarkEmailRead, "Expired" or "Canceled" => Icons.Material.Outlined.EventBusy, "Opened" => Icons.Material.Outlined.Drafts, _ => Icons.Material.Outlined.MarkEmailUnread };
+    private static string InviteTone(string status) => status switch { "Completed" => "success", "Expired" or "Canceled" => "error", "Opened" => "info", _ => "warning" };
+    private static Color InviteColor(string status) => status switch { "Completed" => Color.Success, "Expired" or "Canceled" => Color.Error, "Opened" => Color.Info, _ => Color.Warning };
+    private static string InviteLabel(string status) => status switch { "Completed" => "Concluído", "Expired" => "Expirado", "Canceled" => "Cancelado", "Opened" => "Aberto", _ => "Pendente" };
+}

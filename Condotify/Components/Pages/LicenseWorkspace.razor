@@ -110,7 +110,7 @@ else
                 <AccessRoutesModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageDevices)" />
                 break;
             case "estrutura":
-                <StructureModule LicenseId="LicenseId" ActiveSection="estrutura" CanManageStructure="@Has(LicensePermission.ManageStructure)" CanManagePeople="@Has(LicensePermission.ManagePeople)" CanManageCredentials="@Has(LicensePermission.ManageCredentials)" CanManageDevices="@Has(LicensePermission.ManageDevices)" />
+                <StructureModule LicenseId="LicenseId" ActiveSection="estrutura" CanViewPeople="@Has(LicensePermission.ViewPeople)" CanManageStructure="@Has(LicensePermission.ManageStructure)" CanManagePeople="@Has(LicensePermission.ManagePeople)" CanManageCredentials="@Has(LicensePermission.ManageCredentials)" CanManageDevices="@Has(LicensePermission.ManageDevices)" />
                 break;
             case "agendamento":
                 <AgendamentoModule LicenseId="LicenseId" CanManage="@Has(LicensePermission.ManageBookings)" />

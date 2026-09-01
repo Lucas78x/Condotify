@@ -21,6 +21,8 @@ public static class LicensePermissionCatalog
         new(LicensePermission.ManageStructure, "Cadastros", "Editar estrutura", "Criar e alterar blocos e unidades"),
         new(LicensePermission.ViewPeople, "Cadastros", "Ver pessoas", "Moradores, visitantes e prestadores"),
         new(LicensePermission.ManagePeople, "Cadastros", "Editar pessoas", "Cadastros, veículos e convites"),
+        new(LicensePermission.ViewVehicles, "Cadastros", "Ver veículos", "Veículos vinculados às pessoas e unidades"),
+        new(LicensePermission.ManageVehicles, "Cadastros", "Gerenciar veículos", "Cadastrar, editar e remover veículos e tags"),
         new(LicensePermission.ViewCredentials, "Credenciais", "Ver credenciais", "Faciais, QR Codes, cartões e tags"),
         new(LicensePermission.ManageCredentials, "Credenciais", "Gerenciar credenciais", "Emitir, ativar, renovar e restaurar"),
         new(LicensePermission.ViewDevices, "Infraestrutura", "Ver equipamentos", "Terminais e câmeras"),
@@ -53,6 +55,7 @@ public static class LicensePermissionCatalog
             LicensePermission.ViewDevices | LicensePermission.OperateDevices | LicensePermission.ViewEvents |
             LicensePermission.ViewDeliveries | LicensePermission.ManageDeliveries |
             LicensePermission.ViewBookings | LicensePermission.ManageBookings |
+            LicensePermission.ViewVehicles | LicensePermission.ManageVehicles |
             LicensePermission.ViewAlerts | LicensePermission.ManageAlerts |
             LicensePermission.ViewIncidents | LicensePermission.ManageIncidents |
             LicensePermission.ViewAutomations | LicensePermission.ViewEmergency |
@@ -60,11 +63,13 @@ public static class LicensePermissionCatalog
         3 => (long)(LicensePermission.ViewDashboard | LicensePermission.ViewStructure | LicensePermission.ViewPeople |
             LicensePermission.ViewCredentials | LicensePermission.ViewDevices | LicensePermission.OperateDevices |
             LicensePermission.ViewEvents | LicensePermission.ViewDeliveries | LicensePermission.ViewBookings |
+            LicensePermission.ViewVehicles |
             LicensePermission.ViewAlerts | LicensePermission.ViewIncidents |
             LicensePermission.ManageIncidents | LicensePermission.ViewAutomations |
             LicensePermission.ViewEmergency),
         _ => (long)(LicensePermission.ViewDashboard | LicensePermission.ViewStructure | LicensePermission.ViewPeople |
             LicensePermission.ViewCredentials | LicensePermission.ViewDevices | LicensePermission.ViewEvents |
+            LicensePermission.ViewVehicles |
             LicensePermission.ViewDeliveries | LicensePermission.ViewBookings |
             LicensePermission.ViewAlerts | LicensePermission.ViewIncidents |
             LicensePermission.ViewAutomations | LicensePermission.ViewEmergency)
@@ -76,6 +81,7 @@ public static class LicensePermissionCatalog
         if (value.HasFlag(LicensePermission.ManageStructure)) value |= LicensePermission.ViewStructure;
         if (value.HasFlag(LicensePermission.ManagePeople)) value |= LicensePermission.ViewPeople | LicensePermission.ViewStructure;
         if (value.HasFlag(LicensePermission.ManageCredentials)) value |= LicensePermission.ViewCredentials | LicensePermission.ViewStructure | LicensePermission.ViewDevices;
+        if (value.HasFlag(LicensePermission.ManageVehicles)) value |= LicensePermission.ViewVehicles | LicensePermission.ViewPeople | LicensePermission.ViewStructure;
         if (value.HasFlag(LicensePermission.ManageDevices) || value.HasFlag(LicensePermission.OperateDevices)) value |= LicensePermission.ViewDevices;
         if (value.HasFlag(LicensePermission.ManageDeliveries)) value |= LicensePermission.ViewDeliveries;
         if (value.HasFlag(LicensePermission.ManageBookings)) value |= LicensePermission.ViewBookings;
@@ -98,8 +104,9 @@ public static class LicensePermissionCatalog
         value &= ~permission;
         value &= permission switch
         {
-            LicensePermission.ViewStructure => ~(LicensePermission.ManageStructure | LicensePermission.ManagePeople | LicensePermission.ManageCredentials),
-            LicensePermission.ViewPeople => ~LicensePermission.ManagePeople,
+            LicensePermission.ViewStructure => ~(LicensePermission.ManageStructure | LicensePermission.ManagePeople | LicensePermission.ManageVehicles | LicensePermission.ManageCredentials),
+            LicensePermission.ViewPeople => ~(LicensePermission.ManagePeople | LicensePermission.ManageVehicles),
+            LicensePermission.ViewVehicles => ~LicensePermission.ManageVehicles,
             LicensePermission.ViewCredentials => ~LicensePermission.ManageCredentials,
             LicensePermission.ViewDevices => ~(LicensePermission.ManageDevices | LicensePermission.OperateDevices | LicensePermission.ManageCredentials),
             LicensePermission.ViewDeliveries => ~LicensePermission.ManageDeliveries,

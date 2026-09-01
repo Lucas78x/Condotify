@@ -20,6 +20,7 @@ public sealed class ConciergeDashboardOut
 public sealed class CreateConciergeVisitIn
 {
     public Guid HostResidentId { get; set; }
+    public ResidentAccessTypeEnum AccessType { get; set; } = ResidentAccessTypeEnum.Guest;
     public string VisitorName { get; set; } = string.Empty;
     public string Document { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
@@ -59,6 +60,7 @@ public sealed class ConciergeVisitOut
     public string BlockName { get; set; } = string.Empty;
     public string UnitNumber { get; set; } = string.Empty;
     public string VisitorName { get; set; } = string.Empty;
+    public string AccessType { get; set; } = string.Empty;
     public string Document { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public string Company { get; set; } = string.Empty;
