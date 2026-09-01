@@ -72,21 +72,22 @@
                 <div class="temporary-list">
                     @foreach (var invite in FilteredInvites)
                     {
+                        var inviteStatus = EffectiveInviteStatus(invite);
                         <article class="temporary-row invite-central-row">
-                            <span class="temporary-row-icon @InviteTone(invite.Status)"><MudIcon Icon="@InviteIcon(invite.Status)" /></span>
+                            <span class="temporary-row-icon @InviteTone(inviteStatus)"><MudIcon Icon="@InviteIcon(inviteStatus)" /></span>
                             <div class="temporary-row-main"><strong>@invite.ResidentName</strong><span>@invite.Contact · @invite.Channel</span><small>Enviado por @invite.CreatedBy em @invite.SentAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</small></div>
                             <div class="temporary-row-validity"><small>Expira em</small><strong>@invite.ExpiresAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</strong><span>@ExpirationLabel(invite.ExpiresAt)</span></div>
-                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@InviteColor(invite.Status)">@InviteLabel(invite.Status)</MudChip>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@InviteColor(inviteStatus)">@InviteLabel(inviteStatus)</MudChip>
                             <div class="temporary-row-actions">
-                                @if (!string.IsNullOrWhiteSpace(invite.InviteUrl) && invite.Status is "Pending" or "Opened")
+                                @if (!string.IsNullOrWhiteSpace(invite.InviteUrl) && IsUsableInvite(invite))
                                 {
                                     <MudTooltip Text="Copiar link"><MudIconButton Icon="@Icons.Material.Outlined.ContentCopy" Color="Color.Primary" OnClick="@(() => CopyInviteAsync(invite))" /></MudTooltip>
                                 }
-                                @if (CanManagePeople && invite.Status != "Completed")
+                                @if (CanManagePeople && inviteStatus != "Completed")
                                 {
                                     <MudTooltip Text="@(invite.Channel == "Email" ? "Reenviar convite" : "Gerar novo link")"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Disabled="@IsOperatingInvite(invite.Id)" OnClick="@(() => ReissueInviteAsync(invite))" /></MudTooltip>
                                 }
-                                @if (CanManagePeople && invite.Status is "Pending" or "Opened")
+                                @if (CanManagePeople && IsUsableInvite(invite))
                                 {
                                     <MudTooltip Text="Cancelar convite"><MudIconButton Icon="@Icons.Material.Outlined.Block" Color="Color.Error" Disabled="@IsOperatingInvite(invite.Id)" OnClick="@(() => CancelInviteAsync(invite))" /></MudTooltip>
                                 }
@@ -122,7 +123,7 @@
     private IEnumerable<RegistrationInviteViewModel> FilteredInvites => _invites.Where(MatchesInvite).OrderByDescending(x => x.SentAt);
     private int ActiveTemporaryCount => TemporaryPeople.Count(x => x.Expire > DateTime.UtcNow);
     private int ExpiringTemporaryCount => TemporaryPeople.Count(x => x.Expire > DateTime.UtcNow && x.Expire <= DateTime.UtcNow.AddHours(72));
-    private int PendingInviteCount => _invites.Count(x => x.Status is "Pending" or "Opened");
+    private int PendingInviteCount => _invites.Count(IsUsableInvite);
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -155,11 +156,12 @@
 
     private bool MatchesInvite(RegistrationInviteViewModel invite)
     {
+        var status = EffectiveInviteStatus(invite);
         var statusMatches = _inviteStatus switch
         {
-            "pending" => invite.Status is "Pending" or "Opened",
-            "completed" => invite.Status == "Completed",
-            "expired" => invite.Status is "Expired" or "Canceled",
+            "pending" => status is "Pending" or "Opened",
+            "completed" => status == "Completed",
+            "expired" => status is "Expired" or "Canceled",
             _ => true
         };
         return statusMatches && (string.IsNullOrWhiteSpace(_search) || $"{invite.ResidentName} {invite.Contact} {invite.CreatedBy} {invite.Channel}".Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -248,4 +250,10 @@
     private static string InviteTone(string status) => status switch { "Completed" => "success", "Expired" or "Canceled" => "error", "Opened" => "info", _ => "warning" };
     private static Color InviteColor(string status) => status switch { "Completed" => Color.Success, "Expired" or "Canceled" => Color.Error, "Opened" => Color.Info, _ => Color.Warning };
     private static string InviteLabel(string status) => status switch { "Completed" => "Concluído", "Expired" => "Expirado", "Canceled" => "Cancelado", "Opened" => "Aberto", _ => "Pendente" };
+    private static string EffectiveInviteStatus(RegistrationInviteViewModel invite) =>
+        invite.Status is "Pending" or "Opened" && invite.ExpiresAt <= DateTime.UtcNow
+            ? "Expired"
+            : invite.Status;
+    private static bool IsUsableInvite(RegistrationInviteViewModel invite) =>
+        EffectiveInviteStatus(invite) is "Pending" or "Opened";
 }

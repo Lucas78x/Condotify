@@ -377,6 +377,8 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
 .temporary-row-main span, .temporary-row-main small, .temporary-row-validity small, .temporary-row-validity span { overflow: hidden; margin-top: 2px; color: #778297; font-size: .62rem; text-overflow: ellipsis; white-space: nowrap; }
 .temporary-row-validity strong { margin-top: 2px; color: #485368; font-size: .68rem; }
 .temporary-row-actions { display: flex; align-items: center; justify-content: flex-end; }
+.invite-central-row { grid-template-columns: 38px minmax(220px, 1fr) minmax(150px, auto) auto minmax(128px, auto); }
+.invite-central-row .temporary-row-actions { gap: 2px; white-space: nowrap; }
 .credential-upload > div { display: flex; align-items: center; gap: 12px; color: #4f5b6d; }
 .credential-upload span { display: flex; flex-direction: column; }
 .credential-upload small { margin-top: 2px; color: #7b8494; }
@@ -864,6 +866,7 @@ html::-webkit-scrollbar-thumb:hover { background: #8f9bad; }
     .temporary-view-switch { overflow-x: auto; }
     .temporary-view-switch button { flex: 0 0 auto; }
     .temporary-row { grid-template-columns: 38px minmax(0, 1fr) auto; }
+    .invite-central-row { grid-template-columns: 38px minmax(0, 1fr) auto; }
     .temporary-row-validity { grid-column: 2; }
     .temporary-row > .mud-chip { grid-column: 3; grid-row: 1; }
     .temporary-row > .mud-icon-button, .temporary-row-actions { grid-column: 3; grid-row: 2; }

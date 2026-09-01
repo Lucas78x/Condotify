@@ -22,4 +22,25 @@ public sealed class RegistrationInviteLifecycleTests
     [InlineData(RegistrationInviteStatusEnum.Completed, false)]
     public void Reissue_RejectsOnlyCompletedInvite(RegistrationInviteStatusEnum status, bool expected) =>
         Assert.Equal(expected, PeopleManagementController.CanReissueInvite(status));
+
+    [Theory]
+    [InlineData(RegistrationInviteStatusEnum.Pending, -1, true)]
+    [InlineData(RegistrationInviteStatusEnum.Opened, -1, true)]
+    [InlineData(RegistrationInviteStatusEnum.Opened, 0, true)]
+    [InlineData(RegistrationInviteStatusEnum.Pending, 1, false)]
+    [InlineData(RegistrationInviteStatusEnum.Opened, 1, false)]
+    [InlineData(RegistrationInviteStatusEnum.Completed, -1, false)]
+    [InlineData(RegistrationInviteStatusEnum.Expired, -1, false)]
+    [InlineData(RegistrationInviteStatusEnum.Canceled, -1, false)]
+    public void Expiration_UsesDeadlineForPendingAndOpenedInvites(
+        RegistrationInviteStatusEnum status,
+        int offsetSeconds,
+        bool expected)
+    {
+        var now = new DateTime(2026, 8, 29, 16, 0, 0, DateTimeKind.Utc);
+
+        Assert.Equal(
+            expected,
+            PeopleManagementController.ShouldExpireInvite(status, now.AddSeconds(offsetSeconds), now));
+    }
 }

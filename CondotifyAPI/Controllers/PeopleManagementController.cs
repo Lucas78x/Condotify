@@ -488,9 +488,16 @@ public class PeopleManagementController : ControllerBase
         var now = DateTime.UtcNow;
         var invites = await _context.RegistrationInvites.Include(x => x.Resident)
             .Where(x => x.LicenseId == licenseId).OrderByDescending(x => x.SentAt).ToListAsync();
-        foreach (var invite in invites.Where(x => x.Status == RegistrationInviteStatusEnum.Pending && x.ExpiresAt < now))
+        var expiredInvites = invites
+            .Where(x => ShouldExpireInvite(x.Status, x.ExpiresAt, now))
+            .ToList();
+        foreach (var invite in expiredInvites)
+        {
             invite.Status = RegistrationInviteStatusEnum.Expired;
-        await _context.SaveChangesAsync();
+            invite.UpdatedAt = now;
+        }
+        if (expiredInvites.Count > 0)
+            await _context.SaveChangesAsync();
         return Ok(invites.Select(x => ToInvite(x, x.Resident.Name)));
     }
 
@@ -573,11 +580,19 @@ public class PeopleManagementController : ControllerBase
             .Include(x => x.Resident)
             .FirstOrDefaultAsync(x => x.Id == inviteId && x.LicenseId == licenseId, cancellationToken);
         if (invite == null) return NotFound();
+        var now = DateTime.UtcNow;
+        if (ShouldExpireInvite(invite.Status, invite.ExpiresAt, now))
+        {
+            invite.Status = RegistrationInviteStatusEnum.Expired;
+            invite.UpdatedAt = now;
+            await _context.SaveChangesAsync(cancellationToken);
+            return Conflict(new { Errors = "O convite já expirou e não pode ser cancelado. Gere um novo convite se necessário." });
+        }
         if (!CanCancelInvite(invite.Status))
             return Conflict(new { Errors = "Somente convites pendentes ou já abertos podem ser cancelados." });
 
         invite.Status = RegistrationInviteStatusEnum.Canceled;
-        invite.UpdatedAt = DateTime.UtcNow;
+        invite.UpdatedAt = now;
         AddManagementAudit(
             licenseId,
             "RegistrationInvite",
@@ -594,6 +609,13 @@ public class PeopleManagementController : ControllerBase
 
     internal static bool CanReissueInvite(RegistrationInviteStatusEnum status) =>
         status != RegistrationInviteStatusEnum.Completed;
+
+    internal static bool ShouldExpireInvite(
+        RegistrationInviteStatusEnum status,
+        DateTime expiresAt,
+        DateTime now) =>
+        status is RegistrationInviteStatusEnum.Pending or RegistrationInviteStatusEnum.Opened &&
+        expiresAt <= now;
 
     private static string HashInviteToken(string token) =>
         Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token)));
