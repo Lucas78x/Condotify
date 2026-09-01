@@ -235,7 +235,7 @@
                         <div class="profile-list">
                             @foreach (var invite in _profile.Invites)
                             {
-                                <div class="profile-list-row invite-row"><div class="profile-row-icon"><MudIcon Icon="@Icons.Material.Outlined.Send" /></div><div class="profile-row-main"><strong>@invite.Contact</strong><span>@invite.Channel por @invite.CreatedBy</span></div><MudChip T="string" Size="Size.Small" Color="@InviteColor(invite.Status)" Variant="Variant.Outlined">@InviteLabel(invite.Status)</MudChip><div class="profile-row-meta">@invite.SentAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</div></div>
+                                <div class="profile-list-row invite-row"><div class="profile-row-icon"><MudIcon Icon="@Icons.Material.Outlined.Send" /></div><div class="profile-row-main"><strong>@invite.Contact</strong><span>@invite.Channel por @invite.CreatedBy</span></div><MudChip T="string" Size="Size.Small" Color="@InviteColor(invite.Status)" Variant="Variant.Outlined">@InviteLabel(invite.Status)</MudChip><div class="profile-row-meta">@invite.SentAt.ToCondotifyTime().ToString("dd/MM/yyyy HH:mm")</div>@if (CanManagePeople && invite.Status != "Completed") { <MudTooltip Text="@(invite.Channel == "Email" ? "Reenviar convite" : "Gerar novo link")"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Disabled="@IsOperatingInvite(invite.Id)" OnClick="@(() => ReissueInviteAsync(invite))" /></MudTooltip> }@if (CanManagePeople && invite.Status is "Pending" or "Opened") { <MudTooltip Text="Cancelar convite"><MudIconButton Icon="@Icons.Material.Outlined.Block" Color="Color.Error" Disabled="@IsOperatingInvite(invite.Id)" OnClick="@(() => CancelInviteAsync(invite))" /></MudTooltip> }</div>
                             }
                         </div>
                     }
@@ -263,6 +263,7 @@
     private bool _activatingFace;
     private Guid? _operatingCredentialId;
     private bool _sendingInvite;
+    private Guid? _operatingInviteId;
     private string? _error;
     private string _inviteContact = string.Empty;
     private const int InviteChannelEmail = 1;
@@ -569,6 +570,45 @@
         if (string.IsNullOrWhiteSpace(_latestInviteUrl)) return;
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", _latestInviteUrl);
         Snackbar.Add("Link copiado.", Severity.Success);
+    }
+
+    private bool IsOperatingInvite(Guid inviteId) => _operatingInviteId == inviteId;
+
+    private async Task ReissueInviteAsync(RegistrationInviteViewModel invite)
+    {
+        _operatingInviteId = invite.Id;
+        var result = await Api.ReissueRegistrationInviteAsync(LicenseId, invite.Id);
+        _operatingInviteId = null;
+        if (!result.Success || result.Value is null)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível reemitir o convite.", Severity.Error);
+            return;
+        }
+        _latestInviteUrl = string.IsNullOrWhiteSpace(result.Value.InviteUrl) ? null : Navigation.ToAbsoluteUri(result.Value.InviteUrl).ToString();
+        await LoadAsync();
+        Snackbar.Add(invite.Channel == "Email" ? "Convite reenviado por e-mail." : "Novo link de convite gerado.", Severity.Success);
+    }
+
+    private async Task CancelInviteAsync(RegistrationInviteViewModel invite)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Cancelar convite",
+            "Este link deixará de permitir a conclusão do cadastro. Confirmar?",
+            yesText: "Cancelar convite",
+            cancelText: "Voltar");
+        if (confirmed != true) return;
+
+        _operatingInviteId = invite.Id;
+        var result = await Api.CancelRegistrationInviteAsync(LicenseId, invite.Id);
+        _operatingInviteId = null;
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível cancelar o convite.", Severity.Error);
+            return;
+        }
+        _latestInviteUrl = null;
+        await LoadAsync();
+        Snackbar.Add("Convite cancelado.", Severity.Success);
     }
 
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));

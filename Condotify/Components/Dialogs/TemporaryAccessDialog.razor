@@ -82,6 +82,14 @@
                                 {
                                     <MudTooltip Text="Copiar link"><MudIconButton Icon="@Icons.Material.Outlined.ContentCopy" Color="Color.Primary" OnClick="@(() => CopyInviteAsync(invite))" /></MudTooltip>
                                 }
+                                @if (CanManagePeople && invite.Status != "Completed")
+                                {
+                                    <MudTooltip Text="@(invite.Channel == "Email" ? "Reenviar convite" : "Gerar novo link")"><MudIconButton Icon="@Icons.Material.Outlined.Refresh" Disabled="@IsOperatingInvite(invite.Id)" OnClick="@(() => ReissueInviteAsync(invite))" /></MudTooltip>
+                                }
+                                @if (CanManagePeople && invite.Status is "Pending" or "Opened")
+                                {
+                                    <MudTooltip Text="Cancelar convite"><MudIconButton Icon="@Icons.Material.Outlined.Block" Color="Color.Error" Disabled="@IsOperatingInvite(invite.Id)" OnClick="@(() => CancelInviteAsync(invite))" /></MudTooltip>
+                                }
                                 <MudTooltip Text="Abrir perfil e convites"><MudIconButton Icon="@Icons.Material.Outlined.ChevronRight" OnClick="@(() => OpenProfileAsync(invite.ResidentId, 3))" /></MudTooltip>
                             </div>
                         </article>
@@ -108,6 +116,7 @@
     private string _search = string.Empty;
     private string _peopleStatus = "all";
     private string _inviteStatus = "all";
+    private Guid? _operatingInviteId;
     private List<ResidentRowViewModel> TemporaryPeople => _structure.Blocks.SelectMany(x => x.Units).SelectMany(x => x.Residents).Where(x => x.Temporary).ToList();
     private IEnumerable<ResidentRowViewModel> FilteredTemporaryPeople => TemporaryPeople.Where(MatchesPerson).OrderBy(x => x.Expire).ThenBy(x => x.Name);
     private IEnumerable<RegistrationInviteViewModel> FilteredInvites => _invites.Where(MatchesInvite).OrderByDescending(x => x.SentAt);
@@ -178,6 +187,48 @@
         var url = Navigation.ToAbsoluteUri(invite.InviteUrl).ToString();
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
         Snackbar.Add("Link do convite copiado.", Severity.Success);
+    }
+
+    private bool IsOperatingInvite(Guid inviteId) => _operatingInviteId == inviteId;
+
+    private async Task ReissueInviteAsync(RegistrationInviteViewModel invite)
+    {
+        _operatingInviteId = invite.Id;
+        var result = await Api.ReissueRegistrationInviteAsync(LicenseId, invite.Id);
+        _operatingInviteId = null;
+        if (!result.Success || result.Value is null)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível reemitir o convite.", Severity.Error);
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(result.Value.InviteUrl))
+        {
+            var url = Navigation.ToAbsoluteUri(result.Value.InviteUrl).ToString();
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+        }
+        Snackbar.Add(invite.Channel == "Email" ? "Convite reenviado por e-mail." : "Novo link gerado e copiado.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task CancelInviteAsync(RegistrationInviteViewModel invite)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Cancelar convite",
+            $"O link de cadastro de {invite.ResidentName} deixará de funcionar. Confirmar?",
+            yesText: "Cancelar convite",
+            cancelText: "Voltar");
+        if (confirmed != true) return;
+
+        _operatingInviteId = invite.Id;
+        var result = await Api.CancelRegistrationInviteAsync(LicenseId, invite.Id);
+        _operatingInviteId = null;
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Error ?? "Não foi possível cancelar o convite.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Convite cancelado.", Severity.Success);
+        await LoadAsync();
     }
 
     private static string PrimaryContact(ResidentRowViewModel person) => !string.IsNullOrWhiteSpace(person.PhoneNumber) ? person.PhoneNumber : !string.IsNullOrWhiteSpace(person.Email) ? person.Email : "Sem contato";

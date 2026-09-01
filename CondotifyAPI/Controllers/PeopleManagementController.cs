@@ -494,6 +494,110 @@ public class PeopleManagementController : ControllerBase
         return Ok(invites.Select(x => ToInvite(x, x.Resident.Name)));
     }
 
+    [HttpPost("registration-invites/{inviteId:guid}/reissue")]
+    [RequireLicensePermission(LicensePermissionEnum.ManagePeople)]
+    public async Task<IActionResult> ReissueInvite(
+        Guid licenseId,
+        Guid inviteId,
+        [FromBody] ReissueRegistrationInviteIn input,
+        CancellationToken cancellationToken)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+
+        var invite = await _context.RegistrationInvites
+            .Include(x => x.Resident)
+            .FirstOrDefaultAsync(x => x.Id == inviteId && x.LicenseId == licenseId, cancellationToken);
+        if (invite == null) return NotFound();
+        if (!CanReissueInvite(invite.Status))
+            return Conflict(new { Errors = "Um convite concluído não pode ser reemitido." });
+
+        var now = DateTime.UtcNow;
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
+        var inviteUrl = BuildPublicInviteUrl(token);
+        var validDays = Math.Clamp(input.ValidDays, 1, 30);
+        var expiresAt = now.AddDays(validDays);
+
+        if (invite.Channel == RegistrationInviteChannelEnum.Email)
+        {
+            var smtpPolicy = await _context.AlertNotificationPolicies.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.LicenseId == licenseId, cancellationToken);
+            if (!_inviteEmail.IsReady(smtpPolicy))
+                return Conflict(new { Errors = "Configure o SMTP do condomínio antes de reenviar convites por e-mail." });
+            if (!IsAbsoluteHttps(inviteUrl))
+                return Conflict(new { Errors = "Configure o endereço público HTTPS do portal antes de reenviar convites." });
+
+            var licenseName = await _context.Licenses.AsNoTracking()
+                .Where(x => x.Id == licenseId)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync(cancellationToken) ?? "seu condomínio";
+            var delivery = await _inviteEmail.SendAsync(
+                smtpPolicy,
+                invite.Contact,
+                invite.Resident.Name,
+                licenseName,
+                inviteUrl,
+                expiresAt,
+                cancellationToken);
+            if (!delivery.Success)
+                return StatusCode(StatusCodes.Status502BadGateway, new { Errors = delivery.Error });
+        }
+
+        invite.TokenHash = HashInviteToken(token);
+        invite.Status = RegistrationInviteStatusEnum.Pending;
+        invite.SentAt = now;
+        invite.ExpiresAt = expiresAt;
+        invite.OpenedAt = null;
+        invite.CompletedAt = null;
+        invite.UpdatedAt = now;
+        if (invite.Channel == RegistrationInviteChannelEnum.Email) invite.SendCount++;
+
+        AddManagementAudit(
+            licenseId,
+            "RegistrationInvite",
+            invite.Id,
+            invite.Channel == RegistrationInviteChannelEnum.Email ? "EmailRedelivered" : "Reissued",
+            invite.Channel == RegistrationInviteChannelEnum.Email
+                ? $"Convite de cadastro reenviado para {invite.Resident.Name}."
+                : $"Novo link de cadastro gerado para {invite.Resident.Name}.",
+            new { invite.ResidentId, invite.Channel, invite.ExpiresAt });
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(ToInvite(invite, invite.Resident.Name, inviteUrl));
+    }
+
+    [HttpDelete("registration-invites/{inviteId:guid}")]
+    [RequireLicensePermission(LicensePermissionEnum.ManagePeople)]
+    public async Task<IActionResult> CancelInvite(Guid licenseId, Guid inviteId, CancellationToken cancellationToken)
+    {
+        if (!await HasLicenseAccessAsync(licenseId)) return NotFound();
+        var invite = await _context.RegistrationInvites
+            .Include(x => x.Resident)
+            .FirstOrDefaultAsync(x => x.Id == inviteId && x.LicenseId == licenseId, cancellationToken);
+        if (invite == null) return NotFound();
+        if (!CanCancelInvite(invite.Status))
+            return Conflict(new { Errors = "Somente convites pendentes ou já abertos podem ser cancelados." });
+
+        invite.Status = RegistrationInviteStatusEnum.Canceled;
+        invite.UpdatedAt = DateTime.UtcNow;
+        AddManagementAudit(
+            licenseId,
+            "RegistrationInvite",
+            invite.Id,
+            "Canceled",
+            $"Convite de cadastro de {invite.Resident.Name} cancelado.",
+            new { invite.ResidentId, invite.Channel, invite.ExpiresAt });
+        await _context.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
+    internal static bool CanCancelInvite(RegistrationInviteStatusEnum status) =>
+        status is RegistrationInviteStatusEnum.Pending or RegistrationInviteStatusEnum.Opened;
+
+    internal static bool CanReissueInvite(RegistrationInviteStatusEnum status) =>
+        status != RegistrationInviteStatusEnum.Completed;
+
+    private static string HashInviteToken(string token) =>
+        Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token)));
+
     [HttpDelete("residents/{residentId:guid}")]
     [RequireLicensePermission(LicensePermissionEnum.ManagePeople)]
     public async Task<IActionResult> DeleteResident(Guid licenseId, Guid residentId)

@@ -1289,6 +1289,15 @@ public sealed class CondotifyApiClient
             ValidDays = validDays
         }, cancellationToken);
 
+    public Task<ApiResult<RegistrationInviteViewModel>> ReissueRegistrationInviteAsync(Guid licenseId, Guid inviteId, int validDays = 7, CancellationToken cancellationToken = default) =>
+        SendForAsync<RegistrationInviteViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/registration-invites/{inviteId}/reissue", new
+        {
+            ValidDays = validDays
+        }, cancellationToken);
+
+    public Task<ApiResult<bool>> CancelRegistrationInviteAsync(Guid licenseId, Guid inviteId, CancellationToken cancellationToken = default) =>
+        DeleteAsync($"api/access/licenses/{licenseId}/registration-invites/{inviteId}", cancellationToken);
+
     public Task<ApiResult<PublicRegistrationInviteViewModel>> CompleteRegistrationInviteAsync(string token, CompleteRegistrationInviteViewModel model, CancellationToken cancellationToken = default) =>
         SendForAsync<PublicRegistrationInviteViewModel>(HttpMethod.Post, $"api/public/registration-invites/{Uri.EscapeDataString(token)}/complete", new
         {

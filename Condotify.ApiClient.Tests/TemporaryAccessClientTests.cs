@@ -38,6 +38,37 @@ public sealed class TemporaryAccessClientTests
         Assert.Equal($"/api/access/licenses/{licenseId}/registration-invites", handler.Uri!.AbsolutePath);
     }
 
+    [Fact]
+    public async Task ReissueRegistrationInviteAsync_UsesScopedActionAndValidity()
+    {
+        var licenseId = Guid.NewGuid();
+        var inviteId = Guid.NewGuid();
+        var handler = new CapturingHandler("{\"id\":\"00000000-0000-0000-0000-000000000001\",\"status\":\"Pending\"}");
+        var client = CreateClient(handler);
+
+        var result = await client.ReissueRegistrationInviteAsync(licenseId, inviteId, 12);
+
+        Assert.True(result.Success);
+        Assert.Equal(HttpMethod.Post, handler.Method);
+        Assert.Equal($"/api/access/licenses/{licenseId}/registration-invites/{inviteId}/reissue", handler.Uri!.AbsolutePath);
+        Assert.Contains("\"ValidDays\":12", handler.Body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelRegistrationInviteAsync_UsesScopedDelete()
+    {
+        var licenseId = Guid.NewGuid();
+        var inviteId = Guid.NewGuid();
+        var handler = new CapturingHandler(string.Empty, HttpStatusCode.NoContent);
+        var client = CreateClient(handler);
+
+        var result = await client.CancelRegistrationInviteAsync(licenseId, inviteId);
+
+        Assert.True(result.Success);
+        Assert.Equal(HttpMethod.Delete, handler.Method);
+        Assert.Equal($"/api/access/licenses/{licenseId}/registration-invites/{inviteId}", handler.Uri!.AbsolutePath);
+    }
+
     private static CondotifyApiClient CreateClient(HttpMessageHandler handler)
     {
         var factory = new StubHttpClientFactory(new HttpClient(handler));
@@ -64,17 +95,21 @@ public sealed class TemporaryAccessClientTests
             ValueTask.FromResult<string?>(null);
     }
 
-    private sealed class CapturingHandler(string responseBody) : HttpMessageHandler
+    private sealed class CapturingHandler(string responseBody, HttpStatusCode statusCode = HttpStatusCode.OK) : HttpMessageHandler
     {
         public Uri? Uri { get; private set; }
+        public HttpMethod? Method { get; private set; }
+        public string Body { get; private set; } = string.Empty;
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Uri = request.RequestUri;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            Method = request.Method;
+            Body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(statusCode)
             {
                 Content = new StringContent(responseBody, System.Text.Encoding.UTF8, "application/json")
-            });
+            };
         }
     }
 }
