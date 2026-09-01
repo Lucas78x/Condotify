@@ -867,6 +867,7 @@ public sealed class CondotifyApiClient
         SendForAsync<ConciergeVisitViewModel>(HttpMethod.Post, $"api/access/licenses/{licenseId}/concierge/visits", new
         {
             model.HostResidentId,
+            model.AccessType,
             model.VisitorName,
             model.Document,
             model.PhoneNumber,

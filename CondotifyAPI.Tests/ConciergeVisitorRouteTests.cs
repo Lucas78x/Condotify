@@ -4,6 +4,8 @@ using CondotifyAPI.Infrastructure;
 using Condotify.Models;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
+using CondotifyAPI.Domain.Enums.AccessControl;
+using CondotifyAPI.Domain.Enums.Resident;
 
 namespace CondotifyAPI.Tests;
 
@@ -30,6 +32,32 @@ public sealed class ConciergeVisitorRouteTests
         Assert.DoesNotContain("\"Password\"", sql, StringComparison.Ordinal);
         Assert.Contains("\"Type\"", sql, StringComparison.Ordinal);
         Assert.Contains("\"IsActive\"", sql, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ResidentAccessTypeEnum.Guest, AccessRouteAudienceEnum.Visitor)]
+    [InlineData(ResidentAccessTypeEnum.ServiceProvider, AccessRouteAudienceEnum.ServiceProvider)]
+    public void TemporaryAccess_UsesAudienceForSelectedPersonType(
+        ResidentAccessTypeEnum accessType,
+        AccessRouteAudienceEnum expected) =>
+        Assert.Equal(expected, ConciergeController.RouteAudienceFor(accessType));
+
+    [Fact]
+    public void ServiceProviderRouteProjection_ShouldNotLoadEquipmentPassword()
+    {
+        Environment.SetEnvironmentVariable("CONDOTIFY_EQUIPMENT_SECRET", "condotify-tests-equipment-secret-2026");
+        var options = new DbContextOptionsBuilder<DatabaseContext>()
+            .UseNpgsql("Host=localhost;Database=Condotify_ModelOnly;Username=postgres;Password=postgres")
+            .Options;
+        using var context = new DatabaseContext(options);
+
+        var sql = ConciergeController
+            .TemporaryRouteQuery(context, Guid.NewGuid(), AccessRouteAudienceEnum.ServiceProvider)
+            .IgnoreQueryFilters()
+            .ToQueryString();
+
+        Assert.DoesNotContain("\"Password\"", sql, StringComparison.Ordinal);
+        Assert.Contains("\"Audience\"", sql, StringComparison.Ordinal);
     }
 
     [Fact]
