@@ -14,8 +14,7 @@
     <MudAppBar Elevation="0" Class="portal-appbar">
         <MudIconButton Icon="@Icons.Material.Outlined.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" Class="mobile-menu" />
         <div class="appbar-context">
-            <MudText Typo="Typo.subtitle1" Class="appbar-title">Central de operações</MudText>
-            <div class="appbar-environment"><span></span>Ambiente operacional</div>
+            <PortalContextSelector />
         </div>
         <MudSpacer />
         <MudButton Href="/pesquisa" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Search" Class="appbar-search">Pesquisar pessoas e credenciais</MudButton>

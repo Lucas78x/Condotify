@@ -1,3 +1,5 @@
+@implements IDisposable
+@inject PortalLicenseContext Context
 <nav class="portal-nav" aria-label="Navegação principal">
     <MudText Typo="Typo.overline" Class="nav-label">OPERAÇÃO</MudText>
     <MudNavMenu>
@@ -5,15 +7,24 @@
         <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.SpaceDashboard">Visão geral</MudNavLink>
         <MudNavLink Href="/operacoes" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.MonitorHeart">Operações</MudNavLink>
         <MudNavLink Href="/licencas" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Outlined.Domain">Condomínios</MudNavLink>
-        <MudNavLink Href="/portaria" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.AssistantDirection">Portaria</MudNavLink>
+        <MudNavLink Href="@Context.Concierge" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.AssistantDirection">Portaria</MudNavLink>
         <MudNavLink Href="/pesquisa" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.PersonSearch">Pesquisa</MudNavLink>
     </MudNavMenu>
 
     <MudText Typo="Typo.overline" Class="nav-label nav-label-spaced">GESTÃO</MudText>
     <MudNavMenu>
-        <MudNavLink Href="/cadastros" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.PersonAdd">Cadastros</MudNavLink>
-        <MudNavLink Href="/credenciais" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.Badge">Credenciais</MudNavLink>
-        <MudNavLink Href="/equipamentos" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.Sensors">Equipamentos</MudNavLink>
+        @if (Context.License is null || Context.Has(LicensePermission.ViewStructure))
+        {
+        <MudNavLink Href="@(Context.License is null ? "/cadastros" : Context.Workspace("estrutura"))" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.PersonAdd">Cadastros</MudNavLink>
+        }
+        @if (Context.License is null || Context.Has(LicensePermission.ViewCredentials))
+        {
+        <MudNavLink Href="@(Context.License is null ? "/credenciais" : Context.Workspace("credenciais"))" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.Badge">Credenciais</MudNavLink>
+        }
+        @if (Context.License is null || Context.Has(LicensePermission.ViewDevices))
+        {
+        <MudNavLink Href="@(Context.License is null ? "/equipamentos" : Context.Workspace("equipamentos"))" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.Sensors">Equipamentos</MudNavLink>
+        }
     </MudNavMenu>
 
     <MudText Typo="Typo.overline" Class="nav-label nav-label-spaced">CONTA</MudText>
@@ -28,3 +39,9 @@
         </MudNavLink>
     </MudNavMenu>
 </nav>
+
+@code {
+    protected override void OnInitialized() => Context.Changed += Changed;
+    private void Changed() => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Context.Changed -= Changed;
+}

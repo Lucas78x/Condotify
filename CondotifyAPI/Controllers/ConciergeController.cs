@@ -37,7 +37,7 @@ public sealed class ConciergeController(
 {
     [HttpGet]
     [RequireLicensePermission(LicensePermissionEnum.ViewEvents)]
-    public async Task<IActionResult> Dashboard(Guid licenseId)
+    public async Task<IActionResult> Dashboard(Guid licenseId, [FromQuery] int attentionPage = 1)
     {
         if (!await HasAccessAsync(licenseId)) return NotFound();
         var now = DateTime.UtcNow;
@@ -56,29 +56,49 @@ public sealed class ConciergeController(
             .OrderBy(x => x.ValidFrom).ToListAsync();
         var events = await EventQuery(context, licenseId)
             .OrderByDescending(x => x.OccurredAt).Take(80).ToListAsync();
-        var onlineThreshold = now.AddMinutes(-5);
+        var pending = context.AccessEventRecords.AsNoTracking()
+            .Where(x => x.LicenseId == licenseId && !x.Authorized && x.AttentionResolvedAt == null);
+        var pendingCount = await pending.CountAsync(HttpContext.RequestAborted);
+        const int attentionPageSize = 20;
+        attentionPage = Math.Clamp(attentionPage, 1, Math.Max(1, (int)Math.Ceiling(pendingCount / (double)attentionPageSize)));
+        var attentionEvents = await EventQuery(context, licenseId, pending)
+            .OrderBy(x => x.OccurredAt).ThenBy(x => x.Id)
+            .Skip((attentionPage - 1) * attentionPageSize).Take(attentionPageSize)
+            .ToListAsync(HttpContext.RequestAborted);
+        var onlineThreshold = CondotifyAPI.Domain.Services.DeviceHealthPolicy.OnlineSince(now);
         var devices = await context.Devices.AsNoTracking().Where(x => x.LicenseId == licenseId).OrderBy(x => x.Name)
             .Select(x => new ConciergeDeviceOut
             {
-                Id = x.Id, Name = x.Name, Model = x.Model,
+                Id = x.Id, Name = x.Name, Model = x.Model, LastSeenAt = x.LastSeenAt,
                 Online = x.IsActive && x.LastSeenAt.HasValue && x.LastSeenAt >= onlineThreshold,
                 HealthMessage = x.HealthMessage, DiscoveredPortalsJson = x.DiscoveredPortalsJson
             }).ToListAsync();
-        var startToday = DateTime.UtcNow.Date;
+        var (startToday, endToday) = CondotifyTime.UtcDay(now);
+        var deniedToday = await context.AccessEventRecords.AsNoTracking()
+            .CountAsync(DeniedDuring(licenseId, now), HttpContext.RequestAborted);
         var watchlist = await context.AccessWatchlistEntries.AsNoTracking()
             .Where(x => x.LicenseId == licenseId && x.IsActive && (!x.ExpiresAt.HasValue || x.ExpiresAt > now))
             .OrderByDescending(x => x.Severity).ThenBy(x => x.Name).ToListAsync();
         return Ok(new ConciergeDashboardOut
         {
             Visits = visits.Select(ToOut).ToList(), Events = events, Devices = devices,
-            ExpectedToday = visits.Count(x => x.ValidFrom < startToday.AddDays(1) && x.ValidTo >= startToday && x.Status == AccessVisitStatusEnum.Scheduled),
+            AttentionEvents = attentionEvents, AttentionEventCount = pendingCount,
+            AttentionPage = attentionPage, AttentionPageSize = attentionPageSize,
+            ExpectedToday = visits.Count(x => x.ValidFrom < endToday && x.ValidTo > startToday && x.Status == AccessVisitStatusEnum.Scheduled),
             InsideNow = visits.Count(x => x.Status == AccessVisitStatusEnum.CheckedIn),
             OfflineDevices = devices.Count(x => !x.Online),
-            DeniedToday = events.Count(x => !x.Authorized && x.OccurredAt >= startToday),
+            DeniedToday = deniedToday,
             PendingApprovals = visits.Count(x => x.Status == AccessVisitStatusEnum.PendingApproval),
             Overstays = visits.Count(x => x.Status == AccessVisitStatusEnum.CheckedIn && (x.ExpectedCheckoutAt ?? x.ValidTo) < now),
             Watchlist = watchlist.Select(ToWatchlistOut).ToList()
         });
+    }
+
+    internal static Expression<Func<AccessEventRecordDTO, bool>> DeniedDuring(Guid licenseId, DateTime now)
+    {
+        var (start, end) = CondotifyTime.UtcDay(now);
+        return accessEvent => accessEvent.LicenseId == licenseId && !accessEvent.Authorized &&
+            accessEvent.OccurredAt >= start && accessEvent.OccurredAt < end;
     }
 
     [HttpGet("events")]

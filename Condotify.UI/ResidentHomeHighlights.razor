@@ -1,0 +1,32 @@
+@using Microsoft.AspNetCore.Components
+@using Condotify.Models
+@using MudBlazor
+
+<section class="resident-day" aria-label="Seu dia no condomínio">
+    <header><div><span>MINHA ROTINA</span><h2>Seu dia</h2></div><a href="/more">Ver serviços</a></header>
+    <div class="resident-day-grid">
+        @if (Enabled(LicenseModuleEnum.Deliveries))
+        {
+            <a class="day-card delivery" href="/deliveries"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /><span class="day-value">@Count(Summary?.DeliveriesAwaitingPickup)</span><strong>Encomendas para retirar</strong><small>Recebidas na portaria</small></a>
+        }
+        <a class="day-card" href="/visitors"><MudIcon Icon="@Icons.Material.Outlined.PeopleOutline" /><span class="day-value">@Count(Summary?.VisitsToday)</span><strong>Visitas hoje</strong><small>Convites e autorizações em andamento</small></a>
+        @if (Enabled(LicenseModuleEnum.Bookings))
+        {
+            <a class="day-card" href="/bookings"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" /><span class="day-value">@Count(Summary?.UpcomingBookings)</span><strong>Reservas a partir de hoje</strong><small>@(Summary?.NextBookingDate is { } date ? $"{date:dd/MM} · {Summary.NextBookingName}" : "Confira as áreas comuns")</small></a>
+        }
+        @if (Enabled(LicenseModuleEnum.Finance))
+        {
+            <a class="day-card" href="/financeiro"><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" /><span class="day-value">@Count(Summary?.OpenCharges)</span><strong>Cobranças em aberto</strong><small>@(Summary?.NextChargeDueDate is { } due ? $"Primeiro vencimento: {due:dd/MM}" : "Consulte os detalhes financeiros")</small></a>
+        }
+    </div>
+    <a class="day-notifications" href="/notifications"><MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" /><span>@(UnreadNotifications.HasValue ? $"{UnreadNotifications} novidade(s) para você" : "Consultar novidades")</span><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" /></a>
+    <p class="day-freshness" role="status">@(Summary is null ? "Resumo indisponível. Abra cada serviço para consultar os detalhes." : $"Resumo de {Summary.GeneratedAt.ToCondotifyTime():dd/MM HH:mm}.")</p>
+</section>
+
+@code {
+    [Parameter] public ResidentHomeSummaryViewModel? Summary { get; set; }
+    [Parameter] public int? UnreadNotifications { get; set; }
+    [Parameter] public long EnabledModules { get; set; }
+    private bool Enabled(LicenseModuleEnum module) => ((Summary?.EnabledModules ?? EnabledModules) & (long)module) != 0;
+    private static string Count(int? value) => value?.ToString() ?? "—";
+}

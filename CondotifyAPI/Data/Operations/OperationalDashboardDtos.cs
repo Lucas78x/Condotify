@@ -2,6 +2,14 @@ namespace CondotifyAPI.Data.Operations;
 
 public sealed class OperationalDashboardOut
 {
+    public DateTime? GeneratedAt { get; set; }
+    public bool HasDeviceScope { get; set; }
+    public bool HasCredentialScope { get; set; }
+    public bool HasAlertScope { get; set; }
+    public bool HasBookingScope { get; set; }
+    public bool HasEventScope { get; set; }
+    public int TrackedCredentialBindingCount { get; set; }
+    public int ActiveAlertCount { get; set; }
     public int LicenseCount { get; set; }
     public int ResidentCount { get; set; }
     public int DeviceCount { get; set; }

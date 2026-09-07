@@ -28,7 +28,7 @@
 }
 else if (!string.IsNullOrWhiteSpace(_error))
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error</MudAlert>
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_error <MudButton OnClick="LoadAsync" Size="Size.Small">Tentar novamente</MudButton></MudAlert>
 }
 else
 {
@@ -36,32 +36,33 @@ else
     {
         <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense Class="dashboard-telemetry-alert">
             Os dados de monitoramento estão temporariamente indisponíveis. Os condomínios continuam acessíveis normalmente.
+            <MudButton OnClick="LoadAsync" Size="Size.Small">Tentar novamente</MudButton>
         </MudAlert>
     }
 
     <div class="stats-grid">
         <StatTile Label="Condomínios" Value="@_licenses.Count.ToString()" Icon="@Icons.Material.Outlined.Domain" Hint="ambientes administrados" Tone="blue" />
         <StatTile Label="Moradores" Value="@(_operations?.ResidentCount.ToString() ?? _licenses.Sum(x => x.Moradores).ToString())" Icon="@Icons.Material.Outlined.Groups" Hint="pessoas vinculadas" Tone="green" />
-        <StatTile Label="Equipamentos" Value="@($"{_operations?.OnlineDeviceCount ?? 0}/{_operations?.DeviceCount ?? 0}")" Icon="@Icons.Material.Outlined.Sensors" Hint="terminais online" Tone="amber" />
-        <StatTile Label="Atenção" Value="@AttentionCount.ToString()" Icon="@Icons.Material.Outlined.NotificationImportant" Hint="pendências prioritárias" Tone="red" />
+        <StatTile Label="Equipamentos" Value="@(_operations is { HasDeviceScope: true } ? $"{_operations.OnlineDeviceCount}/{_operations.DeviceCount}" : "—")" Icon="@Icons.Material.Outlined.Sensors" Hint="@ScopeHint(_operations?.HasDeviceScope, "terminais com comunicação recente")" Tone="amber" />
+        <StatTile Label="Atenção" Value="@(_operations is { HasAlertScope: true } ? AttentionCount.ToString() : "—")" Icon="@Icons.Material.Outlined.NotificationImportant" Hint="@ScopeHint(_operations?.HasAlertScope, "alertas abertos")" Tone="red" />
     </div>
 
     <div class="dashboard-pulse-strip">
         <div>
             <span class="pulse-icon green"><MudIcon Icon="@Icons.Material.Outlined.Sync" /></span>
-            <span><strong>@(_operations?.SynchronizationRate.ToString("N1") ?? "100,0")%</strong><small>Credenciais sincronizadas</small></span>
+            <span><strong>@(_operations is { HasCredentialScope: true, TrackedCredentialBindingCount: > 0 } ? $"{_operations.SynchronizationRate:N1}%" : "—")</strong><small>@ScopeHint(_operations?.HasCredentialScope, _operations?.TrackedCredentialBindingCount == 0 ? "Sem vínculos para sincronizar" : "Credenciais sincronizadas")</small></span>
         </div>
         <div>
             <span class="pulse-icon blue"><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /></span>
-            <span><strong>@(_operations?.AccessEventCount ?? 0)</strong><small>Acessos nos últimos 14 dias</small></span>
+            <span><strong>@(_operations is { HasEventScope: true } ? _operations.AccessEventCount.ToString() : "—")</strong><small>@ScopeHint(_operations?.HasEventScope, "Acessos nos últimos 14 dias")</small></span>
         </div>
         <div>
             <span class="pulse-icon violet"><MudIcon Icon="@Icons.Material.Outlined.EventAvailable" /></span>
-            <span><strong>@(_operations?.TodayBookingCount ?? 0)</strong><small>Reservas para hoje</small></span>
+            <span><strong>@(_operations is { HasBookingScope: true } ? _operations.TodayBookingCount.ToString() : "—")</strong><small>@ScopeHint(_operations?.HasBookingScope, "Reservas para hoje")</small></span>
         </div>
         <div>
             <span class="pulse-icon amber"><MudIcon Icon="@Icons.Material.Outlined.PendingActions" /></span>
-            <span><strong>@((_operations?.PendingBatchCount ?? 0) + (_operations?.PendingBookingCount ?? 0))</strong><small>Itens aguardando processamento</small></span>
+            <span><strong>@(_operations is { HasCredentialScope: true } or { HasBookingScope: true } ? (_operations.PendingBatchCount + _operations.PendingBookingCount).ToString() : "—")</strong><small>Itens aguardando processamento</small></span>
         </div>
     </div>
 
@@ -107,7 +108,23 @@ else
                 </div>
                 <MudButton Href="/operacoes" Variant="Variant.Text">Abrir central</MudButton>
             </div>
-            @if (_operations?.Alerts.Count > 0)
+            @if (_operations is null)
+            {
+                <div class="dashboard-unknown-state" role="status">
+                    <MudIcon Icon="@Icons.Material.Outlined.CloudOff" />
+                    <strong>Monitoramento indisponível</strong>
+                    <small>Não foi possível confirmar a situação da operação.</small>
+                </div>
+            }
+            else if (!_operations.HasAlertScope)
+            {
+                <div class="dashboard-unknown-state">
+                    <MudIcon Icon="@Icons.Material.Outlined.Lock" />
+                    <strong>Alertas fora do seu escopo</strong>
+                    <small>Seu acesso não inclui o monitoramento de alertas.</small>
+                </div>
+            }
+            else if (_operations.Alerts.Count > 0)
             {
                 <div class="dashboard-alert-list">
                     @foreach (var alert in _operations.Alerts.Take(5))
@@ -124,12 +141,16 @@ else
             {
                 <div class="dashboard-all-clear">
                     <span><MudIcon Icon="@Icons.Material.Outlined.Verified" /></span>
-                    <strong>Operação saudável</strong>
+                    <strong>Nenhum alerta aberto</strong>
                     <small>Nenhuma pendência prioritária foi identificada.</small>
                 </div>
             }
         </MudPaper>
     </div>
+    @if (_operations?.GeneratedAt is { } generatedAt)
+    {
+        <p class="dashboard-updated-at">Resumo consultado em @generatedAt.ToCondotifyTime().ToString("dd/MM 'às' HH:mm")</p>
+    }
 }
 
 @code {
@@ -138,10 +159,23 @@ else
     private string? _operationsError;
     private List<LicenseViewModel> _licenses = [];
     private OperationalDashboardViewModel? _operations;
-    private int AttentionCount => _operations?.Alerts.Count(x => x.Severity is "Critical" or "Warning") ?? 0;
+    private int AttentionCount => _operations?.ActiveAlertCount ?? 0;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private static string ScopeHint(bool? scope, string available) => scope switch
     {
+        true => available,
+        false => "Fora do seu escopo de acesso",
+        null => "Monitoramento indisponível"
+    };
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _operationsError = null;
+        _operations = null;
         var licensesTask = Api.GetLicensesAsync();
         var operationsTask = Api.GetOperationalDashboardAsync();
         await Task.WhenAll(licensesTask, operationsTask);
@@ -155,10 +189,10 @@ else
         else
             _error = licenses.Error;
 
-        if (operations.Success)
+        if (operations.Success && operations.Value is not null)
             _operations = operations.Value;
         else
-            _operationsError = operations.Error;
+            _operationsError = operations.Error ?? "Monitoramento indisponível.";
     }
 
     private static string Monogram(string name) =>

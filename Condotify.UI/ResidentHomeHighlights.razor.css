@@ -1,0 +1,18 @@
+.resident-day { margin:24px 0; color:var(--mud-palette-text-primary); }
+header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+header span { font-size:10px; font-weight:800; letter-spacing:.13em; color:var(--mud-palette-text-secondary); }
+header h2 { font-size:25px; margin:4px 0 0; letter-spacing:-.03em; }
+header a { color:var(--mud-palette-primary); font-size:12px; font-weight:700; }
+.resident-day-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.day-card { display:flex; flex-direction:column; gap:6px; padding:20px; border:1px solid var(--mud-palette-lines-default); border-radius:16px; color:inherit; background:var(--mud-palette-surface); min-width:0; }
+.day-card.delivery { border-top:3px solid #7bc053; }
+.day-card ::deep svg { color:var(--mud-palette-primary); width:22px; height:22px; margin-bottom:6px; }
+.day-value { font-size:32px; font-weight:800; letter-spacing:-.05em; line-height:1.2; }
+.day-card strong { font-size:13px; line-height:1.4; }
+.day-card small { font-size:11px; color:var(--mud-palette-text-secondary); line-height:1.5; overflow-wrap:anywhere; }
+.day-card:hover { background:var(--mud-palette-background-gray); }
+a:focus-visible { outline:2px solid #7bc053; outline-offset:3px; }
+.day-notifications { display:flex; gap:12px; align-items:center; padding:16px 0; color:inherit; font-size:13px; }
+.day-notifications span { flex:1; }
+.day-freshness { font-size:11px; color:var(--mud-palette-text-secondary); margin:0; }
+@media(max-width:370px) { .day-card { padding:14px; } .resident-day-grid { gap:8px; } }

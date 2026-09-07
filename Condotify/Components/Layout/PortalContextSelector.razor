@@ -1,0 +1,75 @@
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@inject ProtectedSessionStorage Storage
+@inject PortalLicenseContext Context
+@inject CondotifyApiClient Api
+@inject NavigationManager Navigation
+
+<div class="context-selector">
+    <label for="portal-license-context">Condomínio de trabalho</label>
+    <select id="portal-license-context" value="@Context.License?.Id" @onchange="ChangeAsync" disabled="@_loading">
+        <option value="">Todos os condomínios</option>
+        @foreach (var license in _licenses) { <option value="@license.Id">@license.Nome</option> }
+    </select>
+    @if (_error is not null) { <span role="status">@_error</span> }
+</div>
+
+@code {
+    private List<LicenseViewModel> _licenses = [];
+    private bool _loading = true;
+    private bool _ready;
+    private string? _error;
+    protected override void OnInitialized() => Context.Changed += ContextChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var result = await Api.GetLicensesAsync();
+        _licenses = result.Success ? result.Value ?? [] : [];
+        _error = result.Success ? null : "Não foi possível carregar os condomínios.";
+        _ready = true;
+        // A context already resolved from the URL always wins over the saved selection.
+        if (Context.License is null && !Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("condominios/", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var saved = await Storage.GetAsync<string>("portal-license");
+                var match = _licenses.FirstOrDefault(x => x.Id == saved.Value);
+                if (match is not null) await SelectAsync(match);
+            }
+            catch (Exception ex) when (ex is Microsoft.JSInterop.JSException or System.Security.Cryptography.CryptographicException) { }
+        }
+        else if (Context.License is not null) await PersistAsync();
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task ChangeAsync(ChangeEventArgs args)
+    {
+        _loading = true;
+        var selected = _licenses.FirstOrDefault(x => x.Id == args.Value?.ToString());
+        await SelectAsync(selected);
+        var path = new Uri(Navigation.Uri).AbsolutePath;
+        if (selected is null) Navigation.NavigateTo("/");
+        else if (path.Equals("/portaria", StringComparison.OrdinalIgnoreCase)) Navigation.NavigateTo(Context.Concierge);
+        else Navigation.NavigateTo(Context.Workspace("visao-geral"));
+        _loading = false;
+    }
+
+    private async Task SelectAsync(LicenseViewModel? license)
+    {
+        var previous = Context.License;
+        var access = license is not null && Guid.TryParse(license.Id, out var id) ? await Api.GetLicenseAdministrationAsync(id) : null;
+        // Ignore a restore that lost a race to URL navigation.
+        if (!ReferenceEquals(previous, Context.License)) return;
+        Context.Select(license, access?.Success == true ? access.Value : null);
+    }
+
+    private void ContextChanged() => _ = InvokeAsync(async () => { if (_ready) await PersistAsync(); StateHasChanged(); });
+    private async Task PersistAsync()
+    {
+        try { await Storage.SetAsync("portal-license", Context.License?.Id ?? string.Empty); }
+        catch (Microsoft.JSInterop.JSException) { }
+    }
+    public void Dispose() => Context.Changed -= ContextChanged;
+}

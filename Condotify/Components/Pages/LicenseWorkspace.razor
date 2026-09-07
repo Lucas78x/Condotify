@@ -4,6 +4,7 @@
 @inject CondotifyApiClient Api
 @inject NavigationManager Navigation
 @inject IJSRuntime Js
+@inject PortalLicenseContext Context
 
 <PageTitle>@(_license?.Name ?? "Condomínio") | F&amp;F Access</PageTitle>
 
@@ -95,6 +96,7 @@ else
     }
     else
     {
+        <div @key="LicenseId">
         @switch (CurrentSection)
         {
             case "relatorios":
@@ -146,9 +148,10 @@ else
                 <AdministrationModule LicenseId="LicenseId" InitialData="_administration" EnabledModules="_license.EnabledModules" OnModulesChanged="@(value => _license.EnabledModules = value)" />
                 break;
             default:
-                <OverviewModule License="_license" LicenseId="LicenseId" LicenseUrlKey="@_license.UrlKey" CanViewDocuments="@(Has(LicensePermission.ViewDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents))" />
+                <OverviewModule License="_license" LicenseId="LicenseId" LicenseUrlKey="@_license.UrlKey" CanManageStructure="@Has(LicensePermission.ManageStructure)" CanViewStructure="@Has(LicensePermission.ViewStructure)" CanManagePeople="@Has(LicensePermission.ManagePeople)" CanViewCredentials="@Has(LicensePermission.ViewCredentials)" CanViewDevices="@(Has(LicensePermission.ViewDevices) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Devices))" CanViewDocuments="@(Has(LicensePermission.ViewDocuments) && IsModuleEnabled(Condotify.Models.LicenseModuleEnum.Documents))" />
                 break;
         }
+        </div>
     }
 }
 
@@ -220,6 +223,7 @@ else
     protected override async Task OnParametersSetAsync()
     {
         if (string.Equals(_license?.UrlKey, LicenseUrlKey, StringComparison.OrdinalIgnoreCase)) return;
+        var requestedKey = LicenseUrlKey;
         _loading = true;
         _error = null;
         _license = null;
@@ -228,10 +232,15 @@ else
         ApiResult<LicenseAdministrationViewModel>? administration = null;
         if (result.Success && result.Value is not null)
             administration = await Api.GetLicenseAdministrationAsync(result.Value.Id);
+        if (!string.Equals(requestedKey, LicenseUrlKey, StringComparison.OrdinalIgnoreCase)) return;
         _loading = false;
         if (result.Success) _license = result.Value;
         else _error = result.Error;
         if (administration?.Success == true) _administration = administration.Value;
+
+        if (_license is not null)
+            Context.Select(new LicenseViewModel { Id = _license.Id.ToString(), Nome = _license.Name, UrlKey = _license.UrlKey, EnabledModules = _license.EnabledModules }, _administration);
+        else Context.Select(null);
 
         if (_license is not null && !string.Equals(LicenseUrlKey, _license.UrlKey, StringComparison.Ordinal))
             Navigation.NavigateTo(LicenseRoutes.Workspace(_license.UrlKey, Section), replace: true);

@@ -4,7 +4,8 @@ Plataforma de gestao condominial com portal Blazor Server/MudBlazor, API ASP.NET
 
 ## Requisitos
 
-- .NET SDK 8
+- .NET SDK indicado em `global.json` (10.0.400 ou patch compatível da mesma faixa)
+- Runtime ASP.NET Core 8 para executar o portal, API e seus testes; workloads MAUI somente para compilar o aplicativo
 - Docker Desktop
 
 ## Executar localmente

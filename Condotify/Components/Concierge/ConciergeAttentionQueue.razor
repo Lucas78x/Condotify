@@ -1,0 +1,153 @@
+@inject CondotifyApiClient Api
+@implements IDisposable
+
+<section class="attention-workbench" aria-label="Fila de atendimento">
+    <div class="attention-list-panel">
+        <header class="attention-heading">
+            <div><h2>Fila do turno</h2><p>Pendências, autorizações e equipamentos</p></div>
+            <span class="attention-count">@TotalCount</span>
+        </header>
+        @if (_items.Count == 0)
+        {
+            <div class="attention-empty"><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" /><strong>Nenhuma pendência nesta consulta</strong><span>Novas situações aparecerão aqui.</span></div>
+        }
+        else
+        {
+            <div class="attention-items">
+                @foreach (var item in _items)
+                {
+                    <button type="button" class="attention-item @(item.Key == _selectedKey ? "selected" : null)" aria-pressed="@(item.Key == _selectedKey)" @onclick="@(() => Select(item.Key))" @key="item.Key">
+                        <span class="attention-symbol"><MudIcon Icon="@item.Icon" /></span>
+                        <span class="attention-copy"><span class="attention-status @item.Tone">@item.Status</span><strong>@item.Title</strong><small>@item.Context</small></span>
+                        @if (item.At.HasValue) { <time>@item.At.Value.ToCondotifyTime().ToString("dd/MM HH:mm")</time> }
+                    </button>
+                }
+            </div>
+        }
+        @if (TotalEventCount > PageSize)
+        {
+            <footer class="attention-pagination">
+                <MudButton Size="Size.Small" Disabled="@(Page <= 1 || Busy)" OnClick="@(() => PageChanged.InvokeAsync(Page - 1))">Anteriores</MudButton>
+                <span>Eventos · @Page de @PageCount</span>
+                <MudButton Size="Size.Small" Disabled="@(Page >= PageCount || Busy)" OnClick="@(() => PageChanged.InvokeAsync(Page + 1))">Próximos</MudButton>
+            </footer>
+        }
+    </div>
+    @if (Selected is { } current)
+    {
+        <aside class="attention-detail" aria-label="Detalhes da pendência">
+            <span class="attention-eyebrow">CONTEXTO DO ATENDIMENTO</span>
+            <h2>@current.Title</h2><p class="attention-context">@current.Context</p>
+            <dl><div><dt>Situação</dt><dd>@current.Status</dd></div><div><dt>O que aconteceu</dt><dd>@current.Detail</dd></div><div><dt>Próxima ação</dt><dd>@current.NextAction</dd></div></dl>
+            @if (current.Event is { } accessEvent)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth OnClick="@(() => EventSelected.InvokeAsync(accessEvent))">Ver credencial e ações de acesso</MudButton>
+                @if (CanOperate)
+                {
+                    <div class="attention-resolution">
+                        <MudTextField T="string" @bind-Value="_resolutionNote" Label="Como foi tratado?" Variant="Variant.Outlined" Lines="2" MaxLength="500" Disabled="Busy" />
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Disabled="@(Busy || Stale || _resolutionNote.Trim().Length < 3)" OnClick="@(() => ResolveAsync(accessEvent))">@(Busy ? "Registrando…" : "Registrar resolução")</MudButton>
+                    </div>
+                }
+            }
+            else if (current.Visit is { } visit)
+            {
+                @if (CanManagePeople && visit.Status == "PendingApproval")
+                {
+                    <div class="attention-actions"><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(Busy || Stale)" OnClick="@(() => ActAsync(() => ApproveVisit.InvokeAsync(visit)))">Aprovar visita</MudButton><MudButton Variant="Variant.Outlined" Disabled="@(Busy || Stale)" OnClick="@(() => ActAsync(() => RejectVisit.InvokeAsync(visit)))">Recusar</MudButton></div>
+                }
+                @if (CanManagePeople && visit.IsOverstayed)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(Busy || Stale)" OnClick="@(() => ActAsync(() => CheckoutVisit.InvokeAsync(visit)))">Registrar saída</MudButton>
+                }
+                <MudButton Variant="Variant.Outlined" FullWidth Class="mt-3" OnClick="@(() => VisitSelected.InvokeAsync(visit))">Ver autorização completa</MudButton>
+            }
+            else if (current.Device is not null && !string.IsNullOrWhiteSpace(DevicesUrl))
+            {
+                <MudButton Href="@DevicesUrl" Variant="Variant.Filled" Color="Color.Primary" FullWidth>Verificar equipamento</MudButton>
+            }
+            @if (Stale) { <p class="attention-warning" role="status">Atualize a operação antes de registrar uma decisão.</p> }
+            @if (!string.IsNullOrWhiteSpace(_error)) { <p class="attention-warning" role="alert">@_error</p> }
+            <p class="attention-footnote">Autorizar uma visita, registrar sua entrada e acionar uma porta são operações distintas.</p>
+        </aside>
+    }
+</section>
+
+@code {
+    [Parameter] public Guid LicenseId { get; set; }
+    [Parameter] public IEnumerable<ConciergeEventViewModel> Events { get; set; } = [];
+    [Parameter] public IEnumerable<ConciergeVisitViewModel> Visits { get; set; } = [];
+    [Parameter] public IEnumerable<ConciergeDeviceViewModel> Devices { get; set; } = [];
+    [Parameter] public int TotalEventCount { get; set; }
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public int PageSize { get; set; } = 20;
+    [Parameter] public bool Stale { get; set; }
+    [Parameter] public bool CanOperate { get; set; }
+    [Parameter] public bool CanManagePeople { get; set; }
+    [Parameter] public string? DevicesUrl { get; set; }
+    [Parameter] public EventCallback<int> PageChanged { get; set; }
+    [Parameter] public EventCallback<ConciergeEventViewModel> EventSelected { get; set; }
+    [Parameter] public EventCallback<ConciergeEventViewModel> EventResolved { get; set; }
+    [Parameter] public EventCallback<ConciergeVisitViewModel> VisitSelected { get; set; }
+    [Parameter] public EventCallback<ConciergeVisitViewModel> ApproveVisit { get; set; }
+    [Parameter] public EventCallback<ConciergeVisitViewModel> RejectVisit { get; set; }
+    [Parameter] public EventCallback<ConciergeVisitViewModel> CheckoutVisit { get; set; }
+
+    private sealed record QueueItem(string Key, string Title, string Context, string Status, string Detail,
+        string NextAction, string Icon, string Tone, DateTime? At,
+        ConciergeEventViewModel? Event = null, ConciergeVisitViewModel? Visit = null, ConciergeDeviceViewModel? Device = null);
+    private List<QueueItem> _items = [];
+    private string? _selectedKey;
+    private string _resolutionNote = string.Empty;
+    private string? _error;
+    private bool Busy;
+    private bool _disposed;
+    private QueueItem? Selected => _items.FirstOrDefault(x => x.Key == _selectedKey);
+    private int PageCount => Math.Max(1, (int)Math.Ceiling(TotalEventCount / (double)Math.Max(1, PageSize)));
+    private int TotalCount => TotalEventCount + _items.Count(x => x.Event is null);
+
+    protected override void OnParametersSet()
+    {
+        var previousOrder = _items.Select(x => x.Key).ToList();
+        var items = Events.Where(x => x.RequiresAttention).Select(x => new QueueItem(
+            $"event:{x.Id}", string.IsNullOrWhiteSpace(x.PersonName) ? x.Event : x.PersonName,
+            $"{x.DeviceName} · {x.Portal}", "Revisar acesso negado", string.IsNullOrWhiteSpace(x.Details) ? x.Event : x.Details,
+            "Conferir a identidade e a situação da credencial antes de decidir.", Icons.Material.Outlined.GppBad, "critical", x.OccurredAt, Event: x)).ToList();
+        items.AddRange(Visits.Select(x => new QueueItem($"visit:{x.Id}", x.VisitorName,
+            $"{x.HostName} · {x.BlockName} / {x.UnitNumber}",
+            x.IsOverstayed ? "Conferir permanência" : x.Status == "PendingApproval" ? "Aguardando aprovação" : "Cadastro facial pendente",
+            x.IsOverstayed ? "O horário previsto para saída foi ultrapassado." : x.Status == "PendingApproval" ? "A visita precisa de uma decisão da equipe." : "O visitante ainda não concluiu o cadastro facial.",
+            x.IsOverstayed ? "Confirmar a permanência com a unidade antes de registrar a saída." : x.Status == "PendingApproval" ? "Conferir responsável e período da autorização." : "Consultar o convite e orientar o visitante.",
+            Icons.Material.Outlined.PersonPinCircle, "warning", x.ExpectedCheckoutAt ?? x.ValidFrom, Visit: x)));
+        items.AddRange(Devices.Select(x => new QueueItem($"device:{x.Id}", x.Name, x.Model, "Sem comunicação recente",
+            string.IsNullOrWhiteSpace(x.HealthMessage) ? "O equipamento não confirmou comunicação recente." : x.HealthMessage,
+            "Verificar alimentação, rede e a última leitura do terminal.", Icons.Material.Outlined.Router, "warning", x.LastSeenAt, Device: x)));
+        _items = _selectedKey is null ? items : items.OrderBy(x => { var index = previousOrder.IndexOf(x.Key); return index < 0 ? int.MaxValue : index; }).ToList();
+        if (Selected is null) Select(_items.FirstOrDefault()?.Key);
+    }
+
+    private void Select(string? key) { _selectedKey = key; _resolutionNote = string.Empty; _error = null; }
+
+    private async Task ActAsync(Func<Task> action)
+    {
+        if (Busy || Stale) return;
+        Busy = true;
+        try { await action(); }
+        finally { Busy = false; }
+    }
+
+    private async Task ResolveAsync(ConciergeEventViewModel accessEvent)
+    {
+        if (!CanOperate || Busy || Stale || _resolutionNote.Trim().Length < 3) return;
+        Busy = true; _error = null;
+        try
+        {
+            var result = await Api.ResolveConciergeEventAsync(LicenseId, accessEvent.Id, _resolutionNote.Trim());
+            if (_disposed) return;
+            if (result.Success && result.Value is not null) await EventResolved.InvokeAsync(result.Value);
+            else _error = result.Error ?? "Não foi possível registrar a resolução.";
+        }
+        finally { Busy = false; }
+    }
+    public void Dispose() => _disposed = true;
+}

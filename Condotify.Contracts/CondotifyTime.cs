@@ -16,6 +16,17 @@ public static class CondotifyTime
     /// <summary>The current calendar date in the condominium's configured zone.</summary>
     public static DateTime Today => Now.Date;
 
+    /// <summary>IANA identifier used by PostgreSQL for the same display zone.</summary>
+    public static string TimeZoneId => TimeZoneInfo.TryConvertWindowsIdToIanaId(DisplayZone.Value.Id, out var iana)
+        ? iana : DisplayZone.Value.Id == "Condotify-UTC-03" ? "Etc/GMT+3" : DisplayZone.Value.Id;
+
+    /// <summary>Half-open UTC interval for the local calendar day containing an instant.</summary>
+    public static (DateTime Start, DateTime End) UtcDay(DateTime instant)
+    {
+        var day = instant.ToCondotifyTime().AsCalendarDate();
+        return (day.ToCondotifyUtc(), day.AddDays(1).ToCondotifyUtc());
+    }
+
     /// <summary>
     /// Normalizes a value supplied by a date-only UI control without applying a
     /// time-zone offset. The returned unspecified value represents a calendar day,
