@@ -102,6 +102,10 @@ public sealed class CondotifyApiClient
             new { },
             cancellationToken);
 
+    public Task<ApiResult<ResidentHomeSummaryViewModel>> GetResidentHomeSummaryAsync(
+        CancellationToken cancellationToken = default) =>
+        GetAsync<ResidentHomeSummaryViewModel>("api/resident/home", cancellationToken);
+
     public Task<ApiResult<ResidentProfileViewModel>> GetResidentProfileAsync(
         CancellationToken cancellationToken = default) =>
         GetAsync<ResidentProfileViewModel>("api/resident/me", cancellationToken);
@@ -840,8 +844,8 @@ public sealed class CondotifyApiClient
     public Task<ApiResult<string>> GetResidentDocumentFileAsync(Guid documentId, CancellationToken cancellationToken = default) =>
         GetPdfDataUrlAsync($"api/resident/documents/{documentId}/file", cancellationToken);
 
-    public Task<ApiResult<ConciergeDashboardViewModel>> GetConciergeDashboardAsync(Guid licenseId, CancellationToken cancellationToken = default) =>
-        GetAsync<ConciergeDashboardViewModel>($"api/access/licenses/{licenseId}/concierge", cancellationToken);
+    public Task<ApiResult<ConciergeDashboardViewModel>> GetConciergeDashboardAsync(Guid licenseId, CancellationToken cancellationToken = default, int attentionPage = 1) =>
+        GetAsync<ConciergeDashboardViewModel>($"api/access/licenses/{licenseId}/concierge{(attentionPage > 1 ? $"?attentionPage={attentionPage}" : string.Empty)}", cancellationToken);
 
     public Task<ApiResult<List<ConciergeEventViewModel>>> GetConciergeEventsFeedAsync(Guid licenseId, string? search, bool? authorized, int take = 100, CancellationToken cancellationToken = default)
     {
@@ -1365,6 +1369,7 @@ public sealed class CondotifyApiClient
         {
             model.ResidentId,
             model.DeviceId,
+            model.SaveWithoutDevice,
             model.Type,
             model.Identifier,
             model.ImageBase64,

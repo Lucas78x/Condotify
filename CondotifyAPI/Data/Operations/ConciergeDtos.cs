@@ -7,6 +7,10 @@ public sealed class ConciergeDashboardOut
 {
     public List<ConciergeVisitOut> Visits { get; set; } = [];
     public List<ConciergeEventOut> Events { get; set; } = [];
+    public List<ConciergeEventOut> AttentionEvents { get; set; } = [];
+    public int AttentionEventCount { get; set; }
+    public int AttentionPage { get; set; } = 1;
+    public int AttentionPageSize { get; set; } = 20;
     public List<ConciergeDeviceOut> Devices { get; set; } = [];
     public int ExpectedToday { get; set; }
     public int InsideNow { get; set; }
@@ -168,6 +172,7 @@ public sealed class ResolveConciergeEventIn
 
 public sealed class ConciergeDeviceOut
 {
+    public DateTime? LastSeenAt { get; set; }
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Model { get; set; } = string.Empty;

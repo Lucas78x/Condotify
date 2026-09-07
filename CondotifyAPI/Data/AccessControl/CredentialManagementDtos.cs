@@ -7,6 +7,7 @@ public sealed class CreateCredentialIn
 {
     public Guid ResidentId { get; set; }
     public Guid DeviceId { get; set; }
+    public bool SaveWithoutDevice { get; set; }
     public AccessCredentialTypeEnum Type { get; set; }
 
     [MaxLength(200)]

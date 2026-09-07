@@ -10,6 +10,40 @@ namespace Condotify.ApiClient.Tests;
 public sealed class ResidentMobileClientTests
 {
     [Fact]
+    public async Task ResidentHome_UsesSingleResidentScopedSummary()
+    {
+        var handler = new CapturingHandler("{\"deliveriesAwaitingPickup\":2,\"visitsToday\":3}");
+        var result = await CreateClient(handler).GetResidentHomeSummaryAsync();
+        Assert.Equal("/api/resident/home", handler.Uri?.AbsolutePath);
+        Assert.True(result.Success);
+        Assert.Equal(2, result.Value!.DeliveriesAwaitingPickup);
+        Assert.Equal(3, result.Value.VisitsToday);
+    }
+
+    [Fact]
+    public async Task CentralCredential_SendsExplicitDeferredDistribution()
+    {
+        var handler = new CapturingHandler("{}");
+        await CreateClient(handler).CreateCredentialAsync(Guid.NewGuid(), new CredentialFormViewModel
+        {
+            ResidentId = Guid.NewGuid(), SaveWithoutDevice = true, DeviceId = Guid.Empty, Type = 2
+        });
+        using var body = JsonDocument.Parse(handler.Body!);
+        Assert.True(body.RootElement.GetProperty("saveWithoutDevice").GetBoolean());
+        Assert.Equal(Guid.Empty, body.RootElement.GetProperty("deviceId").GetGuid());
+    }
+
+    [Theory]
+    [InlineData(1, "")]
+    [InlineData(3, "?attentionPage=3")]
+    public async Task ConciergePagination_PreservesDefaultRoute(int page, string query)
+    {
+        var handler = new CapturingHandler("{}");
+        await CreateClient(handler).GetConciergeDashboardAsync(Guid.NewGuid(), attentionPage: page);
+        Assert.Equal(query, handler.Uri?.Query);
+    }
+
+    [Fact]
     public async Task CreateResidentVisitAsync_UsesResidentRouteAndPreservesIdempotencyKey()
     {
         var handler = new CapturingHandler("{}");

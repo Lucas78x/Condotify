@@ -295,6 +295,7 @@ namespace Condotify.Models
 
     public class CredentialFormViewModel
     {
+        public bool SaveWithoutDevice { get; set; }
         [Required]
         public Guid ResidentId { get; set; }
 
@@ -1049,6 +1050,10 @@ namespace Condotify.Models
 
     public class ConciergeDashboardViewModel
     {
+        public List<ConciergeEventViewModel> AttentionEvents { get; set; } = [];
+        public int AttentionEventCount { get; set; }
+        public int AttentionPage { get; set; } = 1;
+        public int AttentionPageSize { get; set; } = 20;
         public List<ConciergeVisitViewModel> Visits { get; set; } = [];
         public List<ConciergeEventViewModel> Events { get; set; } = [];
         public List<ConciergeDeviceViewModel> Devices { get; set; } = [];
@@ -1132,6 +1137,7 @@ namespace Condotify.Models
 
     public class ConciergeDeviceViewModel
     {
+        public DateTime? LastSeenAt { get; set; }
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Model { get; set; } = string.Empty;

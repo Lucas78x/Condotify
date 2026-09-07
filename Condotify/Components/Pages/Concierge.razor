@@ -1,3 +1,5 @@
+@inject PortalLicenseContext Context
+@inject NavigationManager Navigation
 @page "/portaria"
 @using System.Text.Json
 @using System.Globalization
@@ -12,11 +14,11 @@
 
 <PageTitle>Portaria | F&amp;F Access</PageTitle>
 
-<PageHeader Title="Central de portaria" Subtitle="Visitantes, acessos e acionamentos em uma única operação." Eyebrow="OPERAÇÃO AO VIVO" />
+<PageHeader Title="O que precisa de você" Subtitle="Decisões do turno, visitantes e equipamentos no mesmo contexto." Eyebrow="CENTRAL DE PORTARIA" />
 
 <div class="concierge-license-bar">
     <div class="concierge-license-selector">
-        <MudSelect T="Guid?" Value="@_licenseId" ValueChanged="@SelectLicenseAsync" Label="Condomínio em operação" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Apartment">
+        <MudSelect T="Guid?" Value="@_licenseId" ValueChanged="@NavigateToLicense" Label="Condomínio em operação" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Apartment">
             @foreach (var license in _licenses)
             {
                 <MudSelectItem T="Guid?" Value="@(Guid.TryParse(license.Id, out var parsedId) ? parsedId : null)">@license.Nome - @license.Codigo</MudSelectItem>
@@ -24,14 +26,23 @@
         </MudSelect>
         @if (_dashboard is not null)
         {
-            @if (_reconnecting)
+            @if (DataIsStale)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Icon="@Icons.Material.Outlined.CloudOff">Dados desatualizados</MudChip>
+            }
+            else if (_reconnecting)
             {
                 <MudChip T="string" Size="Size.Small" Color="Color.Warning" Icon="@Icons.Material.Outlined.SyncProblem">Reconectando…</MudChip>
             }
+            else if (_hubConnection?.State == HubConnectionState.Connected)
+            {
+                <span class="live-indicator"><i></i> Tempo real conectado</span>
+            }
             else
             {
-                <span class="live-indicator"><i></i> Operação sincronizada</span>
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Icon="@Icons.Material.Outlined.Update">Atualização periódica · 15 s</MudChip>
             }
+            <span class="concierge-last-update">Última consulta: @(_lastUpdatedAt?.ToCondotifyTime().ToString("HH:mm:ss") ?? "—")</span>
         }
     </div>
     <div class="concierge-command-actions">
@@ -41,11 +52,16 @@
     </div>
 </div>
 
+@if (!string.IsNullOrWhiteSpace(_error) && _dashboard is not null)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4" role="status">@_error Os dados da última consulta permanecem visíveis. <MudButton OnClick="LoadDashboardAsync" Size="Size.Small">Tentar novamente</MudButton></MudAlert>
+}
+
 @if (_loading && _dashboard is null)
 {
     <div class="loading-state concierge-loading"><MudProgressCircular Indeterminate Color="Color.Primary" /><MudText Typo="Typo.body2">Preparando a operação...</MudText></div>
 }
-else if (!string.IsNullOrWhiteSpace(_error))
+else if (!string.IsNullOrWhiteSpace(_error) && _dashboard is null)
 {
     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
 }
@@ -64,41 +80,15 @@ else if (_dashboard is not null)
         <div class="concierge-kpi"><span class="kpi-icon red"><MudIcon Icon="@Icons.Material.Outlined.TimerOff" /></span><div><strong>@_dashboard.Overstays</strong><small>Permanência excedida</small></div></div>
     </div>
 
-    <MudPaper Class="content-panel concierge-attention-panel" Elevation="0">
-        <div class="panel-toolbar">
-            <div><MudText Typo="Typo.h6" Class="panel-title">Precisa de atenção</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Pendências operacionais que ainda exigem uma decisão da portaria</MudText></div>
-            <MudChip T="string" Size="Size.Small" Color="@(AttentionCount > 0 ? Color.Error : Color.Success)" Icon="@(AttentionCount > 0 ? Icons.Material.Outlined.NotificationImportant : Icons.Material.Outlined.TaskAlt)">@AttentionCount</MudChip>
-        </div>
-        @if (AttentionCount == 0)
-        {
-            <div class="concierge-attention-empty"><MudIcon Icon="@Icons.Material.Outlined.TaskAlt" Color="Color.Success" /><span>Nenhuma pendência operacional no momento.</span></div>
-        }
-        else
-        {
-            <div class="concierge-attention-list">
-                @foreach (var accessEvent in AttentionEvents.Take(5))
-                {
-                    <button type="button" @onclick="@(() => OpenEventAsync(accessEvent))">
-                        <MudIcon Icon="@Icons.Material.Outlined.GppBad" Color="Color.Error" />
-                        <span><strong>@(string.IsNullOrWhiteSpace(accessEvent.PersonName) ? accessEvent.Event : accessEvent.PersonName)</strong><small>@AttentionReason(accessEvent) · @accessEvent.DeviceName @accessEvent.Portal</small></span>
-                        <time>@accessEvent.OccurredAt.ToCondotifyTime().ToString("HH:mm")</time><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
-                    </button>
-                }
-                @foreach (var visit in AttentionVisits.Take(4))
-                {
-                    <button type="button" @onclick="@(() => OpenVisitDetailsAsync(visit))">
-                        <MudIcon Icon="@Icons.Material.Outlined.PersonPinCircle" Color="Color.Warning" />
-                        <span><strong>@visit.VisitorName</strong><small>@StatusLabel(visit.Status) · @visit.HostName — @visit.BlockName / @visit.UnitNumber</small></span>
-                        <time>@visit.ValidFrom.ToCondotifyTime().ToString("HH:mm")</time><MudIcon Icon="@Icons.Material.Outlined.ChevronRight" />
-                    </button>
-                }
-                @foreach (var device in OfflineDevices.Take(3))
-                {
-                    <div class="concierge-attention-device"><MudIcon Icon="@Icons.Material.Outlined.Router" Color="Color.Warning" /><span><strong>@device.Name sem comunicação</strong><small>@(string.IsNullOrWhiteSpace(device.HealthMessage) ? "Verifique a conexão do equipamento." : device.HealthMessage)</small></span></div>
-                }
-            </div>
-        }
-    </MudPaper>
+    <ConciergeAttentionQueue @key="_licenseId" LicenseId="_licenseId!.Value"
+        Events="_dashboard.AttentionEvents" Visits="AttentionVisits" Devices="OfflineDevices"
+        TotalEventCount="_dashboard.AttentionEventCount" Page="_dashboard.AttentionPage" PageSize="_dashboard.AttentionPageSize"
+        PageChanged="ChangeAttentionPageAsync" Stale="DataIsStale"
+        CanOperate="@Has(LicensePermission.OperateDevices)" CanManagePeople="@Has(LicensePermission.ManagePeople)"
+        DevicesUrl="@DevicesUrl" EventSelected="OpenEventAsync" EventResolved="ResolveAttentionAsync"
+        VisitSelected="OpenVisitDetailsAsync" ApproveVisit="@(visit => DecideVisitAsync(visit, true))"
+        RejectVisit="@(visit => DecideVisitAsync(visit, false))"
+        CheckoutVisit="@(visit => ChangeVisitStatusAsync(visit, 2, "Saída confirmada no atendimento"))" />
 
     <MudTabs Elevation="0" Rounded TabPanelsClass="pa-0" Class="concierge-tabs">
         <MudTabPanel Text="Agenda de acessos" Icon="@Icons.Material.Outlined.EventNote">
@@ -248,6 +238,7 @@ else if (_dashboard is not null)
     private string _visitFilter = "active";
     private string _visitPeriod = "today";
     private int _visibleVisitCount = 12;
+    private int _attentionPage = 1;
     private string? _error;
     private bool _loading = true;
     private PeriodicTimer? _timer;
@@ -256,6 +247,14 @@ else if (_dashboard is not null)
     private ConciergeEventsTab? _eventsTab;
     private HubConnection? _hubConnection;
     private bool _reconnecting;
+    private bool _disposed;
+    private bool _refreshInProgress;
+    private bool _refreshRequested;
+    private int _contextVersion;
+    private DateTime? _lastUpdatedAt;
+    private CancellationTokenSource _licenseCancellation = new();
+    private bool DataIsStale => _lastUpdatedAt.HasValue &&
+        (!string.IsNullOrWhiteSpace(_error) || DateTime.UtcNow - _lastUpdatedAt.Value > TimeSpan.FromSeconds(45));
     private LicenseAdministrationViewModel? _administration;
 
     private bool IsModuleEnabled(Condotify.Models.LicenseModuleEnum module) =>
@@ -274,12 +273,21 @@ else if (_dashboard is not null)
     private int TodayVisitCount => CountVisitsInPeriod("today");
     private int TomorrowVisitCount => CountVisitsInPeriod("tomorrow");
     private int WeekVisitCount => CountVisitsInPeriod("week");
-    private IEnumerable<ConciergeEventViewModel> AttentionEvents => (_dashboard?.Events ?? []).Where(x => x.RequiresAttention);
     private IEnumerable<ConciergeVisitViewModel> AttentionVisits => (_dashboard?.Visits ?? [])
-        .Where(x => x.Status == "PendingApproval" || (x.Status == "PendingEnrollment" && x.ValidFrom.ToCondotifyTime() <= CondotifyTime.Now.AddHours(24)))
+        .Where(x => x.IsOverstayed || x.Status == "PendingApproval" || (x.Status == "PendingEnrollment" && x.ValidFrom.ToCondotifyTime() <= CondotifyTime.Now.AddHours(24)))
         .OrderBy(x => x.Status == "PendingApproval" ? 0 : 1).ThenBy(x => x.ValidFrom);
     private IEnumerable<ConciergeDeviceViewModel> OfflineDevices => (_dashboard?.Devices ?? []).Where(x => !x.Online);
-    private int AttentionCount => AttentionEvents.Count() + AttentionVisits.Count() + OfflineDevices.Count();
+    private string? DevicesUrl => Has(LicensePermission.ViewDevices) &&
+        _licenses.FirstOrDefault(x => Guid.TryParse(x.Id, out var id) && id == _licenseId) is { } license
+            ? LicenseRoutes.Workspace(license, "equipamentos") : null;
+
+    private async Task ChangeAttentionPageAsync(int page) { _attentionPage = page; await LoadDashboardAsync(); }
+    private async Task ResolveAttentionAsync(ConciergeEventViewModel updated)
+    {
+        MergeEvent(updated);
+        Snackbar.Add("Resolução registrada na auditoria.", Severity.Success);
+        await LoadDashboardAsync();
+    }
 
     private bool IsInSelectedPeriod(ConciergeVisitViewModel visit) => IsInPeriod(visit, _visitPeriod);
     private int CountVisitsInPeriod(string period) => (_dashboard?.Visits ?? []).Count(x => IsInPeriod(x, period));
@@ -303,28 +311,67 @@ else if (_dashboard is not null)
 
     protected override async Task OnInitializedAsync()
     {
+        Context.Changed += ContextChanged;
         var result = await Api.GetLicensesAsync();
         _loading = false;
         if (!result.Success) { _error = result.Error; return; }
         _licenses = result.Value ?? [];
-        if (_licenses.Count == 1 && Guid.TryParse(_licenses[0].Id, out var onlyLicenseId)) await SelectLicenseAsync(onlyLicenseId);
+        if (!RequestedLicenseId.HasValue && _licenses.Count == 1 && Guid.TryParse(_licenses[0].Id, out var onlyLicenseId)) await SelectLicenseAsync(onlyLicenseId);
+    }
+
+    [SupplyParameterFromQuery(Name = "licenseId")] public Guid? RequestedLicenseId { get; set; }
+    private void ContextChanged()
+    {
+        if (!RequestedLicenseId.HasValue && !_licenseId.HasValue && !_disposed && Guid.TryParse(Context.License?.Id, out var id) && _licenses.Any(x => x.Id == id.ToString()))
+            _ = InvokeAsync(() => SelectLicenseAsync(id));
+    }
+    private void NavigateToLicense(Guid? id) => Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("licenseId", id));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var requested = RequestedLicenseId ?? (Guid.TryParse(Context.License?.Id, out var id) ? id : (Guid?)null);
+        if (RequestedLicenseId.HasValue && !_licenses.Any(x => x.Id == RequestedLicenseId.Value.ToString()))
+        {
+            await SelectLicenseAsync(null);
+            _error = "O condomínio solicitado não está disponível para este acesso.";
+            return;
+        }
+        if (requested.HasValue && requested != _licenseId && _licenses.Any(x => x.Id == requested.Value.ToString()))
+            await SelectLicenseAsync(requested);
     }
 
     private async Task SelectLicenseAsync(Guid? licenseId)
     {
+        var version = ++_contextVersion;
+        _licenseCancellation.Cancel();
+        _licenseCancellation.Dispose();
+        _licenseCancellation = new CancellationTokenSource();
+        var cancellationToken = _licenseCancellation.Token;
         _licenseId = licenseId;
         _dashboard = null;
+        _lastUpdatedAt = null;
+        _visitSearch = string.Empty;
+        _visibleVisitCount = 12;
+        _attentionPage = 1;
+        _showAllEvents = false;
         _error = null;
         _administration = null;
         StopRefreshLoop();
         await DisconnectHubAsync();
+        if (_disposed || version != _contextVersion) return;
         if (!licenseId.HasValue) return;
         _loading = true;
-        var routesResult = await Api.GetAccessRoutesAsync(licenseId.Value);
+        var routesTask = Api.GetAccessRoutesAsync(licenseId.Value, cancellationToken);
+        var administrationTask = Api.GetLicenseAdministrationAsync(licenseId.Value, cancellationToken);
+        await Task.WhenAll(routesTask, administrationTask);
+        if (_disposed || version != _contextVersion) return;
+        var routesResult = await routesTask;
         _routes = routesResult.Success ? routesResult.Value ?? [] : [];
-        var administrationResult = await Api.GetLicenseAdministrationAsync(licenseId.Value);
+        var administrationResult = await administrationTask;
         _administration = administrationResult.Success ? administrationResult.Value : null;
+        Context.Select(_licenses.FirstOrDefault(x => x.Id == licenseId.Value.ToString()), _administration);
         await LoadDashboardAsync();
+        if (_disposed || version != _contextVersion) return;
         StartRefreshLoop();
         await ConnectHubAsync(licenseId.Value);
     }
@@ -346,18 +393,25 @@ else if (_dashboard is not null)
 
     private async Task ConnectHubAsync(Guid licenseId)
     {
+        var version = _contextVersion;
         await DisconnectHubAsync();
         var token = await SessionContext.GetAccessTokenAsync();
-        if (string.IsNullOrWhiteSpace(token)) return;
+        if (string.IsNullOrWhiteSpace(token) || _disposed || version != _contextVersion) return;
 
-        _hubConnection = new HubConnectionBuilder()
+        var connection = new HubConnectionBuilder()
             .WithUrl(BuildHubUrl(), options => options.AccessTokenProvider = () => SessionContext.GetAccessTokenAsync().AsTask())
             .WithAutomaticReconnect()
             .Build();
-
-        _hubConnection.Reconnecting += _ => { _reconnecting = true; return InvokeAsync(StateHasChanged); };
-        _hubConnection.Reconnected += async _ => { _reconnecting = false; await _hubConnection.InvokeAsync("JoinLicenseGroup", licenseId); await InvokeAsync(StateHasChanged); };
-        _hubConnection.Closed += async _ => { _reconnecting = false; await InvokeAsync(StateHasChanged); };
+        _hubConnection = connection;
+        bool IsCurrent() => !_disposed && version == _contextVersion && ReferenceEquals(_hubConnection, connection);
+        connection.Reconnecting += _ => IsCurrent() ? InvokeAsync(() => { _reconnecting = true; StateHasChanged(); }) : Task.CompletedTask;
+        connection.Reconnected += async _ =>
+        {
+            if (!IsCurrent()) return;
+            await connection.InvokeAsync("JoinLicenseGroup", licenseId);
+            if (IsCurrent()) await InvokeAsync(async () => { _reconnecting = false; await LoadDashboardAsync(); });
+        };
+        connection.Closed += _ => IsCurrent() ? InvokeAsync(() => { _reconnecting = false; StateHasChanged(); }) : Task.CompletedTask;
 
         // VisitStatusChanged/DeliveryUpdated disparam um recarregamento local (chamada HTTP
         // ja existente, GetConciergeDashboardAsync/GetDeliveriesAsync) em vez de mesclar o
@@ -368,15 +422,17 @@ else if (_dashboard is not null)
         // AccessEventRecorded (abaixo) faz merge local de verdade, via ConciergeEventsTab.PrependEvent,
         // porque inserir uma linha no topo de uma lista e trivial e nao tem risco de
         // inconsistencia como mesclar uma visita/entrega inteira.
-        _hubConnection.On<ConciergeVisitViewModel>("VisitStatusChanged", async _ => await InvokeAsync(LoadDashboardAsync));
-        _hubConnection.On<DeliveryRowViewModel>("DeliveryUpdated", async _ => { if (_packagesTab is not null) await InvokeAsync(_packagesTab.ReloadAsync); });
-        _hubConnection.On<ConciergeEventViewModel>("AccessEventRecorded", async accessEvent =>
+        connection.On<ConciergeVisitViewModel>("VisitStatusChanged", async _ => { if (IsCurrent()) await InvokeAsync(LoadDashboardAsync); });
+        connection.On<DeliveryRowViewModel>("DeliveryUpdated", async _ => { if (IsCurrent() && _packagesTab is not null) await InvokeAsync(_packagesTab.ReloadAsync); });
+        connection.On<ConciergeEventViewModel>("AccessEventRecorded", async accessEvent =>
         {
             await InvokeAsync(() =>
             {
+                if (!IsCurrent()) return Task.CompletedTask;
                 _eventsTab?.PrependEvent(accessEvent);
                 if (_dashboard is not null)
                 {
+                    _dashboard.Events.RemoveAll(x => x.Id == accessEvent.Id);
                     _dashboard.Events.Insert(0, accessEvent);
                     if (_dashboard.Events.Count > 80) _dashboard.Events.RemoveAt(_dashboard.Events.Count - 1);
                     StateHasChanged();
@@ -384,10 +440,11 @@ else if (_dashboard is not null)
                 return Task.CompletedTask;
             });
         });
-        _hubConnection.On<ConciergeEventViewModel>("AccessEventResolved", async accessEvent =>
+        connection.On<ConciergeEventViewModel>("AccessEventResolved", async accessEvent =>
         {
             await InvokeAsync(() =>
             {
+                if (!IsCurrent()) return;
                 MergeEvent(accessEvent);
                 StateHasChanged();
             });
@@ -395,8 +452,8 @@ else if (_dashboard is not null)
 
         try
         {
-            await _hubConnection.StartAsync();
-            await _hubConnection.InvokeAsync("JoinLicenseGroup", licenseId);
+            await connection.StartAsync(_licenseCancellation.Token);
+            if (IsCurrent()) await connection.InvokeAsync("JoinLicenseGroup", licenseId);
         }
         catch (Exception)
         {
@@ -407,19 +464,45 @@ else if (_dashboard is not null)
     private async Task DisconnectHubAsync()
     {
         if (_hubConnection is null) return;
-        await _hubConnection.DisposeAsync();
+        var connection = _hubConnection;
         _hubConnection = null;
+        _reconnecting = false;
+        await connection.DisposeAsync();
     }
 
     private async Task LoadDashboardAsync()
     {
-        if (!_licenseId.HasValue) return;
-        var result = await Api.GetConciergeDashboardAsync(_licenseId.Value);
-        _loading = false;
-        if (!result.Success) { _error = result.Error; StateHasChanged(); return; }
-        _dashboard = result.Value;
-        _error = null;
-        StateHasChanged();
+        if (!_licenseId.HasValue || _disposed) return;
+        if (_refreshInProgress) { _refreshRequested = true; return; }
+        _refreshInProgress = true;
+        try
+        {
+            do
+            {
+                _refreshRequested = false;
+                var version = _contextVersion;
+                var licenseId = _licenseId;
+                if (!licenseId.HasValue || _disposed) return;
+                var token = _licenseCancellation.Token;
+                ApiResult<ConciergeDashboardViewModel> result;
+                try { result = await Api.GetConciergeDashboardAsync(licenseId.Value, token, _attentionPage); }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { continue; }
+                if (_disposed) return;
+                if (version != _contextVersion) continue;
+                _loading = false;
+                if (result.Success && result.Value is not null)
+                {
+                    _dashboard = result.Value;
+                    _attentionPage = _dashboard.AttentionPage;
+                    _lastUpdatedAt = DateTime.UtcNow;
+                    _error = null;
+                }
+                else _error = result.Error ?? "Não foi possível atualizar a operação.";
+                StateHasChanged();
+            } while (_refreshRequested && !_disposed);
+        }
+        catch (OperationCanceledException) when (_disposed || _licenseCancellation.IsCancellationRequested) { }
+        finally { _refreshInProgress = false; }
     }
 
     private async Task OpenVisitDialogAsync()
@@ -444,10 +527,12 @@ else if (_dashboard is not null)
     private async Task ChangeVisitStatusAsync(ConciergeVisitViewModel visit, int status, string reason)
     {
         if (!_licenseId.HasValue) return;
+        var licenseId = _licenseId.Value;
+        var version = _contextVersion;
         var action = status switch { 1 => "registrar a entrada", 2 => "registrar a saída", 3 => "cancelar esta visita", 5 => "negar o acesso", _ => "alterar o status" };
         var confirmed = await DialogService.ShowMessageBoxAsync("Confirmar operação", $"Deseja {action} de {visit.VisitorName}?", yesText: "Confirmar", cancelText: "Voltar");
-        if (confirmed != true) return;
-        var result = await Api.UpdateConciergeVisitStatusAsync(_licenseId.Value, visit.Id, status, reason);
+        if (confirmed != true || version != _contextVersion || _disposed) return;
+        var result = await Api.UpdateConciergeVisitStatusAsync(licenseId, visit.Id, status, reason);
         if (!result.Success) { Snackbar.Add(result.Error ?? "Não foi possível atualizar a visita.", Severity.Error); return; }
         Snackbar.Add("Operação registrada.", Severity.Success);
         await LoadDashboardAsync();
@@ -456,9 +541,11 @@ else if (_dashboard is not null)
     private async Task DecideVisitAsync(ConciergeVisitViewModel visit, bool approved)
     {
         if (!_licenseId.HasValue) return;
+        var licenseId = _licenseId.Value;
+        var version = _contextVersion;
         var confirmed = await DialogService.ShowMessageBoxAsync(approved ? "Aprovar visita" : "Recusar visita", $"Confirmar a decisao para {visit.VisitorName}?", yesText: approved ? "Aprovar" : "Recusar", cancelText: "Voltar");
-        if (confirmed != true) return;
-        var result = await Api.DecideConciergeVisitAsync(_licenseId.Value, visit.Id, approved, approved ? "Aprovada pela central de portaria" : "Recusada pela central de portaria");
+        if (confirmed != true || version != _contextVersion || _disposed) return;
+        var result = await Api.DecideConciergeVisitAsync(licenseId, visit.Id, approved, approved ? "Aprovada pela central de portaria" : "Recusada pela central de portaria");
         Snackbar.Add(result.Success ? (approved ? "Visita aprovada e enviada aos terminais." : "Visita recusada.") : result.Error ?? "Não foi possível registrar a decisão.", result.Success ? Severity.Success : Severity.Error);
         if (result.Success) await LoadDashboardAsync();
     }
@@ -528,16 +615,24 @@ else if (_dashboard is not null)
     {
         _eventsTab?.UpdateEvent(updated);
         if (_dashboard is null) return;
+        var attentionIndex = _dashboard.AttentionEvents.FindIndex(x => x.Id == updated.Id);
+        if (attentionIndex >= 0)
+        {
+            if (updated.RequiresAttention) _dashboard.AttentionEvents[attentionIndex] = updated;
+            else { _dashboard.AttentionEvents.RemoveAt(attentionIndex); _dashboard.AttentionEventCount = Math.Max(0, _dashboard.AttentionEventCount - 1); }
+        }
         var index = _dashboard.Events.FindIndex(x => x.Id == updated.Id);
         if (index >= 0) _dashboard.Events[index] = updated; else _dashboard.Events.Insert(0, updated);
     }
 
     private async Task OpenDoorAsync(ConciergeDeviceViewModel device, int channel, string portalName)
     {
-        if (!_licenseId.HasValue) return;
+        if (!_licenseId.HasValue || DataIsStale) return;
+        var licenseId = _licenseId.Value;
+        var version = _contextVersion;
         var confirmed = await DialogService.ShowMessageBoxAsync("Acionamento remoto", $"Abrir {portalName} em {device.Name}? O acionamento será registrado na auditoria.", yesText: "Abrir porta", cancelText: "Cancelar");
-        if (confirmed != true) return;
-        var result = await Api.OpenDoorAsync(_licenseId.Value, device.Id, channel, "Acionamento pela central de portaria");
+        if (confirmed != true || _disposed || version != _contextVersion || DataIsStale) return;
+        var result = await Api.OpenDoorAsync(licenseId, device.Id, channel, "Acionamento pela central de portaria");
         Snackbar.Add(result.Success ? $"{portalName} acionada." : result.Error ?? "Falha no acionamento.", result.Success ? Severity.Success : Severity.Error);
         await LoadDashboardAsync();
     }
@@ -554,7 +649,16 @@ else if (_dashboard is not null)
         catch (OperationCanceledException) { }
     }
     private void StopRefreshLoop() { _refreshCancellation?.Cancel(); _refreshCancellation?.Dispose(); _refreshCancellation = null; _timer?.Dispose(); _timer = null; }
-    public async ValueTask DisposeAsync() { StopRefreshLoop(); await DisconnectHubAsync(); }
+    public async ValueTask DisposeAsync()
+    {
+        Context.Changed -= ContextChanged;
+        _disposed = true;
+        ++_contextVersion;
+        _licenseCancellation.Cancel();
+        StopRefreshLoop();
+        await DisconnectHubAsync();
+        _licenseCancellation.Dispose();
+    }
 
     private static string Initials(string name) => string.Join(string.Empty, name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
     private static string StatusLabel(string status) => status switch { "Scheduled" => "Agendada", "CheckedIn" => "No local", "CheckedOut" => "Finalizada", "Canceled" => "Cancelada", "Expired" => "Expirada", "Denied" => "Negada", "PendingApproval" => "Aguardando aprovação", "PendingEnrollment" => "Aguardando cadastro facial", _ => "Em processamento" };

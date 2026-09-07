@@ -261,12 +261,12 @@ public sealed class CredentialManagementController : ControllerBase
             .Include(x => x.UnitLinks).ThenInclude(x => x.Unit).ThenInclude(x => x.Block)
             .ForLicense(licenseId)
             .FirstOrDefaultAsync(x => x.Id == input.ResidentId);
-        var deviceDto = await _context.Devices.FirstOrDefaultAsync(x => x.Id == input.DeviceId && x.LicenseId == licenseId);
-        if (resident is null || deviceDto is null) return NotFound();
+        var deviceDto = input.SaveWithoutDevice ? null : await _context.Devices.FirstOrDefaultAsync(x => x.Id == input.DeviceId && x.LicenseId == licenseId);
+        if (resident is null || (!input.SaveWithoutDevice && deviceDto is null)) return NotFound();
 
-        if (input.Type == AccessCredentialTypeEnum.Face && !deviceDto.Type.SupportsFace())
+        if (input.Type == AccessCredentialTypeEnum.Face && !deviceDto!.Type.SupportsFace())
             return BadRequest(new { Result = "UnsupportedCredential", Errors = "O equipamento selecionado nao suporta reconhecimento facial." });
-        if (!deviceDto.IsActive)
+        if (!input.SaveWithoutDevice && !deviceDto!.IsActive)
             return Conflict(new { Result = "InactiveDevice", Errors = "Teste e ative o equipamento antes de sincronizar credenciais." });
 
         var policy = await GetPolicyAsync(licenseId);
@@ -283,7 +283,7 @@ public sealed class CredentialManagementController : ControllerBase
 
         if (input.Type == AccessCredentialTypeEnum.Face && !string.IsNullOrWhiteSpace(input.ImageBase64))
         {
-            var limit = deviceDto.Type.IsInIntelbras() ? 100_000 : 1_000_000;
+            var limit = deviceDto!.Type.IsInIntelbras() ? 100_000 : 1_000_000;
             var imageValidation = FaceImageValidator.Validate(input.ImageBase64, limit);
             if (!imageValidation.Success)
                 return BadRequest(new { Result = "InvalidImage", Errors = imageValidation.Error });
@@ -316,13 +316,32 @@ public sealed class CredentialManagementController : ControllerBase
             Devices = []
         };
         _context.ResidentAccessCredentials.Add(credential);
+        if (input.SaveWithoutDevice)
+        {
+            _context.AccessOperationAudits.Add(new CondotifyAPI.Domain.DTO.AccessControl.AccessOperationAuditDTO
+            {
+                Id = Guid.NewGuid(), LicenseId = licenseId, EntityType = "Credential", EntityId = credential.Id,
+                Action = "CreateCentralCredential", Status = "PendingDistribution",
+                UserId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var actorId) ? actorId : null,
+                Summary = $"Cadastro central de credencial criado para {resident.Name}; sem envio a equipamento.",
+                UserName = User.Identity?.Name ?? User.FindFirstValue("name") ?? "Equipe",
+                CreatedAt = now
+            });
+            await _context.SaveChangesAsync();
+            return Created("", new CredentialOperationOut
+            {
+                Success = true, Synced = false,
+                Message = "Cadastro salvo. Distribua a credencial para confirmar o acesso nos equipamentos.",
+                Credential = ToOut(credential, new Dictionary<Guid, AccessControlDeviceDTO>())
+            });
+        }
         await _context.SaveChangesAsync();
 
         var operation = await ExecuteSafelyAsync(() => _accessControl.UpsertCredentialAsync(
             _mapper.Map<AccessControlDevice>(deviceDto), BuildRequest(credential, resident, null, input.ImageBase64)));
-        var binding = NewBinding(credential, deviceDto, operation, now);
+        var binding = NewBinding(credential, deviceDto!, operation, now);
         _context.ResidentAccessDevices.Add(binding);
-        AddAudit(deviceDto.Id, ActionTypeEnum.ProvisionCredential, $"{resident.Name} | {input.Type} | {(operation.Success ? "Sincronizado" : "Pendente")}: {operation.Message}");
+        AddAudit(deviceDto!.Id, ActionTypeEnum.ProvisionCredential, $"{resident.Name} | {input.Type} | {(operation.Success ? "Sincronizado" : "Pendente")}: {operation.Message}");
         await _context.SaveChangesAsync();
 
         var output = ToOut(credential, new Dictionary<Guid, AccessControlDeviceDTO> { [deviceDto.Id] = deviceDto }, [binding]);
@@ -755,10 +774,14 @@ public sealed class CredentialManagementController : ControllerBase
             }).ToList()
         };
 
-    private static string? ValidateInput(CreateCredentialIn input)
+    internal static string? ValidateInput(CreateCredentialIn input)
     {
-        if (input.ResidentId == Guid.Empty || input.DeviceId == Guid.Empty) return "Morador e equipamento sao obrigatorios.";
+        if (input.ResidentId == Guid.Empty) return "Morador e obrigatorio.";
+        if (!input.SaveWithoutDevice && input.DeviceId == Guid.Empty) return "Selecione o equipamento ou escolha distribuir depois.";
+        if (input.SaveWithoutDevice && input.DeviceId != Guid.Empty) return "O cadastro sem distribuicao nao deve informar equipamento.";
         if (!Enum.IsDefined(input.Type)) return "Tipo de credencial invalido.";
+        if (input.SaveWithoutDevice && input.Type == AccessCredentialTypeEnum.Face) return "A credencial facial exige um equipamento para envio ou captura.";
+        if (input.SaveWithoutDevice && !string.IsNullOrWhiteSpace(input.ImageBase64)) return "O cadastro sem distribuicao nao aceita imagem facial.";
         if (input.Type is not (AccessCredentialTypeEnum.Face or AccessCredentialTypeEnum.QrCode) && string.IsNullOrWhiteSpace(input.Identifier)) return "Informe o numero ou identificador da credencial.";
         if (input.ValidFrom.HasValue && input.ValidTo.HasValue && input.ValidTo <= input.ValidFrom) return "A validade final deve ser posterior ao inicio.";
         return null;

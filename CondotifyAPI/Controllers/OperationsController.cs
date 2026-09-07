@@ -11,6 +11,8 @@ using CondotifyAPI.Domain.Enums.AccessControl;
 using CondotifyAPI.Domain.Enums.Amenities;
 using CondotifyAPI.Domain.DTO.Observability;
 using System.Security.Claims;
+using Condotify.Models;
+using CondotifyAPI.Domain.Services;
 
 namespace CondotifyAPI.Controllers;
 
@@ -29,8 +31,12 @@ public sealed class OperationsController(
             return Unauthorized();
 
         var now = DateTime.UtcNow;
-        var today = DateTime.SpecifyKind(now.Date, DateTimeKind.Utc);
-        var since = today.AddDays(-13);
+        var localToday = now.ToCondotifyTime().AsCalendarDate();
+        var today = DateTime.SpecifyKind(localToday, DateTimeKind.Utc);
+        var since = localToday.AddDays(-13).ToCondotifyUtc();
+        var end = localToday.AddDays(1).ToCondotifyUtc();
+        var timeZone = CondotifyTime.TimeZoneId;
+        var onlineThreshold = DeviceHealthPolicy.OnlineSince(now);
         var permissionMap = await authorization.GetLicensePermissionsAsync(
             User,
             HttpContext.RequestAborted);
@@ -40,6 +46,7 @@ public sealed class OperationsController(
         var credentialLicenseIds = PermissionScope(permissionMap, LicensePermissionEnum.ViewDashboard | LicensePermissionEnum.ViewCredentials);
         var eventLicenseIds = PermissionScope(permissionMap, LicensePermissionEnum.ViewDashboard | LicensePermissionEnum.ViewEvents);
         var bookingLicenseIds = PermissionScope(permissionMap, LicensePermissionEnum.ViewDashboard | LicensePermissionEnum.ViewBookings);
+        var alertLicenseIds = PermissionScope(permissionMap, LicensePermissionEnum.ViewAlerts);
         var licenses = await context.Licenses
             .AsNoTracking()
             .Where(x => x.EnterpriseId == enterpriseId && accessibleLicenseIds.Contains(x.Id))
@@ -48,17 +55,24 @@ public sealed class OperationsController(
         var licenseIds = licenses.Select(x => x.Id).ToList();
 
         if (licenseIds.Count == 0)
-            return Ok(new OperationalDashboardOut());
+            return Ok(new OperationalDashboardOut { GeneratedAt = now });
 
         var output = new OperationalDashboardOut
         {
+            GeneratedAt = now,
+            HasDeviceScope = deviceLicenseIds.Count > 0,
+            HasCredentialScope = credentialLicenseIds.Count > 0,
+            HasAlertScope = alertLicenseIds.Count > 0,
+            HasBookingScope = bookingLicenseIds.Count > 0,
+            HasEventScope = eventLicenseIds.Count > 0,
             LicenseCount = licenses.Count,
             ResidentCount = await context.Residents.AsNoTracking()
                 .CountAsync(x => peopleLicenseIds.Contains(x.Unit.Block.LicenseId)),
             DeviceCount = await context.Devices.AsNoTracking()
                 .CountAsync(x => deviceLicenseIds.Contains(x.LicenseId)),
             OnlineDeviceCount = await context.Devices.AsNoTracking()
-                .CountAsync(x => deviceLicenseIds.Contains(x.LicenseId) && x.IsActive),
+                .CountAsync(x => deviceLicenseIds.Contains(x.LicenseId) && x.IsActive &&
+                    x.LastSeenAt.HasValue && x.LastSeenAt >= onlineThreshold),
             CredentialCount = await context.ResidentAccessCredentials.AsNoTracking()
                 .CountAsync(x => credentialLicenseIds.Contains(x.Resident.Unit.Block.LicenseId)),
             PendingCredentialCount = await context.ResidentAccessDevices.AsNoTracking()
@@ -66,9 +80,9 @@ public sealed class OperationsController(
                     x.SyncStatus != CredentialSyncStatusEnum.Synced &&
                     x.SyncStatus != CredentialSyncStatusEnum.Removed),
             AccessEventCount = await context.AccessEventRecords.AsNoTracking()
-                .CountAsync(x => eventLicenseIds.Contains(x.LicenseId) && x.OccurredAt >= since),
+                .CountAsync(x => eventLicenseIds.Contains(x.LicenseId) && x.OccurredAt >= since && x.OccurredAt < end),
             AuthorizedAccessCount = await context.AccessEventRecords.AsNoTracking()
-                .CountAsync(x => eventLicenseIds.Contains(x.LicenseId) && x.OccurredAt >= since && x.Authorized),
+                .CountAsync(x => eventLicenseIds.Contains(x.LicenseId) && x.OccurredAt >= since && x.OccurredAt < end && x.Authorized),
             PendingBookingCount = await context.AmenityBookings.AsNoTracking()
                 .CountAsync(x => bookingLicenseIds.Contains(x.LicenseId) && x.Status == AmenityBookingStatusEnum.Pending),
             TodayBookingCount = await context.AmenityBookings.AsNoTracking()
@@ -88,32 +102,30 @@ public sealed class OperationsController(
             .CountAsync(x => credentialLicenseIds.Contains(x.Credential.Resident.Unit.Block.LicenseId) &&
                 x.SyncStatus == CredentialSyncStatusEnum.Synced);
         var trackedBindings = syncedBindings + output.PendingCredentialCount;
+        output.TrackedCredentialBindingCount = trackedBindings;
         output.SynchronizationRate = trackedBindings == 0
-            ? 100
+            ? 0
             : Math.Round(syncedBindings * 100m / trackedBindings, 1);
         output.AuthorizationRate = output.AccessEventCount == 0
             ? 0
             : Math.Round(output.AuthorizedAccessCount * 100m / output.AccessEventCount, 1);
 
         var trendRows = await context.AccessEventRecords.AsNoTracking()
-            .Where(x => eventLicenseIds.Contains(x.LicenseId) && x.OccurredAt >= since)
-            .GroupBy(x => new { x.OccurredAt.Year, x.OccurredAt.Month, x.OccurredAt.Day })
+            .Where(x => eventLicenseIds.Contains(x.LicenseId) && x.OccurredAt >= since && x.OccurredAt < end)
+            .GroupBy(x => TimeZoneInfo.ConvertTimeBySystemTimeZoneId(x.OccurredAt, timeZone).Date)
             .Select(group => new
             {
-                group.Key.Year,
-                group.Key.Month,
-                group.Key.Day,
+                Date = group.Key,
                 Authorized = group.Count(x => x.Authorized),
                 Denied = group.Count(x => !x.Authorized)
             })
             .ToListAsync();
 
         output.AccessTrend = Enumerable.Range(0, 14)
-            .Select(offset => since.AddDays(offset))
+            .Select(offset => localToday.AddDays(-13 + offset))
             .Select(date =>
             {
-                var row = trendRows.FirstOrDefault(x =>
-                    x.Year == date.Year && x.Month == date.Month && x.Day == date.Day);
+                var row = trendRows.FirstOrDefault(x => x.Date == date);
                 return new OperationalTrendPointOut
                 {
                     Date = date,
@@ -140,11 +152,12 @@ public sealed class OperationsController(
             })
             .ToListAsync();
 
-        var alertLicenseIds = PermissionScope(permissionMap, LicensePermissionEnum.ViewAlerts);
-        output.Alerts = await context.OperationalAlerts.AsNoTracking()
+        var openAlerts = context.OperationalAlerts.AsNoTracking()
             .Where(x => x.LicenseId != null &&
                         alertLicenseIds.Contains(x.LicenseId.Value) &&
-                        x.Status != OperationalAlertStatus.Resolved)
+                        x.Status != OperationalAlertStatus.Resolved);
+        output.ActiveAlertCount = await openAlerts.CountAsync();
+        output.Alerts = await openAlerts
             .OrderByDescending(x => x.Severity)
             .ThenByDescending(x => x.LastOccurredAt)
             .Take(12)

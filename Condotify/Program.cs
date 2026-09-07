@@ -52,6 +52,8 @@ builder.Services.AddSingleton<WebSessionRefreshCoordinator>();
 builder.Services.AddSingleton<PortalAssistantKnowledge>();
 builder.Services.AddScoped<ISessionContextProvider, ClaimsSessionContextProvider>();
 builder.Services.AddScoped<CondotifyApiClient>();
+builder.Services.AddScoped<PortalLicenseContext>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

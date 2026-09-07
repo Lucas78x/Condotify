@@ -26,11 +26,15 @@ else if (_dashboard is null)
 }
 else
 {
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-4" role="status">@_error Exibindo a última consulta disponível.</MudAlert>
+    }
     <div class="stats-grid operations-stats">
-        <StatTile Label="Equipamentos" Value="@($"{_dashboard.OnlineDeviceCount}/{_dashboard.DeviceCount}")" Icon="@Icons.Material.Outlined.Sensors" Hint="terminais online" Tone="blue" />
-        <StatTile Label="Sincronização" Value="@($"{_dashboard.SynchronizationRate:N1}%")" Icon="@Icons.Material.Outlined.Sync" Hint="@($"{_dashboard.PendingCredentialCount} pendência(s)")" Tone="green" />
-        <StatTile Label="Acessos" Value="@_dashboard.AccessEventCount.ToString()" Icon="@Icons.Material.Outlined.FactCheck" Hint="@AccessRateHint" Tone="amber" />
-        <StatTile Label="Requer atenção" Value="@AttentionCount.ToString()" Icon="@Icons.Material.Outlined.NotificationImportant" Hint="alertas operacionais" Tone="red" />
+        <StatTile Label="Equipamentos" Value="@(_dashboard.HasDeviceScope ? $"{_dashboard.OnlineDeviceCount}/{_dashboard.DeviceCount}" : "—")" Icon="@Icons.Material.Outlined.Sensors" Hint="terminais online" Tone="blue" />
+        <StatTile Label="Sincronização" Value="@(_dashboard.HasCredentialScope && _dashboard.TrackedCredentialBindingCount > 0 ? $"{_dashboard.SynchronizationRate:N1}%" : "—")" Icon="@Icons.Material.Outlined.Sync" Hint="@($"{_dashboard.PendingCredentialCount} pendência(s)")" Tone="green" />
+        <StatTile Label="Acessos" Value="@(_dashboard.HasEventScope ? _dashboard.AccessEventCount.ToString() : "—")" Icon="@Icons.Material.Outlined.FactCheck" Hint="@AccessRateHint" Tone="amber" />
+        <StatTile Label="Requer atenção" Value="@(_alertSummary is null ? "—" : AttentionCount.ToString())" Icon="@Icons.Material.Outlined.NotificationImportant" Hint="alertas operacionais" Tone="red" />
     </div>
 
     <div class="operations-grid">
@@ -79,9 +83,9 @@ else
                 </div>
             </div>
             <div class="health-metric-list">
-                @HealthMetric("Credenciais", _dashboard.CredentialCount - _dashboard.PendingCredentialCount, _dashboard.CredentialCount, Icons.Material.Outlined.Badge, "green")
+                @HealthMetric("Distribuição de credenciais", _dashboard.TrackedCredentialBindingCount - _dashboard.PendingCredentialCount, _dashboard.TrackedCredentialBindingCount, Icons.Material.Outlined.Badge, "green")
                 @HealthMetric("Equipamentos", _dashboard.OnlineDeviceCount, _dashboard.DeviceCount, Icons.Material.Outlined.Sensors, "blue")
-                @HealthMetric("Reservas de hoje", _dashboard.TodayBookingCount, Math.Max(_dashboard.TodayBookingCount, 1), Icons.Material.Outlined.EventAvailable, "violet")
+                <p>Reservas de hoje: @(_dashboard.HasBookingScope ? _dashboard.TodayBookingCount.ToString() : "Sem acesso aos dados")</p>
             </div>
             <div class="operations-queue-strip">
                 <span><strong>@_dashboard.PendingBatchCount</strong><small>Na fila</small></span>
@@ -226,7 +230,7 @@ else
                     <MudText Typo="Typo.caption" Color="Color.Secondary">Itens priorizados para intervenção</MudText>
                 </div>
                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@(AttentionCount > 0 ? Color.Warning : Color.Success)">
-                    @(AttentionCount > 0 ? $"{AttentionCount} alerta(s)" : "Tudo em ordem")
+                    @(AttentionCount > 0 ? $"{AttentionCount} alerta(s)" : _alertSummary is null ? "Consulta indisponível" : "Nenhum alerta aberto")
                 </MudChip>
             </div>
             <OperationalAlertCenter />
@@ -274,7 +278,7 @@ else
 }
 
 @code {
-    private bool _loading = true;
+    private bool _loading;
     private string? _error;
     private string? _jobsError;
     private OperationalDashboardViewModel? _dashboard;
@@ -322,6 +326,7 @@ else
 
     private async Task LoadAsync()
     {
+        if (_loading) return;
         _loading = true;
         _error = null;
         var dashboardTask = Api.GetOperationalDashboardAsync();
@@ -340,6 +345,8 @@ else
             _error = result.Error;
         if (alerts.Success)
             _alertSummary = alerts.Value;
+        else
+            _alertSummary = null;
         if (jobs.Success)
             _jobs = jobs.Value ?? [];
         else
@@ -569,10 +576,10 @@ else
 
     private RenderFragment HealthMetric(string label, int value, int total, string icon, string tone) => @<div class="health-metric">
         <span class="overview-icon @tone"><MudIcon Icon="@icon" /></span>
-        <span class="health-metric-copy"><strong>@label</strong><small>@value de @total em condição esperada</small></span>
-        <span class="health-metric-value">@Percentage(value, total).ToString("N0", CultureInfo.GetCultureInfo("pt-BR"))%</span>
+        <span class="health-metric-copy"><strong>@label</strong><small>@(total > 0 ? $"{value} de {total} em condição esperada" : "Sem dados para avaliar")</small></span>
+        <span class="health-metric-value">@(total > 0 ? $"{Percentage(value, total):N0}%" : "—")</span>
         <MudProgressLinear Value="@Percentage(value, total)" Color="@(tone == "green" ? Color.Success : Color.Primary)" Rounded="false" />
     </div>;
 
-    private static double Percentage(int value, int total) => total <= 0 ? 100 : Math.Clamp(value * 100d / total, 0, 100);
+    private static double Percentage(int value, int total) => total <= 0 ? 0 : Math.Clamp(value * 100d / total, 0, 100);
 }
