@@ -4064,3 +4064,21 @@ details[open] > :not(summary) {
     .operations-live-state i,
     .operations-job-card.running .operations-job-icon .mud-icon-root { animation: none !important; }
 }
+
+
+/* The context menu is rendered by MudPopoverProvider outside the layout's CSS scope. */
+.mud-popover.portal-context-popover {
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 14px;
+    overflow: hidden;
+}
+@media (max-width: 760px) {
+    .mud-popover.portal-context-popover {
+        left: 12px !important;
+        right: 12px !important;
+        width: auto !important;
+        max-width: calc(100vw - 24px);
+        transform: none !important;
+    }
+    .mud-popover.portal-context-popover .context-options { width: 100%; }
+}
