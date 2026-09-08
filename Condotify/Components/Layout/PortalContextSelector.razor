@@ -5,14 +5,7 @@
 @inject CondotifyApiClient Api
 @inject NavigationManager Navigation
 
-<div class="context-selector">
-    <label for="portal-license-context">Condomínio de trabalho</label>
-    <select id="portal-license-context" value="@Context.License?.Id" @onchange="ChangeAsync" disabled="@_loading">
-        <option value="">Todos os condomínios</option>
-        @foreach (var license in _licenses) { <option value="@license.Id">@license.Nome</option> }
-    </select>
-    @if (_error is not null) { <span role="status">@_error</span> }
-</div>
+<PortalContextMenu Licenses="_licenses" SelectedLicense="Context.License" Loading="_loading" Error="_error" Selected="ChangeAsync" />
 
 @code {
     private List<LicenseViewModel> _licenses = [];
@@ -44,10 +37,10 @@
         StateHasChanged();
     }
 
-    private async Task ChangeAsync(ChangeEventArgs args)
+    private async Task ChangeAsync(string? licenseId)
     {
         _loading = true;
-        var selected = _licenses.FirstOrDefault(x => x.Id == args.Value?.ToString());
+        var selected = _licenses.FirstOrDefault(x => x.Id == licenseId);
         await SelectAsync(selected);
         var path = new Uri(Navigation.Uri).AbsolutePath;
         if (selected is null) Navigation.NavigateTo("/");

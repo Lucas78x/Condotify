@@ -1,0 +1,52 @@
+<div class="context-switcher">
+    <MudMenu @bind-Open="_open" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" Disabled="Loading" ListClass="pa-0" PopoverClass="portal-context-popover">
+        <ActivatorContent Context="menu">
+            <button type="button" class="context-trigger" disabled="@Loading" aria-haspopup="menu" aria-expanded="@(_open ? "true" : "false")" aria-label="@($"Trocar condomínio: {SelectedName}")" @onclick="menu.ToggleAsync" @onkeydown="HandleKeyDown">
+                <span class="context-mark" aria-hidden="true"><MudIcon Icon="@Icons.Material.Outlined.Apartment" Size="Size.Small" /></span>
+                <span class="context-copy"><span class="context-label">@(Loading ? "Carregando" : "Condomínio")</span><strong title="@SelectedName">@SelectedName</strong></span>
+                <MudIcon Icon="@Icons.Material.Outlined.ExpandMore" Size="Size.Small" Class="context-chevron" />
+            </button>
+        </ActivatorContent>
+        <ChildContent>
+            <div class="context-options" role="menu" aria-label="Condomínios disponíveis" @onkeydown="HandleKeyDown">
+                <div class="context-menu-heading"><strong>Seu ambiente de trabalho</strong><span>Escolha o condomínio que deseja acessar.</span></div>
+                <MudMenuItem OnClick="@(() => ChooseAsync(null))" role="menuitem" aria-current="@(SelectedLicense is null ? "true" : null)">
+                    <div class="context-option @(SelectedLicense is null ? "is-selected" : null)">
+                        <span class="option-mark"><MudIcon Icon="@Icons.Material.Outlined.GridView" Size="Size.Small" /></span>
+                        <span class="option-copy"><strong>Todos os condomínios</strong><small>Visão consolidada</small></span>
+                        @if (SelectedLicense is null) { <MudIcon Icon="@Icons.Material.Outlined.Check" Size="Size.Small" Class="option-check" /> }
+                    </div>
+                </MudMenuItem>
+                @if (Licenses.Count > 0) { <div class="context-section-label">CONDOMÍNIOS</div> }
+                <div class="context-license-list">
+                    @foreach (var license in Licenses)
+                    {
+                        <MudMenuItem @key="license.Id" OnClick="@(() => ChooseAsync(license.Id))" role="menuitem" aria-current="@(SelectedLicense?.Id == license.Id ? "true" : null)">
+                            <div class="context-option @(SelectedLicense?.Id == license.Id ? "is-selected" : null)">
+                                <span class="option-mark"><MudIcon Icon="@Icons.Material.Outlined.Apartment" Size="Size.Small" /></span>
+                                <span class="option-copy"><strong>@license.Nome</strong><small>@Location(license)</small></span>
+                                @if (SelectedLicense?.Id == license.Id) { <MudIcon Icon="@Icons.Material.Outlined.Check" Size="Size.Small" Class="option-check" /> }
+                            </div>
+                        </MudMenuItem>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Error)) { <p class="context-error" role="status">@Error</p> }
+            </div>
+        </ChildContent>
+    </MudMenu>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<LicenseViewModel> Licenses { get; set; } = [];
+    [Parameter] public LicenseViewModel? SelectedLicense { get; set; }
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback<string?> Selected { get; set; }
+    private bool _open;
+    private void HandleKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") _open = false; }
+    private string SelectedName => SelectedLicense?.Nome ?? "Todos os condomínios";
+    private async Task ChooseAsync(string? id) { _open = false; await Selected.InvokeAsync(id); }
+    private static string Location(LicenseViewModel license) => !string.IsNullOrWhiteSpace(license.Cidade)
+        ? string.Join(" · ", new[] { license.Cidade, license.Estado }.Where(x => !string.IsNullOrWhiteSpace(x)))
+        : !string.IsNullOrWhiteSpace(license.Codigo) ? license.Codigo : "Acessar condomínio";
+}

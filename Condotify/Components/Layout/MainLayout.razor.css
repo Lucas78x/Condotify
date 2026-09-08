@@ -1,0 +1,8 @@
+.appbar-context { display:flex; min-width:0; flex:0 1 320px; }
+.appbar-spacer { flex-grow:1; }
+@media(max-width:760px) {
+    .appbar-context { display:flex; flex:1; min-width:0; }
+    ::deep .portal-appbar .mud-toolbar { padding-inline:4px; gap:4px; }
+    ::deep .portal-appbar .appbar-search { display:none; }
+    ::deep .portal-appbar .appbar-spacer { display:none; }
+}

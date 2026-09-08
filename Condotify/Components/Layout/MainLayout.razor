@@ -10,13 +10,14 @@
 
 <span id="condotify-authenticated-session" hidden aria-hidden="true"></span>
 
+<div class="portal-shell">
 <MudLayout>
     <MudAppBar Elevation="0" Class="portal-appbar">
         <MudIconButton Icon="@Icons.Material.Outlined.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" Class="mobile-menu" />
         <div class="appbar-context">
             <PortalContextSelector />
         </div>
-        <MudSpacer />
+        <div class="appbar-spacer" aria-hidden="true"></div>
         <MudButton Href="/pesquisa" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Search" Class="appbar-search">Pesquisar pessoas e credenciais</MudButton>
         <AlertIndicator />
         <AuthorizeView>
@@ -53,6 +54,7 @@
 
     <PortalAssistant />
 </MudLayout>
+</div>
 
 @code {
     private bool _drawerOpen = true;
