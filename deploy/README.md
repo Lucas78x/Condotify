@@ -125,6 +125,23 @@ de producao:
 7. Na VPS, execute `./deploy/deploy-vps.sh` somente depois que as imagens do
    commit resultante do merge tiverem sido publicadas.
 
+### Imagens ausentes (`manifest unknown`)
+
+O deploy procura as tres imagens com a tag `sha-COMMIT` do topo da branch.
+Se o CI desse commit falhou ou ainda nao publicou as imagens, o download falha
+antes de interromper os servicos. Confira a execucao correspondente em Actions;
+um checkout atualizado nao garante que a publicacao terminou.
+
+Reexecute os jobs com falha quando essa opcao estiver disponivel. Para uma
+execucao antiga, use `Actions > ci > Run workflow` selecionando
+`feature/ff-access-branding`. O disparo manual tambem publica as imagens nas
+branches de producao, depois de todas as validacoes. Aguarde o `ci-gate` ficar
+verde antes de executar novamente `./deploy/deploy-vps.sh` na VPS.
+
+Falhas de armazenamento dos relatorios TRX geram avisos, mas nao substituem o
+resultado dos testes. Falhas nos testes, no Compose ou na construcao/publicacao
+das imagens continuam bloqueando o CI.
+
 Se a branch de producao for alterada futuramente, atualize em conjunto o alvo do
 ruleset, os gatilhos de `.github/workflows/ci.yml` e `CONDOTIFY_DEPLOY_BRANCH`.
 
